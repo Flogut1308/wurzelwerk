@@ -1,33 +1,13 @@
-import { app, BrowserWindow } from 'electron'
-import { join } from 'node:path'
-
-function hauptfensterErzeugen(): void {
-  const hauptfenster = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    show: false,
-    title: 'Wurzelwerk',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  })
-
-  hauptfenster.once('ready-to-show', () => {
-    hauptfenster.show()
-  })
-
-  const rendererDevServerUrl = process.env['ELECTRON_RENDERER_URL']
-  if (rendererDevServerUrl !== undefined) {
-    void hauptfenster.loadURL(rendererDevServerUrl)
-  } else {
-    void hauptfenster.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
+import { app, BrowserWindow, Menu } from 'electron'
+import { hauptfensterErzeugen } from './fenster/hauptfenster'
+import { ipcRegistrierung } from './ipc/registrierung'
+import { menueErzeugen } from './menue/menue'
+import { protokollEinrichten } from './protokoll/logger'
 
 void app.whenReady().then(() => {
+  protokollEinrichten()
+  ipcRegistrierung()
+  Menu.setApplicationMenu(menueErzeugen())
   hauptfensterErzeugen()
 
   app.on('activate', () => {
