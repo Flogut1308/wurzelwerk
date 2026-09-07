@@ -73,6 +73,13 @@ export function projektOrdnerAnlegen(ein: ProjektOrdnerAnlegenEin): ProjektOrdne
   const ordnerPfad = join(ein.elternordner, `${ein.projektname}${PROJEKT_ORDNER_ENDUNG}`)
   const pfade = projektOrdnerPfade(ordnerPfad)
 
+  // Ein vorhandenes manifest.json markiert einen bereits angelegten Projektordner. Ohne diese
+  // Prüfung würde `writeFileSync(dbPfad, …)` eine bestehende baum.sqlite still mit einer leeren
+  // Datei überschreiben — ab AP-0.6 wäre das Datenverlust.
+  if (existsSync(pfade.manifestPfad)) {
+    throw new WurzelFehler('KONFLIKT_BEREITS_VORHANDEN')
+  }
+
   mkdirSync(pfade.ordnerPfad, { recursive: true })
   mkdirSync(pfade.medienPfad, { recursive: true })
   mkdirSync(pfade.snapshotsPfad, { recursive: true })

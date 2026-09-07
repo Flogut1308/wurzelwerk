@@ -53,6 +53,20 @@ describe('main/projekt/ordnerformat (50_Datenmodell.md §3)', () => {
     expect(manifest.projektname).toBe('Müller Familie')
   })
 
+  it('legt kein zweites Mal an, wenn dort schon ein Projekt liegt → KONFLIKT_BEREITS_VORHANDEN', () => {
+    projektOrdnerAnlegen({ elternordner, projektname: 'Testbaum' })
+
+    try {
+      projektOrdnerAnlegen({ elternordner, projektname: 'Testbaum' })
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.code).toBe('KONFLIKT_BEREITS_VORHANDEN')
+      }
+    }
+  })
+
   it('leseManifest liest ein zuvor angelegtes Projekt korrekt', () => {
     const { pfade, manifest } = projektOrdnerAnlegen({ elternordner, projektname: 'Testbaum' })
     expect(leseManifest(pfade.ordnerPfad)).toEqual(manifest)
