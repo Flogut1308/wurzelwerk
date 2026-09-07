@@ -227,3 +227,11 @@ Aus dem Abgleich mit MyHeritage (Family Tree Builder), Legacy und der MyHeritage
 | D3 | Lebensstationen + Arten-Katalog | in Scope (A-23) | E47; Modell-Abgleich V18 |
 | D4 | „Aus Statistik ausschließen" | aufgenommen | A-24 |
 | D5 | Fehlende Bildschirme | als Design-Prompt formuliert | 74_Prompts §14 (Wellen 7–9) |
+
+---
+
+## 9. Umsetzungsentscheidungen aus den Arbeitspaketen
+
+| # | Punkt | Entscheidung | Grund | Wo |
+|---|---|---|---|---|
+| U-AP03 | **i18n-Ressourcen-Pfad** — AP-0.3 nennt als Ablageort `src/renderer/i18n/de/*.json`. | Ressourcen liegen unter **`src/shared/i18n/de/*.json`**; nur `einrichten.ts` bleibt unter `src/renderer/i18n/`. | Die Menü-Beschriftungen werden im **Main**-Prozess gebaut (`src/main/menue/menue.ts`), und **Main darf `src/renderer/` nie importieren** (CLAUDE.md §2, harte Grenze). `src/shared` ist die einzige Schicht, die Main **und** Renderer lesen dürfen. §2 gewinnt gegen die Pfadangabe der AP. | AP-0.3, PR #3 |
