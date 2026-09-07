@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
-import { SCHEMA_VERSION } from '../../shared/konstanten'
+import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 
 /** 50_Datenmodell.md §3: die Endung, die einen Ordner als Wurzelwerk-Projekt kennzeichnet. */
 export const PROJEKT_ORDNER_ENDUNG = '.ahnen'
@@ -88,7 +88,7 @@ export function projektOrdnerAnlegen(ein: ProjektOrdnerAnlegenEin): ProjektOrdne
 
   const manifest: ProjektManifest = {
     typ: MANIFEST_TYP,
-    schemaversion: SCHEMA_VERSION,
+    schemaversion: MANIFEST_SCHEMAVERSION,
     appVersion: app.getVersion(),
     projektname: ein.projektname,
     erstelltAm: new Date().toISOString(),

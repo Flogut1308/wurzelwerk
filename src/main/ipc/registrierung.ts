@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { z } from 'zod'
 import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
-import { SCHEMA_VERSION } from '../../shared/konstanten'
+import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { protokollFehler } from '../protokoll/logger'
 import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
@@ -33,7 +33,7 @@ const projektOeffnenEingabeSchema: z.ZodType<Ein<'befehl:projekt.oeffnen'>> = z.
 export function ipcRegistrierung(): void {
   registriere('abfrage:version', z.null(), () => ({
     app: app.getVersion(),
-    schema: SCHEMA_VERSION,
+    schema: MANIFEST_SCHEMAVERSION,
     electron: process.versions.electron,
   }))
 
