@@ -1,0 +1,110 @@
+{
+  "IPC_UNBEKANNTER_KANAL": {
+    "titel": "Unbekannter Kanal",
+    "was_tun": "Die Anwendung neu starten. Tritt der Fehler erneut auf, das Protokoll prüfen und einen Fehlerbericht einreichen."
+  },
+  "IPC_UNGUELTIGE_NUTZLAST": {
+    "titel": "Ungültige Anfrage",
+    "was_tun": "Die zuletzt ausgeführte Aktion wiederholen. Bleibt der Fehler bestehen, die Anwendung neu starten."
+  },
+  "VALIDIERUNG_PFLICHTFELD": {
+    "titel": "Pflichtfeld fehlt",
+    "was_tun": "Das markierte Feld ausfüllen und erneut speichern."
+  },
+  "VALIDIERUNG_WERTEBEREICH": {
+    "titel": "Wert außerhalb des zulässigen Bereichs",
+    "was_tun": "Den eingegebenen Wert prüfen und innerhalb des zulässigen Bereichs anpassen."
+  },
+  "VALIDIERUNG_DATUM_UNLESBAR": {
+    "titel": "Datum nicht lesbar",
+    "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."
+  },
+  "NICHT_GEFUNDEN_PERSON": {
+    "titel": "Person nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Person tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_ORT": {
+    "titel": "Ort nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Ort tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_TRANSAKTION": {
+    "titel": "Vorgang nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Der Vorgang wurde möglicherweise bereits abgeschlossen oder zurückgenommen."
+  },
+  "KONFLIKT_ZYKLUS": {
+    "titel": "Verwandtschaft würde einen Zyklus erzeugen",
+    "was_tun": "Die Elternschaft nicht anlegen — eine Person kann nicht ihr eigener Vorfahre sein. Die Beziehung prüfen und korrigieren."
+  },
+  "KONFLIKT_BEREITS_VORHANDEN": {
+    "titel": "Eintrag bereits vorhanden",
+    "was_tun": "Den bestehenden Eintrag verwenden statt einen neuen anzulegen, oder den vorhandenen Eintrag zuerst entfernen."
+  },
+  "BEFEHL_VERSCHACHTELT": {
+    "titel": "Befehl bereits in Bearbeitung",
+    "was_tun": "Warten, bis der laufende Vorgang abgeschlossen ist, und die Aktion danach erneut ausführen."
+  },
+  "JOURNAL_NICHTS_ZURUECKZUNEHMEN": {
+    "titel": "Nichts zum Rückgängigmachen",
+    "was_tun": "Es liegt keine weitere Aktion vor, die zurückgenommen werden kann."
+  },
+  "JOURNAL_NICHTS_WIEDERHOLBAR": {
+    "titel": "Nichts zum Wiederholen",
+    "was_tun": "Es liegt keine zuvor zurückgenommene Aktion vor, die wiederholt werden kann."
+  },
+  "JOURNAL_NICHT_RUECKNEHMBAR": {
+    "titel": "Aktion kann nicht zurückgenommen werden",
+    "was_tun": "Diese Aktion ist unwiderruflich. Den gewünschten Zustand über eine neue Aktion wiederherstellen."
+  },
+  "DATENBANK_GESPERRT": {
+    "titel": "Datenbank ist gesperrt",
+    "was_tun": "Prüfen, ob das Projekt in einem anderen Fenster geöffnet ist, und es dort schließen. Danach erneut versuchen."
+  },
+  "DATENBANK_FREMDSCHLUESSEL": {
+    "titel": "Verweis verletzt eine Fremdschlüsselbeziehung",
+    "was_tun": "Zuerst die abhängigen Einträge entfernen oder anpassen, bevor dieser Eintrag gelöscht wird."
+  },
+  "DATENBANK_INTEGRITAET": {
+    "titel": "Datenbankintegrität verletzt",
+    "was_tun": "Die Anwendung schließen und die Projektdatei sichern. Danach den Support mit dem Protokoll kontaktieren."
+  },
+  "PROJEKT_BEREITS_GEOEFFNET": {
+    "titel": "Projekt bereits geöffnet",
+    "was_tun": "Das bereits geöffnete Fenster verwenden, oder das Projekt dort zuerst schließen."
+  },
+  "PROJEKT_KEIN_WURZELWERK_ORDNER": {
+    "titel": "Kein gültiger Projektordner",
+    "was_tun": "Einen Ordner auswählen, der zuvor mit Wurzelwerk angelegt wurde."
+  },
+  "PROJEKT_NEUERE_SCHEMAVERSION": {
+    "titel": "Projekt stammt aus einer neueren Version",
+    "was_tun": "Wurzelwerk auf die neueste Version aktualisieren, bevor dieses Projekt geöffnet wird."
+  },
+  "PROJEKT_MIGRATION_GEAENDERT": {
+    "titel": "Migrationsdatei wurde verändert",
+    "was_tun": "Das Projekt nicht öffnen. Die installierte Anwendung neu einrichten und den Support kontaktieren."
+  },
+  "DATEI_NICHT_LESBAR": {
+    "titel": "Datei nicht lesbar",
+    "was_tun": "Prüfen, ob die Datei noch existiert und Leserechte bestehen, und es erneut versuchen."
+  },
+  "DATEI_KEIN_PLATZ": {
+    "titel": "Kein freier Speicherplatz",
+    "was_tun": "Speicherplatz auf dem Datenträger freigeben und den Vorgang erneut starten."
+  },
+  "IMPORT_VERTRAG_UNBEKANNT": {
+    "titel": "Unbekanntes Importformat",
+    "was_tun": "Eine Datei in einem unterstützten Format auswählen."
+  },
+  "IMPORT_SCHEMA_FEHLER": {
+    "titel": "Importdatei entspricht nicht dem erwarteten Aufbau",
+    "was_tun": "Die Datei in der Quellsoftware prüfen und erneut exportieren."
+  },
+  "IMPORT_REFERENZ_FEHLT": {
+    "titel": "Verweis in der Importdatei fehlt",
+    "was_tun": "Die Importdatei auf vollständige Verweise prüfen und erneut exportieren."
+  },
+  "INTERN_UNERWARTET": {
+    "titel": "Unerwarteter interner Fehler",
+    "was_tun": "Die Anwendung neu starten. Tritt der Fehler weiterhin auf, das Protokoll an den Support senden."
+  }
+}
