@@ -1,5 +1,8 @@
+import type Database from 'better-sqlite3'
 import { app } from 'electron'
+import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Kontext } from '../ipc/huelle'
 import type {
   ProjektAnlegenEin,
@@ -10,11 +13,36 @@ import type {
 } from '../../shared/ipc/vertrag'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollInfo } from '../protokoll/logger'
+import { integritaetPruefen } from '../datenbank/integritaet'
+import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade, type ProjektManifest, type ProjektOrdnerPfade } from './ordnerformat'
 import { sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
 import { syncAnbieterErkennen } from './sync-ordner-warnung'
 import { zuletztHinzufuegen, zuletztLesen } from './zuletzt-speicher'
+
+/**
+ * Liest `user_version`, ohne den unbekannten Rückgabetyp von `db.pragma()` zu casten — nur für den
+ * Dateinamen des Platzhalter-Schnappschusses gebraucht, darum ein stiller Fallback auf `0` statt
+ * eines Wurfs.
+ */
+function quellVersionErmitteln(db: Database.Database): number {
+  const wert = db.pragma('user_version', { simple: true })
+  return typeof wert === 'number' && Number.isInteger(wert) ? wert : 0
+}
+
+/**
+ * Schnappschuss-Platzhalter bis AP-0.11 (echte Aufbewahrung/Rotation/Wiederherstellung folgen
+ * dort): ein `VACUUM INTO` direkt in `snapshots/` vor jeder Migration, benannt nach der
+ * Quellversion. Der Zielpfad geht als gebundener Parameter in die Anweisung (nicht per
+ * String-Verkettung) — Projekt- und damit Ordnernamen können Apostrophe enthalten (O'Brien,
+ * d'Aboville, §11).
+ */
+function schnappschussVacuumInto(db: Database.Database, pfade: ProjektOrdnerPfade): void {
+  mkdirSync(pfade.snapshotsPfad, { recursive: true })
+  const zielPfad = join(pfade.snapshotsPfad, `vor-migration-${String(quellVersionErmitteln(db))}.sqlite`)
+  db.prepare('VACUUM INTO ?').run(zielPfad)
+}
 
 /**
  * Orchestriert anlegen/öffnen/schließen (AP-0.4). Der Prozess hält höchstens ein offenes Projekt
@@ -43,11 +71,16 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void 
     projektSchliessen()
   }
   const db = oeffnen(pfade.dbPfad)
+  integritaetPruefen(db)
+  migrieren(db, {
+    appVersion: app.getVersion(),
+    schnappschussVor: (geoeffnet) => schnappschussVacuumInto(geoeffnet, pfade),
+  })
   sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
   offenesProjekt = { db, pfade, info }
 }
 
-/** `befehl:projekt.anlegen`. Kein Vorgriff auf AP-0.5: das Projekt wird direkt geöffnet. */
+/** `befehl:projekt.anlegen`. Das Projekt wird direkt geöffnet — dabei läuft es durch `projektUebernehmen` automatisch auf `SCHEMA_VERSION` hoch (AP-0.5). */
 export function projektAnlegen(ein: ProjektAnlegenEin): ProjektInfo {
   const { pfade, manifest } = projektOrdnerAnlegen({ elternordner: ein.elternordner, projektname: ein.name })
   const info = projektInfoAus(pfade, manifest)

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SCHEMA_VERSION } from '../../src/shared/konstanten'
+import { MANIFEST_SCHEMAVERSION } from '../../src/shared/konstanten'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false } }))
@@ -37,7 +37,7 @@ describe('main/projekt/ordnerformat (50_Datenmodell.md §3)', () => {
 
     expect(manifest).toEqual({
       typ: 'wurzelwerk-projekt',
-      schemaversion: SCHEMA_VERSION,
+      schemaversion: MANIFEST_SCHEMAVERSION,
       appVersion: '0.1.0-test',
       projektname: 'Testbaum',
       erstelltAm: expect.any(String),

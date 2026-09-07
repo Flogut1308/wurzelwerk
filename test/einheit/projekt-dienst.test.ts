@@ -1,9 +1,11 @@
+import Database from 'better-sqlite3'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Kontext } from '../../src/main/ipc/huelle'
+import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false } }))
@@ -65,6 +67,19 @@ describe('main/projekt/projekt-dienst', () => {
       schemaversion: expect.any(String),
     })
     expect(existsSync(sperrdateiPfad(info.pfad))).toBe(true)
+  })
+
+  it('projektAnlegen migriert die neue Datenbank auf SCHEMA_VERSION (AP-0.5)', () => {
+    const info = projektAnlegen({ elternordner, name: 'Testbaum' })
+
+    const pruefverbindung = new Database(join(info.pfad, 'baum.sqlite'))
+    try {
+      expect(pruefverbindung.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      const migrationsZeilen = pruefverbindung.prepare('SELECT version FROM schema_migration').all()
+      expect(migrationsZeilen).toHaveLength(1)
+    } finally {
+      pruefverbindung.close()
+    }
   })
 
   it('projektAnlegen trägt das Projekt vorne in die Zuletzt-Liste ein', () => {

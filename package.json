@@ -19,6 +19,7 @@
     "test:budget": "vitest run --passWithNoTests test/budget",
     "trigger": "tsx skripte/trigger-generieren.ts",
     "schema:dump": "tsx skripte/schema-dump.ts",
+    "fixture:db": "tsx skripte/fixture-datenbank-bauen.ts",
     "pruefe": "pnpm typen && pnpm lint && pnpm grenzen && pnpm test",
     "build": "electron-vite build && electron-builder",
     "postinstall": "install-electron && electron-builder install-app-deps"

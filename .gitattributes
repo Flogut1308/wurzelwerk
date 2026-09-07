@@ -1,0 +1,10 @@
+# Migrations-SQL muss plattformübergreifend byte-identisch sein: die Prüfsumme in
+# src/main/datenbank/migration/registrierung.ts wird über die Rohbytes berechnet
+# (55_Architektur.md §9, CLAUDE.md §6 "Prüfsumme steht in registrierung.ts"). Ohne
+# erzwungenes LF liefert ein CRLF-Checkout unter Windows abweichende Rohbytes und damit eine
+# andere sha256 → PROJEKT_MIGRATION_GEAENDERT beim Öffnen jeder echten Projektdatei.
+*.sql text eol=lf
+
+# SQLite-Fixtures und Projektdatenbanken sind Binärdateien und dürfen nie
+# zeilenendennormalisiert werden (sonst Korruption beim Checkout).
+*.sqlite binary
