@@ -1,5 +1,28 @@
 {
   "app_titel": "Wurzelwerk",
   "titel_mit_schema": "Wurzelwerk — Schema {{schema, number}}",
-  "fehlergrenze": "Ein Fehler ist aufgetreten."
+  "fehlergrenze": "Ein Fehler ist aufgetreten.",
+
+  "start_neues_projekt_titel": "Neues Projekt",
+  "start_neues_projekt_elternordner_platzhalter": "Übergeordneter Ordner",
+  "start_neues_projekt_name_platzhalter": "Projektname",
+  "start_neues_projekt_button": "Neues Projekt anlegen",
+
+  "start_projekt_oeffnen_titel": "Projekt öffnen",
+  "start_projekt_oeffnen_platzhalter": "Pfad zum Projektordner (*.ahnen)",
+  "start_projekt_oeffnen_button": "Öffnen",
+
+  "start_zuletzt_titel": "Zuletzt geöffnet",
+  "start_zuletzt_leer": "Noch keine Projekte geöffnet.",
+
+  "start_sync_warnung_text": "Dieses Projekt liegt in einem {{anbieter}}-Ordner. Dort können SQLite-Dateien beschädigt werden.",
+  "start_sync_warnung_trotzdem_oeffnen": "Trotzdem öffnen",
+  "start_sync_warnung_abbrechen": "Abbrechen",
+
+  "start_sync_anbieter_dropbox": "Dropbox",
+  "start_sync_anbieter_icloud": "iCloud Drive",
+  "start_sync_anbieter_onedrive": "OneDrive",
+
+  "start_projekt_geoeffnet": "Projekt geöffnet: {{name}}",
+  "start_projekt_schliessen_button": "Projekt schließen"
 }

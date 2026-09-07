@@ -23,6 +23,7 @@ vi.mock('../../src/main/protokoll/logger', () => ({
 }))
 
 import { registriere } from '../../src/main/ipc/huelle'
+import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 function handlerHolen(kanal: string): RohHandler {
   const fn = handlerRegistrierung.get(kanal)
@@ -72,6 +73,20 @@ describe('ipc/huelle registriere()', () => {
     if (!ergebnis.ok) {
       expect(ergebnis.fehler.code).toBe('INTERN_UNERWARTET')
       expect(ergebnis.fehler.vorgangsId.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('WurzelFehler aus einem Handler → ok:false mit dessen eigenem Code, nicht INTERN_UNERWARTET', async () => {
+    registriere('abfrage:version', z.null(), () => {
+      throw new WurzelFehler('PROJEKT_KEIN_WURZELWERK_ORDNER')
+    })
+
+    const roh = await handlerHolen('abfrage:version')(undefined, null)
+    const ergebnis = roh as Ergebnis<VersionInfo> // RohHandler ist unknown, registriere() garantiert diese Form
+    expect(ergebnis.ok).toBe(false)
+    if (!ergebnis.ok) {
+      expect(ergebnis.fehler.code).toBe('PROJEKT_KEIN_WURZELWERK_ORDNER')
+      expect(ergebnis.fehler.textSchluessel).toBe('fehler.PROJEKT_KEIN_WURZELWERK_ORDNER')
     }
   })
 
