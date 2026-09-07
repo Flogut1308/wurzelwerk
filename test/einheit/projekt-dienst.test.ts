@@ -156,6 +156,9 @@ describe('main/projekt/projekt-dienst', () => {
     const ergebnis = projektOeffnen({ pfad: pfade.ordnerPfad, syncBestaetigt: true }, ktx, heimat)
     expect(ergebnis).toMatchObject({ status: 'geoeffnet' })
 
+    // Vor dem Löschen die offene Verbindung schließen: Windows kann eine Datei mit offenem Handle
+    // nicht entfernen (EBUSY). Das `projektSchliessen()` im afterEach greift erst nach dieser Zeile.
+    projektSchliessen()
     rmSync(heimat, { recursive: true, force: true })
   })
 })
