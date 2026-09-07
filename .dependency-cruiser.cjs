@@ -34,9 +34,10 @@ module.exports = {
     {
       name: 'preload-darf-nur-shared',
       severity: 'error',
-      comment: 'src/preload darf nur src/shared importieren.',
+      comment:
+        'src/preload darf nur src/shared importieren (+ electron selbst — contextBridge/ipcRenderer kommen von dort, 55_Architektur.md §2.1).',
       from: { path: '^src/preload' },
-      to: { pathNot: '^(src/shared|src/preload)' },
+      to: { pathNot: '^(src/shared|src/preload)|node_modules/electron/' },
     },
   ],
   options: {
