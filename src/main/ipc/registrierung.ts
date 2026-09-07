@@ -4,6 +4,7 @@ import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { SCHEMA_VERSION } from '../../shared/konstanten'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { protokollFehler } from '../protokoll/logger'
+import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
 import { registriere } from './huelle'
 
 // Erzwingt strukturell, dass dieses Schema zu `ProtokollMeldenEin` passt — eine Abweichung ist
@@ -13,6 +14,16 @@ const protokollMeldenEingabeSchema: z.ZodType<Ein<'befehl:protokoll.melden'>> = 
   nachricht: z.string(),
   stack: z.string().optional(),
   code: z.enum(ALLE_FEHLERCODES).optional(),
+})
+
+const projektAnlegenEingabeSchema: z.ZodType<Ein<'befehl:projekt.anlegen'>> = z.object({
+  elternordner: z.string(),
+  name: z.string(),
+})
+
+const projektOeffnenEingabeSchema: z.ZodType<Ein<'befehl:projekt.oeffnen'>> = z.object({
+  pfad: z.string(),
+  syncBestaetigt: z.boolean().optional(),
 })
 
 /**
@@ -33,4 +44,12 @@ export function ipcRegistrierung(): void {
     protokollFehler({ vorgangsId: ktx.vorgangsId, quelle: ein.quelle, code: ein.code })
     return null
   })
+
+  registriere('befehl:projekt.anlegen', projektAnlegenEingabeSchema, (ein) => projektAnlegen(ein))
+  registriere('befehl:projekt.oeffnen', projektOeffnenEingabeSchema, (ein, ktx) => projektOeffnen(ein, ktx))
+  registriere('befehl:projekt.schliessen', z.null(), () => {
+    projektSchliessen()
+    return null
+  })
+  registriere('abfrage:projekt.zuletzt', z.null(), () => projektZuletzt())
 }
