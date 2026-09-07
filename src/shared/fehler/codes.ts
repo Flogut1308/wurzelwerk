@@ -1,0 +1,47 @@
+/**
+ * Geschlossene Fehlercode-Union (55_Architektur.md §10.1, ADR-016, ADR-024).
+ *
+ * `ALLE_FEHLERCODES` ist die einzige Quelle der Wahrheit; `FehlerCode` wird daraus abgeleitet,
+ * damit die Liste und die Union nie auseinanderlaufen können. Ein neuer Fehlercode braucht eine
+ * Änderung genau hier — kein `code: string`, in dem Rechtschreibvarianten koexistieren.
+ */
+export const ALLE_FEHLERCODES = [
+  'IPC_UNBEKANNTER_KANAL',
+  'IPC_UNGUELTIGE_NUTZLAST',
+
+  'VALIDIERUNG_PFLICHTFELD',
+  'VALIDIERUNG_WERTEBEREICH',
+  'VALIDIERUNG_DATUM_UNLESBAR',
+
+  'NICHT_GEFUNDEN_PERSON',
+  'NICHT_GEFUNDEN_ORT',
+  'NICHT_GEFUNDEN_TRANSAKTION',
+
+  'KONFLIKT_ZYKLUS',
+  'KONFLIKT_BEREITS_VORHANDEN',
+  'BEFEHL_VERSCHACHTELT',
+
+  'JOURNAL_NICHTS_ZURUECKZUNEHMEN',
+  'JOURNAL_NICHTS_WIEDERHOLBAR',
+  'JOURNAL_NICHT_RUECKNEHMBAR',
+
+  'DATENBANK_GESPERRT',
+  'DATENBANK_FREMDSCHLUESSEL',
+  'DATENBANK_INTEGRITAET',
+
+  'PROJEKT_BEREITS_GEOEFFNET',
+  'PROJEKT_KEIN_WURZELWERK_ORDNER',
+  'PROJEKT_NEUERE_SCHEMAVERSION',
+  'PROJEKT_MIGRATION_GEAENDERT',
+
+  'DATEI_NICHT_LESBAR',
+  'DATEI_KEIN_PLATZ',
+
+  'IMPORT_VERTRAG_UNBEKANNT',
+  'IMPORT_SCHEMA_FEHLER',
+  'IMPORT_REFERENZ_FEHLT',
+
+  'INTERN_UNERWARTET',
+] as const
+
+export type FehlerCode = (typeof ALLE_FEHLERCODES)[number]
