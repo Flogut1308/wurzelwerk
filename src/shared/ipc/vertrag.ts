@@ -7,6 +7,17 @@ import type { FehlerCode } from '../fehler/codes'
  */
 export type SyncAnbieter = 'dropbox' | 'icloud' | 'onedrive'
 
+/**
+ * Eintrag der Liste zuletzt geöffneter Projekte (AP-0.4, G-04 vorgezogen). Wird sowohl von
+ * `src/main/projekt/zuletzt-speicher.ts` geschrieben als auch über `abfrage:projekt.zuletzt` an
+ * den Renderer geliefert — die Form gehört darum in den gemeinsamen Vertrag, nicht in `main`.
+ */
+export interface ZuletztEintrag {
+  readonly pfad: string
+  readonly name: string
+  readonly zuletztGeoeffnetAm: string
+}
+
 /** Antwort von `abfrage:version` — Nachweis, dass die IPC-Hülle steht (AP-0.2). */
 export interface VersionInfo {
   readonly app: string
