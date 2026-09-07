@@ -19,6 +19,8 @@ const protokollEintragSchema = z.object({
   vorgangsId: z.string().optional(),
   kanal: z.string().optional(),
   befehlsname: z.string().optional(),
+  // Herkunft einer weitergeleiteten Renderer-Ausnahme (Enum, kein Inhalt) — §10.3.
+  quelle: z.string().optional(),
   code: z.string().optional(),
   dauerMs: z.number().optional(),
   transaktionId: z.string().optional(),
