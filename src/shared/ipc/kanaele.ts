@@ -7,7 +7,14 @@ import type { Kanal } from './vertrag'
  * string[]`. Die Elemente sind hier trotzdem gegen `Kanal` geprüft: `kanaele` ist `readonly
  * Kanal[]`, ein Tippfehler in der Liste wäre also schon hier ein Typfehler.
  */
-const kanaele: readonly Kanal[] = ['abfrage:version', 'befehl:protokoll.melden']
+const kanaele: readonly Kanal[] = [
+  'abfrage:version',
+  'befehl:protokoll.melden',
+  'befehl:projekt.anlegen',
+  'befehl:projekt.oeffnen',
+  'befehl:projekt.schliessen',
+  'abfrage:projekt.zuletzt',
+]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
 /**

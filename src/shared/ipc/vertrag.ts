@@ -32,6 +32,38 @@ export interface VersionInfo {
  * in `src/main/ipc/registrierung.ts` protokolliert davon ausdrücklich nur eine reduzierte
  * Teilmenge (§7: IDs ja, Inhalte nein).
  */
+/** Antwort von `befehl:projekt.anlegen` und der `geoeffnet`-Variante von `befehl:projekt.oeffnen`. */
+export interface ProjektInfo {
+  readonly pfad: string
+  readonly name: string
+  readonly schemaversion: string
+}
+
+/** Nutzlast von `befehl:projekt.anlegen`. */
+export interface ProjektAnlegenEin {
+  readonly elternordner: string
+  readonly name: string
+}
+
+/**
+ * Nutzlast von `befehl:projekt.oeffnen`. `syncBestaetigt` fehlt beim ersten Versuch; liegt der
+ * Pfad in einem erkannten Sync-Ordner, antwortet der Kanal mit `status: 'sync_warnung'`, ohne zu
+ * öffnen — ein zweiter Aufruf mit `syncBestaetigt: true` öffnet trotzdem (ADR-002).
+ */
+export interface ProjektOeffnenEin {
+  readonly pfad: string
+  readonly syncBestaetigt?: boolean | undefined
+}
+
+/**
+ * Diskriminierte Union statt eines Booleans: `sync_warnung` ist kein Fehler (kein `AppFehler`,
+ * kein `ok:false`) — der Renderer zeigt einen Bestätigungsdialog und ruft den Kanal danach mit
+ * `syncBestaetigt: true` erneut auf.
+ */
+export type ProjektOeffnenAus =
+  | { readonly status: 'geoeffnet'; readonly projekt: ProjektInfo }
+  | { readonly status: 'sync_warnung'; readonly anbieter: SyncAnbieter; readonly pfad: string }
+
 export interface ProtokollMeldenEin {
   readonly quelle: 'fehlergrenze' | 'fenster'
   readonly nachricht: string
@@ -49,6 +81,10 @@ export interface ProtokollMeldenEin {
 export interface Vertrag {
   'abfrage:version': { ein: null; aus: VersionInfo }
   'befehl:protokoll.melden': { ein: ProtokollMeldenEin; aus: null }
+  'befehl:projekt.anlegen': { ein: ProjektAnlegenEin; aus: ProjektInfo }
+  'befehl:projekt.oeffnen': { ein: ProjektOeffnenEin; aus: ProjektOeffnenAus }
+  'befehl:projekt.schliessen': { ein: null; aus: null }
+  'abfrage:projekt.zuletzt': { ein: null; aus: readonly ZuletztEintrag[] }
 }
 
 export type Kanal = keyof Vertrag
