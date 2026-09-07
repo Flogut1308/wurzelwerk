@@ -5,6 +5,7 @@ import type { FehlerCode } from '../../shared/fehler/codes'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
 import type { Aus, Ein, Kanal } from '../../shared/ipc/vertrag'
+import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollFehler } from '../protokoll/logger'
 
 /** Wird jedem Handler mitgegeben — bislang nur die Vorgangs-ID (§2.4). */
@@ -44,7 +45,7 @@ function textSchluesselFuer(code: FehlerCode): string {
  * Entwicklungsrechners.
  */
 export function zuAppFehler(u: unknown, vorgangsId: string): AppFehler {
-  const code = sqliteCodeZuFehlerCode(u) ?? 'INTERN_UNERWARTET'
+  const code = (u instanceof WurzelFehler ? u.code : undefined) ?? sqliteCodeZuFehlerCode(u) ?? 'INTERN_UNERWARTET'
   const entwicklung = !app.isPackaged
   return {
     code,
