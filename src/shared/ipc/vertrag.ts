@@ -1,5 +1,12 @@
 import type { FehlerCode } from '../fehler/codes'
 
+/**
+ * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
+ * SQLite-Dateien dort können korrumpieren, WAL funktioniert auf Netzlaufwerken nicht zuverlässig —
+ * die App warnt beim Öffnen, statt es stillschweigend zuzulassen.
+ */
+export type SyncAnbieter = 'dropbox' | 'icloud' | 'onedrive'
+
 /** Antwort von `abfrage:version` — Nachweis, dass die IPC-Hülle steht (AP-0.2). */
 export interface VersionInfo {
   readonly app: string
