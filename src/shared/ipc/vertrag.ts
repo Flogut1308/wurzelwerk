@@ -25,13 +25,6 @@ export interface VersionInfo {
   readonly electron: string
 }
 
-/**
- * Nutzlast von `befehl:protokoll.melden` (§10.3): Der Renderer meldet einen Fehler aus der
- * Fehlergrenze, `window.onerror` oder `unhandledrejection`. `nachricht` und `stack` dürfen
- * Inhalte aus der Laufzeitumgebung enthalten (Stacktraces, technische Meldungen) — der Handler
- * in `src/main/ipc/registrierung.ts` protokolliert davon ausdrücklich nur eine reduzierte
- * Teilmenge (§7: IDs ja, Inhalte nein).
- */
 /** Antwort von `befehl:projekt.anlegen` und der `geoeffnet`-Variante von `befehl:projekt.oeffnen`. */
 export interface ProjektInfo {
   readonly pfad: string
@@ -64,6 +57,13 @@ export type ProjektOeffnenAus =
   | { readonly status: 'geoeffnet'; readonly projekt: ProjektInfo }
   | { readonly status: 'sync_warnung'; readonly anbieter: SyncAnbieter; readonly pfad: string }
 
+/**
+ * Nutzlast von `befehl:protokoll.melden` (§10.3): Der Renderer meldet einen Fehler aus der
+ * Fehlergrenze, `window.onerror` oder `unhandledrejection`. `nachricht` und `stack` dürfen
+ * Inhalte aus der Laufzeitumgebung enthalten (Stacktraces, technische Meldungen) — der Handler
+ * in `src/main/ipc/registrierung.ts` protokolliert davon ausdrücklich nur eine reduzierte
+ * Teilmenge (§7: IDs ja, Inhalte nein).
+ */
 export interface ProtokollMeldenEin {
   readonly quelle: 'fehlergrenze' | 'fenster'
   readonly nachricht: string
