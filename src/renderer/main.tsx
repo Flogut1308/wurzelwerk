@@ -1,7 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { I18nextProvider } from 'react-i18next'
 import { App } from './app'
 import { fehlerweiterleitungEinrichten } from './fehler/fehlerweiterleitung'
+import { i18n } from './i18n/einrichten'
 
 fehlerweiterleitungEinrichten()
 
@@ -12,6 +14,8 @@ if (wurzelKnoten === null) {
 
 createRoot(wurzelKnoten).render(
   <StrictMode>
-    <App />
+    <I18nextProvider i18n={i18n}>
+      <App />
+    </I18nextProvider>
   </StrictMode>,
 )
