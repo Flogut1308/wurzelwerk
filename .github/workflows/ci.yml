@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  pruefen:
+    name: pruefen (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: pnpm einrichten
+        uses: pnpm/action-setup@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Abhängigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Geschützten Prüfpfad prüfen
+        shell: bash
+        run: pnpm exec tsx skripte/pruefpfad-pruefen.ts
+        env:
+          PRUEFPFAD_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PRUEFPFAD_HEAD_SHA: ${{ github.sha }}
+
+      - name: Typen
+        run: pnpm typen
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Grenzen
+        run: pnpm grenzen
+
+      - name: Test
+        run: pnpm test
+
+      - name: Bauen
+        run: pnpm build
+
+      - name: Paket als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: paket-${{ matrix.os }}
+          path: dist/**
+          if-no-files-found: error
+
+      - name: Screenshot Hauptfenster
+        if: runner.os == 'Windows'
+        run: node skripte/screenshot-hauptfenster.mjs artefakte/hauptfenster-windows.png
+
+      - name: Screenshot als Artefakt
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-hauptfenster-windows
+          path: artefakte/hauptfenster-windows.png
+          if-no-files-found: error
+
+  langsame-gates:
+    name: langsame Gates (test:e2e, test:budget)
+    runs-on: macos-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: pnpm einrichten
+        uses: pnpm/action-setup@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Abhängigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: E2E-Tests
+        run: pnpm test:e2e
+
+      - name: Leistungsbudgets
+        run: pnpm test:budget
