@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { aufrufen } from './brücke/aufrufen'
 import { Fehlergrenze } from './fehler/fehlergrenze'
 import type { VersionInfo } from '../shared/ipc/vertrag'
 
 export function App() {
+  const { t } = useTranslation('allgemein')
   const [version, setVersion] = useState<VersionInfo | null>(null)
 
   useEffect(() => {
@@ -20,10 +22,7 @@ export function App() {
 
   return (
     <Fehlergrenze>
-      <div>
-        Wurzelwerk
-        {version !== null ? ` — Schema ${version.schema}` : null}
-      </div>
+      <div>{version !== null ? t('titel_mit_schema', { schema: version.schema }) : t('app_titel')}</div>
     </Fehlergrenze>
   )
 }

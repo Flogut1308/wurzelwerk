@@ -32,6 +32,10 @@ module.exports = tseslint.config(
       ...react.configs.flat.recommended.rules,
       ...react.configs.flat['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
+      // Sichtbare Texte gehören nur in src/renderer/i18n/ (ADR-011, §4). `noAttributeStrings`
+      // bleibt bei ihrem Default `false`, damit Attribute wie `role="alert"` weiter erlaubt sind —
+      // nur Text-Kindknoten in JSX sollen auffallen.
+      'react/jsx-no-literals': 'error',
     },
     settings: { react: { version: 'detect' } },
   },
