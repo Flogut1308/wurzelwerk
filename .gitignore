@@ -1,0 +1,31 @@
+node_modules/
+
+# Build-Ausgaben
+out/
+dist/
+dist-electron/
+release/
+
+# Test-Ausgaben
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Umgebung
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Projektdateien (lokale Testdaten, nie im Repo)
+*.ahnen/
