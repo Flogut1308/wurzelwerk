@@ -16,4 +16,15 @@ describe('main/datenbank/migration/registrierung — Prüfsummen', () => {
       eintrag.pruefsumme,
     )
   })
+
+  /**
+   * Regressionsschutz für den Windows-CI-Fund: checkt git eine `.sql` mit CRLF aus (autocrlf),
+   * weichen die Rohbytes von der auf macOS/LF berechneten Prüfsumme ab → `PROJEKT_MIGRATION_GEAENDERT`
+   * beim Öffnen jeder Projektdatei. `.gitattributes` erzwingt `eol=lf`; dieser Test macht ein
+   * versehentliches CR im Repo sichtbar, bevor es die Prüfsumme bricht.
+   */
+  it.each(MIGRATIONEN)('Migration $version ($datei): enthält keine CR-Bytes (LF-only)', (eintrag) => {
+    const rohInhalt = readFileSync(migrationsDateiPfad(eintrag.datei))
+    expect(rohInhalt.includes(0x0d), `${eintrag.datei} enthält CR (0x0D) — .gitattributes eol=lf greift nicht`).toBe(false)
+  })
 })
