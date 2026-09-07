@@ -1,0 +1,4 @@
+{
+  "availableModels": ["opus", "sonnet", "haiku"],
+  "enforceAvailableModels": true
+}
