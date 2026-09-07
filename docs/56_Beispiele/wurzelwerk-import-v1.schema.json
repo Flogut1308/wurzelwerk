@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wurzelwerk.local/schema/wurzelwerk-import/v1",
+  "title": "wurzelwerk-import/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vertrag", "erzeugt", "quellen", "zusammenfassung"],
+  "properties": {
+    "vertrag": { "const": "wurzelwerk-import/v1" },
+    "erzeugt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["am", "werkzeug"],
+      "properties": {
+        "am": { "type": "string", "format": "date" },
+        "werkzeug": { "type": "string", "minLength": 1 },
+        "werkzeug_version": { "type": "string" },
+        "bearbeiter": { "type": "string" }
+      }
+    },
+    "pruefsumme_quelltext": {
+      "type": "string",
+      "pattern": "^sha256-[0-9a-f]{64}$",
+      "description": "SHA-256 des Ausgangsmaterials (Transkript, Notizdatei). Erlaubt spaeter die Frage: aus welchem Gespraech stammt das?"
+    },
+    "zusammenfassung": {
+      "type": "object",
+      "description": "Vom Erzeuger deklarierte Anzahlen. Der Pruefer vergleicht sie mit den tatsaechlichen. Abweichung = IMP-105 (abgeschnittene oder manipulierte Datei).",
+      "additionalProperties": false,
+      "required": ["personen", "notizen_unverarbeitet"],
+      "properties": {
+        "personen": { "type": "integer", "minimum": 0 },
+        "orte": { "type": "integer", "minimum": 0 },
+        "ereignisse": { "type": "integer", "minimum": 0 },
+        "elternschaften": { "type": "integer", "minimum": 0 },
+        "partnerschaften": { "type": "integer", "minimum": 0 },
+        "aussagen": { "type": "integer", "minimum": 0 },
+        "diagnosen": { "type": "integer", "minimum": 0 },
+        "risikofaktoren": { "type": "integer", "minimum": 0 },
+        "medien": { "type": "integer", "minimum": 0 },
+        "notizen_unverarbeitet": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "quellen": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Quelle" } },
+    "interviews": { "type": "array", "items": { "$ref": "#/$defs/Interview" } },
+    "personen": { "type": "array", "items": { "$ref": "#/$defs/Person" } },
+    "orte": { "type": "array", "items": { "$ref": "#/$defs/Ort" } },
+    "ereignisse": { "type": "array", "items": { "$ref": "#/$defs/Ereignis" } },
+    "elternschaften": { "type": "array", "items": { "$ref": "#/$defs/Elternschaft" } },
+    "partnerschaften": { "type": "array", "items": { "$ref": "#/$defs/Partnerschaft" } },
+    "aussagen": { "type": "array", "items": { "$ref": "#/$defs/Aussage" } },
+    "diagnosen": { "type": "array", "items": { "$ref": "#/$defs/Diagnose" } },
+    "risikofaktoren": { "type": "array", "items": { "$ref": "#/$defs/Risikofaktor" } },
+    "medien": { "type": "array", "items": { "$ref": "#/$defs/Medium" } },
+    "notizen_unverarbeitet": {
+      "type": "array",
+      "description": "Alles, was nicht zugeordnet werden konnte, im Originalwortlaut. Pflichtventil gegen Erfindungen: was hier steht, wurde nicht erfunden und nicht verschwiegen.",
+      "items": { "$ref": "#/$defs/UnverarbeiteteNotiz" }
+    }
+  },
+
+  "$defs": {
+
+    "Kennung": {
+      "type": "string",
+      "pattern": "^(tmp|db):[A-Za-z0-9_.\\-]{1,64}$",
+      "description": "tmp:… gilt nur innerhalb dieser Datei. db:<uuid> verweist auf einen vorhandenen Datensatz."
+    },
+
+    "Konfidenz": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "description": "4 gesichert · 3 wahrscheinlich · 2 unsicher · 1 Vermutung (E21). Kein Vorgabewert: der Erzeuger muss entscheiden."
+    },
+
+    "Datumswert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modifikator", "praezision"],
+      "properties": {
+        "kalender": { "enum": ["gregorian", "julian", "hebrew", "french_r"], "default": "gregorian" },
+        "modifikator": { "enum": ["exakt", "etwa", "vor", "nach", "zwischen", "von_bis", "geschaetzt", "berechnet"] },
+        "praezision": { "enum": ["tag", "monat", "jahr", "jahrzehnt"] },
+        "wert1": { "type": "string", "pattern": "^\\d{3,4}(-\\d{2}(-\\d{2})?)?$" },
+        "wert2": { "type": "string", "pattern": "^\\d{3,4}(-\\d{2}(-\\d{2})?)?$" },
+        "original_text": { "type": "string", "minLength": 1 },
+        "zweitkalender": { "enum": ["gregorian", "julian", "hebrew", "french_r"] },
+        "zweitwert": { "type": "string", "pattern": "^\\d{3,4}(-\\d{2}(-\\d{2})?)?$" },
+        "doppeljahr": { "type": "string", "pattern": "^\\d{4}/\\d{2,4}$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "modifikator": { "enum": ["etwa", "vor", "nach", "zwischen", "von_bis", "geschaetzt", "berechnet"] } }, "required": ["modifikator"] },
+          "then": { "required": ["original_text"] }
+        },
+        {
+          "if": { "properties": { "modifikator": { "enum": ["zwischen", "von_bis"] } }, "required": ["modifikator"] },
+          "then": { "required": ["wert1", "wert2"] },
+          "else": { "required": ["wert1"] }
+        },
+        {
+          "if": { "required": ["zweitwert"] },
+          "then": { "required": ["zweitkalender"] }
+        }
+      ]
+    },
+
+    "Beleg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quelle", "konfidenz"],
+      "properties": {
+        "quelle": { "$ref": "#/$defs/Kennung" },
+        "seite": { "type": "string" },
+        "eintragsnummer": { "type": "string" },
+        "band": { "type": "string" },
+        "jahr": { "type": "integer" },
+        "zeitmarke_sekunden": { "type": "number", "minimum": 0, "description": "Stelle in einer Audiodatei (A-16)" },
+        "transkript": { "type": "string", "description": "Originalwortlaut der belegenden Stelle. Bei muendlichen Quellen dringend erwuenscht." },
+        "uebersetzung": { "type": "string" },
+        "digitalisat_url": { "type": "string" },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" }
+      }
+    },
+
+    "Belege": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Beleg" } },
+
+    "Quelle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typ", "titel"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "typ": { "enum": ["kirchenbuch", "standesamt", "volkszaehlung", "zeitung", "grabstein", "familienbesitz", "literatur", "website", "muendlich", "sonstiges"] },
+        "titel": { "type": "string", "minLength": 1 },
+        "autor": { "type": "string" },
+        "verlag": { "type": "string" },
+        "jahr": { "type": "integer" },
+        "art": { "enum": ["original", "derivat", "verfasst"] },
+        "informationsart": { "enum": ["primaer", "sekundaer", "unbestimmt"] },
+        "archiv": { "type": "string" },
+        "signatur": { "type": "string" },
+        "informant_person": { "$ref": "#/$defs/Kennung" },
+        "gespraechsdatum": { "$ref": "#/$defs/Datumswert" },
+        "form": { "enum": ["gespraech", "telefonat", "brief", "email", "audio", "video"] },
+        "unmittelbarkeit": { "enum": ["selbst_erlebt", "vom_hoerensagen", "unbekannt"] },
+        "audio_medium": { "$ref": "#/$defs/Kennung" },
+        "notiz": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "typ": { "const": "muendlich" } }, "required": ["typ"] },
+          "then": { "required": ["informant_person", "unmittelbarkeit"] }
+        }
+      ]
+    },
+
+    "Interview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "informant_person", "datum"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "informant_person": { "$ref": "#/$defs/Kennung" },
+        "datum": { "$ref": "#/$defs/Datumswert" },
+        "ort": { "$ref": "#/$defs/Kennung" },
+        "audio_medium": { "$ref": "#/$defs/Kennung" },
+        "notizen": { "type": "string" },
+        "status": { "enum": ["offen", "ausgewertet", "abgeschlossen"] }
+      }
+    },
+
+    "Name": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "typ": { "enum": ["geburtsname", "ehename", "vulgo", "latinisiert", "transliteriert", "ordensname", "beruf", "aka", "sonstiges"], "default": "geburtsname" },
+        "schrift": { "enum": ["latn", "cyrl"], "default": "latn" },
+        "umschrift_von": { "type": "integer", "minimum": 0, "description": "Index des Originalnamens in demselben namen-Array" },
+        "umschrift_norm": { "enum": ["iso9", "din1460", "manuell"] },
+        "vornamen": { "type": "string" },
+        "rufname_index": { "type": "integer", "minimum": 0 },
+        "rufname_text": { "type": "string" },
+        "nachname": { "type": "string" },
+        "nachname_unbekannt": { "type": "boolean", "default": false },
+        "praefix": { "type": "string" },
+        "titel_vor": { "type": "string" },
+        "zusatz_nach": { "type": "string" },
+        "original_text": { "type": "string" },
+        "sprache": { "type": "string" },
+        "ist_bevorzugt": { "type": "boolean", "default": false },
+        "gueltig_von": { "type": "integer" },
+        "gueltig_bis": { "type": "integer" }
+      },
+      "allOf": [
+        {
+          "if": { "not": { "properties": { "nachname_unbekannt": { "const": true } }, "required": ["nachname_unbekannt"] } },
+          "then": { "required": ["nachname"] }
+        },
+        {
+          "if": { "required": ["umschrift_von"] },
+          "then": { "required": ["umschrift_norm"] }
+        }
+      ]
+    },
+
+    "Person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "konfidenz", "belege"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "ueberschreiben": { "type": "boolean", "default": false, "description": "Nur bei db:-Kennung erlaubt. Ohne dieses Flag darf ein Import bestehende bevorzugte Werte nicht ersetzen, nur ergaenzen." },
+        "geschlecht": { "enum": ["M", "F", "U", "X"], "default": "U" },
+        "lebend_status": { "enum": ["lebend", "verstorben", "vermutet_verstorben"] },
+        "privat": { "type": "boolean", "default": false },
+        "ist_platzhalter": { "type": "boolean", "default": false },
+        "platzhalter_grund": { "enum": ["unbekannt", "unehelich", "nicht_identifiziert", "forschungsluecke"] },
+        "namen": { "type": "array", "items": { "$ref": "#/$defs/Name" } },
+        "notiz": { "type": "string" },
+        "unsicherheit": { "type": "string", "description": "Klartext: was an dieser Person unklar ist. Bei konfidenz <= 2 Pflicht (IMP-206)." },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "ist_platzhalter": { "const": true } }, "required": ["ist_platzhalter"] },
+          "then": { "required": ["platzhalter_grund"] },
+          "else": { "properties": { "namen": { "minItems": 1 } }, "required": ["namen"] }
+        }
+      ]
+    },
+
+    "Ortsname": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sprache": { "type": "string" },
+        "schrift": { "enum": ["latn", "cyrl"] },
+        "gueltig_von": { "type": "integer" },
+        "gueltig_bis": { "type": "integer" },
+        "ist_bevorzugt": { "type": "boolean", "default": false },
+        "original_text": { "type": "string" }
+      }
+    },
+
+    "Ort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typ", "namen"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "typ": { "enum": ["dorf", "stadt", "gemeinde", "kirchspiel", "amt", "kreis", "provinz", "staat", "hof", "friedhof", "kirche", "unbekannt"] },
+        "namen": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Ortsname" } },
+        "koordinaten": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lat", "lon"],
+          "properties": {
+            "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+            "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+            "herkunft": { "type": "string", "description": "Woher die Koordinate stammt. Ohne Angabe wird sie beim Trockenlauf als IMP-303 gemeldet." }
+          }
+        },
+        "existiert_von": { "type": "integer" },
+        "existiert_bis": { "type": "integer" },
+        "zugehoerigkeiten": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["uebergeordnet", "art"],
+            "properties": {
+              "uebergeordnet": { "$ref": "#/$defs/Kennung" },
+              "art": { "enum": ["politisch", "kirchlich"] },
+              "gueltig_von": { "type": "integer" },
+              "gueltig_bis": { "type": "integer" }
+            }
+          }
+        },
+        "externe_ids": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["system", "wert"],
+            "properties": {
+              "system": { "enum": ["gov", "geonames", "wikidata"] },
+              "wert": { "type": "string" }
+            }
+          }
+        },
+        "notiz": { "type": "string" }
+      }
+    },
+
+    "Beteiligung": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["person", "rolle"],
+      "properties": {
+        "person": { "$ref": "#/$defs/Kennung" },
+        "rolle": { "enum": ["hauptperson", "kind", "vater", "mutter", "braeutigam", "braut", "pate", "patenvertreter", "trauzeuge", "verstorbener", "ehepartner", "informant", "pfarrer", "hebamme", "dienstherr"] },
+        "reihenfolge": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "Ereignis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typ", "beteiligungen", "konfidenz", "belege"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "typ": { "enum": ["geburt", "taufe", "konfirmation", "trauung", "kirchl_trauung", "verlobung", "scheidung", "tod", "beerdigung", "auswanderung", "einwanderung", "umzug", "beruf", "militaerdienst", "volkszaehlung", "testament", "sonstiges"] },
+        "ort": { "$ref": "#/$defs/Kennung" },
+        "datum": { "$ref": "#/$defs/Datumswert" },
+        "beteiligungen": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Beteiligung" } },
+        "beschreibung": { "type": "string" },
+        "notiz": { "type": "string" },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" }
+      }
+    },
+
+    "Elternschaft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elternteil", "kind", "typ", "konfidenz", "belege"],
+      "properties": {
+        "elternteil": { "$ref": "#/$defs/Kennung" },
+        "kind": { "$ref": "#/$defs/Kennung" },
+        "typ": { "enum": ["biologisch", "adoptiv", "stief", "pflege", "zieh", "anerkannt", "leihmutter", "unbekannt"] },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" },
+        "notiz": { "type": "string" }
+      }
+    },
+
+    "Partnerschaft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typ", "beteiligte", "konfidenz", "belege"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "typ": { "enum": ["ehe_zivil", "ehe_kirchlich", "verlobung", "lebensgemeinschaft", "eingetr_lebenspartnerschaft", "unbekannt"] },
+        "beteiligte": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["person"],
+            "properties": {
+              "person": { "$ref": "#/$defs/Kennung" },
+              "rolle": { "enum": ["ehepartner", "braeutigam", "braut", "partner"] }
+            }
+          }
+        },
+        "beginn": { "$ref": "#/$defs/Datumswert" },
+        "ende": { "$ref": "#/$defs/Datumswert" },
+        "ende_grund": { "enum": ["scheidung", "annullierung", "tod", "trennung", "unbekannt"] },
+        "reihenfolge": { "type": "integer", "minimum": 0 },
+        "notiz": { "type": "string" },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" }
+      }
+    },
+
+    "Aussage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjekt_typ", "subjekt", "praedikat", "konfidenz", "belege"],
+      "properties": {
+        "subjekt_typ": { "enum": ["person", "ereignis", "elternschaft", "partnerschaft", "ort", "name"] },
+        "subjekt": { "$ref": "#/$defs/Kennung" },
+        "praedikat": { "type": "string", "minLength": 1, "description": "z. B. beruf, konfession, todesursache, wohnort, alter_bei_tod. Freie Zeichenkette, aber der Trockenlauf meldet unbekannte Praedikate als IMP-304." },
+        "wert_text": { "type": "string" },
+        "wert_zahl": { "type": "number" },
+        "wert_ref": { "$ref": "#/$defs/Kennung" },
+        "datum": { "$ref": "#/$defs/Datumswert" },
+        "gueltig_von": { "type": "integer" },
+        "gueltig_bis": { "type": "integer" },
+        "ist_bevorzugt": { "type": "boolean", "default": false },
+        "begruendung": { "type": "string", "description": "Warum dieser Wert bevorzugt wird. Bei ist_bevorzugt=true und konkurrierenden Aussagen Pflicht (IMP-207)." },
+        "unsicherheit": { "type": "string" },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" }
+      },
+      "anyOf": [
+        { "required": ["wert_text"] },
+        { "required": ["wert_zahl"] },
+        { "required": ["wert_ref"] }
+      ]
+    },
+
+    "Diagnose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["person", "kategorie", "bezeichnung", "status", "konfidenz", "belege"],
+      "properties": {
+        "person": { "$ref": "#/$defs/Kennung" },
+        "kategorie": { "enum": ["herz_kreislauf", "krebs", "stoffwechsel", "neuro_psych", "atemwege", "nieren", "autoimmun", "angeboren_genetisch", "infektion", "unfall", "sonstiges"] },
+        "organ": { "type": "string" },
+        "bezeichnung": { "type": "string", "minLength": 1, "description": "Wortlaut wie in der Quelle, nicht medizinisch uebersetzt. 'was mit dem Herzen' bleibt 'was mit dem Herzen'." },
+        "erstdiagnose": { "$ref": "#/$defs/Datumswert" },
+        "alter_bei_diagnose": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "status": { "enum": ["bestehend", "geheilt", "todesursache", "unbekannt"] },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" },
+        "notiz": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kategorie": { "const": "krebs" } }, "required": ["kategorie"] },
+          "then": { "required": ["organ"] }
+        }
+      ]
+    },
+
+    "Risikofaktor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["person", "art", "intensitaet", "konfidenz", "belege"],
+      "properties": {
+        "person": { "$ref": "#/$defs/Kennung" },
+        "art": { "enum": ["rauchen", "alkohol", "beruf_exposition", "umwelt", "uebergewicht", "bewegungsmangel", "ernaehrung", "sonstiges"] },
+        "detail": { "type": "string" },
+        "intensitaet": { "enum": ["gering", "mittel", "hoch", "unbekannt"] },
+        "beginn": { "$ref": "#/$defs/Datumswert" },
+        "ende": { "$ref": "#/$defs/Datumswert" },
+        "konfidenz": { "$ref": "#/$defs/Konfidenz" },
+        "belege": { "$ref": "#/$defs/Belege" },
+        "notiz": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "art": { "const": "beruf_exposition" } }, "required": ["art"] },
+          "then": { "required": ["detail"] }
+        }
+      ]
+    },
+
+    "Medium": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "relativer_pfad"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Kennung" },
+        "relativer_pfad": { "type": "string", "minLength": 1, "description": "Relativ zur Importdatei. Fehlt die Datei, ist das IMP-208." },
+        "titel": { "type": "string" },
+        "beschreibung": { "type": "string" },
+        "datum": { "$ref": "#/$defs/Datumswert" },
+        "ort": { "$ref": "#/$defs/Kennung" },
+        "zuordnungen": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["subjekt_typ", "subjekt"],
+            "properties": {
+              "subjekt_typ": { "enum": ["person", "ereignis", "ort", "quelle"] },
+              "subjekt": { "$ref": "#/$defs/Kennung" },
+              "ist_titelbild": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    },
+
+    "UnverarbeiteteNotiz": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "warum"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "description": "Originalwortlaut. Nicht zusammengefasst, nicht geglaettet." },
+        "warum": { "type": "string", "minLength": 1, "description": "Was gefehlt hat, um das zuzuordnen. Pflicht: erzwingt eine bewusste Entscheidung statt stillen Weglassens." },
+        "betrifft_vermutlich": { "type": "array", "items": { "$ref": "#/$defs/Kennung" } },
+        "herkunft": { "type": "string", "description": "Stelle im Ausgangsmaterial, z. B. Zeitmarke oder Seitenzahl." }
+      }
+    }
+  }
+}

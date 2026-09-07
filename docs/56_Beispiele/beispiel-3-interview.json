@@ -1,0 +1,238 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": {
+    "am": "2026-08-23",
+    "werkzeug": "claude-skill:wurzelwerk-import-vertrag",
+    "werkzeug_version": "1.0.0"
+  },
+  "pruefsumme_quelltext": "sha256-a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "zusammenfassung": {
+    "personen": 2,
+    "ereignisse": 1,
+    "aussagen": 1,
+    "diagnosen": 2,
+    "risikofaktoren": 2,
+    "medien": 1,
+    "notizen_unverarbeitet": 2
+  },
+  "quellen": [
+    {
+      "id": "tmp:q-interview-erna",
+      "typ": "muendlich",
+      "titel": "Interview mit Erna Wruck, 12.09.2026, Kuechentisch",
+      "informant_person": "db:018f2c44-7a91-7c3e-9d10-5b6e7f801234",
+      "gespraechsdatum": {
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "2026-09-12"
+      },
+      "form": "audio",
+      "unmittelbarkeit": "selbst_erlebt",
+      "informationsart": "primaer",
+      "audio_medium": "tmp:m-audio",
+      "notiz": "Erna spricht ueber ihren eigenen Vater, den sie erlebt hat. Fuer die Gesundheitsangaben gilt trotzdem: Laienerinnerung."
+    }
+  ],
+  "interviews": [
+    {
+      "id": "tmp:i-erna-01",
+      "informant_person": "db:018f2c44-7a91-7c3e-9d10-5b6e7f801234",
+      "datum": {
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "2026-09-12"
+      },
+      "audio_medium": "tmp:m-audio",
+      "notizen": "58 Minuten. Erna war konzentriert, keine Ermuedung. Zweiter Termin fuer die Kanada-Linie vereinbart.",
+      "status": "ausgewertet"
+    }
+  ],
+  "medien": [
+    {
+      "id": "tmp:m-audio",
+      "relativer_pfad": "audio/2026-09-12-erna-wruck.m4a",
+      "titel": "Interview Erna Wruck 12.09.2026",
+      "datum": {
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "2026-09-12"
+      }
+    }
+  ],
+  "personen": [
+    {
+      "id": "db:018f2c44-7a91-7c3e-9d10-5b6e7f801234",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Erna",
+          "nachname": "Wruck",
+          "ist_bevorzugt": true
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-interview-erna", "zeitmarke_sekunden": 12, "konfidenz": 4 }]
+    },
+    {
+      "id": "tmp:walter",
+      "geschlecht": "M",
+      "lebend_status": "verstorben",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Walter",
+          "rufname_index": 0,
+          "nachname": "Wruck",
+          "original_text": "Walter Wruck",
+          "ist_bevorzugt": true
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 95,
+          "transkript": "Mein Vater, der Walter, der war Bergmann auf Zollverein.",
+          "konfidenz": 4
+        }
+      ]
+    }
+  ],
+  "elternschaften": [
+    {
+      "elternteil": "tmp:walter",
+      "kind": "db:018f2c44-7a91-7c3e-9d10-5b6e7f801234",
+      "typ": "biologisch",
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 95,
+          "transkript": "Mein Vater, der Walter",
+          "konfidenz": 4
+        }
+      ]
+    }
+  ],
+  "ereignisse": [
+    {
+      "id": "tmp:e-tod-walter",
+      "typ": "tod",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "etwa",
+        "praezision": "jahr",
+        "wert1": "1974",
+        "original_text": "kurz nach meiner Hochzeit, das muss 74 gewesen sein"
+      },
+      "beteiligungen": [{ "person": "tmp:walter", "rolle": "verstorbener" }],
+      "konfidenz": 3,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 640,
+          "transkript": "kurz nach meiner Hochzeit, das muss 74 gewesen sein",
+          "konfidenz": 3
+        }
+      ]
+    }
+  ],
+  "aussagen": [
+    {
+      "subjekt_typ": "person",
+      "subjekt": "tmp:walter",
+      "praedikat": "beruf",
+      "wert_text": "Bergmann",
+      "ist_bevorzugt": true,
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 95,
+          "transkript": "der war Bergmann auf Zollverein",
+          "konfidenz": 4
+        }
+      ]
+    }
+  ],
+  "diagnosen": [
+    {
+      "person": "tmp:walter",
+      "kategorie": "atemwege",
+      "bezeichnung": "Staublunge",
+      "alter_bei_diagnose": 55,
+      "status": "bestehend",
+      "konfidenz": 2,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 610,
+          "transkript": "Der hatte die Staublunge, wie alle da unten. Mit fuenfundfuenfzig ging nichts mehr.",
+          "konfidenz": 2
+        }
+      ],
+      "notiz": "Laienbezeichnung, Wortlaut unveraendert uebernommen. Keine aerztliche Bestaetigung."
+    },
+    {
+      "person": "tmp:walter",
+      "kategorie": "herz_kreislauf",
+      "bezeichnung": "was mit dem Herzen",
+      "status": "todesursache",
+      "konfidenz": 1,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 655,
+          "transkript": "Am Ende war es dann was mit dem Herzen, glaube ich.",
+          "konfidenz": 1
+        }
+      ],
+      "notiz": "Bewusst NICHT als 'Herzinfarkt' eingetragen. Erna sagt 'was mit dem Herzen, glaube ich' - jede Praezisierung waere erfunden."
+    }
+  ],
+  "risikofaktoren": [
+    {
+      "person": "tmp:walter",
+      "art": "beruf_exposition",
+      "detail": "Bergbau, Steinkohle, Zeche Zollverein",
+      "intensitaet": "hoch",
+      "konfidenz": 3,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 95,
+          "transkript": "der war Bergmann auf Zollverein",
+          "konfidenz": 3
+        }
+      ],
+      "notiz": "Aus der Berufsangabe erschlossen, nicht eigens bezeugt. Intensitaet 'hoch' ist eine Einschaetzung."
+    },
+    {
+      "person": "tmp:walter",
+      "art": "rauchen",
+      "intensitaet": "unbekannt",
+      "konfidenz": 2,
+      "belege": [
+        {
+          "quelle": "tmp:q-interview-erna",
+          "zeitmarke_sekunden": 618,
+          "transkript": "Geraucht hat er auch, aber nicht so viel wie der Onkel Paul.",
+          "konfidenz": 2
+        }
+      ],
+      "notiz": "Menge unbekannt. 'nicht so viel wie Onkel Paul' ist kein Mass."
+    }
+  ],
+  "notizen_unverarbeitet": [
+    {
+      "text": "Erna: 'Der Onkel Paul, der hat gequalmt wie ein Schlot, der ist aber trotzdem neunzig geworden.'",
+      "warum": "Onkel Paul ist im Bestand noch nicht vorhanden und Erna konnte keinen Nachnamen nennen. Eine Person nur aus 'Onkel Paul' anzulegen wuerde einen Platzhalter ohne Zweck erzeugen.",
+      "herkunft": "Aufnahme 00:10:18"
+    },
+    {
+      "text": "Erna: 'Und in der Familie gab es auch Krebs, aber ich weiss nicht mehr, bei wem. Irgendwer auf der Seite von meiner Mutter.'",
+      "warum": "Keine Person zuordenbar. Eine Diagnose ohne Person ist im Datenmodell nicht darstellbar, und eine geratene Zuordnung waere genau der Fehler, den der Vertrag verhindern soll.",
+      "herkunft": "Aufnahme 00:11:02"
+    }
+  ]
+}
