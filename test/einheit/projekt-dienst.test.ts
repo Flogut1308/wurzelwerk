@@ -5,7 +5,7 @@ import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Kontext } from '../../src/main/ipc/huelle'
-import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
+import { MIGRATIONEN, SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false } }))
@@ -76,7 +76,9 @@ describe('main/projekt/projekt-dienst', () => {
     try {
       expect(pruefverbindung.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
       const migrationsZeilen = pruefverbindung.prepare('SELECT version FROM schema_migration').all()
-      expect(migrationsZeilen).toHaveLength(1)
+      // War zu AP-0.5-Zeiten hart `1` (nur die Grundgerüst-Migration) - jetzt an der Registry
+      // gespiegelt, damit eine neue Migration (wie 0002_kern in AP-0.6) diesen Test nicht bricht.
+      expect(migrationsZeilen).toHaveLength(MIGRATIONEN.length)
     } finally {
       pruefverbindung.close()
     }

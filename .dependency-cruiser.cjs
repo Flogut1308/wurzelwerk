@@ -12,9 +12,11 @@ module.exports = {
     {
       name: 'shared-darf-nur-core',
       severity: 'error',
-      comment: 'src/shared darf nur src/core importieren (IPC-Vertrag, Fehlertypen, Zod-Schemata).',
+      comment:
+        'src/shared darf nur src/core importieren (IPC-Vertrag, Fehlertypen, Zod-Schemata) ' +
+        '+ zod selbst (Laufzeitprüfung für die Schemata in src/shared/schemata/, AP-0.6).',
       from: { path: '^src/shared' },
-      to: { pathNot: '^(src/core|src/shared)' },
+      to: { pathNot: '^(src/core|src/shared)|node_modules/zod/' },
     },
     {
       name: 'main-darf-nicht-renderer-oder-preload',
