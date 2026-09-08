@@ -21,3 +21,24 @@
 - **Determinismus ist Pflicht, nicht Kür** (schon ADR-005/ADR-023: kein `Math.random`/`Date.now` in `core`, deterministisches Layout). Eine nichtdeterministisch rote Prüfung ist für eine Loop unbrauchbar — der Agent „optimiert sie weg".
 - Eine zweite, **adversariale Loop-Rolle** („prüfen statt bauen") ist vorgesehen: darf den geschützten Pfad lesen und Teständerungen freigeben, aber keinen Produktivcode schreiben.
 - **Werkzeug-Neubewertung** (nicht bindend, aus dem Scope-Review): **Kysely** (typsicherer Query-Builder, verdeckt das SQL nicht, kollidiert nicht mit den Triggern) gewinnt als zusätzliches Compile-Zeit-Gate an Attraktivität; **TanStack Query** verliert an Begründung (Menschen-DX zählt agentisch weniger). Kein Wechselzwang — als Beobachtungspunkt geführt.
+
+### Nachtrag (AP-0.7): `test/schema` ist kein Reward-Hacking-Risiko bei einer begleitenden Migration
+
+**Beobachtung beim Bau von AP-0.7:** Eine neue Migration (`docs/schema/00NN_*.sql`) zieht in
+`test/schema/` zwangsläufig additive Änderungen nach sich — neue Tabellen/Spalten in
+`ERWARTETES_SCHEMA` (`vollstaendigkeit.test.ts`), neue Einträge in
+`ERLAUBTE_INTEGER_PK_AUSNAHMEN` (`schluessel-typen.test.ts`) und Ähnliches. Der ursprüngliche
+Guard aus §1 hätte das mit "geschützter Pfad + Produktivcode im selben Vergleich" blockiert, obwohl
+hier kein Reward-Hacking-Risiko besteht: `test/schema` ist kein unabhängiges Prüfmaterial wie
+`test/invarianten`/`test/golden`, sondern ein **maschinell nachvollziehbarer Spiegel** der
+Migrationsdatei selbst — jede Zeile darin lässt sich Wort für Wort gegen das `CREATE TABLE` in der
+begleitenden `.sql`-Datei nachprüfen (der Vergleich ist reines Review-Handwerk, kein Ermessen). Eine
+Loop, die eine Prüfung "aufweicht", würde hier auffallen, weil die Migrationsdatei selbst öffentlich
+im selben Diff steht.
+
+**Entscheidung:** `skripte/pruefpfad-pruefen.ts` nimmt `test/schema/` aus der Sperre heraus, wenn
+derselbe Vergleich mindestens eine neue/geänderte Datei unter `docs/schema/00NN_*.sql` enthält.
+`test/invarianten/` und `test/golden/` bleiben davon **unberührt und ausnahmslos gesperrt** — sie
+prüfen Fachverhalten (Bitgleichheit, Layout-Koordinaten), das sich nicht mechanisch gegen eine
+einzelne begleitende Datei nachvollziehen lässt. Fehlt die begleitende Migrationsdatei im Vergleich,
+gilt die ursprüngliche Sperre für `test/schema` unverändert weiter.
