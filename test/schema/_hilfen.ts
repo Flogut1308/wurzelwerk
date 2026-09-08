@@ -133,3 +133,17 @@ export function hatKonfidenzBetweenCheck(createTableSql: string, spalte: string)
   const regex = new RegExp(`CHECK\\s*\\(\\s*${spalte}\\s+BETWEEN\\s+1\\s+AND\\s+4\\s*\\)`)
   return regex.test(createTableSql)
 }
+
+/**
+ * Namen aller Trigger auf `tabelle` (`sqlite_master.tbl_name`), alphabetisch sortiert (AP-0.8,
+ * test/schema/trigger-vorhanden.test.ts). Erfasst sowohl `abl_*`- als auch `jrn_*`-Trigger — die
+ * Filterung nach Präfix bleibt Sache des Aufrufers.
+ */
+export function triggerNamenFuerTabelle(db: Database.Database, tabelle: string): readonly string[] {
+  const zeilen = db
+    .prepare<{ readonly tabelle: string }, { readonly name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = @tabelle",
+    )
+    .all({ tabelle })
+  return zeilen.map((zeile) => zeile.name).sort((a, b) => a.localeCompare(b))
+}

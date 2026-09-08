@@ -5,7 +5,7 @@
  * Wert hier separat und wird durch `test/einheit/schemaversion-konsistenz.test.ts` maschinell
  * gegen Divergenz abgesichert.
  */
-export const MANIFEST_SCHEMAVERSION = '3'
+export const MANIFEST_SCHEMAVERSION = '4'
 
 /** Version des IPC-Vertrags selbst (`src/shared/ipc/vertrag.ts`). */
 export const VERTRAG_VERSION = 1
