@@ -1,26 +1,24 @@
-// Gemeinsamer Helfer für Tests, die AP-0.7s abgeleitetes Schema brauchen, OHNE dass es als
-// Migration v3 registriert ist (bewusste PR-A-Entscheidung, siehe docs/schema/0003_abgeleitet.sql
-// Kopfkommentar). `docs/schema/0003_abgeleitet.sql` wird darum nicht über `migrieren()` erreicht,
-// sondern direkt (readFileSync + db.exec) auf eine bereits per `migrieren()` auf SCHEMA_VERSION
-// (aktuell 2) gebrachte Datenbank angewendet — genau das Muster, das PR-B dann durch eine echte
-// Migration v3 ersetzt.
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+// Gemeinsamer Helfer für Tests, die AP-0.7s abgeleitetes Schema brauchen. Seit PR-B ist
+// `docs/schema/0003_abgeleitet.sql` als Migration v3 registriert (`SCHEMA_VERSION = 3`,
+// `src/main/datenbank/migration/registrierung.ts`) — `migrieren()` bringt eine frische Datenbank
+// damit bereits vollständig auf den abgeleiteten Stand (person_flach, suche_fts, suche_fts_quelle,
+// abl_*-Trigger). Die frühere PR-A-Fassung dieser Datei wandte 0003_abgeleitet.sql zusätzlich noch
+// direkt per `readFileSync` + `db.exec` an (siehe Kopfkommentar von 0003_abgeleitet.sql: "die
+// physische JOURNALISIERT/NICHT_JOURNALISIERT-Liste + jrn_*-Trigger folgen in AP-0.8" — die
+// Migrationsregistrierung selbst war schon für PR-B vorgesehen) — das würde jetzt an
+// `migrieren()` scheitern ("table person_flach already exists").
 import type Database from 'better-sqlite3'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 
 /**
- * Frische, migrierte (bis `SCHEMA_VERSION`) In-Memory-Datenbank mit zusätzlich direkt angewendetem
- * `docs/schema/0003_abgeleitet.sql` (person_flach, suche_fts, suche_fts_quelle, abl_*-Trigger).
- * Legt zusätzlich die `fts5vocab`-Hilfstabelle `vocab` an (siehe `sucheFtsInhaltAbzug`). Aufrufer
- * schließt die Verbindung selbst (`db.close()`).
+ * Frische, vollständig migrierte (bis `SCHEMA_VERSION`, inkl. abgeleitetem Schema seit v3)
+ * In-Memory-Datenbank. Legt zusätzlich die `fts5vocab`-Hilfstabelle `vocab` an (siehe
+ * `sucheFtsInhaltAbzug`). Aufrufer schließt die Verbindung selbst (`db.close()`).
  */
 export function frischeDatenbankMitAbgeleitetemSchema(): Database.Database {
   const db = oeffnen(':memory:')
   migrieren(db)
-  const abgeleitetesSchema = readFileSync(join('docs', 'schema', '0003_abgeleitet.sql'), 'utf8')
-  db.exec(abgeleitetesSchema)
   db.exec("CREATE VIRTUAL TABLE vocab USING fts5vocab('suche_fts', 'instance')")
   return db
 }

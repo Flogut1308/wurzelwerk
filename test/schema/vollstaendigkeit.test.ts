@@ -445,6 +445,27 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
   ],
   import_herkunft: ['id', 'import_lauf_id', 'datensatz_id', 'datensatz_typ', 'erstellt_am', 'geaendert_am'],
   ansicht_zustand: ['id', 'name', 'zentrumsperson_id', 'filter_json', 'erstellt_am', 'geaendert_am'],
+
+  // docs/schema/0003_abgeleitet.sql (AP-0.7). Abgeleitet, NICHT_JOURNALISIERT (55_Architektur.md
+  // §5) — tragen keine Wahrheit, sind aus den Basistabellen jederzeit neu berechenbar. Die
+  // eigentliche FTS5-Tabelle `suche_fts` ist `type='virtual'` (PRAGMA table_list) und deren
+  // Schattentabellen (`suche_fts_data`/`_idx`/`_docsize`/`_config`) sind `type='shadow'` — beides
+  // filtert `anwenderTabellenNamen` (test/schema/_hilfen.ts) bereits aus, siehe eigenständige
+  // Prüfung dazu in test/schema/schluessel-typen.test.ts + fremdschluessel.test.ts.
+  person_flach: [
+    'person_id',
+    'anzeigename',
+    'sortier_nachname',
+    'sortier_vornamen',
+    'geburt_jahr',
+    'geburt_sort_von',
+    'geburt_ort_name',
+    'tod_jahr',
+    'tod_sort_von',
+    'konfidenz_min',
+    'hat_widerspruch',
+  ],
+  suche_fts_quelle: ['rowid', 'quelle_typ', 'quelle_id'],
 }
 
 /** Die 11 Spalten einer Datumsgruppe (50_Datenmodell.md §2.3 + N.1-Zusatzfelder E9). */

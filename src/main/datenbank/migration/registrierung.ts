@@ -24,10 +24,15 @@ export const MIGRATIONEN = [
     datei: '0002_kern.sql',
     pruefsumme: 'sha256-6bbc912f3b43b212afffb4ad68508eaad55a20910544905996e5997e8ef3ca60',
   },
+  {
+    version: 3,
+    datei: '0003_abgeleitet.sql',
+    pruefsumme: 'sha256-1ecfb25b8403cec826317ae8e155bb43bc87aaac08efb48e4da2badabf168ec1',
+  },
 ] as const satisfies readonly MigrationEintrag[]
 
 /** Ziel von `PRAGMA user_version` nach vollständiger Migration — die höchste Version der Registry. */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** sha256 über den rohen Byte-Inhalt einer Migrationsdatei, Format `sha256-<hexdigest>`. */
 export function pruefsummeBerechnen(inhalt: string | Buffer): string {
