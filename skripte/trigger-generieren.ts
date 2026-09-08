@@ -1,12 +1,15 @@
-// `pnpm trigger` (AP-0.7, 55_Architektur.md §5.2, §4.4 "Trigger werden erzeugt, nicht
-// geschrieben"): erzeugt NUR den `abl_*`-Triggerblock (die zweite Trigger-Familie für abgeleitete
-// Daten) und schreibt ihn zwischen den Markierungskommentaren in `docs/schema/0003_abgeleitet.sql`.
-// Die `jrn_*`-Journal-Trigger sind AP-0.8 und nicht Teil dieses Skripts.
+// `pnpm trigger` (AP-0.7/AP-0.8, 55_Architektur.md §5.2, §4.4 "Trigger werden erzeugt, nicht
+// geschrieben"): erzeugt in einem Lauf ZWEI Trigger-Familien:
+//   1. `abl_*` (abgeleitete Daten, AP-0.7) - schreibt zwischen die Markierungskommentare in
+//      `docs/schema/0003_abgeleitet.sql`.
+//   2. `jrn_*` (Änderungsjournal, AP-0.8, ADR-017) - schreibt die vollständige Datei
+//      `docs/schema/trigger_generiert.sql` neu.
 //
-// Jeder Trigger-Body benutzt exakt dieselben SQL-Textbausteine wie
+// Jeder `abl_*`-Trigger-Body benutzt exakt dieselben SQL-Textbausteine wie
 // `src/main/datenbank/trigger.ts` (`alleAbgeleitetenNeuAufbauen`) - beide importieren aus
 // `src/main/datenbank/abgeleitet-projektion.ts`. Das ist die Bitgleichheits-Garantie aus dem
 // AP-0.7-Auftrag: der einzige Unterschied ist der WHERE-Filter (eine Person vs. alle).
+import Database from 'better-sqlite3'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,6 +22,8 @@ import {
   personNotizFtsSql,
   zitatTranskriptFtsSql,
 } from '../src/main/datenbank/abgeleitet-projektion'
+import { migrieren } from '../src/main/datenbank/migration/laeufer'
+import { JOURNALISIERT } from '../src/main/journal/journalisierung'
 
 const MARKER_ANFANG = '-- @generierte-trigger-anfang'
 const MARKER_ENDE = '-- @generierte-trigger-ende'
@@ -303,9 +308,138 @@ export function triggerGenerieren(zielPfad: string = ZIEL_DATEI): void {
   writeFileSync(zielPfad, neuer, 'utf8')
 }
 
+// ---------------------------------------------------------------------------------------------
+// jrn_*-Journal-Trigger (AP-0.8, 55_Architektur.md §4.2-§4.4, ADR-017)
+// ---------------------------------------------------------------------------------------------
+
+const JOURNAL_TRANSAKTION_ID_SQL = '(SELECT transaktion_id FROM journal_kontext WHERE id = 1)'
+const JOURNAL_AKTIV_BEDINGUNG = '(SELECT aktiv FROM journal_kontext WHERE id = 1) = 1'
+const JOURNAL_REIHENFOLGE_SQL = `(SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = ${JOURNAL_TRANSAKTION_ID_SQL})`
+const JOURNAL_AENDERUNG_SPALTEN =
+  'id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation'
+
+/**
+ * `aenderung.datensatz_id` aus den Primärschlüsselspalten einer Zeile (D-2, AP-0.8 Planungsnotiz).
+ * Bei genau einer PK-Spalte deren Wert unverändert; bei mehreren Spalten (`ort_externe_id`,
+ * `partnerschaft_person`, `aussage_zitat`, `medium_zuordnung`) werden die Werte mit `|` verknüpft,
+ * in der Reihenfolge von `PRAGMA table_info` (aufsteigendes `pk`-Feld). AP-0.10 (Undo) muss diese
+ * Regel kennen, um `datensatz_id` wieder in die einzelnen PK-Werte zu zerlegen.
+ */
+function datensatzIdSql(praefix: 'NEW' | 'OLD', pkSpalten: readonly string[]): string {
+  if (pkSpalten.length === 0) {
+    throw new Error('jrnTriggerFuerTabelle: Tabelle ohne Primärschlüsselspalte kann nicht journalisiert werden.')
+  }
+  return pkSpalten.map((spalte) => `${praefix}.${spalte}`).join(" || '|' || ")
+}
+
+/** `json_object('spalte1', PRAEFIX.spalte1, …)` über alle Spalten, in `PRAGMA table_info`-Reihenfolge. */
+function jsonObjectSql(praefix: 'NEW' | 'OLD', spalten: readonly string[]): string {
+  return `json_object(${spalten.map((spalte) => `'${spalte}', ${praefix}.${spalte}`).join(', ')})`
+}
+
+/**
+ * Erzeugt die drei `jrn_*`-Trigger (INSERT/UPDATE/DELETE) für eine journalisierte Tabelle
+ * (55_Architektur.md §4.3-Vorlage, ADR-017). Reine Funktion: Tabellenname, Spaltenliste
+ * (`PRAGMA table_info`-cid-Reihenfolge) und Primärschlüsselspalten (`pk`-Feld-Reihenfolge) sind
+ * Eingaben, kein Datenbankzugriff hier - das übernimmt `generierterJournalTriggerBlock()`.
+ * `datensatz_id` kommt beim INSERT-Trigger aus `NEW`, bei UPDATE/DELETE aus `OLD`
+ * (55_Architektur.md §4.3-Beispiel).
+ */
+export function jrnTriggerFuerTabelle(tabelle: string, spalten: readonly string[], pkSpalten: readonly string[]): string {
+  const datensatzIdNeu = datensatzIdSql('NEW', pkSpalten)
+  const datensatzIdAlt = datensatzIdSql('OLD', pkSpalten)
+  const jsonNeu = jsonObjectSql('NEW', spalten)
+  const jsonAlt = jsonObjectSql('OLD', spalten)
+
+  return `CREATE TRIGGER jrn_${tabelle}_ai AFTER INSERT ON ${tabelle}
+WHEN ${JOURNAL_AKTIV_BEDINGUNG}
+BEGIN
+  INSERT INTO aenderung (${JOURNAL_AENDERUNG_SPALTEN})
+  VALUES (uuid7(), ${JOURNAL_TRANSAKTION_ID_SQL}, ${JOURNAL_REIHENFOLGE_SQL}, '${tabelle}', ${datensatzIdNeu}, NULL, ${jsonNeu}, 'insert');
+END;
+
+CREATE TRIGGER jrn_${tabelle}_au AFTER UPDATE ON ${tabelle}
+WHEN ${JOURNAL_AKTIV_BEDINGUNG}
+BEGIN
+  INSERT INTO aenderung (${JOURNAL_AENDERUNG_SPALTEN})
+  VALUES (uuid7(), ${JOURNAL_TRANSAKTION_ID_SQL}, ${JOURNAL_REIHENFOLGE_SQL}, '${tabelle}', ${datensatzIdAlt}, ${jsonAlt}, ${jsonNeu}, 'update');
+END;
+
+CREATE TRIGGER jrn_${tabelle}_ad AFTER DELETE ON ${tabelle}
+WHEN ${JOURNAL_AKTIV_BEDINGUNG}
+BEGIN
+  INSERT INTO aenderung (${JOURNAL_AENDERUNG_SPALTEN})
+  VALUES (uuid7(), ${JOURNAL_TRANSAKTION_ID_SQL}, ${JOURNAL_REIHENFOLGE_SQL}, '${tabelle}', ${datensatzIdAlt}, ${jsonAlt}, NULL, 'delete');
+END;`
+}
+
+interface TabelleInfoZeile {
+  readonly cid: number
+  readonly name: string
+  readonly pk: number
+}
+
+/** Spalten (cid-Reihenfolge) und Primärschlüsselspalten (pk-Reihenfolge) einer Tabelle. `tabelle` kommt ausschließlich aus `JOURNALISIERT`, nie aus einer Nutzereingabe - PRAGMA erlaubt ohnehin kein Parameter-Binding auf Bezeichner. */
+function spaltenUndPrimaerschluessel(
+  db: Database.Database,
+  tabelle: string,
+): { readonly spalten: readonly string[]; readonly pkSpalten: readonly string[] } {
+  const zeilen = db.prepare<[], TabelleInfoZeile>(`PRAGMA table_info(${tabelle})`).all()
+  const spalten = zeilen
+    .slice()
+    .sort((a, b) => a.cid - b.cid)
+    .map((zeile) => zeile.name)
+  const pkSpalten = zeilen
+    .filter((zeile) => zeile.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((zeile) => zeile.name)
+  return { spalten, pkSpalten }
+}
+
+/**
+ * Der vollständige `jrn_*`-Triggerblock über alle Tabellen aus `JOURNALISIERT` (alphabetisch
+ * sortiert, für Reproduzierbarkeit unabhängig von einer künftigen Umsortierung der Konstante).
+ * Öffnet eine frische In-Memory-Datenbank und migriert sie (analog `skripte/schema-dump.ts`) - nur
+ * um `PRAGMA table_info` je Tabelle zu lesen; `CREATE TRIGGER` ist reine DDL, dafür müssen `uuid7`
+ * & Co. zum Erzeugungszeitpunkt nicht als SQL-Funktion registriert sein.
+ */
+export function generierterJournalTriggerBlock(): string {
+  const db = new Database(':memory:')
+  try {
+    migrieren(db)
+    return JOURNALISIERT.slice()
+      .sort((a, b) => a.localeCompare(b))
+      .map((tabelle) => {
+        const { spalten, pkSpalten } = spaltenUndPrimaerschluessel(db, tabelle)
+        return jrnTriggerFuerTabelle(tabelle, spalten, pkSpalten)
+      })
+      .join('\n\n')
+  } finally {
+    db.close()
+  }
+}
+
+const JRN_ZIEL_DATEI = join('docs', 'schema', 'trigger_generiert.sql')
+
+const JRN_KOPF_KOMMENTAR = `-- Erzeugt von \`pnpm trigger\` (skripte/trigger-generieren.ts) — NICHT von Hand ändern.
+-- jrn_*-Journal-Trigger je journalisierter Tabelle (55_Architektur.md §4.2-§4.4, ADR-017,
+-- AP-0.8), Tabellenliste aus src/main/journal/journalisierung.ts (JOURNALISIERT).
+-- Angewendet von src/main/datenbank/journal-trigger-anwenden.ts nach jeder abgeschlossenen
+-- Migrationsschleife (src/main/datenbank/migration/laeufer.ts) - diese Datei ist selbst KEINE
+-- Migration (keine Prüfsummen-Registrierung in registrierung.ts) und trägt deshalb keine
+-- "00NN_"-Nummer.`
+
+/** Schreibt den vollständigen `jrn_*`-Triggerblock nach `docs/schema/trigger_generiert.sql` (CLI-Kern, testbar). */
+export function jrnTriggerDateiSchreiben(zielPfad: string = JRN_ZIEL_DATEI): void {
+  const inhalt = `${JRN_KOPF_KOMMENTAR}\n\n${generierterJournalTriggerBlock()}\n`
+  writeFileSync(zielPfad, inhalt, 'utf8')
+}
+
 // CLI-Einstieg, analog zu skripte/schema-dump.ts / skripte/fixture-datenbank-bauen.ts.
 const direktAufgerufen = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1])
 if (direktAufgerufen) {
   triggerGenerieren()
+  jrnTriggerDateiSchreiben()
   console.log(`Generierter Triggerblock geschrieben: ${ZIEL_DATEI}`)
+  console.log(`Generierte Journal-Trigger geschrieben: ${JRN_ZIEL_DATEI}`)
 }

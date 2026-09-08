@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { WurzelFehler } from '../../../shared/fehler/wurzel-fehler'
+import { generierteTriggerAnwenden } from '../journal-trigger-anwenden'
 import { MIGRATIONEN, migrationsRohInhaltLesen, pruefsummeBerechnen, type MigrationEintrag } from './registrierung'
 
 /** Eine Zeile aus `schema_migration` (nur die für die Prüfsummenprüfung relevanten Spalten). */
@@ -157,4 +158,11 @@ export function migrieren(db: Database.Database, opts: LaeufenOptionen = {}): vo
   for (const eintrag of ausstehend) {
     einzelneMigrationAnwenden(db, eintrag, { inhaltLesen, jetzt, appVersion })
   }
+
+  // 55_Architektur.md §4.4: "als letzter Schritt jeder Migration" - einmal nach der gesamten
+  // Schleife, nicht je Einzelmigration (AP-0.8). Läuft nur, wenn oben tatsächlich mindestens eine
+  // Migration angewendet wurde (early returns oberhalb decken den No-op-Fall bereits ab) - die
+  // Trigger einer bereits vollständig migrierten Datei bleiben unangetastet, sie stehen als
+  // physische Schemaobjekte weiter in der Datei.
+  generierteTriggerAnwenden(db)
 }
