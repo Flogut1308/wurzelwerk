@@ -37,6 +37,11 @@ const POLYMORPHE_SPALTEN: readonly PolymorpheSpalte[] = [
   // Diskriminator heißt hier "tabelle", nicht "<spalte>_typ" (abweichende, aber gleichwertige
   // Namenskonvention aus AP-0.5, vor der AP-0.6-Konvention entstanden).
   { tabelle: 'aenderung', spalte: 'datensatz_id', diskriminator: 'tabelle' },
+  // docs/schema/0003_abgeleitet.sql (AP-0.7): suche_fts_quelle ist die Mapping-Tabelle der
+  // contentless FTS5-Tabelle `suche_fts` — quelle_id zeigt je nach quelle_typ ('name',
+  // 'person_notiz', 'zitat_transkript') auf name.id, person.id oder zitat.id, hat also keinen
+  // festen, deklarierbaren Fremdschlüssel (polymorph, Diskriminator quelle_typ).
+  { tabelle: 'suche_fts_quelle', spalte: 'quelle_id', diskriminator: 'quelle_typ' },
 ]
 
 /**

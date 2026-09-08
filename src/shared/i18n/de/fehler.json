@@ -83,6 +83,10 @@
     "titel": "Migrationsdatei wurde verändert",
     "was_tun": "Das Projekt nicht öffnen. Die installierte Anwendung neu einrichten und den Support kontaktieren."
   },
+  "PROJEKT_NICHT_GEOEFFNET": {
+    "titel": "Kein Projekt geöffnet",
+    "was_tun": "Zuerst ein Projekt anlegen oder öffnen, bevor diese Aktion ausgeführt wird."
+  },
   "DATEI_NICHT_LESBAR": {
     "titel": "Datei nicht lesbar",
     "was_tun": "Prüfen, ob die Datei noch existiert und Leserechte bestehen, und es erneut versuchen."

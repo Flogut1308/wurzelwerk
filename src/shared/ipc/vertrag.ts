@@ -85,6 +85,7 @@ export interface Vertrag {
   'befehl:projekt.oeffnen': { ein: ProjektOeffnenEin; aus: ProjektOeffnenAus }
   'befehl:projekt.schliessen': { ein: null; aus: null }
   'abfrage:projekt.zuletzt': { ein: null; aus: readonly ZuletztEintrag[] }
+  'befehl:wartung.abgeleiteteNeuAufbauen': { ein: null; aus: null }
 }
 
 export type Kanal = keyof Vertrag

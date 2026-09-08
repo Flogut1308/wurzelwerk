@@ -15,6 +15,11 @@ import { anwenderTabellen, frischeMigrierteDatenbank, spaltenInfo } from './_hil
  * - `schema_migration.version` (`INTEGER PRIMARY KEY`, 55_Architektur.md §9.1): der Primärschlüssel
  *   IST die Schemaversion, dieselbe Zahl wie `PRAGMA user_version` — von Natur aus eine fortlaufende
  *   Ganzzahl, keine UUID-fähige Entität.
+ * - `suche_fts_quelle.rowid` (`INTEGER PRIMARY KEY AUTOINCREMENT`, docs/schema/0003_abgeleitet.sql,
+ *   AP-0.7): NICHT_JOURNALISIERT-Mapping-Tabelle für die contentless FTS5-Tabelle `suche_fts` — der
+ *   `rowid` hier muss zugleich der `rowid` in `suche_fts` sein, FTS5 verlangt dafür technisch eine
+ *   durchlaufende Ganzzahl, keine UUID (siehe Schema-Kommentar unmittelbar über `CREATE TABLE
+ *   suche_fts_quelle` in 0003_abgeleitet.sql).
  *
  * Schema-Fund (siehe Abschlussbericht): `schema_migration.version` fehlte in der ersten Fassung
  * dieser Ausnahmeliste — der Test unten fing das.
@@ -22,6 +27,7 @@ import { anwenderTabellen, frischeMigrierteDatenbank, spaltenInfo } from './_hil
 const ERLAUBTE_INTEGER_PK_AUSNAHMEN: Record<string, readonly string[]> = {
   journal_kontext: ['id'],
   schema_migration: ['version'],
+  suche_fts_quelle: ['rowid'],
 }
 
 describe('test/schema/schluessel-typen (CLAUDE.md §6, F-05)', () => {

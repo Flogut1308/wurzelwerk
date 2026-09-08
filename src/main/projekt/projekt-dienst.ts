@@ -133,3 +133,16 @@ export function projektSchliessen(): void {
 export function projektZuletzt(): readonly ZuletztEintrag[] {
   return zuletztLesen()
 }
+
+/**
+ * Die Datenbankverbindung des aktuell offenen Projekts (AP-0.7, für Wartungsbefehle wie
+ * `befehl:wartung.abgeleiteteNeuAufbauen`, die kein eigenes Repository sind und darum keinen
+ * eigenen Zugriffsweg auf `offenesProjekt` haben). Wirft `PROJEKT_NICHT_GEOEFFNET`, statt `undefined`
+ * durchzureichen — ein Aufrufer soll nie mit einer optionalen Datenbank weiterrechnen müssen.
+ */
+export function offenesProjektDatenbank(): Database.Database {
+  if (offenesProjekt === undefined) {
+    throw new WurzelFehler('PROJEKT_NICHT_GEOEFFNET')
+  }
+  return offenesProjekt.db
+}

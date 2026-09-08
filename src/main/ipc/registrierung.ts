@@ -5,6 +5,7 @@ import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { protokollFehler } from '../protokoll/logger'
 import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
+import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { registriere } from './huelle'
 
 // Erzwingt strukturell, dass dieses Schema zu `ProtokollMeldenEin` passt — eine Abweichung ist
@@ -52,4 +53,6 @@ export function ipcRegistrierung(): void {
     return null
   })
   registriere('abfrage:projekt.zuletzt', z.null(), () => projektZuletzt())
+
+  registriere('befehl:wartung.abgeleiteteNeuAufbauen', z.null(), () => wartungAbgeleiteteNeuAufbauen())
 }

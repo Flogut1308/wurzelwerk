@@ -29,6 +29,7 @@ import {
   QuelleTypEnum,
   RisikofaktorArtEnum,
   SchriftEnum,
+  SucheFtsQuelleTypEnum,
   SubjektTypEnum,
   UmschriftNormEnum,
   UnmittelbarkeitEnum,
@@ -119,6 +120,10 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   { tabelle: 'feld_wert', spalte: 'subjekt_typ', zodEnum: FeldGiltFuerEnum },
   ...datumsgruppenZuordnungen('feld_wert', 'wert_datum'),
   ...datumsgruppenZuordnungen('interview_sitzung', 'datum'),
+  // docs/schema/0003_abgeleitet.sql (AP-0.7): suche_fts_quelle ist NICHT_JOURNALISIERT, analog zu
+  // name_phonetik.verfahren oben — trotzdem eine beobachtete Aufzählung, kein AUSSERHALB_AP_0_6-Fall
+  // (die Ausnahme dort ist auf die drei 0001_grundgeruest.sql-Journal-Spalten begrenzt).
+  { tabelle: 'suche_fts_quelle', spalte: 'quelle_typ', zodEnum: SucheFtsQuelleTypEnum },
 ]
 
 /** Spalten mit `CHECK (spalte IN (…))` in 0001_grundgeruest.sql, außerhalb des AP-0.6-Umfangs (s. o.). */

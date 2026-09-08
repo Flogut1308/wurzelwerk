@@ -29,3 +29,8 @@ pnpm-debug.log*
 
 # Projektdateien (lokale Testdaten, nie im Repo)
 *.ahnen/
+
+# SQLite WAL-Begleitdateien (journal_mode = WAL, src/main/datenbank/verbindung.ts) - entstehen
+# beim lokalen Öffnen von fixtures/datenbanken/*.sqlite, gehören nie ins Repo (AP-0.7-Fund).
+*.sqlite-shm
+*.sqlite-wal
