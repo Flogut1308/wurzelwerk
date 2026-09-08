@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { JOURNALISIERT } from '../../src/main/journal/journalisierung'
-import { journalAusAufrufstellen } from './_journal-aufrufer'
+import { journalAusAufrufeAusQuelltext, journalAusAufrufstellen } from './_journal-aufrufer'
 import { minimalZeileFuer, vorstufeAnlegen } from './_journal-minimalzeilen'
 
 describe('Invariante: kein Schreibvorgang auf einer journalisierten Tabelle ohne armierte Transaktion (AP-0.8, 55_Architektur.md §4.3)', () => {
@@ -76,4 +76,59 @@ describe('Invariante: nur Migration, Undo/Redo und Großimport dürfen das Journ
   // ihre journalAus()-Aufrufer angelegt haben (Migration bleibt ggf. weiterhin ungenutzt, dann
   // reicht "zwei von drei besetzt" - siehe dann docs/arbeitspakete.md).
   it.todo('genau drei journalAus()-Aufrufstellen, je eine für Migration, Undo/Redo und Großimport')
+})
+
+describe('Selbstprüfung des Scanners: journalAusAufrufeAusQuelltext erkennt beide Aufrufformen (hueter-Review PR #13, Auflage 1)', () => {
+  it('erkennt den bare Call journalAus(tx, grund) (Named-Import-Stil)', () => {
+    const treffer = journalAusAufrufeAusQuelltext(
+      'probe-bare-call.ts',
+      "import { journalAus } from '../journal/kontext'\nfunction f(tx: unknown): void {\n  journalAus(tx, 'migration: Testzweck')\n}\n",
+    )
+    expect(treffer).toHaveLength(1)
+    expect(treffer[0]?.grund).toBe('migration: Testzweck')
+    expect(treffer[0]?.kategorie).toBe('migration')
+  })
+
+  it('erkennt den Property-Access-Aufruf kontext.journalAus(tx, grund) (Namespace-Import-Stil, 55_Architektur.md §4.3/§4.5)', () => {
+    const treffer = journalAusAufrufeAusQuelltext(
+      'probe-namespace-call.ts',
+      "import * as kontext from '../journal/kontext'\nfunction f(tx: unknown): void {\n  kontext.journalAus(tx, 'grossimport: Testzweck')\n}\n",
+    )
+    expect(treffer).toHaveLength(1)
+    expect(treffer[0]?.grund).toBe('grossimport: Testzweck')
+    expect(treffer[0]?.kategorie).toBe('grossimport')
+  })
+
+  it('zählt BEIDE Formen, wenn sie im selben Quelltext gemischt vorkommen', () => {
+    const treffer = journalAusAufrufeAusQuelltext(
+      'probe-gemischt.ts',
+      [
+        "import * as kontext from '../journal/kontext'",
+        "import { journalAus } from '../journal/kontext'",
+        'function f(tx: unknown): void {',
+        "  journalAus(tx, 'undo: Testzweck a')",
+        "  kontext.journalAus(tx, 'redo: Testzweck b')",
+        '}',
+        '',
+      ].join('\n'),
+    )
+    expect(treffer.map((t) => t.grund)).toEqual(['undo: Testzweck a', 'redo: Testzweck b'])
+    expect(treffer.every((t) => t.kategorie === 'undo_redo')).toBe(true)
+  })
+
+  it('KEIN Treffer für einen bloßen Kommentartext "journalAus(...)" ohne echten Aufruf (AST statt Regex, s. Modul-Kommentar)', () => {
+    const treffer = journalAusAufrufeAusQuelltext(
+      'probe-kommentar.ts',
+      "// Diese Funktion ruft niemals journalAus(tx, 'migration') auf - nur ein Kommentar.\nfunction f(): void {}\n",
+    )
+    expect(treffer).toEqual([])
+  })
+
+  // Bewusst dokumentierte Lücke (Auflage 2, s. auch Modul-Kommentar in _journal-aufrufer.ts): ein
+  // Alias-Re-Export/-Import (`import { journalAus as x } from '...'; x(tx, grund)`) wird vom
+  // Scanner NICHT erkannt, weil er keine Bindungen auflöst, sondern wörtlich nach dem
+  // Identifier-/Property-Namen `journalAus` sucht. Kein aktiver Test dafür (er müsste erwarten,
+  // dass NICHTS gefunden wird - das wäre kein rotes Warnsignal, sondern nur eine Bestätigung der
+  // bekannten Grenze); als Dokumentation genügt der Kommentar hier + in _journal-aufrufer.ts.
+  it.todo('Alias-Re-Export (journalAus as x) erkennen - nur falls das je gebraucht wird, s. Kommentar in _journal-aufrufer.ts')
 })
