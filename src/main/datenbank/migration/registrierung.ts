@@ -22,7 +22,7 @@ export const MIGRATIONEN = [
   {
     version: 2,
     datei: '0002_kern.sql',
-    pruefsumme: 'sha256-5946010f52799ec06d1868bb0a95413a265fb2b95c179913811661e0a35e5f1b',
+    pruefsumme: 'sha256-6bbc912f3b43b212afffb4ad68508eaad55a20910544905996e5997e8ef3ca60',
   },
 ] as const satisfies readonly MigrationEintrag[]
 

@@ -13,7 +13,9 @@ CREATE TABLE person (
   notiz TEXT,
   gesperrt_bis INTEGER,
   ist_platzhalter INTEGER NOT NULL CHECK (ist_platzhalter IN (0,1)),
-  platzhalter_grund TEXT CHECK (platzhalter_grund IN ('unbekannt','unehelich','nicht_identifiziert','forschungsluecke')) -- §2.14
+  platzhalter_grund TEXT CHECK (platzhalter_grund IN ('unbekannt','unehelich','nicht_identifiziert','forschungsluecke')), -- §2.14
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 
 -- JOURNALISIERT
@@ -36,7 +38,9 @@ CREATE TABLE name (
   sprache TEXT,
   ist_bevorzugt INTEGER CHECK (ist_bevorzugt IS NULL OR ist_bevorzugt IN (0,1)),
   gueltig_von INTEGER,
-  gueltig_bis INTEGER
+  gueltig_bis INTEGER,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_name_person_id ON name(person_id);
 CREATE INDEX idx_name_umschrift_von ON name(umschrift_von);
@@ -47,6 +51,8 @@ CREATE TABLE name_phonetik (
   name_id TEXT NOT NULL REFERENCES name(id) ON DELETE CASCADE, -- E-4/E-5 explizit: CASCADE
   verfahren TEXT NOT NULL CHECK (verfahren IN ('koelner','dm_soundex','soundex')),
   code TEXT NOT NULL,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER,
   PRIMARY KEY (name_id, verfahren)
 ) STRICT;
 CREATE INDEX idx_name_phonetik_name_id ON name_phonetik(name_id);
@@ -61,7 +67,9 @@ CREATE TABLE ort (
   existiert_von INTEGER,
   existiert_bis INTEGER,
   nachfolger_ort_id TEXT REFERENCES ort(id) ON DELETE SET NULL, -- Selbstverweis, optional (Auflösung/Umbenennung) -> SET NULL
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_ort_nachfolger_ort_id ON ort(nachfolger_ort_id);
 
@@ -75,7 +83,9 @@ CREATE TABLE ortsname (
   gueltig_von INTEGER,
   gueltig_bis INTEGER,
   ist_bevorzugt INTEGER CHECK (ist_bevorzugt IS NULL OR ist_bevorzugt IN (0,1)),
-  original_text TEXT
+  original_text TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_ortsname_ort_id ON ortsname(ort_id);
 
@@ -87,7 +97,9 @@ CREATE TABLE ortszugehoerigkeit (
   uebergeordnet_id TEXT NOT NULL REFERENCES ort(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: RESTRICT
   art TEXT NOT NULL CHECK (art IN ('politisch','kirchlich')),
   gueltig_von INTEGER,
-  gueltig_bis INTEGER
+  gueltig_bis INTEGER,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_ortszugehoerigkeit_ort_id ON ortszugehoerigkeit(ort_id);
 CREATE INDEX idx_ortszugehoerigkeit_uebergeordnet_id ON ortszugehoerigkeit(uebergeordnet_id);
@@ -98,6 +110,8 @@ CREATE TABLE ort_externe_id (
   ort_id TEXT NOT NULL REFERENCES ort(id) ON DELETE CASCADE, -- E-4/E-5 explizit: CASCADE
   system TEXT NOT NULL CHECK (system IN ('gov','geonames','wikidata')),
   wert TEXT NOT NULL,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER,
   PRIMARY KEY (ort_id, system)
 ) STRICT;
 CREATE INDEX idx_ort_externe_id_ort_id ON ort_externe_id(ort_id);
@@ -120,7 +134,9 @@ CREATE TABLE ereignis (
   datum_zweitwert TEXT,
   datum_doppeljahr TEXT,
   beschreibung TEXT,
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_ereignis_ort_id ON ereignis(ort_id);
 
@@ -131,7 +147,9 @@ CREATE TABLE beteiligung (
   ereignis_id TEXT NOT NULL REFERENCES ereignis(id) ON DELETE CASCADE, -- E-4/E-5 explizit: CASCADE
   person_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: Beziehungskante -> RESTRICT
   rolle TEXT NOT NULL CHECK (rolle IN ('hauptperson','kind','vater','mutter','braeutigam','braut','pate','patenvertreter','trauzeuge','verstorbener','ehepartner','informant','pfarrer','hebamme','dienstherr')),
-  reihenfolge INTEGER
+  reihenfolge INTEGER,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_beteiligung_ereignis_id ON beteiligung(ereignis_id);
 CREATE INDEX idx_beteiligung_person_id ON beteiligung(person_id);
@@ -144,7 +162,9 @@ CREATE TABLE elternschaft (
   kind_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: Beziehungskante -> RESTRICT
   typ TEXT NOT NULL CHECK (typ IN ('biologisch','adoptiv','stief','pflege','zieh','anerkannt','leihmutter','unbekannt')),
   konfidenz INTEGER CHECK (konfidenz BETWEEN 1 AND 4), -- Annahme: E-1 zählt elternschaft.konfidenz nicht namentlich auf, N.1 gilt aber blanko für jede Konfidenz-Spalte im Schema - hier mit angewendet, bitte prüfen.
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_elternschaft_elternteil_id ON elternschaft(elternteil_id);
 CREATE INDEX idx_elternschaft_kind_id ON elternschaft(kind_id);
@@ -178,7 +198,9 @@ CREATE TABLE partnerschaft (
   ende_doppeljahr TEXT,
   ende_grund TEXT CHECK (ende_grund IN ('scheidung','annullierung','tod','trennung','unbekannt')),
   reihenfolge INTEGER,
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 
 -- JOURNALISIERT
@@ -187,6 +209,8 @@ CREATE TABLE partnerschaft_person (
   partnerschaft_id TEXT NOT NULL REFERENCES partnerschaft(id) ON DELETE CASCADE, -- Annahme: im Plan nicht explizit gelistet (nur person_id ist gelistet). Komposition (Teilnehmer gehören zur Partnerschaft) -> CASCADE, analog beteiligung.ereignis_id. Bitte prüfen.
   person_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: Beziehungskante -> RESTRICT
   rolle TEXT, -- Lücke: Datenmodell nennt keine Werteliste für diese Rolle (anders als bei anderen *_typ/rolle-Spalten) - kein CHECK, bitte Wertebereich nachtragen.
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER,
   PRIMARY KEY (partnerschaft_id, person_id)
 ) STRICT;
 CREATE INDEX idx_partnerschaft_person_partnerschaft_id ON partnerschaft_person(partnerschaft_id);
@@ -198,8 +222,10 @@ CREATE TABLE assoziation (
   id TEXT PRIMARY KEY,
   person_a_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: Beziehungskante -> RESTRICT
   person_b_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- E-4/E-5 explizit: Beziehungskante -> RESTRICT
-  art TEXT CHECK (art IN ('nachbar','dienstherr','geschaeftspartner','zwilling')),
-  notiz TEXT
+  art TEXT, -- offene Menge (50_Datenmodell.md §1 Ellipse), kein CHECK
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_assoziation_person_a_id ON assoziation(person_a_id);
 CREATE INDEX idx_assoziation_person_b_id ON assoziation(person_b_id);
@@ -212,7 +238,9 @@ CREATE TABLE archiv (
   ort_id TEXT REFERENCES ort(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
   kontakt TEXT,
   url TEXT,
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_archiv_ort_id ON archiv(ort_id);
 
@@ -244,7 +272,9 @@ CREATE TABLE quelle (
   gespraechsdatum_doppeljahr TEXT,
   form TEXT CHECK (form IN ('gespraech','telefonat','brief','email','audio','video')),
   unmittelbarkeit TEXT CHECK (unmittelbarkeit IN ('selbst_erlebt','vom_hoerensagen','unbekannt')),
-  audio_medium_id TEXT REFERENCES medium(id) ON DELETE SET NULL -- E-4/E-5 explizit: SET NULL
+  audio_medium_id TEXT REFERENCES medium(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_quelle_archiv_id ON quelle(archiv_id);
 CREATE INDEX idx_quelle_informant_person_id ON quelle(informant_person_id);
@@ -274,7 +304,9 @@ CREATE TABLE zitat (
   transkript TEXT,
   uebersetzung TEXT,
   konfidenz INTEGER CHECK (konfidenz BETWEEN 1 AND 4),
-  medium_id TEXT REFERENCES medium(id) ON DELETE SET NULL -- E-4/E-5 explizit: SET NULL
+  medium_id TEXT REFERENCES medium(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_zitat_quelle_id ON zitat(quelle_id);
 CREATE INDEX idx_zitat_medium_id ON zitat(medium_id);
@@ -302,7 +334,9 @@ CREATE TABLE aussage (
   datum_doppeljahr TEXT,
   konfidenz INTEGER CHECK (konfidenz BETWEEN 1 AND 4),
   ist_bevorzugt INTEGER CHECK (ist_bevorzugt IS NULL OR ist_bevorzugt IN (0,1)),
-  begruendung TEXT
+  begruendung TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 
 -- JOURNALISIERT
@@ -310,6 +344,8 @@ CREATE TABLE aussage (
 CREATE TABLE aussage_zitat (
   aussage_id TEXT NOT NULL REFERENCES aussage(id) ON DELETE CASCADE, -- E-4/E-5 explizit (aussage_zitat.*): CASCADE
   zitat_id TEXT NOT NULL REFERENCES zitat(id) ON DELETE CASCADE, -- E-4/E-5 explizit (aussage_zitat.*): CASCADE
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER,
   PRIMARY KEY (aussage_id, zitat_id)
 ) STRICT;
 CREATE INDEX idx_aussage_zitat_aussage_id ON aussage_zitat(aussage_id);
@@ -325,7 +361,9 @@ CREATE TABLE negativbefund (
   zeitraum_von INTEGER, -- E-8: einfache Spalte
   zeitraum_bis INTEGER, -- E-8: einfache Spalte
   beschreibung TEXT,
-  datum_der_pruefung TEXT -- nicht in der Datumsgruppen-Liste der Konventionen - einfache Spalte
+  datum_der_pruefung TEXT, -- nicht in der Datumsgruppen-Liste der Konventionen - einfache Spalte
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_negativbefund_quelle_id ON negativbefund(quelle_id);
 CREATE INDEX idx_negativbefund_gesuchte_person_id ON negativbefund(gesuchte_person_id);
@@ -339,7 +377,9 @@ CREATE TABLE persona (
   person_id TEXT REFERENCES person(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
   zuordnung_konfidenz INTEGER CHECK (zuordnung_konfidenz BETWEEN 1 AND 4), -- E-9
   zuordnung_begruendung TEXT,
-  zuordnung_datum TEXT -- E-8: einfache Spalte
+  zuordnung_datum TEXT, -- E-8: einfache Spalte
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_persona_zitat_id ON persona(zitat_id);
 CREATE INDEX idx_persona_person_id ON persona(person_id);
@@ -366,7 +406,9 @@ CREATE TABLE medium (
   datum_zweitkalender TEXT CHECK (datum_zweitkalender IN ('gregorian','julian','hebrew','french_r')),
   datum_zweitwert TEXT,
   datum_doppeljahr TEXT,
-  ort_id TEXT REFERENCES ort(id) ON DELETE SET NULL -- E-4/E-5 explizit: SET NULL
+  ort_id TEXT REFERENCES ort(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_medium_ort_id ON medium(ort_id);
 
@@ -377,6 +419,8 @@ CREATE TABLE medium_zuordnung (
   subjekt_typ TEXT NOT NULL CHECK (subjekt_typ IN ('person','ereignis','elternschaft','partnerschaft','ort','name')), -- E-7 Diskriminator zu subjekt_id. Annahme: keine eigene Werteliste im Modelltext - Wiederverwendung von aussage.subjekt_typ als naheliegendste Lösung, bitte prüfen.
   subjekt_id TEXT NOT NULL, -- E-7: polymorph, bewusst kein FK
   ist_titelbild INTEGER CHECK (ist_titelbild IS NULL OR ist_titelbild IN (0,1)),
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER,
   PRIMARY KEY (medium_id, subjekt_typ, subjekt_id)
 ) STRICT;
 CREATE INDEX idx_medium_zuordnung_medium_id ON medium_zuordnung(medium_id);
@@ -390,7 +434,9 @@ CREATE TABLE medium_region (
   x REAL, -- Annahme: normalisierte Koordinate (0..1), nicht Pixel - bitte prüfen
   y REAL,
   w REAL,
-  h REAL
+  h REAL,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_medium_region_medium_id ON medium_region(medium_id);
 CREATE INDEX idx_medium_region_person_id ON medium_region(person_id);
@@ -404,7 +450,9 @@ CREATE TABLE merge_protokoll (
   quell_person_id TEXT NOT NULL REFERENCES person(id) ON DELETE RESTRICT, -- Annahme: im Plan nicht gelistet - Beziehungskante zu einer konkreten Person -> RESTRICT.
   feldentscheidungen_json TEXT,
   begruendung TEXT,
-  rueckgaengig_moeglich INTEGER CHECK (rueckgaengig_moeglich IS NULL OR rueckgaengig_moeglich IN (0,1))
+  rueckgaengig_moeglich INTEGER CHECK (rueckgaengig_moeglich IS NULL OR rueckgaengig_moeglich IN (0,1)),
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_merge_protokoll_transaktion_id ON merge_protokoll(transaktion_id);
 CREATE INDEX idx_merge_protokoll_ziel_person_id ON merge_protokoll(ziel_person_id);
@@ -415,7 +463,9 @@ CREATE INDEX idx_merge_protokoll_quell_person_id ON merge_protokoll(quell_person
 CREATE TABLE id_alias (
   alte_id TEXT PRIMARY KEY, -- E-7: polymorph, bewusst kein FK
   neue_id TEXT NOT NULL, -- E-7: polymorph, bewusst kein FK
-  typ TEXT NOT NULL -- Lücke: Datenmodell nennt keine Werteliste für diesen Diskriminator - kein CHECK, bitte nachtragen.
+  typ TEXT NOT NULL, -- Lücke: Datenmodell nennt keine Werteliste für diesen Diskriminator - kein CHECK, bitte nachtragen.
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 
 -- JOURNALISIERT
@@ -429,7 +479,9 @@ CREATE TABLE aufgabe (
   beschreibung TEXT,
   prioritaet INTEGER, -- Lücke: keine Werteliste/Skala im Datenmodell genannt - kein CHECK, bitte nachtragen.
   status TEXT, -- Lücke: keine Werteliste im Datenmodell genannt - kein CHECK, bitte nachtragen.
-  faellig_am TEXT -- E-8: einfache Spalte
+  faellig_am TEXT, -- E-8: einfache Spalte
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_aufgabe_person_id ON aufgabe(person_id);
 CREATE INDEX idx_aufgabe_ort_id ON aufgabe(ort_id);
@@ -458,7 +510,9 @@ CREATE TABLE diagnose (
   alter_bei_diagnose INTEGER,
   status TEXT CHECK (status IN ('bestehend','geheilt','todesursache','unbekannt')),
   konfidenz INTEGER CHECK (konfidenz BETWEEN 1 AND 4),
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_diagnose_person_id ON diagnose(person_id);
 
@@ -494,7 +548,9 @@ CREATE TABLE risikofaktor (
   ende_doppeljahr TEXT,
   quelle_beruf_id TEXT REFERENCES aussage(id) ON DELETE SET NULL, -- E-10 explizit: FK auf aussage(id), SET NULL, kein polymorpher Fall
   konfidenz INTEGER CHECK (konfidenz BETWEEN 1 AND 4),
-  notiz TEXT
+  notiz TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_risikofaktor_person_id ON risikofaktor(person_id);
 CREATE INDEX idx_risikofaktor_quelle_beruf_id ON risikofaktor(quelle_beruf_id);
@@ -513,7 +569,9 @@ CREATE TABLE feld_definition (
   gruppe TEXT,
   reihenfolge INTEGER,
   ist_system INTEGER CHECK (ist_system IS NULL OR ist_system IN (0,1)),
-  ist_sensibel INTEGER CHECK (ist_sensibel IS NULL OR ist_sensibel IN (0,1))
+  ist_sensibel INTEGER CHECK (ist_sensibel IS NULL OR ist_sensibel IN (0,1)),
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 
 -- JOURNALISIERT
@@ -523,7 +581,9 @@ CREATE TABLE feld_auswahloption (
   feld_definition_id TEXT NOT NULL REFERENCES feld_definition(id) ON DELETE CASCADE, -- E-4/E-5 explizit: CASCADE
   wert TEXT,
   bezeichnung TEXT,
-  reihenfolge INTEGER
+  reihenfolge INTEGER,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_feld_auswahloption_feld_definition_id ON feld_auswahloption(feld_definition_id);
 
@@ -550,7 +610,9 @@ CREATE TABLE feld_wert (
   wert_datum_doppeljahr TEXT,
   gueltig_von INTEGER,
   gueltig_bis INTEGER,
-  reihenfolge INTEGER
+  reihenfolge INTEGER,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_feld_wert_feld_definition_id ON feld_wert(feld_definition_id);
 
@@ -573,7 +635,9 @@ CREATE TABLE interview_sitzung (
   ort_id TEXT REFERENCES ort(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
   audio_medium_id TEXT REFERENCES medium(id) ON DELETE SET NULL, -- E-4/E-5 explizit: SET NULL
   notizen TEXT,
-  status TEXT -- Lücke: keine Werteliste im Datenmodell genannt - kein CHECK, bitte nachtragen.
+  status TEXT, -- Lücke: keine Werteliste im Datenmodell genannt - kein CHECK, bitte nachtragen.
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_interview_sitzung_informant_person_id ON interview_sitzung(informant_person_id);
 CREATE INDEX idx_interview_sitzung_ort_id ON interview_sitzung(ort_id);
@@ -587,7 +651,9 @@ CREATE TABLE import_lauf (
   pruefsumme TEXT,
   vertragsversion TEXT,
   zeitpunkt INTEGER,
-  transaktion_id TEXT NOT NULL REFERENCES transaktion(id) -- wie aenderung.transaktion_id in 0001: kein ON DELETE (NO ACTION)
+  transaktion_id TEXT NOT NULL REFERENCES transaktion(id), -- wie aenderung.transaktion_id in 0001: kein ON DELETE (NO ACTION)
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_import_lauf_transaktion_id ON import_lauf(transaktion_id);
 
@@ -597,7 +663,9 @@ CREATE TABLE import_herkunft (
   id TEXT PRIMARY KEY,
   import_lauf_id TEXT NOT NULL REFERENCES import_lauf(id) ON DELETE CASCADE, -- Plan explizit: CASCADE
   datensatz_id TEXT NOT NULL, -- E-7: polymorph, bewusst kein FK (Plan explizit)
-  datensatz_typ TEXT NOT NULL -- E-7 Diskriminator zu datensatz_id. Lücke: keine Werteliste im Datenmodell genannt (Zieltabellenname) - kein CHECK, bitte nachtragen.
+  datensatz_typ TEXT NOT NULL, -- E-7 Diskriminator zu datensatz_id. Lücke: keine Werteliste im Datenmodell genannt (Zieltabellenname) - kein CHECK, bitte nachtragen.
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_import_herkunft_import_lauf_id ON import_herkunft(import_lauf_id);
 
@@ -607,6 +675,8 @@ CREATE TABLE ansicht_zustand (
   id TEXT PRIMARY KEY,
   name TEXT,
   zentrumsperson_id TEXT REFERENCES person(id) ON DELETE SET NULL, -- Plan explizit (Zentrumsperson): SET NULL
-  filter_json TEXT
+  filter_json TEXT,
+  erstellt_am INTEGER, -- Zeitstempel (unix epoch); Befüllung per Trigger AP-0.8
+  geaendert_am INTEGER
 ) STRICT;
 CREATE INDEX idx_ansicht_zustand_zentrumsperson_id ON ansicht_zustand(zentrumsperson_id);
