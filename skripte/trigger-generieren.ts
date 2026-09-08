@@ -163,18 +163,36 @@ ${zielFtsAuffrischenSql(
   )}
 END;
 
-CREATE TRIGGER abl_name_ad AFTER DELETE ON name
+CREATE TRIGGER abl_name_bd BEFORE DELETE ON name
 BEGIN
-  DELETE FROM person_flach WHERE person_id = OLD.person_id;
-${personFlachEinfuegenSql('p.id = OLD.person_id')}
-  -- name_phonetik räumt sich selbst über ON DELETE CASCADE ab (0002_kern.sql).
+  -- Eigene FTS-Zeile abräumen: MUSS in BEFORE DELETE laufen, nicht in AFTER DELETE (hueter-Review
+  -- AP-0.7 PR-A, verifizierter Fund). Grund: docs/schema/0002_kern.sql deklariert
+  -- "umschrift_von TEXT REFERENCES name(id) ON DELETE SET NULL" - wenn OLD (dieser Eintrag) das
+  -- Ziel eines Umschrift-Geschwisters war, kappt SQLite dessen umschrift_von per Fremdschlüssel-
+  -- Aktion VOR dem AFTER-DELETE-Trigger von OLD (empirisch geprüft: die Aktion feuert sogar noch
+  -- vor der eigentlichen Entfernung von OLD aus der Tabelle). Eine Live-Geschwistersuche in AFTER
+  -- DELETE sähe die Beziehung dann bereits gekappt und läse fälschlich '' statt des tatsächlich
+  -- indizierten Werts - das echte Posting würde nie aus dem contentless-FTS5-Index subtrahiert
+  -- (Karteileiche). In BEFORE DELETE ist die Tabelle noch unangetastet: eine Live-Abfrage liefert
+  -- hier den korrekten, zuletzt indizierten Wert, ganz ohne virtuellen Kandidaten.
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', rowid, ${nameFtsSpaltenwerteLiveSql('OLD')}
     FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
   DELETE FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
+END;
+
+CREATE TRIGGER abl_name_ad AFTER DELETE ON name
+BEGIN
+  DELETE FROM person_flach WHERE person_id = OLD.person_id;
+${personFlachEinfuegenSql('p.id = OLD.person_id')}
+  -- name_phonetik räumt sich selbst über ON DELETE CASCADE ab (0002_kern.sql). Die eigene
+  -- suche_fts/suche_fts_quelle-Zeile ist bereits in abl_name_bd abgeräumt (siehe dort).
   -- Fan-out: OLD war Umschrift-Geschwister eines anderen Originals. OLD existiert zum Zeitpunkt
   -- dieses AFTER-DELETE-Triggers nicht mehr in der Tabelle - der virtuelle Kandidat aus OLD.*
   -- rekonstruiert, was vorher indiziert war (keine Live-Ausschluss-Klausel nötig, OLD ist ja schon weg).
+  -- Läuft ins Leere (0 Zeilen), falls das Ziel selbst schon vorher gelöscht wurde (z. B. CASCADE
+  -- beim Löschen der ganzen Person) - dessen eigene FTS-Zeile ist dann bereits über dessen eigenen
+  -- abl_name_bd-Aufruf abgeräumt, dort ist nichts mehr aufzufrischen.
 ${zielFtsAuffrischenSql(
     'OLD.umschrift_von',
     'OLD.umschrift_von IS NOT NULL',

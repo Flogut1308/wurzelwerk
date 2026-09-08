@@ -309,6 +309,24 @@ WHERE p.id IN (OLD.person_id, NEW.person_id);
     WHERE NEW.umschrift_von IS NOT NULL AND NEW.umschrift_von IS NOT OLD.umschrift_von AND ziel.id = NEW.umschrift_von;
 END;
 
+CREATE TRIGGER abl_name_bd BEFORE DELETE ON name
+BEGIN
+  -- Eigene FTS-Zeile abräumen: MUSS in BEFORE DELETE laufen, nicht in AFTER DELETE (hueter-Review
+  -- AP-0.7 PR-A, verifizierter Fund). Grund: docs/schema/0002_kern.sql deklariert
+  -- "umschrift_von TEXT REFERENCES name(id) ON DELETE SET NULL" - wenn OLD (dieser Eintrag) das
+  -- Ziel eines Umschrift-Geschwisters war, kappt SQLite dessen umschrift_von per Fremdschlüssel-
+  -- Aktion VOR dem AFTER-DELETE-Trigger von OLD (empirisch geprüft: die Aktion feuert sogar noch
+  -- vor der eigentlichen Entfernung von OLD aus der Tabelle). Eine Live-Geschwistersuche in AFTER
+  -- DELETE sähe die Beziehung dann bereits gekappt und läse fälschlich '' statt des tatsächlich
+  -- indizierten Werts - das echte Posting würde nie aus dem contentless-FTS5-Index subtrahiert
+  -- (Karteileiche). In BEFORE DELETE ist die Tabelle noch unangetastet: eine Live-Abfrage liefert
+  -- hier den korrekten, zuletzt indizierten Wert, ganz ohne virtuellen Kandidaten.
+  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT 'delete', rowid, COALESCE(OLD.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name sib WHERE sib.umschrift_von = OLD.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(OLD.original_text, TRIM(COALESCE(OLD.vornamen, '') || ' ' || COALESCE(OLD.nachname, '')))), '', ''
+    FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
+  DELETE FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
+END;
+
 CREATE TRIGGER abl_name_ad AFTER DELETE ON name
 BEGIN
   DELETE FROM person_flach WHERE person_id = OLD.person_id;
@@ -368,14 +386,14 @@ LEFT JOIN (
   FROM ortsname
 ) go ON go.ort_id = go_a.ort_id AND go.rang = 1
 WHERE p.id = OLD.person_id;
-  -- name_phonetik räumt sich selbst über ON DELETE CASCADE ab (0002_kern.sql).
-  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
-    SELECT 'delete', rowid, COALESCE(OLD.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name sib WHERE sib.umschrift_von = OLD.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(OLD.original_text, TRIM(COALESCE(OLD.vornamen, '') || ' ' || COALESCE(OLD.nachname, '')))), '', ''
-    FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
-  DELETE FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
+  -- name_phonetik räumt sich selbst über ON DELETE CASCADE ab (0002_kern.sql). Die eigene
+  -- suche_fts/suche_fts_quelle-Zeile ist bereits in abl_name_bd abgeräumt (siehe dort).
   -- Fan-out: OLD war Umschrift-Geschwister eines anderen Originals. OLD existiert zum Zeitpunkt
   -- dieses AFTER-DELETE-Triggers nicht mehr in der Tabelle - der virtuelle Kandidat aus OLD.*
   -- rekonstruiert, was vorher indiziert war (keine Live-Ausschluss-Klausel nötig, OLD ist ja schon weg).
+  -- Läuft ins Leere (0 Zeilen), falls das Ziel selbst schon vorher gelöscht wurde (z. B. CASCADE
+  -- beim Löschen der ganzen Person) - dessen eigene FTS-Zeile ist dann bereits über dessen eigenen
+  -- abl_name_bd-Aufruf abgeräumt, dort ist nichts mehr aufzufrischen.
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', q.rowid, COALESCE(ziel.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name sib WHERE sib.umschrift_von = ziel.id UNION ALL SELECT OLD.id AS id, OLD.original_text AS original_text) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(ziel.original_text, TRIM(COALESCE(ziel.vornamen, '') || ' ' || COALESCE(ziel.nachname, '')))), '', ''
     FROM name ziel JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = ziel.id
