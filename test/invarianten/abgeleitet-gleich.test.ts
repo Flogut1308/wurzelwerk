@@ -29,6 +29,17 @@
 //    Bug tauchte im hueter-Review von AP-0.7 PR-A auf (s. test/einheit/abgeleitet-loeschen.test.ts)
 //    — ohne diese zweite Prüfung hätte der reine Inhaltsvergleich ihn nicht gefangen.
 //
+// hueter-Review-Auflage 2 (nach dem ursprünglichen Abschluss dieser Datei): eine adversariale
+// Prüfung, die alle 16 abl_*-Trigger einzeln als No-op mutierte, zeigte, dass die Kette
+// Person→Ort→Ortsname→`geburtsort`-Aussage über drei UNABHÄNGIG per Index gewählte Ziele nur in
+// ~0,03 % der Läufe ein nicht-NULL `person_flach.geburt_ort_name` ergab — `abl_ortsname_au`/`_ad`
+// (0003_abgeleitet.sql:711/772) blieben dadurch faktisch unbewacht. Fix im Modell (nicht hier):
+// `ort_mit_geburtsort` (test/invarianten/_modell-abgeleitet.ts) baut Person+Ort+bevorzugten
+// Ortsnamen+Aussage atomar und garantiert, sodass `ortsname_update`/`ortsname_delete` regelmäßig
+// echte Arbeit für diese Trigger auslösen. Belegt (adversarial, nicht committet): alle drei
+// abl_ortsname_ai/au/ad einzeln als No-op mutiert → Property schlägt bei Lauf 758/77/19 fehl
+// (Seed/numRuns wie unten); die vorher schon gefangenen 13 Trigger bleiben weiterhin gefangen.
+//
 // Folgepunkt (nicht Teil dieses Tests): AP-0.12 bringt einen großen Fixture-Korpus
 // (200/2.000/20.000 Personen). Sobald der existiert, sollte dieselbe Bitgleichheits-Prüfung
 // zusätzlich einmal gegen ihn laufen (realistische Verteilung/Größenordnung) — der hier generierte

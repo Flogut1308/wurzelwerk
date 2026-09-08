@@ -208,6 +208,23 @@ interface OrtsnameDeleteAktion {
   readonly kind: 'ortsname_delete'
   readonly idx: number
 }
+/**
+ * Wächter-Auflage 2 (hueter-Review AP-0.7 PR-C): Person + Ort + bevorzugter Ortsname +
+ * `geburtsort`-Aussage auf genau diesen Ort atomar — analog zu `name_insert_umschrift_paar`.
+ * Ohne diese Aktion ergab die Kette Person→Ort→Ortsname→`geburtsort`-Aussage nur in ~0,03 % der
+ * Läufe (drei UNABHÄNGIG per Index gewählte Zufallsziele mussten zufällig zusammenpassen) ein
+ * nicht-NULL `person_flach.geburt_ort_name` — der gesamte Fan-out über `abl_ortsname_au`/`_ad`
+ * (0003_abgeleitet.sql:711/772) blieb dadurch faktisch unbewacht (Handbeweis im Auftragsbericht:
+ * `abl_ortsname_au` gedroppt → inkrementell bleibt der alte Name, Neuaufbau liefert den neuen).
+ * Diese Aktion erzeugt garantiert (nicht zufällig) einen Personen/Ort/Ortsname/Aussage-Verbund mit
+ * nicht-NULL `geburt_ort_name`, den nachfolgende `ortsname_update`/`ortsname_delete`-Aktionen
+ * (über den normalen Index-modulo-Länge-Mechanismus, s. Moduldoku oben) mit nennenswerter
+ * Wahrscheinlichkeit auch tatsächlich treffen und verändern.
+ */
+interface OrtMitGeburtsortAktion {
+  readonly kind: 'ort_mit_geburtsort'
+  readonly ortsnameName: string
+}
 
 interface ZitatInsertAktion {
   readonly kind: 'zitat_insert'
@@ -241,6 +258,7 @@ export type Aktion =
   | OrtsnameInsertAktion
   | OrtsnameUpdateAktion
   | OrtsnameDeleteAktion
+  | OrtMitGeburtsortAktion
   | ZitatInsertAktion
   | ZitatUpdateAktion
   | ZitatDeleteAktion
@@ -343,6 +361,10 @@ const ortsnameDeleteArb: fc.Arbitrary<OrtsnameDeleteAktion> = fc.record({
   kind: fc.constant('ortsname_delete'),
   idx: indexArb,
 })
+const ortMitGeburtsortArb: fc.Arbitrary<OrtMitGeburtsortAktion> = fc.record({
+  kind: fc.constant('ort_mit_geburtsort'),
+  ortsnameName: textArb(16),
+})
 
 const zitatInsertArb: fc.Arbitrary<ZitatInsertAktion> = fc.record({
   kind: fc.constant('zitat_insert'),
@@ -381,6 +403,7 @@ const einzelAktionArb: fc.Arbitrary<Aktion> = fc.oneof(
   { arbitrary: ortsnameInsertArb, weight: 3 },
   { arbitrary: ortsnameUpdateArb, weight: 2 },
   { arbitrary: ortsnameDeleteArb, weight: 1 },
+  { arbitrary: ortMitGeburtsortArb, weight: 4 },
   { arbitrary: zitatInsertArb, weight: 2 },
   { arbitrary: zitatUpdateArb, weight: 1 },
   { arbitrary: zitatDeleteArb, weight: 1 },
@@ -667,6 +690,37 @@ function ortsnameDeleteAusfuehren(db: Database.Database, zustand: ModellZustand,
   zustand.ortsnamen = zustand.ortsnamen.filter((eintrag) => eintrag.id !== ziel.id)
 }
 
+/**
+ * Wächter-Auflage 2: atomarer Verbund Person→Ort→bevorzugter Ortsname→`geburtsort`-Aussage — s.
+ * Doku bei `OrtMitGeburtsortAktion`. Garantiert (kein Zufall über unabhängige Indizes) ein
+ * nicht-NULL `person_flach.geburt_ort_name`, das nachfolgende `ortsname_update`/`_delete`-Aktionen
+ * mit nennenswerter Wahrscheinlichkeit treffen und dadurch den `abl_ortsname_au`/`_ad`-Fan-out
+ * tatsächlich beanspruchen.
+ */
+function ortMitGeburtsortAusfuehren(db: Database.Database, zustand: ModellZustand, aktion: OrtMitGeburtsortAktion): void {
+  const personId = uuidv7()
+  db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
+  zustand.personIds.push(personId)
+
+  const ortId = uuidv7()
+  db.prepare('INSERT INTO ort (id) VALUES (@id)').run({ id: ortId })
+  zustand.orte.push(ortId)
+
+  const ortsnameId = uuidv7()
+  db.prepare('INSERT INTO ortsname (id, ort_id, name, ist_bevorzugt) VALUES (@id, @ortId, @name, 1)').run({
+    id: ortsnameId,
+    ortId,
+    name: aktion.ortsnameName,
+  })
+  zustand.ortsnamen.push({ id: ortsnameId, ortId })
+
+  const aussageId = uuidv7()
+  db.prepare(
+    `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_ref_id) VALUES (@id, 'person', @personId, 'geburtsort', @ortId)`,
+  ).run({ id: aussageId, personId, ortId })
+  zustand.aussagen.push({ id: aussageId, personId })
+}
+
 function zitatInsertAusfuehren(db: Database.Database, zustand: ModellZustand, quelleId: string, aktion: ZitatInsertAktion): void {
   const id = uuidv7()
   const transkript = aktion.transkriptModus === 'text' ? aktion.transkriptText : null
@@ -750,6 +804,9 @@ export function aktionAusfuehren(db: Database.Database, zustand: ModellZustand, 
       return
     case 'ortsname_delete':
       ortsnameDeleteAusfuehren(db, zustand, aktion)
+      return
+    case 'ort_mit_geburtsort':
+      ortMitGeburtsortAusfuehren(db, zustand, aktion)
       return
     case 'zitat_insert':
       zitatInsertAusfuehren(db, zustand, quelleId, aktion)
