@@ -32,11 +32,42 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pnpm install --frozen-lockfile
 
+      - name: Vergleichsbasis für Prüfpfad ermitteln
+        # Bei pull_request ist base.sha bereits main-relativ. Bei push (auch über mehrere
+        # Pushes hinweg gewachsene Branches) ist github.event.before nur der vorherige
+        # Branch-Tip — das lässt frühere Pushes (z. B. eine Migrationsdatei) aus dem Diff
+        # fallen und die Migrations-Ausnahme des Prüfpfad-Gates greift dann nicht. Deshalb
+        # wird bei push gegen den Abzweigpunkt von origin/main verglichen (merge-base), der
+        # die vollständige Branch-Divergenz abbildet.
+        id: pruefpfad_basis
+        shell: bash
+        env:
+          EREIGNIS: ${{ github.event_name }}
+          PR_BASIS: ${{ github.event.pull_request.base.sha }}
+          PUSH_VORHER: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EREIGNIS" = "pull_request" ]; then
+            echo "basis=$PR_BASIS" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags --quiet origin main:refs/remotes/origin/main || true
+            merge_base=""
+            if git rev-parse --verify --quiet origin/main >/dev/null; then
+              merge_base=$(git merge-base origin/main HEAD || true)
+            fi
+            if [ -n "$merge_base" ]; then
+              echo "basis=$merge_base" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::merge-base gegen origin/main nicht ermittelbar — Rückfall auf github.event.before."
+              echo "basis=$PUSH_VORHER" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Geschützten Prüfpfad prüfen
         shell: bash
         run: pnpm exec tsx skripte/pruefpfad-pruefen.ts
         env:
-          PRUEFPFAD_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PRUEFPFAD_BASE_SHA: ${{ steps.pruefpfad_basis.outputs.basis }}
           PRUEFPFAD_HEAD_SHA: ${{ github.sha }}
 
       - name: Typen
