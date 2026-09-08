@@ -2,9 +2,11 @@ import { app } from 'electron'
 import { z } from 'zod'
 import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
+import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
 import type { Ein } from '../../shared/ipc/vertrag'
+import { fuehreAus } from '../befehle/bus'
 import { protokollFehler } from '../protokoll/logger'
-import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
+import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
 import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { registriere } from './huelle'
 
@@ -55,4 +57,10 @@ export function ipcRegistrierung(): void {
   registriere('abfrage:projekt.zuletzt', z.null(), () => projektZuletzt())
 
   registriere('befehl:wartung.abgeleiteteNeuAufbauen', z.null(), () => wartungAbgeleiteteNeuAufbauen())
+
+  registriere('befehl:person.anlegen', personAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'person.anlegen', ein))
+  registriere('befehl:person.feldSetzen', personFeldSetzenEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'person.feldSetzen', ein),
+  )
+  registriere('befehl:person.loeschen', personLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'person.loeschen', ein))
 }
