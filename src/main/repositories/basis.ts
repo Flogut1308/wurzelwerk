@@ -10,8 +10,13 @@ export type Tx = Database.Database
 
 /**
  * Alle Tabellen aus `docs/schema/0001_grundgeruest.sql` + `docs/schema/0002_kern.sql` (AP-0.5,
- * AP-0.6). Geschlossene Union statt `string` (CLAUDE.md §4) — ein Tippfehler im Tabellennamen
- * fällt damit beim Kompilieren auf, nicht erst zur Laufzeit als leeres Ergebnis.
+ * AP-0.6) + `docs/schema/0003_abgeleitet.sql` (AP-0.7). Geschlossene Union statt `string`
+ * (CLAUDE.md §4) — ein Tippfehler im Tabellennamen fällt damit beim Kompilieren auf, nicht erst
+ * zur Laufzeit als leeres Ergebnis. Die drei 0003-Tabellen sind zum Zeitpunkt von AP-0.7 PR-A noch
+ * nicht als Migration v3 registriert (SCHEMA_VERSION bleibt 2, siehe Kopfkommentar von
+ * `0003_abgeleitet.sql`) — sie stehen hier trotzdem schon, weil die Union nur Bezeichner benennt,
+ * keine Tabellen erzeugt; `datensatzExistiert` liefe für sie erst ins Leere, sobald PR-B die
+ * Migration scharf schaltet, nicht vorher.
  */
 export const ALLE_TABELLEN = [
   // 0001_grundgeruest.sql
@@ -55,6 +60,10 @@ export const ALLE_TABELLEN = [
   'import_lauf',
   'import_herkunft',
   'ansicht_zustand',
+  // 0003_abgeleitet.sql (AP-0.7) — noch nicht als Migration registriert, siehe Kommentar oben.
+  'person_flach',
+  'suche_fts',
+  'suche_fts_quelle',
 ] as const
 
 export type Tabelle = (typeof ALLE_TABELLEN)[number]

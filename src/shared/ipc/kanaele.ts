@@ -14,6 +14,7 @@ const kanaele: readonly Kanal[] = [
   'befehl:projekt.oeffnen',
   'befehl:projekt.schliessen',
   'abfrage:projekt.zuletzt',
+  'befehl:wartung.abgeleiteteNeuAufbauen',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 

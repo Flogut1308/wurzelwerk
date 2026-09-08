@@ -1,6 +1,9 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron'
 import i18next from 'i18next'
 import menue from '../../shared/i18n/de/menue.json'
+import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import { protokollFehler } from '../protokoll/logger'
+import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { TASTENKUERZEL } from './tastenkuerzel'
 
 /**
@@ -35,6 +38,26 @@ export function menueErzeugen(): Menu {
         { label: t('ausschneiden'), role: 'cut' },
         { label: t('kopieren'), role: 'copy' },
         { label: t('einfuegen'), role: 'paste' },
+      ],
+    },
+    {
+      label: t('wartung'),
+      submenu: [
+        {
+          label: t('wartung_abgeleiteteNeuAufbauen'),
+          click: () => {
+            try {
+              wartungAbgeleiteteNeuAufbauen()
+            } catch (fehler) {
+              // Menübefehle laufen nicht über die IPC-Hülle (§7) - die Ausnahme darf den
+              // Hauptprozess trotzdem nie verlassen, darum wird sie hier selbst protokolliert.
+              protokollFehler({
+                befehlsname: 'wartung.abgeleiteteNeuAufbauen',
+                code: fehler instanceof WurzelFehler ? fehler.code : 'INTERN_UNERWARTET',
+              })
+            }
+          },
+        },
       ],
     },
   ]
