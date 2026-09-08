@@ -3,7 +3,6 @@
 // Schema muss die Werteliste als Menge exakt der zugehörigen Zod-Aufzählung entsprechen.
 import { describe, expect, it } from 'vitest'
 import {
-  AssoziationArtEnum,
   BeteiligungRolleEnum,
   DatumModifikatorEnum,
   DatumPraezisionEnum,
@@ -97,7 +96,6 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   ...datumsgruppenZuordnungen('partnerschaft', 'beginn'),
   ...datumsgruppenZuordnungen('partnerschaft', 'ende'),
   { tabelle: 'partnerschaft', spalte: 'ende_grund', zodEnum: EndeGrundEnum },
-  { tabelle: 'assoziation', spalte: 'art', zodEnum: AssoziationArtEnum },
   { tabelle: 'quelle', spalte: 'typ', zodEnum: QuelleTypEnum },
   { tabelle: 'quelle', spalte: 'art', zodEnum: QuelleArtEnum },
   { tabelle: 'quelle', spalte: 'informationsart', zodEnum: InformationsartEnum },
@@ -199,6 +197,21 @@ describe('test/schema/aufzaehlungen (Schema <-> Zod)', () => {
       const sql = createTableSqlVon(db, 'aussage')
       expect(checkInSpaltenAusSql(sql).has('praedikat')).toBe(false)
       expect(/CHECK\s*\(\s*praedikat\b/.test(sql)).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  // Review-Auflage 2: assoziation.art ist jetzt eine offene Menge ohne CHECK, analog zu
+  // aussage.praedikat (50_Datenmodell.md §1 nutzt Ellipse). `AssoziationArtEnum` existiert
+  // deshalb nicht mehr in src/shared/schemata/assoziation.ts und steht bewusst nicht in
+  // AUFZAEHLUNGS_ZUORDNUNGEN.
+  it('assoziation.art hat bewusst KEINEN CHECK (offene Menge, freier Text)', () => {
+    const db = frischeMigrierteDatenbank()
+    try {
+      const sql = createTableSqlVon(db, 'assoziation')
+      expect(checkInSpaltenAusSql(sql).has('art')).toBe(false)
+      expect(/CHECK\s*\(\s*art\b/.test(sql)).toBe(false)
     } finally {
       db.close()
     }
