@@ -161,5 +161,9 @@ describe('Invariante: abgeleitete Tabellen nach Trigger-Pflege == abgeleitete Ta
       // hätten.
       { seed: 20260908, numRuns: 1000 },
     )
-  })
+    // Explizites, großzügiges Timeout: die 1000 fast-check-Läufe (jeder mit frischer DB +
+    // Trigger-Pflege + Neuaufbau) brauchen auf langsamer CI ~12-15s (lokal ~3.6s) und sprengen
+    // sonst das vitest-Standard-Timeout von 5000ms. numRuns bleibt bei 1000 — niedriger würde die
+    // Mutations-Erkennung schwächen (der geburt_ort_name-Fan-out wird erst bei Lauf 758 gefangen).
+  }, 60_000)
 })
