@@ -1,13 +1,17 @@
 // AP-0.8, 55_Architektur.md §4.5-Vorlage (`fuehreAus`): minimales Journal-Repository. AP-0.9
 // ergänzt `naechsteLfd`/`transaktionVerwerfen`/`status` für den echten Befehlsbus
-// (`src/main/befehle/bus.ts`) - `undoZiel`/Wiederholen bleiben AP-0.10 (CLAUDE.md §10: nicht
-// vorgreifen).
+// (`src/main/befehle/bus.ts`). AP-0.10 ergänzt `undoZiel`/`redoZiel`/`statusSetzen`/
+// `redoStapelVerwerfen`/`aenderungen` für den Undo-Algorithmus (`src/main/journal/undo.ts`,
+// 55_Architektur.md §4.7/§4.9).
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
 import type { Tx } from './basis'
 
 /** Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab. */
 export type TransaktionArt = 'nutzer' | 'import' | 'merge' | 'migration' | 'wartung' | 'platzhalter_aufgeloest'
+
+/** Deckt `transaktion.status` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab (AP-0.10). */
+export type TransaktionStatus = 'angewendet' | 'zurueckgenommen' | 'verworfen'
 
 export interface TransaktionAnlegenEin {
   readonly id: string
@@ -76,26 +80,56 @@ export function transaktionVerwerfen(tx: Tx, transaktionId: string): void {
   tx.prepare('DELETE FROM transaktion WHERE id = @id').run({ id: transaktionId })
 }
 
-interface UndoKandidatZeile {
+interface TransaktionZielRow {
+  readonly id: string
+  readonly art: string
   readonly beschreibung: string | null
+  readonly snapshot_pfad: string | null
 }
 
-/** Journalstatus für `ereignis:journalStatus` (AP-0.9) - Grundlage für Undo/Redo-Menüzustand (AP-0.10). */
+/** Ziel eines Undo- oder Redo-Schritts (55_Architektur.md §4.7/§4.9, AP-0.10). */
+export interface JournalTransaktionZiel {
+  readonly id: string
+  readonly art: string
+  readonly beschreibung: string | null
+  readonly snapshotPfad: string | null
+}
+
+function transaktionZielLesen(tx: Tx, sql: string): JournalTransaktionZiel | undefined {
+  const zeile = tx.prepare<[], TransaktionZielRow>(sql).get()
+  if (zeile === undefined) {
+    return undefined
+  }
+  return { id: zeile.id, art: zeile.art, beschreibung: zeile.beschreibung, snapshotPfad: zeile.snapshot_pfad }
+}
+
+const UNDO_ZIEL_SQL = `SELECT id, art, beschreibung, snapshot_pfad FROM transaktion
+   WHERE status = 'angewendet' AND rueckgaengig_moeglich = 1
+   ORDER BY lfd DESC LIMIT 1`
+
+const REDO_ZIEL_SQL = `SELECT id, art, beschreibung, snapshot_pfad FROM transaktion
+   WHERE status = 'zurueckgenommen'
+   ORDER BY lfd ASC LIMIT 1`
+
+/**
+ * Undo-Ziel (55_Architektur.md §4.7): neueste Transaktion mit `status = 'angewendet'` UND
+ * `rueckgaengig_moeglich = 1`. Verwendet von `src/main/journal/undo.ts` UND von `status()` unten
+ * (Menü-Anzeige) - dieselbe Abfrage an beiden Stellen, damit Menü-Anzeige und tatsächliches Undo
+ * nie auseinanderlaufen (AP-0.10-Auftrag).
+ */
+export function undoZiel(tx: Tx): JournalTransaktionZiel | undefined {
+  return transaktionZielLesen(tx, UNDO_ZIEL_SQL)
+}
+
+/** Redo-Ziel (55_Architektur.md §4.7): älteste Transaktion mit `status = 'zurueckgenommen'`. */
+export function redoZiel(tx: Tx): JournalTransaktionZiel | undefined {
+  return transaktionZielLesen(tx, REDO_ZIEL_SQL)
+}
+
+/** Journalstatus für `ereignis:journalStatus` (AP-0.9) - baut auf `undoZiel()`/`redoZiel()` auf (s. dort). */
 export function status(tx: Tx): JournalStatusNutzlast {
-  const undoKandidat = tx
-    .prepare<[], UndoKandidatZeile>(
-      `SELECT beschreibung FROM transaktion
-       WHERE status = 'angewendet' AND rueckgaengig_moeglich = 1
-       ORDER BY lfd DESC LIMIT 1`,
-    )
-    .get()
-  const redoKandidat = tx
-    .prepare<[], UndoKandidatZeile>(
-      `SELECT beschreibung FROM transaktion
-       WHERE status = 'zurueckgenommen'
-       ORDER BY lfd ASC LIMIT 1`,
-    )
-    .get()
+  const undoKandidat = undoZiel(tx)
+  const redoKandidat = redoZiel(tx)
 
   return {
     undoMoeglich: undoKandidat !== undefined,
@@ -103,4 +137,63 @@ export function status(tx: Tx): JournalStatusNutzlast {
     undoBeschreibung: undoKandidat?.beschreibung ?? null,
     redoBeschreibung: redoKandidat?.beschreibung ?? null,
   }
+}
+
+/** Setzt `transaktion.status` (AP-0.10, 55_Architektur.md §4.7/§4.9) - benannte Parameter (CLAUDE.md §6). */
+export function statusSetzen(tx: Tx, transaktionId: string, status: TransaktionStatus): void {
+  tx.prepare('UPDATE transaktion SET status = @status WHERE id = @id').run({ id: transaktionId, status })
+}
+
+/**
+ * Verwirft den kompletten Redo-Stapel (55_Architektur.md §4.7): sobald ein neuer Befehl läuft,
+ * werden alle `zurueckgenommen`-Transaktionen auf `verworfen` gesetzt - das lineare Undo-Modell.
+ * Aufgerufen vom Befehlsbus (`src/main/befehle/bus.ts`), NICHT für eine leere (verworfene)
+ * Transaktion.
+ */
+export function redoStapelVerwerfen(tx: Tx): void {
+  tx.prepare(`UPDATE transaktion SET status = 'verworfen' WHERE status = 'zurueckgenommen'`).run()
+}
+
+/** Eine `aenderung`-Zeile, roh für den Undo-Algorithmus (55_Architektur.md §4.9, AP-0.10). */
+export interface AenderungZeileFuerUndo {
+  readonly operation: string
+  readonly tabelle: string
+  readonly datensatzId: string
+  readonly wertAltJson: string | null
+  readonly wertNeuJson: string | null
+}
+
+interface AenderungRow {
+  readonly operation: string
+  readonly tabelle: string
+  readonly datensatz_id: string
+  readonly wert_alt_json: string | null
+  readonly wert_neu_json: string | null
+}
+
+/**
+ * `aenderung`-Zeilen einer Transaktion, sortiert nach `reihenfolge` (55_Architektur.md §4.9,
+ * AP-0.10): `richtung = 'DESC'` für Undo (rückwärts), `'ASC'` für Redo (vorwärts). Spalten
+ * explizit aufgezählt (CLAUDE.md §6: kein `SELECT *`). `operation`/`tabelle` bleiben als `string`
+ * typisiert statt auf eine engere Union verengt (analog zu `TransaktionZeile.status` in
+ * `test/einheit/befehl-bus.test.ts`) - so bleibt `src/main/journal/undo.ts` ohne ein
+ * unbegründetes `as` lesbar (CLAUDE.md §4).
+ */
+export function aenderungen(tx: Tx, transaktionId: string, richtung: 'ASC' | 'DESC'): readonly AenderungZeileFuerUndo[] {
+  // `richtung` ist eine geschlossene Union ('ASC'|'DESC'), kein Bindeparameter möglich (ORDER BY
+  // erlaubt in SQLite ohnehin keine Werte-Bindung, CLAUDE.md §6 gilt für Werte, nicht für dieses
+  // Schlüsselwort).
+  const sql = `SELECT operation, tabelle, datensatz_id, wert_alt_json, wert_neu_json
+     FROM aenderung WHERE transaktion_id = @transaktionId
+     ORDER BY reihenfolge ${richtung}`
+  return tx
+    .prepare<{ readonly transaktionId: string }, AenderungRow>(sql)
+    .all({ transaktionId })
+    .map((zeile) => ({
+      operation: zeile.operation,
+      tabelle: zeile.tabelle,
+      datensatzId: zeile.datensatz_id,
+      wertAltJson: zeile.wert_alt_json,
+      wertNeuJson: zeile.wert_neu_json,
+    }))
 }
