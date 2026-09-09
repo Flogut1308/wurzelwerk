@@ -14,6 +14,11 @@ vi.mock('../../src/main/protokoll/logger', () => ({
   protokollInfo: vi.fn(),
   protokollDebug: vi.fn(),
 }))
+// AP-0.10: `projektUebernehmen()`/`projektSchliessen()` melden seither den Journalstatus
+// (`journalStatusMelden()`), der seinerseits `sendeEreignis()` aufruft - das echte Modul
+// importiert `electron`s `BrowserWindow`, die die obige Attrappe nicht mitbringt (analog zu
+// `test/einheit/befehl-bus.test.ts`).
+vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 // Ohne echtes Electron fällt `electron-store` auf einen plattformeigenen Konfigurationspfad
 // zurück (z. B. ~/Library/Preferences) statt auf `app.getPath('userData')` — diese Attrappe hält
 // den Einheitstest frei von Schreibzugriffen außerhalb des temporären Testordners.

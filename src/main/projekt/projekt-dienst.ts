@@ -16,6 +16,7 @@ import { protokollInfo } from '../protokoll/logger'
 import { integritaetPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
+import { journalStatusMelden } from '../journal/journal-status-melder'
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade, type ProjektManifest, type ProjektOrdnerPfade } from './ordnerformat'
 import { sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
 import { syncAnbieterErkennen } from './sync-ordner-warnung'
@@ -78,6 +79,7 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void 
   })
   sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
   offenesProjekt = { db, pfade, info }
+  journalStatusMelden(db) // AP-0.10: frisch geöffnetes Projekt bringt einen eigenen Undo/Redo-Stand mit (Menü, ereignis:journalStatus)
 }
 
 /** `befehl:projekt.anlegen`. Das Projekt wird direkt geöffnet — dabei läuft es durch `projektUebernehmen` automatisch auf `SCHEMA_VERSION` hoch (AP-0.5). */
@@ -127,6 +129,7 @@ export function projektSchliessen(): void {
   offenesProjekt.db.close()
   sperrdateiEntfernen(offenesProjekt.pfade.ordnerPfad)
   offenesProjekt = undefined
+  journalStatusMelden(undefined) // AP-0.10: kein Projekt mehr offen - Menü/Renderer wieder ausgegraut
 }
 
 /** `abfrage:projekt.zuletzt`. */

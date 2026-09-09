@@ -16,7 +16,8 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
-import type { Ein, JournalStatusNutzlast } from '../../shared/ipc/vertrag'
+import type { Ein, JournalStatusNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
+import { journalStatusNutzlastSchema } from '../../shared/schemata/journal'
 import { aufrufen } from './aufrufen'
 
 /**
@@ -66,15 +67,29 @@ export function useDatenGeaendertAbo(): void {
 
 /**
  * Reicht jeden `ereignis:journalStatus`-Push an `setter` weiter (Grundlage für den Undo/Redo-
- * Menüzustand, AP-0.10). `nutzlast` kommt als `unknown` vom Preload (`global.d.ts`) — der Cast ist
- * hier zulässig, weil `src/main/ipc/registrierung.ts` für den Kanal `ereignis:journalStatus` (in
- * der Weißliste `EREIGNIS_KANAELE`, `src/shared/ipc/kanaele.ts`) ausschließlich `JournalStatusNutzlast`
- * sendet (`src/main/befehle/bus.ts`).
+ * Menüzustand, AP-0.10). `nutzlast` kommt als `unknown` vom Preload (`global.d.ts`) — ein
+ * `ereignis:`-Push durchläuft (anders als `befehl:`/`abfrage:`) nie `src/main/ipc/huelle.ts`,
+ * darum prüft `journalStatusNutzlastSchema.parse(...)` hier selbst, statt einem unbegründeten
+ * `as` zu vertrauen (CLAUDE.md §4, AP-0.9-Hüter-Auflage).
  */
 export function useJournalStatusAbo(setter: (status: JournalStatusNutzlast) => void): void {
   useEffect(() => {
     return window.wurzelwerk.abonnieren('ereignis:journalStatus', (nutzlast) => {
-      setter(nutzlast as JournalStatusNutzlast) // s. Funktionskommentar oben
+      setter(journalStatusNutzlastSchema.parse(nutzlast))
     })
   }, [setter])
+}
+
+/** `befehl:journal.undo` (55_Architektur.md §4.7/§4.9, AP-0.10) — nimmt die neueste rücknehmbare Transaktion zurück. */
+export function useJournalUndo(): UseMutationResult<UndoErgebnis, AppFehler, void> {
+  return useMutation({
+    mutationFn: () => ergebnisEntpacken(aufrufen('befehl:journal.undo', null)),
+  })
+}
+
+/** `befehl:journal.redo` (55_Architektur.md §4.7/§4.9, AP-0.10) — wiederholt die älteste zurückgenommene Transaktion. */
+export function useJournalRedo(): UseMutationResult<UndoErgebnis, AppFehler, void> {
+  return useMutation({
+    mutationFn: () => ergebnisEntpacken(aufrufen('befehl:journal.redo', null)),
+  })
 }

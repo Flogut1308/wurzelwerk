@@ -2,11 +2,15 @@
   "wurzelwerk": "Wurzelwerk",
   "beenden": "Beenden",
   "bearbeiten": "Bearbeiten",
-  "rueckgaengig": "Rückgängig",
-  "wiederholen": "Wiederholen",
   "ausschneiden": "Ausschneiden",
   "kopieren": "Kopieren",
   "einfuegen": "Einfügen",
   "wartung": "Wartung",
-  "wartung_abgeleiteteNeuAufbauen": "Abgeleitete Daten neu aufbauen"
+  "wartung_abgeleiteteNeuAufbauen": "Abgeleitete Daten neu aufbauen",
+  "journal": {
+    "rueckgaengig": "Rückgängig",
+    "rueckgaengig_mit_ziel": "Rückgängig: {{beschreibung}}",
+    "wiederholen": "Wiederholen",
+    "wiederholen_mit_ziel": "Wiederholen: {{beschreibung}}"
+  }
 }

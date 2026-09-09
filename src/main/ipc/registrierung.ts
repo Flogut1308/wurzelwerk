@@ -4,11 +4,19 @@ import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
 import type { Ein } from '../../shared/ipc/vertrag'
+import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { fuehreAus } from '../befehle/bus'
+import { journalStatusMelden } from '../journal/journal-status-melder'
+import { redo, undo } from '../journal/undo'
+import { sendeEreignis } from './ereignisse'
 import { protokollFehler } from '../protokoll/logger'
 import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
 import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { registriere } from './huelle'
+
+const journalVerlaufEingabeSchema: z.ZodType<Ein<'abfrage:journal.verlauf'>> = z.object({
+  grenze: z.number().int().positive(),
+})
 
 // Erzwingt strukturell, dass dieses Schema zu `ProtokollMeldenEin` passt — eine Abweichung ist
 // ein Typfehler hier, nicht erst zur Laufzeit im Renderer.
@@ -63,4 +71,23 @@ export function ipcRegistrierung(): void {
     fuehreAus(offenesProjektDatenbank(), 'person.feldSetzen', ein),
   )
   registriere('befehl:person.loeschen', personLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'person.loeschen', ein))
+
+  // `undo()`/`redo()` laufen NICHT über `fuehreAus()`/den Befehlsbus (55_Architektur.md §4.9,
+  // Kopfkommentar `src/main/journal/undo.ts`) - die beiden Ereignisse, die der Bus sonst selbst
+  // auslöst, gehen darum hier von Hand raus, direkt nach dem erfolgreichen Aufruf.
+  registriere('befehl:journal.undo', z.null(), () => {
+    const db = offenesProjektDatenbank()
+    const ergebnis = undo(db)
+    sendeEreignis('ereignis:datenGeaendert', { transaktionId: ergebnis.transaktionId, ursache: 'journal.undo' })
+    journalStatusMelden(db)
+    return ergebnis
+  })
+  registriere('befehl:journal.redo', z.null(), () => {
+    const db = offenesProjektDatenbank()
+    const ergebnis = redo(db)
+    sendeEreignis('ereignis:datenGeaendert', { transaktionId: ergebnis.transaktionId, ursache: 'journal.redo' })
+    journalStatusMelden(db)
+    return ergebnis
+  })
+  registriere('abfrage:journal.verlauf', journalVerlaufEingabeSchema, (ein) => journalVerlauf(offenesProjektDatenbank(), ein.grenze))
 }

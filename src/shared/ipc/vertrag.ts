@@ -94,6 +94,45 @@ export interface JournalStatusNutzlast {
 }
 
 /**
+ * Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab
+ * (AP-0.9). Steht in `src/shared`, nicht in `src/main/repositories/journal-repo.ts`, weil
+ * `VerlaufEintrag` (AP-0.10, unten) diese Union ebenfalls braucht und `src/shared` nichts aus
+ * `src/main` importieren darf (CLAUDE.md §2) — `journal-repo.ts` importiert seinerseits von hier.
+ */
+export type TransaktionArt = 'nutzer' | 'import' | 'merge' | 'migration' | 'wartung' | 'platzhalter_aufgeloest'
+
+/** Deckt `transaktion.status` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab (AP-0.10, s. Kommentar bei `TransaktionArt`). */
+export type TransaktionStatus = 'angewendet' | 'zurueckgenommen' | 'verworfen'
+
+/**
+ * Ergebnis von `befehl:journal.undo`/`befehl:journal.redo` (55_Architektur.md §4.7/§4.9,
+ * AP-0.10) — ursprünglich als rein interner Typ in `src/main/journal/undo.ts` definiert (AP-0.10
+ * PR-A1), hierher gehoben, jetzt da mit diesem PR ein Renderer-Aufrufer existiert (s. Kopfkommentar
+ * dort). `beschreibung` ist `string | null`, weil `transaktion.beschreibung` in
+ * `docs/schema/0001_grundgeruest.sql` nullbar ist (z. B. für spätere, nicht vom Befehlsbus
+ * erzeugte Transaktionsarten) — kein unbegründetes `!`/`as`, um das zu verschweigen (CLAUDE.md §4).
+ */
+export interface UndoErgebnis {
+  readonly transaktionId: string
+  readonly beschreibung: string | null
+}
+
+/** Nutzlast von `abfrage:journal.verlauf` (AP-0.10, 55_Architektur.md §2.3): wie viele Zeilen höchstens. */
+export interface JournalVerlaufEin {
+  readonly grenze: number
+}
+
+/** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
+export interface VerlaufEintrag {
+  readonly id: string
+  readonly zeitpunkt: number
+  readonly art: TransaktionArt
+  readonly status: TransaktionStatus
+  readonly beschreibung: string | null
+  readonly rueckgaengigMoeglich: boolean
+}
+
+/**
  * Die Typkarte, aus der Renderer und Hauptprozess ihre Typen ziehen (§2.3). Phase 1 ergänzt hier
  * die `abfrage:`- und `befehl:`-Kanäle für Personen, Suche und Journal.
  */
@@ -108,6 +147,9 @@ export interface Vertrag {
   'befehl:person.anlegen': { ein: PersonAnlegenEin; aus: { readonly id: string } }
   'befehl:person.feldSetzen': { ein: PersonFeldSetzenEin; aus: null }
   'befehl:person.loeschen': { ein: PersonLoeschenEin; aus: null }
+  'befehl:journal.undo': { ein: null; aus: UndoErgebnis }
+  'befehl:journal.redo': { ein: null; aus: UndoErgebnis }
+  'abfrage:journal.verlauf': { ein: JournalVerlaufEin; aus: readonly VerlaufEintrag[] }
 }
 
 export type Kanal = keyof Vertrag

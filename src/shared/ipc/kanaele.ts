@@ -18,6 +18,9 @@ const kanaele: readonly Kanal[] = [
   'befehl:person.anlegen',
   'befehl:person.feldSetzen',
   'befehl:person.loeschen',
+  'befehl:journal.undo',
+  'befehl:journal.redo',
+  'abfrage:journal.verlauf',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
