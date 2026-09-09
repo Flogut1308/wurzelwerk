@@ -6,7 +6,7 @@ import { armieren, entwaffnen } from '../journal/kontext'
 import { sendeEreignis } from '../ipc/ereignisse'
 import { neueId } from '../ipc/huelle'
 import type { Tx } from '../repositories/basis'
-import { betroffene, naechsteLfd, status, transaktionAnlegen, transaktionVerwerfen } from '../repositories/journal-repo'
+import { betroffene, naechsteLfd, redoStapelVerwerfen, status, transaktionAnlegen, transaktionVerwerfen } from '../repositories/journal-repo'
 import { REGISTRIERUNG, type BefehlAus, type BefehlDef, type BefehlEin, type BefehlName } from './registrierung'
 
 interface BusLauf<Aus> {
@@ -50,14 +50,15 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
       let ergebnis: Aus
       try {
         ergebnis = def.handler(db, nutzlast)
-        // SEAM AP-0.10: redoStapelVerwerfen()
-        // SEAM AP-0.15: koaleszenz
       } finally {
         entwaffnen(db)
       }
       const anzahl = betroffene(db, txId)
       if (anzahl === 0) {
         transaktionVerwerfen(db, txId)
+      } else {
+        redoStapelVerwerfen(db) // §4.7: ein neuer Befehl verwirft den Redo-Stapel (lineares Undo-Modell) - NICHT bei einer leeren, gleich wieder verworfenen Transaktion
+        // SEAM AP-0.15: koaleszenz
       }
       return { ergebnis, anzahl, txId }
     })
