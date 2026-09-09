@@ -1,7 +1,9 @@
-// AP-0.8, 55_Architektur.md §4.5-Vorlage (`fuehreAus`): minimales Journal-Repository. Nur das, was
-// AP-0.8 selbst braucht - `undoZiel`/Wiederholen/etc. sind AP-0.9/AP-0.10 (CLAUDE.md §10: nicht
+// AP-0.8, 55_Architektur.md §4.5-Vorlage (`fuehreAus`): minimales Journal-Repository. AP-0.9
+// ergänzt `naechsteLfd`/`transaktionVerwerfen`/`status` für den echten Befehlsbus
+// (`src/main/befehle/bus.ts`) - `undoZiel`/Wiederholen bleiben AP-0.10 (CLAUDE.md §10: nicht
 // vorgreifen).
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
 import type { Tx } from './basis'
 
 /** Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab. */
@@ -49,4 +51,56 @@ export function betroffene(tx: Tx, transaktionId: string): number {
     throw new WurzelFehler('INTERN_UNERWARTET', 'betroffene(): COUNT(*)-Abfrage lieferte unerwartet keine Zeile.')
   }
   return zeile.anzahl
+}
+
+interface LfdZeile {
+  readonly naechste: number
+}
+
+/** Nächste laufende Nummer für `transaktion.lfd` (AP-0.9): `MAX(lfd)+1`, oder `1` in einer leeren Tabelle. */
+export function naechsteLfd(tx: Tx): number {
+  const zeile = tx.prepare<[], LfdZeile>('SELECT COALESCE(MAX(lfd), 0) + 1 AS naechste FROM transaktion').get()
+  if (zeile === undefined) {
+    // COALESCE(MAX(...), 0) + 1 liefert immer genau eine Zeile — dieser Zweig ist defensiv (CLAUDE.md §4: kein `!`).
+    throw new WurzelFehler('INTERN_UNERWARTET', 'naechsteLfd(): Abfrage lieferte unerwartet keine Zeile.')
+  }
+  return zeile.naechste
+}
+
+/**
+ * Verwirft eine `transaktion`-Zeile wieder (AP-0.9): der Befehlsbus ruft dies auf, wenn ein Befehl
+ * keine einzige `aenderung`-Zeile erzeugt hat - innerhalb derselben Transaktionsklammer, bevor
+ * `COMMIT` läuft, damit keine leere Transaktionszeile im Journal übrig bleibt.
+ */
+export function transaktionVerwerfen(tx: Tx, transaktionId: string): void {
+  tx.prepare('DELETE FROM transaktion WHERE id = @id').run({ id: transaktionId })
+}
+
+interface UndoKandidatZeile {
+  readonly beschreibung: string | null
+}
+
+/** Journalstatus für `ereignis:journalStatus` (AP-0.9) - Grundlage für Undo/Redo-Menüzustand (AP-0.10). */
+export function status(tx: Tx): JournalStatusNutzlast {
+  const undoKandidat = tx
+    .prepare<[], UndoKandidatZeile>(
+      `SELECT beschreibung FROM transaktion
+       WHERE status = 'angewendet' AND rueckgaengig_moeglich = 1
+       ORDER BY lfd DESC LIMIT 1`,
+    )
+    .get()
+  const redoKandidat = tx
+    .prepare<[], UndoKandidatZeile>(
+      `SELECT beschreibung FROM transaktion
+       WHERE status = 'zurueckgenommen'
+       ORDER BY lfd ASC LIMIT 1`,
+    )
+    .get()
+
+  return {
+    undoMoeglich: undoKandidat !== undefined,
+    redoMoeglich: redoKandidat !== undefined,
+    undoBeschreibung: undoKandidat?.beschreibung ?? null,
+    redoBeschreibung: redoKandidat?.beschreibung ?? null,
+  }
 }

@@ -15,11 +15,14 @@ const kanaele: readonly Kanal[] = [
   'befehl:projekt.schliessen',
   'abfrage:projekt.zuletzt',
   'befehl:wartung.abgeleiteteNeuAufbauen',
+  'befehl:person.anlegen',
+  'befehl:person.feldSetzen',
+  'befehl:person.loeschen',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
 /**
- * Weißliste aller `ereignis:`-Kanäle (Hauptprozess → Renderer). Noch leer — Phase 1 ergänzt hier
- * `ereignis:datenGeaendert`, `ereignis:journalStatus`, `ereignis:speicherStatus`.
+ * Weißliste aller `ereignis:`-Kanäle (Hauptprozess → Renderer). AP-0.9 ergänzt die ersten beiden
+ * Kanäle des Befehlsbusses; `ereignis:speicherStatus` folgt später.
  */
-export const EREIGNIS_KANAELE: readonly string[] = []
+export const EREIGNIS_KANAELE: readonly string[] = ['ereignis:datenGeaendert', 'ereignis:journalStatus']

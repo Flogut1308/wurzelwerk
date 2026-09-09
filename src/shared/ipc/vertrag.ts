@@ -1,4 +1,5 @@
 import type { FehlerCode } from '../fehler/codes'
+import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -75,6 +76,24 @@ export interface ProtokollMeldenEin {
 }
 
 /**
+ * Nutzlast von `ereignis:datenGeaendert` (AP-0.9): Push nach jedem Befehl, der mindestens eine
+ * `aenderung`-Zeile erzeugt hat. Trägt bewusst nur `transaktionId`/`ursache` — kein `betroffen`-Feld
+ * (D-EREIGNIS); der Renderer invalidiert seinen Cache pauschal, statt selektiv nachzuführen.
+ */
+export interface DatenGeaendertNutzlast {
+  readonly transaktionId: string
+  readonly ursache: string
+}
+
+/** Nutzlast von `ereignis:journalStatus` (AP-0.9) — Grundlage für Undo/Redo-Menüzustand (AP-0.10). */
+export interface JournalStatusNutzlast {
+  readonly undoMoeglich: boolean
+  readonly redoMoeglich: boolean
+  readonly undoBeschreibung: string | null
+  readonly redoBeschreibung: string | null
+}
+
+/**
  * Die Typkarte, aus der Renderer und Hauptprozess ihre Typen ziehen (§2.3). Phase 1 ergänzt hier
  * die `abfrage:`- und `befehl:`-Kanäle für Personen, Suche und Journal.
  */
@@ -86,6 +105,9 @@ export interface Vertrag {
   'befehl:projekt.schliessen': { ein: null; aus: null }
   'abfrage:projekt.zuletzt': { ein: null; aus: readonly ZuletztEintrag[] }
   'befehl:wartung.abgeleiteteNeuAufbauen': { ein: null; aus: null }
+  'befehl:person.anlegen': { ein: PersonAnlegenEin; aus: { readonly id: string } }
+  'befehl:person.feldSetzen': { ein: PersonFeldSetzenEin; aus: null }
+  'befehl:person.loeschen': { ein: PersonLoeschenEin; aus: null }
 }
 
 export type Kanal = keyof Vertrag
