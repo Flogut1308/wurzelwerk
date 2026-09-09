@@ -1,13 +1,13 @@
-import { app, BrowserWindow, Menu } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { hauptfensterErzeugen } from './fenster/hauptfenster'
 import { ipcRegistrierung } from './ipc/registrierung'
-import { menueErzeugen } from './menue/menue'
+import { menueInitialisieren } from './menue/menue'
 import { protokollEinrichten } from './protokoll/logger'
 
 void app.whenReady().then(() => {
   protokollEinrichten()
   ipcRegistrierung()
-  Menu.setApplicationMenu(menueErzeugen())
+  menueInitialisieren()
   hauptfensterErzeugen()
 
   app.on('activate', () => {
