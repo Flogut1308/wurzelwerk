@@ -4,23 +4,20 @@
 // Rücknahme-/Wiederholungs-Operation, analog zu `src/main/datenbank/trigger.ts`
 // (`alleAbgeleitetenNeuAufbauen`) und `src/main/datenbank/journal-trigger-anwenden.ts`
 // (`generierteTriggerAnwenden`), die aus demselben Grund ebenfalls außerhalb von
-// `src/main/befehle/` eine eigene Transaktionsklammer öffnen). `undo()`/`redo()` werden später
-// (AP-0.10 PR-A2/AP-1.x) über einen eigenen IPC-Kanal erreichbar, nicht über `fuehreAus()`.
+// `src/main/befehle/` eine eigene Transaktionsklammer öffnen). `undo()`/`redo()` werden über
+// `befehl:journal.undo`/`befehl:journal.redo` erreichbar (`src/main/ipc/registrierung.ts`,
+// AP-0.10 PR-A2), nicht über `fuehreAus()`.
 import type Database from 'better-sqlite3'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
 import { aenderungen, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { journalAn, journalAus } from './kontext'
 
-/**
- * Minimales, internes Rückgabeergebnis (AP-0.10 PR-A1) - der gemeinsame `UndoErgebnis`-Vertrag in
- * `src/shared/` folgt erst mit dem IPC-Kanal (AP-0.10 PR-A2), sobald ein Renderer-Aufrufer
- * existiert. Absichtlich minimal (nur das, was `55_Architektur.md §4.9` selbst zurückgibt).
- */
-export interface UndoErgebnis {
-  readonly transaktionId: string
-  readonly beschreibung: string | null
-}
+// `UndoErgebnis` stand bis AP-0.10 PR-A1 als rein interner Typ hier (kein Renderer-Aufrufer
+// existierte) - jetzt aus `src/shared/ipc/vertrag.ts` (dort begründet), re-exportiert für
+// bestehende Importe (`test/einheit/undo-*.test.ts`).
+export type { UndoErgebnis }
 
 /** `JSON.parse(...)` + Zod-Prüfung einer Journalspalte (CLAUDE.md §4: kein `any`, kein unbegründetes `as`). */
 function zeileAusJson(json: string | null, aufrufer: 'undo' | 'redo', transaktionId: string): ZeileWerte {

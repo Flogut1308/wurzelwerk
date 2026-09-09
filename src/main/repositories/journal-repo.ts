@@ -4,14 +4,13 @@
 // `redoStapelVerwerfen`/`aenderungen` für den Undo-Algorithmus (`src/main/journal/undo.ts`,
 // 55_Architektur.md §4.7/§4.9).
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
-import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
+import type { JournalStatusNutzlast, TransaktionArt, TransaktionStatus } from '../../shared/ipc/vertrag'
 import type { Tx } from './basis'
 
-/** Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab. */
-export type TransaktionArt = 'nutzer' | 'import' | 'merge' | 'migration' | 'wartung' | 'platzhalter_aufgeloest'
-
-/** Deckt `transaktion.status` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab (AP-0.10). */
-export type TransaktionStatus = 'angewendet' | 'zurueckgenommen' | 'verworfen'
+// `TransaktionArt`/`TransaktionStatus` stehen seit AP-0.10 PR-A2 in `src/shared/ipc/vertrag.ts`
+// (dort begründet) — hier nur re-exportiert, damit bestehende Importe (`src/main/befehle/
+// registrierung.ts`) unverändert bleiben.
+export type { TransaktionArt, TransaktionStatus }
 
 export interface TransaktionAnlegenEin {
   readonly id: string
