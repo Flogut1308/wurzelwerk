@@ -88,6 +88,32 @@ describe('versucheZusammenfassen() — Grenzfälle (55_Architektur.md §4.8, AP-
     }
   })
 
+  it('exakt 2000ms Abstand: kein Merge — das Fenster ist strikt "< 2000", nicht "<= 2000" (Mutations-Gate §13)', () => {
+    // Deckt die Mutation `< KOALESZENZ_FENSTER_MS` → `<=` ab: 1999/2001 allein treffen `</<=` NICHT
+    // (beide Operatoren liefern dort dasselbe Ergebnis) — nur der exakte Randwert 2000 tut das.
+    const db = neueTestDatenbank()
+    try {
+      const kandidatId = uuidv7()
+      transaktionMitAenderungAnlegen(db, { id: kandidatId, lfd: 1, zeitpunktMs: 1000, art: 'nutzer', koaleszenzSchluessel: 'k' })
+
+      const neuId = uuidv7()
+      transaktionMitAenderungAnlegen(db, { id: neuId, lfd: 2, zeitpunktMs: 1000 + 2000, art: 'nutzer', koaleszenzSchluessel: 'k' })
+
+      const effektiveId = versucheZusammenfassen(db, {
+        txId: neuId,
+        lfd: 2,
+        zeitpunktMs: 1000 + 2000,
+        art: 'nutzer',
+        koaleszenzSchluessel: 'k',
+      })
+
+      expect(effektiveId).toBe(neuId)
+      expect(transaktionIds(db)).toEqual([kandidatId, neuId])
+    } finally {
+      db.close()
+    }
+  })
+
   it('Gegenprobe 1999ms Abstand: Merge — nur noch die Kandidaten-ID bleibt', () => {
     const db = neueTestDatenbank()
     try {
@@ -233,6 +259,57 @@ describe('versucheZusammenfassen() — Grenzfälle (55_Architektur.md §4.8, AP-
 
       expect(effektiveId).toBe(neuId)
       expect(transaktionIds(db)).toEqual([kandidatId, neuId])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('insert+delete verdichtet zu [] (Verdichtungstabelle §4.8): Rückgabe = null, BEIDE Transaktionszeilen entfallen', () => {
+    // hueter-Auflage B: `merged.length === 0` lässt netto nichts übrig — die Kandidaten-Zeile wird
+    // ebenfalls verworfen. `versucheZusammenfassen()` signalisiert das dem Bus über `null` statt
+    // eine bereits gelöschte `transaktionId` zurückzugeben (s. Funktionskommentar in
+    // `src/main/journal/koaleszenz.ts` und die Verwendung in `src/main/befehle/bus.ts`).
+    const db = neueTestDatenbank()
+    try {
+      const kandidatId = uuidv7()
+      const datensatzId = uuidv7()
+      transaktionAnlegen(db, { id: kandidatId, zeitpunkt: 1000, art: 'nutzer', lfd: 1, koaleszenzSchluessel: 'k' })
+      aenderungEinfuegen(db, {
+        id: uuidv7(),
+        transaktionId: kandidatId,
+        reihenfolge: 1,
+        tabelle: 'person',
+        datensatzId,
+        feld: null,
+        wertAltJson: null,
+        wertNeuJson: '{"a":1}',
+        operation: 'insert',
+      })
+
+      const neuId = uuidv7()
+      transaktionAnlegen(db, { id: neuId, zeitpunkt: 1100, art: 'nutzer', lfd: 2, koaleszenzSchluessel: 'k' })
+      aenderungEinfuegen(db, {
+        id: uuidv7(),
+        transaktionId: neuId,
+        reihenfolge: 1,
+        tabelle: 'person',
+        datensatzId,
+        feld: null,
+        wertAltJson: '{"a":1}',
+        wertNeuJson: null,
+        operation: 'delete',
+      })
+
+      const effektiveId = versucheZusammenfassen(db, {
+        txId: neuId,
+        lfd: 2,
+        zeitpunktMs: 1100,
+        art: 'nutzer',
+        koaleszenzSchluessel: 'k',
+      })
+
+      expect(effektiveId).toBeNull()
+      expect(transaktionIds(db)).toEqual([])
     } finally {
       db.close()
     }
