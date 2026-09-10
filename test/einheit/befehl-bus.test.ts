@@ -7,7 +7,7 @@
 // `sendeEreignis` wird gemockt (nicht `electron`/`BrowserWindow`): `src/main/ipc/ereignisse.ts`
 // selbst importiert `electron`, aber ein kompletter Modul-Mock ersetzt die Datei, bevor dieser
 // Import überhaupt läuft.
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -21,9 +21,10 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
-import { fuehreAus, fuehreAusDef } from '../../src/main/befehle/bus'
+import { fuehreAus, fuehreAusDef, schnappschussBeiTransaktionSetzen } from '../../src/main/befehle/bus'
 import type { BefehlDef } from '../../src/main/befehle/registrierung'
 import { sendeEreignis } from '../../src/main/ipc/ereignisse'
+import { protokollFehler } from '../../src/main/protokoll/logger'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface TransaktionZeile {
@@ -168,5 +169,67 @@ describe('fuehreAus()/fuehreAusDef() — Befehlsbus-Mechanik (AP-0.9, 55_Archite
     } finally {
       db.close()
     }
+  })
+
+  describe('Schnappschuss-Auslöser "alle 200 Transaktionen" (55_Architektur.md §6.2, AP-0.11)', () => {
+    afterEach(() => {
+      // Der Auslöser ist ein Modul-Singleton (analog zu `journalStatusBeobachterSetzen()`) - auf
+      // No-op zurücksetzen, damit dieser Test keine anderen Tests in dieser Datei beeinflusst.
+      schnappschussBeiTransaktionSetzen(() => {})
+    })
+
+    it('wird bei lfd=200 genau einmal aufgerufen, davor kein einziges Mal', () => {
+      const db = neueTestDatenbank()
+      try {
+        const ausloeser = vi.fn()
+        schnappschussBeiTransaktionSetzen(ausloeser)
+
+        for (let i = 0; i < 199; i += 1) {
+          fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+        }
+        expect(ausloeser).not.toHaveBeenCalled()
+
+        fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }) // lfd = 200
+        expect(ausloeser).toHaveBeenCalledTimes(1)
+        expect(ausloeser).toHaveBeenCalledWith(db)
+      } finally {
+        db.close()
+      }
+    })
+
+    it('ein werfender Auslöser bricht die (bereits committete) Transaktion NICHT ab - nur protokolliert', () => {
+      const db = neueTestDatenbank()
+      try {
+        schnappschussBeiTransaktionSetzen(() => {
+          throw new WurzelFehler('DATEI_KEIN_PLATZ')
+        })
+
+        for (let i = 0; i < 200; i += 1) {
+          expect(() => fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })).not.toThrow()
+        }
+
+        expect(transaktionen(db)).toHaveLength(200)
+        expect(protokollFehler).toHaveBeenCalledWith(expect.objectContaining({ code: 'DATEI_KEIN_PLATZ' }))
+      } finally {
+        db.close()
+      }
+    })
+
+    it('eine leere (verworfene) Transaktion löst den Auslöser nicht mit aus', () => {
+      const db = neueTestDatenbank()
+      try {
+        const ausloeser = vi.fn()
+        schnappschussBeiTransaktionSetzen(ausloeser)
+
+        for (let i = 0; i < 199; i += 1) {
+          fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+        }
+        // Die 200. Transaktion wäre fällig - bleibt aber leer (verworfen) und zählt daher NICHT als lfd=200.
+        fuehreAusDef(db, 'test.leer', LEERER_BEFEHL, null)
+        expect(ausloeser).not.toHaveBeenCalled()
+      } finally {
+        db.close()
+      }
+    })
   })
 })

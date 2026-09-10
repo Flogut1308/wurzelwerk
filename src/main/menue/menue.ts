@@ -6,9 +6,13 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
 import { JOURNAL_STATUS_KEIN_PROJEKT, journalStatusBeobachterSetzen, journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
+import { neueId } from '../ipc/huelle'
 import { sendeEreignis } from '../ipc/ereignisse'
 import { protokollFehler } from '../protokoll/logger'
-import { offenesProjektDatenbank } from '../projekt/projekt-dienst'
+import { offenesProjektDatenbank, offenesProjektPfade } from '../projekt/projekt-dienst'
+import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
+import { schnappschussListeLesen } from '../schnappschuss/liste'
+import { schnappschussWiederherstellen } from '../schnappschuss/wiederherstellen'
 import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { TASTENKUERZEL } from './tastenkuerzel'
 
@@ -127,6 +131,52 @@ function journalBefehlAusfuehren(art: 'undo' | 'redo'): void {
 }
 
 /**
+ * Führt eine Wartungsfunktion aus, die keine Ausnahme über den Hauptprozess hinaus tragen darf
+ * (§7: Menübefehle laufen nicht über die IPC-Hülle) - dieselbe try/catch+Protokoll-Hülle wie beim
+ * bestehenden `wartung_abgeleiteteNeuAufbauen`-Menüpunkt, hier für die Schnappschuss-Menüpunkte
+ * (AP-0.11) wiederverwendet.
+ */
+function wartungBefehlAusfuehren(befehlsname: string, aufruf: () => void): void {
+  try {
+    aufruf()
+  } catch (fehler) {
+    protokollFehler({
+      befehlsname,
+      code: fehler instanceof WurzelFehler ? fehler.code : 'INTERN_UNERWARTET',
+    })
+  }
+}
+
+/**
+ * Ein Menüpunkt je vorhandenem Schnappschuss, jüngster zuerst (55_Architektur.md §6.2/§6.4,
+ * AP-0.11) - baut die Liste bei jedem Menüaufbau frisch aus dem Dateisystem, kein eigener
+ * Zwischenzustand. Ohne offenes Projekt oder ohne einen einzigen Schnappschuss bleibt genau ein
+ * ausgegrauter Platzhaltereintrag stehen (nie ein leeres Untermenü - Electron erlaubt das nicht
+ * sinnvoll).
+ */
+function schnappschussWiederherstellenEintraege(t: MenueUebersetzer): MenuItemConstructorOptions[] {
+  let liste: ReturnType<typeof schnappschussListeLesen>
+  try {
+    liste = schnappschussListeLesen(offenesProjektPfade().snapshotsPfad)
+  } catch {
+    liste = []
+  }
+
+  if (liste.length === 0) {
+    return [{ label: t('wartung_schnappschussKeine'), enabled: false }]
+  }
+
+  return liste.map((eintrag) => ({
+    label: new Date(eintrag.zeitpunktMs).toLocaleString('de-DE'),
+    click: () => {
+      wartungBefehlAusfuehren('schnappschuss.wiederherstellen', () => {
+        schnappschussWiederherstellen({ id: eintrag.id }, { vorgangsId: neueId() })
+      })
+    },
+  }))
+}
+
+/**
  * Baut das Menü für den übergebenen Journalstatus. `status: undefined` heißt „kein Projekt
  * offen“ - beide Journal-Menüpunkte sind dann ausgegraut (s. `journalMenueBeschriftung`).
  */
@@ -164,18 +214,19 @@ export function menueErzeugen(status: JournalStatusNutzlast | undefined): Menu {
       submenu: [
         {
           label: t('wartung_abgeleiteteNeuAufbauen'),
-          click: () => {
-            try {
-              wartungAbgeleiteteNeuAufbauen()
-            } catch (fehler) {
-              // Menübefehle laufen nicht über die IPC-Hülle (§7) - die Ausnahme darf den
-              // Hauptprozess trotzdem nie verlassen, darum wird sie hier selbst protokolliert.
-              protokollFehler({
-                befehlsname: 'wartung.abgeleiteteNeuAufbauen',
-                code: fehler instanceof WurzelFehler ? fehler.code : 'INTERN_UNERWARTET',
-              })
-            }
-          },
+          click: () => wartungBefehlAusfuehren('wartung.abgeleiteteNeuAufbauen', wartungAbgeleiteteNeuAufbauen),
+        },
+        { type: 'separator' },
+        {
+          label: t('wartung_schnappschussErzeugen'),
+          click: () =>
+            wartungBefehlAusfuehren('schnappschuss.erzeugen', () => {
+              schnappschussErzeugen(offenesProjektDatenbank(), offenesProjektPfade())
+            }),
+        },
+        {
+          label: t('wartung_schnappschussWiederherstellen'),
+          submenu: schnappschussWiederherstellenEintraege(t),
         },
       ],
     },

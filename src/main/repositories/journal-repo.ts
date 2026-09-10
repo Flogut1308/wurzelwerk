@@ -178,6 +178,54 @@ interface AenderungRow {
  * `test/einheit/befehl-bus.test.ts`) - so bleibt `src/main/journal/undo.ts` ohne ein
  * unbegründetes `as` lesbar (CLAUDE.md §4).
  */
+/** Eine Transaktionszeile für die Journalbegrenzung (55_Architektur.md §4.6, AP-0.11) — unabhängig vom `status`: auch zurückgenommene/verworfene Transaktionen behalten ihre `aenderung`-Zeilen bis zum Aufräumen. */
+export interface AlteTransaktionZeile {
+  readonly id: string
+  readonly zeitpunktMs: number
+  readonly lfd: number
+}
+
+interface AlteTransaktionRow {
+  readonly id: string
+  readonly zeitpunkt: number
+  readonly lfd: number
+}
+
+/** Alle `transaktion`-Zeilen, Grundlage für `zuBegrenzendeTransaktionen()` (`src/core/journal/begrenzung-auswahl.ts`, AP-0.11). */
+export function alteTransaktionenLesen(tx: Tx): readonly AlteTransaktionZeile[] {
+  return tx
+    .prepare<[], AlteTransaktionRow>('SELECT id, zeitpunkt, lfd FROM transaktion ORDER BY lfd')
+    .all()
+    .map((zeile) => ({ id: zeile.id, zeitpunktMs: zeile.zeitpunkt, lfd: zeile.lfd }))
+}
+
+/**
+ * Löscht die `aenderung`-Zeilen der übergebenen Transaktionen (55_Architektur.md §4.6, AP-0.11) —
+ * die `transaktion`-Zeile selbst bleibt für immer (der Verlauf bleibt lesbar). Ein `IN (...)` mit
+ * zusammengesetztem SQL wird bewusst vermieden (CLAUDE.md §6) — stattdessen ein vorbereitetes
+ * Statement je Aufruf, einmal pro ID mit benanntem Parameter ausgeführt.
+ */
+export function aenderungenLoeschen(tx: Tx, transaktionIds: readonly string[]): void {
+  if (transaktionIds.length === 0) {
+    return
+  }
+  const anweisung = tx.prepare('DELETE FROM aenderung WHERE transaktion_id = @id')
+  for (const id of transaktionIds) {
+    anweisung.run({ id })
+  }
+}
+
+/** Setzt `transaktion.rueckgaengig_moeglich = 0` für die übergebenen IDs (55_Architektur.md §4.6, AP-0.11) — benannter Parameter je Aufruf (s. `aenderungenLoeschen`). */
+export function rueckgaengigMoeglichAberkennen(tx: Tx, transaktionIds: readonly string[]): void {
+  if (transaktionIds.length === 0) {
+    return
+  }
+  const anweisung = tx.prepare('UPDATE transaktion SET rueckgaengig_moeglich = 0 WHERE id = @id')
+  for (const id of transaktionIds) {
+    anweisung.run({ id })
+  }
+}
+
 export function aenderungen(tx: Tx, transaktionId: string, richtung: 'ASC' | 'DESC'): readonly AenderungZeileFuerUndo[] {
   // `richtung` ist eine geschlossene Union ('ASC'|'DESC'), kein Bindeparameter möglich (ORDER BY
   // erlaubt in SQLite ohnehin keine Werte-Bindung, CLAUDE.md §6 gilt für Werte, nicht für dieses

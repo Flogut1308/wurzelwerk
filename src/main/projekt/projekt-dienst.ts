@@ -1,8 +1,6 @@
 import type Database from 'better-sqlite3'
 import { app } from 'electron'
-import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { Kontext } from '../ipc/huelle'
 import type {
   ProjektAnlegenEin,
@@ -13,36 +11,27 @@ import type {
 } from '../../shared/ipc/vertrag'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollInfo } from '../protokoll/logger'
+import { schnappschussBeiTransaktionSetzen } from '../befehle/bus'
 import { integritaetPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
+import { journalAufraeumen } from '../journal/aufraeumen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
+import { schnappschussAufbewahrung } from '../schnappschuss/aufbewahrung'
+import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
+import { schnappschussListeLesen } from '../schnappschuss/liste'
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade, type ProjektManifest, type ProjektOrdnerPfade } from './ordnerformat'
 import { sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
 import { syncAnbieterErkennen } from './sync-ordner-warnung'
 import { zuletztHinzufuegen, zuletztLesen } from './zuletzt-speicher'
 
-/**
- * Liest `user_version`, ohne den unbekannten Rückgabetyp von `db.pragma()` zu casten — nur für den
- * Dateinamen des Platzhalter-Schnappschusses gebraucht, darum ein stiller Fallback auf `0` statt
- * eines Wurfs.
- */
-function quellVersionErmitteln(db: Database.Database): number {
-  const wert = db.pragma('user_version', { simple: true })
-  return typeof wert === 'number' && Number.isInteger(wert) ? wert : 0
-}
+/** Ein Stand pro Arbeitstag "ohne Zutun" (55_Architektur.md §6.2). */
+const SCHNAPPSCHUSS_MAX_ALTER_MS = 24 * 60 * 60 * 1000
 
-/**
- * Schnappschuss-Platzhalter bis AP-0.11 (echte Aufbewahrung/Rotation/Wiederherstellung folgen
- * dort): ein `VACUUM INTO` direkt in `snapshots/` vor jeder Migration, benannt nach der
- * Quellversion. Der Zielpfad geht als gebundener Parameter in die Anweisung (nicht per
- * String-Verkettung) — Projekt- und damit Ordnernamen können Apostrophe enthalten (O'Brien,
- * d'Aboville, §11).
- */
-function schnappschussVacuumInto(db: Database.Database, pfade: ProjektOrdnerPfade): void {
-  mkdirSync(pfade.snapshotsPfad, { recursive: true })
-  const zielPfad = join(pfade.snapshotsPfad, `vor-migration-${String(quellVersionErmitteln(db))}.sqlite`)
-  db.prepare('VACUUM INTO ?').run(zielPfad)
+/** Kein Schnappschuss vorhanden ODER der jüngste ist älter als `SCHNAPPSCHUSS_MAX_ALTER_MS`. */
+function schnappschussFaelligBeimOeffnen(pfade: ProjektOrdnerPfade): boolean {
+  const juengste = schnappschussListeLesen(pfade.snapshotsPfad)[0] // jüngste zuerst (schnappschussListeLesen())
+  return juengste === undefined || Date.now() - juengste.zeitpunktMs > SCHNAPPSCHUSS_MAX_ALTER_MS
 }
 
 /**
@@ -75,10 +64,29 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void 
   integritaetPruefen(db)
   migrieren(db, {
     appVersion: app.getVersion(),
-    schnappschussVor: (geoeffnet) => schnappschussVacuumInto(geoeffnet, pfade),
+    schnappschussVor: (geoeffnet) => {
+      schnappschussErzeugen(geoeffnet, pfade)
+    },
   })
+
+  // 55_Architektur.md §6.2/§4.6, AP-0.11 — in dieser Reihenfolge nach der Migration:
+  // (a) ein Stand pro Arbeitstag "ohne Zutun", falls der letzte Schnappschuss älter als 24 h ist,
+  if (schnappschussFaelligBeimOeffnen(pfade)) {
+    schnappschussErzeugen(db, pfade)
+  }
+  // (b) Rotation (letzte 10 + je einer pro Tag/Woche der letzten 7 Tage/4 Wochen), und
+  schnappschussAufbewahrung(pfade.snapshotsPfad)
+  // (c) Journalbegrenzung (30 Tage / mindestens die letzten 200).
+  journalAufraeumen(db)
+
   sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
   offenesProjekt = { db, pfade, info }
+  // 55_Architektur.md §6.2 ("alle 200 Transaktionen") — der Befehlsbus (`src/main/befehle/bus.ts`)
+  // kennt selbst keine Projektpfade; dieser Aufruf registriert den echten Auslöser für das gerade
+  // übernommene Projekt (Default dort: no-op, s. Kommentar bei `schnappschussBeiTransaktionSetzen`).
+  schnappschussBeiTransaktionSetzen((geoeffnet) => {
+    schnappschussErzeugen(geoeffnet, pfade)
+  })
   journalStatusMelden(db) // AP-0.10: frisch geöffnetes Projekt bringt einen eigenen Undo/Redo-Stand mit (Menü, ereignis:journalStatus)
 }
 
@@ -148,4 +156,16 @@ export function offenesProjektDatenbank(): Database.Database {
     throw new WurzelFehler('PROJEKT_NICHT_GEOEFFNET')
   }
   return offenesProjekt.db
+}
+
+/**
+ * Die Ordnerpfade (`ProjektOrdnerPfade`) des aktuell offenen Projekts (AP-0.11, für
+ * `befehl:schnappschuss.*` - dieselbe Begründung wie bei `offenesProjektDatenbank()` oben:
+ * Schnappschuss-Kanäle sind kein eigenes Repository mit Zugriff auf `offenesProjekt`).
+ */
+export function offenesProjektPfade(): ProjektOrdnerPfade {
+  if (offenesProjekt === undefined) {
+    throw new WurzelFehler('PROJEKT_NICHT_GEOEFFNET')
+  }
+  return offenesProjekt.pfade
 }

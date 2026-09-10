@@ -7,6 +7,9 @@
   "einfuegen": "Einfügen",
   "wartung": "Wartung",
   "wartung_abgeleiteteNeuAufbauen": "Abgeleitete Daten neu aufbauen",
+  "wartung_schnappschussErzeugen": "Schnappschuss jetzt erzeugen",
+  "wartung_schnappschussWiederherstellen": "Schnappschuss wiederherstellen",
+  "wartung_schnappschussKeine": "Keine Schnappschüsse vorhanden",
   "journal": {
     "rueckgaengig": "Rückgängig",
     "rueckgaengig_mit_ziel": "Rückgängig: {{beschreibung}}",
