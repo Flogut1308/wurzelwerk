@@ -18,6 +18,7 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { schnappschussErzeugen } from '../../src/main/schnappschuss/erzeugen'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 function neueTestDatenbank(pfad: string): ReturnType<typeof oeffnen> {
   const db = oeffnen(pfad)
@@ -116,6 +117,37 @@ describe('schnappschussErzeugen() (55_Architektur.md §6.2, AP-0.11)', () => {
       }
     } finally {
       leser.close()
+      db.close()
+    }
+  })
+
+  it('bei fehlgeschlagener Integritätsprüfung wird die beschädigte Kopie sofort gelöscht (hueter-Auflage C1)', () => {
+    // Ohne diesen Aufräumschritt bliebe eine korrupte Datei mit gültigem Schnappschuss-Dateinamen
+    // in snapshots/ liegen und würde von `schnappschussListeLesen()` als Wiederherstellungs-
+    // Kandidat gelistet (der Fehler dieses Tests wird über eine injizierte, immer fehlschlagende
+    // Prüffunktion erzwungen - eine echte Beschädigung ließe sich nicht deterministisch erzeugen).
+    const dbPfad = join(ordner, 'baum.sqlite')
+    const snapshotsPfad = join(ordner, 'snapshots')
+    const db = neueTestDatenbank(dbPfad)
+    try {
+      const immerFehlschlagend = (): void => {
+        throw new WurzelFehler('DATEI_KEIN_PLATZ')
+      }
+
+      expect.assertions(3)
+      let erzeugterPfad: string | undefined
+      try {
+        schnappschussErzeugen(db, { snapshotsPfad }, () => Date.UTC(2026, 8, 10, 12, 0, 0), immerFehlschlagend)
+        expect.unreachable()
+      } catch (u) {
+        expect(u).toBeInstanceOf(WurzelFehler)
+        if (u instanceof WurzelFehler) {
+          expect(u.code).toBe('DATEI_KEIN_PLATZ')
+        }
+        erzeugterPfad = join(snapshotsPfad, '2026-09-10T12-00-00Z.sqlite')
+      }
+      expect(erzeugterPfad !== undefined && existsSync(erzeugterPfad)).toBe(false)
+    } finally {
       db.close()
     }
   })
