@@ -3,6 +3,7 @@
 // Transaktionen) - Repositories und Handler bekommen ein bereits offenes `Tx`-Handle.
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { armieren, entwaffnen } from '../journal/kontext'
+import { versucheZusammenfassen } from '../journal/koaleszenz'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { sendeEreignis } from '../ipc/ereignisse'
 import { neueId } from '../ipc/huelle'
@@ -59,16 +60,20 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
   const nutzlast = def.schema.parse(ein)
   const txId = neueId()
 
+  const zeitpunktMs = Date.now()
+  const koaleszenzSchluessel = def.koaleszenzSchluessel?.(nutzlast) ?? null
+
   const lauf: BusLauf<Aus> = db
     .transaction((): BusLauf<Aus> => {
       const lfd = naechsteLfd(db)
       transaktionAnlegen(db, {
         id: txId,
-        zeitpunkt: Date.now(),
+        zeitpunkt: zeitpunktMs,
         bearbeiter: 'lokal',
         art: def.art,
         beschreibung: def.beschreibung(nutzlast),
         lfd,
+        koaleszenzSchluessel,
       })
       armieren(db, txId)
       let ergebnis: Aus
@@ -78,13 +83,16 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
         entwaffnen(db)
       }
       const anzahl = betroffene(db, txId)
+      let effektiveTxId = txId
       if (anzahl === 0) {
         transaktionVerwerfen(db, txId)
       } else {
         redoStapelVerwerfen(db) // §4.7: ein neuer Befehl verwirft den Redo-Stapel (lineares Undo-Modell) - NICHT bei einer leeren, gleich wieder verworfenen Transaktion
-        // SEAM AP-0.15: koaleszenz
+        // 55_Architektur.md §4.8, AP-0.15: schnelle Folgeänderungen am selben Datensatz (z. B.
+        // mehrere Notiz-Tastenanschläge) zu EINEM Undo-Schritt zusammenfassen, statt vieler.
+        effektiveTxId = versucheZusammenfassen(db, { txId, lfd, zeitpunktMs, art: def.art, koaleszenzSchluessel })
       }
-      return { ergebnis, anzahl, txId, lfd }
+      return { ergebnis, anzahl, txId: effektiveTxId, lfd }
     })
     .immediate()
 

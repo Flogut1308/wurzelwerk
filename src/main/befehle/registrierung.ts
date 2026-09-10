@@ -32,6 +32,14 @@ export interface BefehlDef<Ein, Aus> {
   readonly art: TransaktionArt
   readonly beschreibung: (ein: Ein) => string
   readonly handler: (tx: Tx, ein: Ein) => Aus
+  /**
+   * Koaleszenz-Schlüssel (55_Architektur.md §4.8, AP-0.15): liefert `null`, wenn dieser Aufruf
+   * NIE mit einer vorangehenden Transaktion zusammengefasst werden darf (Default bei Fehlen),
+   * sonst einen Schlüssel, der über mehrere schnelle Aufrufe hinweg identisch bleibt (z. B.
+   * `person:<id>:notiz`) - `src/main/journal/koaleszenz.ts` entscheidet anhand dieses Schlüssels
+   * plus Zeitfenster, ob ein Merge stattfindet.
+   */
+  readonly koaleszenzSchluessel?: (ein: Ein) => string | null
 }
 
 interface BefehlKarte {
@@ -57,6 +65,10 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.person_feld_gesetzt',
     handler: personFeldSetzen,
+    // 55_Architektur.md §4.8, AP-0.15: nur `notiz` bekommt einen Koaleszenz-Schlüssel - mehrere
+    // schnelle Notiz-Änderungen an derselben Person verdichten sich zu einem Undo-Schritt. Andere
+    // Felder (geschlecht, privat, ...) sind seltene Einzelaktionen, keine Tastatureingaben.
+    koaleszenzSchluessel: (ein) => (ein.feld === 'notiz' ? `person:${ein.id}:notiz` : null),
   },
   'person.loeschen': {
     schema: personLoeschenEinSchema,
