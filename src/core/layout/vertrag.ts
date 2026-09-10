@@ -3,7 +3,7 @@
 // Phase 2 anfangen kann, ohne dass Phase 1 die Engine kennt oder importiert. Diese Datei darf
 // außer Typen nichts exportieren (kein `const`, keine Funktion, kein Default-Export) und wird
 // NICHT aus `src/core/index.ts` re-exportiert — der Laufzeit-Null-Export muss am Modul selbst
-// gelten (`test/einheit/layout-vertrag-nur-typen.test.ts`, sofern ergänzt).
+// gelten (`test/schema/layout-vertrag.test.ts`, AP-0.14 PR-B).
 
 /**
  * Core-lokale Spiegelung von `src/shared/schemata/elternschaft.ts` `ElternschaftTypEnum`.
