@@ -14,6 +14,7 @@
     "typen": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.core.json --noEmit",
     "lint": "eslint .",
     "grenzen": "depcruise src --config .dependency-cruiser.cjs",
+    "grenzen:graph": "depcruise src --config .dependency-cruiser.cjs --output-type dot | dot -Tsvg -o artefakte/abhaengigkeiten.svg",
     "test": "vitest run",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:budget": "vitest run --passWithNoTests test/budget",
