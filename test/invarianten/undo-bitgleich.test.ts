@@ -35,6 +35,17 @@
 //    passenden Vorzustand (fängt genau die oben beschriebene Bugklasse).
 // 4. Am Ende zusätzlich `undoZiel(db) === undefined` (nichts mehr rücknehmbar) als Gegenprobe, dass
 //    die Zählung stimmt.
+//
+// BEKANNTE DECKUNGSGRENZE (hueter-Auflage 1, PR-B): Alle drei heute registrierten Befehle
+// (`person.anlegen`/`feldSetzen`/`loeschen`) berühren GENAU EINE `person`-Zeile → jede Transaktion
+// hat genau eine `aenderung`-Zeile, und es gibt keinen Befehl mit wechselseitigen Fremdschlüsseln
+// (`ort.nachfolger_ort_id`). Damit sind zwei Undo-Codepfade mit dem AP-0.9-Befehlsvorrat prinzipiell
+// unerreichbar und hier ungeprüft: die Rücknahme-REIHENFOLGE innerhalb einer Transaktion (DESC) und
+// `defer_foreign_keys` (Mutationsprobe M2/M3 überlebt — kein Invarianten-Defekt, sondern fehlende
+// Angriffsfläche). SOBALD der erste Befehl landet, dessen Transaktion MEHR ALS EINE `aenderung`-Zeile
+// erzeugt (z. B. `ort`, `name`, `elternschaft` oder ein `person.anlegen` mit zusätzlicher Namenszeile),
+// ist `_befehlsfolge-generator.ts` um diesen Befehl zu erweitern — sonst bleiben DESC und
+// defer_foreign_keys dauerhaft ungeprüft.
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
