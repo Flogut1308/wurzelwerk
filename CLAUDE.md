@@ -70,6 +70,8 @@ pnpm build              # macOS-Paket
 
 **`pnpm pruefe` muss grün sein, bevor ein Commit entsteht.** Ohne Ausnahme.
 
+**Node-Version:** Vor jedem `pnpm`-Befehl `nvm use` (nutzt `.nvmrc` → Node 22). Eine andere Node-Version (z. B. eine neuere Default-Shell) verletzt die Engine `>=22 <23` und lässt `pnpm grenzen` (dependency-cruiser) hart abbrechen. Paketmanager fest: `pnpm@12.3.4`.
+
 Nach jeder Änderung an `package.json`-Abhängigkeiten mit nativem Code: `pnpm install` erneut,
 sonst passt `better-sqlite3` nicht zur Electron-Version und die Fehlermeldung
 (`NODE_MODULE_VERSION`) ist irreführend.
@@ -187,7 +189,10 @@ damit ein Test grün wird — dann ist der Code falsch oder die Regel muss per A
 
 ## 9. Arbeitsweise mit Commits
 
-- **Kleine Commits, jeder mit grünem `pnpm pruefe`.** Ein Commit, der zwei Dinge tut, ist zwei Commits.
+- **Ein Arbeitspaket = ein Branch + ein Pull Request.** Branch `ap/<id>-<kurzname>`, PR gegen `main`. `main` ist geschützt und **immer grün**: gemerged wird nur bei grüner CI auf macOS **und** Windows. **Direkt auf `main` wird nicht committet** (Ausnahme: AP-0.1, vor Einführung dieser Regel).
+- **`main`-Schutz auf GitHub Free (privates Repo):** Serverseitige Branch-Protection/Rulesets sind hier nicht verfügbar. Ersatz: ein lokaler `.git/hooks/pre-push` blockt Direkt-Push auf `main` (nur bewusst mit `--no-verify` umgehbar; liegt lokal im Klon, ist nicht eingecheckt). Das Verhindern eines **Rot-Merges** bleibt manuell: vor „Merge pull request“ prüfen, dass `pruefen (macos-latest)`, `pruefen (windows-latest)` und `langsame Gates (test:e2e, test:budget)` grün sind.
+- **Der PR ist das Gate für den geschützten Prüfpfad (ADR-025):** Änderungen an `test/invarianten/`, `test/golden/`, `test/schema/` oder den Migrations-Prüfsummen werden im Review gesondert begründet und abgesegnet, nicht mit dem Produktivcode durchgewinkt.
+- **Kleine Commits im Branch, jeder mit grünem `pnpm pruefe`.** Ein Commit, der zwei Dinge tut, ist zwei Commits.
 - Commit-Betreff: `<bereich>: <was>`, deutsch, Imperativ. Bereiche: `core`, `main`, `renderer`, `shared`, `schema`, `test`, `ci`, `docs`.
   ```
   schema: Journal-Trigger für name-Tabelle ergänzen
@@ -195,7 +200,7 @@ damit ein Test grün wird — dann ist der Code falsch oder die Regel muss per A
   test: Fixture für Cousinenheirat (Ahnenimplex)
   ```
 - Betrifft der Commit ein Arbeitspaket oder eine Anforderung: ID in den Rumpf (`Betrifft: A-03, AP-1.1`).
-- **Nie auf `main` committen**, wenn `pnpm pruefe` rot ist — auch nicht „ich fixe das im nächsten Commit".
+- **Nie mit rotem `pnpm pruefe` pushen** — auch nicht „ich fixe das im nächsten Commit". Ein PR geht erst in den Merge, wenn alle Gates grün sind.
 - Die CI baut zusätzlich unter `windows-latest` und legt Screenshots der Hauptansichten als Artefakt ab (ADR-012). **Diese Screenshots werden angesehen, nicht nur erzeugt** — sie sind bis zur Windows-Testrunde (Ende Phase 2) die einzige Windows-Rückmeldung.
 
 ---
@@ -247,3 +252,20 @@ Entwickelt wird in Loops: klares Ziel, Umsetzung, Gates laufen, wiederholen. Dam
 - **Gestufte Gates.** Schnell, jede Iteration: `pnpm typen lint grenzen test`. Langsam, als Torwächter vor dem Merge: `pnpm test:e2e`, `pnpm test:budget`, der Windows-CI-Lauf. Windows-Screenshots sind ein Gate mit Baseline-Diff (§9), kein bloßes Artefakt.
 - **Determinismus ist Pflicht** (§4, ADR-005/023): eine nichtdeterministisch rote Prüfung wird von der Loop „wegoptimiert". Kein `Math.random`/`Date.now` in `core`.
 - **Doku ist die Wahrheit.** Die Loop arbeitet aus `docs/` (Kopien der Konzeptdokumente). Ein Widerspruch zwischen Code und Doku bricht das Gate; die Doku wird per ADR geändert, nicht der Code am Gate vorbei (§12).
+
+## 14. Design umsetzen — Lücken und Fehler (nicht stumpf, nicht ignorieren)
+
+Grundlage ist das **eingefrorene** Design-Bündel im Repo (Tokens/Schriften aus `74` §12 plus die Bildschirm-Referenzen) zusammen mit `docs/` (`71`/`72`). Der Claude-Design-Link ist die *editierbare Quelle* für spätere Designänderungen; **gebaut wird gegen die versionierte Kopie, nicht gegen den Live-Link.**
+
+**Zwei Wahrheiten:** Das **Design** bestimmt, *wie* es aussieht/sich verhält. Der **Scope** (`40`/`57`/`72`) bestimmt, *was* existieren und funktionieren muss. Bei Lücke oder Konflikt gewinnt für die *Existenz einer Funktion* der Scope, für die *Gestaltung* das Design.
+
+In zwei Fällen wird **nicht stumpf** umgesetzt — in beiden wird **weitergebaut, nicht ignoriert**, auf dem Niveau eines sehr erfahrenen Entwicklers, Product Managers und UI/UX-Designers:
+
+1. **Geplante Funktion fehlt im Design.** Eine Anforderung aus `40`/`57` hat keinen Bildschirm/Baustein. → Aus **vorhandenen** Design-Bausteinen (Tokens, Komponenten, Muster aus `71`/`72` und dem Bündel) konsistent zusammenbauen, sodass es aussieht, als gehörte es dazu. Keine neue visuelle Sprache erfinden. Passt kein Baustein, die konsistenteste Lösung wählen und zum Design-Review markieren.
+2. **Das Design bildet etwas ab, das nicht trägt** (technisch nicht umsetzbar, widerspricht Datenmodell/Invariante/Token-Vertrag oder ist in sich inkonsistent). → **Nicht blind** umsetzen. Innerhalb der Design-Sprache auf das anpassen, was trägt (z. B. gleiche Kartenhöhe nach `70` §4, Token statt Festwert), und den Grund festhalten.
+
+Regeln:
+- **Nie stilles Weglassen, nie stille Abweichung.** Beide Fälle → ein Satz im PR **und** eine Zeile in `docs/offene-fragen.md` (bzw. Nachtrag zur Screenliste), damit Mensch/Review es sieht.
+- **Weiterbauen statt anhalten** — anders als bei Datenmodell-/Architekturentscheidungen, die anhalten (§12). Eine Design-Lücke/-Fehler stoppt die Loop nicht; sie wird bestmöglich konsistent gefüllt und vermerkt. **Nur** wenn dahinter eine echte Produkt-/Scope-Entscheidung steckt (nicht bloß visuelle Füllung), wird sie als offener Punkt eskaliert.
+- **Maßstab:** konsistent mit Token-/Komponentenvertrag, treu zum Produktprinzip (eine Frage pro Ansicht, Unsicherheits-Sprache, kein Speichern-Knopf, gleiche Kartenhöhe), technisch sauber, barrierefrei (WCAG AA), beide Themen.
+- Der `hueter`/Review prüft solche Abweichungen gezielt.
