@@ -11,7 +11,7 @@ import type Database from 'better-sqlite3'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
-import { aenderungen, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
+import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { journalAn, journalAus } from './kontext'
 
 // `UndoErgebnis` stand bis AP-0.10 PR-A1 als rein interner Typ hier (kein Renderer-Aufrufer
@@ -57,6 +57,16 @@ export function undo(db: Database.Database): UndoErgebnis {
       const ziel = undoZiel(db)
       if (ziel === undefined) {
         throw new WurzelFehler('JOURNAL_NICHTS_ZURUECKZUNEHMEN')
+      }
+      // Guard (AP-0.11, 55_Architektur.md §4.6): `journalAufraeumen()` setzt `rueckgaengig_moeglich
+      // = 0` für begrenzte Transaktionen und schließt sie damit aus `undoZiel()` aus — dieser Zweig
+      // ist trotzdem defensiv, falls ein Undo-Ziel (`rueckgaengig_moeglich = 1`) seine
+      // `aenderung`-Zeilen aus einem anderen Grund verloren hat. Ohne diesen Wurf würde die
+      // `for`-Schleife unten schlicht nichts tun und `statusSetzen(...'zurueckgenommen')` einen
+      // stillen No-op-Undo erzeugen (CLAUDE.md §5: erst der rote Test in
+      // `test/einheit/journal-aufraeumen.test.ts`, dann dieser Fix).
+      if (betroffene(db, ziel.id) === 0) {
+        throw new WurzelFehler('JOURNAL_NICHT_RUECKNEHMBAR')
       }
       importRuecknahmeSperren(ziel)
 
