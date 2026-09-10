@@ -77,6 +77,7 @@ describe('dependency-cruiser: jede Regel hat eine treffende Fixture', () => {
     ['src/preload/importiert-core.ts', 'preload-darf-nur-shared'],
     ['src/renderer/nutzt-sqlite.ts', 'kein-better-sqlite3-ausserhalb-main'],
     ['src/renderer/nutzt-electron.ts', 'kein-electron-ausserhalb-main-preload'],
+    ['src/main/nutzt-unaufloesbar.ts', 'not-to-unresolvable'],
   ])('%s verletzt %s', (datei, regel) => {
     expect(verstossFuer(datei, regel)).toBeDefined()
   })
@@ -89,6 +90,6 @@ describe('dependency-cruiser: jede Regel hat eine treffende Fixture', () => {
   })
 
   it('genau ein Verstoß je Fixture — keine unerwarteten Zusatztreffer', () => {
-    expect(violations).toHaveLength(8)
+    expect(violations).toHaveLength(9)
   })
 })
