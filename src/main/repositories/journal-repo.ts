@@ -226,6 +226,122 @@ export function rueckgaengigMoeglichAberkennen(tx: Tx, transaktionIds: readonly 
   }
 }
 
+/** Kandidat für die Koaleszenz (55_Architektur.md §4.8, AP-0.15) — die zuletzt vorangegangene Transaktion (`lfd < neuLfd`), unabhängig von Art/Status/Schlüssel; die Filterung übernimmt `src/main/journal/koaleszenz.ts`. */
+export interface KoaleszenzKandidat {
+  readonly id: string
+  readonly lfd: number
+  readonly zeitpunktMs: number
+  readonly art: string
+  readonly status: string
+  readonly koaleszenzSchluessel: string | null
+}
+
+interface KoaleszenzKandidatRow {
+  readonly id: string
+  readonly lfd: number
+  readonly zeitpunkt: number
+  readonly art: string
+  readonly status: string
+  readonly koaleszenz_schluessel: string | null
+}
+
+/** Die unmittelbar vorangegangene Transaktion (nach `lfd`), Grundlage der Koaleszenz-Entscheidung (55_Architektur.md §4.8, AP-0.15). */
+export function koaleszenzKandidat(tx: Tx, neuLfd: number): KoaleszenzKandidat | undefined {
+  const zeile = tx
+    .prepare<{ readonly neuLfd: number }, KoaleszenzKandidatRow>(
+      `SELECT id, lfd, zeitpunkt, art, status, koaleszenz_schluessel
+       FROM transaktion WHERE lfd < @neuLfd ORDER BY lfd DESC LIMIT 1`,
+    )
+    .get({ neuLfd })
+  if (zeile === undefined) {
+    return undefined
+  }
+  return {
+    id: zeile.id,
+    lfd: zeile.lfd,
+    zeitpunktMs: zeile.zeitpunkt,
+    art: zeile.art,
+    status: zeile.status,
+    koaleszenzSchluessel: zeile.koaleszenz_schluessel,
+  }
+}
+
+/** Eine `aenderung`-Zeile, roh für die Koaleszenz-Verdichtung (55_Architektur.md §4.8, AP-0.15) — `operation` bleibt `string` (analog zu `AenderungZeileFuerUndo`), die Verengung auf `JournalOperation` übernimmt der Aufrufer (`src/main/journal/koaleszenz.ts`) ohne `as` (CLAUDE.md §4). */
+export interface AenderungRohZeile {
+  readonly reihenfolge: number
+  readonly tabelle: string
+  readonly datensatzId: string
+  readonly feld: string | null
+  readonly wertAltJson: string | null
+  readonly wertNeuJson: string | null
+  readonly operation: string
+}
+
+interface AenderungRohRow {
+  readonly reihenfolge: number
+  readonly tabelle: string
+  readonly datensatz_id: string
+  readonly feld: string | null
+  readonly wert_alt_json: string | null
+  readonly wert_neu_json: string | null
+  readonly operation: string
+}
+
+/** `aenderung`-Zeilen einer Transaktion, sortiert nach `reihenfolge` (55_Architektur.md §4.8, AP-0.15) — für die Koaleszenz-Verdichtung, unabhängig von der Undo-Richtungsvariante `aenderungen()` oben. */
+export function aenderungenRoh(tx: Tx, transaktionId: string): readonly AenderungRohZeile[] {
+  return tx
+    .prepare<{ readonly transaktionId: string }, AenderungRohRow>(
+      `SELECT reihenfolge, tabelle, datensatz_id, feld, wert_alt_json, wert_neu_json, operation
+       FROM aenderung WHERE transaktion_id = @transaktionId ORDER BY reihenfolge ASC`,
+    )
+    .all({ transaktionId })
+    .map((zeile) => ({
+      reihenfolge: zeile.reihenfolge,
+      tabelle: zeile.tabelle,
+      datensatzId: zeile.datensatz_id,
+      feld: zeile.feld,
+      wertAltJson: zeile.wert_alt_json,
+      wertNeuJson: zeile.wert_neu_json,
+      operation: zeile.operation,
+    }))
+}
+
+/** Nutzlast für `aenderungEinfuegen()` (55_Architektur.md §4.8, AP-0.15) — benannte Parameter (CLAUDE.md §6). */
+export interface AenderungEinfuegenEin {
+  readonly id: string
+  readonly transaktionId: string
+  readonly reihenfolge: number
+  readonly tabelle: string
+  readonly datensatzId: string
+  readonly feld: string | null
+  readonly wertAltJson: string | null
+  readonly wertNeuJson: string | null
+  readonly operation: string
+}
+
+/** Fügt eine `aenderung`-Zeile direkt ein (55_Architektur.md §4.8, AP-0.15) — für die verdichteten Zeilen der Koaleszenz, die NICHT über die `jrn_*`-Trigger entstehen (der ursprüngliche Schreibvorgang ist bereits gelaufen, hier wird nur das Journal umgeschrieben). */
+export function aenderungEinfuegen(tx: Tx, ein: AenderungEinfuegenEin): void {
+  tx.prepare(
+    `INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, feld, wert_alt_json, wert_neu_json, operation)
+     VALUES (@id, @transaktionId, @reihenfolge, @tabelle, @datensatzId, @feld, @wertAltJson, @wertNeuJson, @operation)`,
+  ).run({
+    id: ein.id,
+    transaktionId: ein.transaktionId,
+    reihenfolge: ein.reihenfolge,
+    tabelle: ein.tabelle,
+    datensatzId: ein.datensatzId,
+    feld: ein.feld,
+    wertAltJson: ein.wertAltJson,
+    wertNeuJson: ein.wertNeuJson,
+    operation: ein.operation,
+  })
+}
+
+/** Setzt `transaktion.zeitpunkt` (55_Architektur.md §4.8, AP-0.15) — das gleitende Koaleszenz-Fenster verschiebt den Zeitpunkt der zusammengefassten Transaktion auf den der jüngsten Änderung. */
+export function transaktionZeitpunktSetzen(tx: Tx, transaktionId: string, zeitpunktMs: number): void {
+  tx.prepare('UPDATE transaktion SET zeitpunkt = @zeitpunkt WHERE id = @id').run({ id: transaktionId, zeitpunkt: zeitpunktMs })
+}
+
 export function aenderungen(tx: Tx, transaktionId: string, richtung: 'ASC' | 'DESC'): readonly AenderungZeileFuerUndo[] {
   // `richtung` ist eine geschlossene Union ('ASC'|'DESC'), kein Bindeparameter möglich (ORDER BY
   // erlaubt in SQLite ohnehin keine Werte-Bindung, CLAUDE.md §6 gilt für Werte, nicht für dieses
