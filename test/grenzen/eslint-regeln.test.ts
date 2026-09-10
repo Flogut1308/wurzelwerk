@@ -38,8 +38,18 @@ describe('src/core: Determinismus-Regeln (CLAUDE.md §4)', () => {
     expect(ruleIds).toContain('no-restricted-syntax')
   })
 
+  it('Date() (ohne new) ist verboten', async () => {
+    const ruleIds = await ruleIdsFuer('export const x = Date()\n', 'src/core/__verletzung_date_ohne_new__.ts')
+    expect(ruleIds).toContain('no-restricted-syntax')
+  })
+
   it('process ist verboten', async () => {
     const ruleIds = await ruleIdsFuer('export const x = process.cwd()\n', 'src/core/__verletzung_process__.ts')
+    expect(ruleIds).toContain('no-restricted-globals')
+  })
+
+  it('globalThis ist verboten', async () => {
+    const ruleIds = await ruleIdsFuer('export const x = globalThis\n', 'src/core/__verletzung_globalthis__.ts')
     expect(ruleIds).toContain('no-restricted-globals')
   })
 
@@ -59,6 +69,24 @@ describe('src/main: SQL nur in repositories/abfragen/datenbank/journal-kontext (
   it('db.prepare() in src/main/repositories/ ist erlaubt (Allowlist)', async () => {
     const code = "declare const db: { prepare: (sql: string) => unknown }\ndb.prepare('SELECT 1')\n"
     const ruleIds = await ruleIdsFuer(code, 'src/main/repositories/__ok_sql__.ts')
+    expect(ruleIds).not.toContain('no-restricted-syntax')
+  })
+
+  it('db.exec() außerhalb der Allowlist ist verboten', async () => {
+    const code = "declare const db: { exec: (sql: string) => unknown }\ndb.exec('BEGIN')\n"
+    const ruleIds = await ruleIdsFuer(code, 'src/main/befehle/__verletzung_exec_db__.ts')
+    expect(ruleIds).toContain('no-restricted-syntax')
+  })
+
+  it('tx.exec() außerhalb der Allowlist ist verboten', async () => {
+    const code = "declare const tx: { exec: (sql: string) => unknown }\ntx.exec('BEGIN')\n"
+    const ruleIds = await ruleIdsFuer(code, 'src/main/befehle/__verletzung_exec_tx__.ts')
+    expect(ruleIds).toContain('no-restricted-syntax')
+  })
+
+  it('DATEINAME_MUSTER.exec() (kein db/tx) triggert die exec-Regel NICHT', async () => {
+    const code = "declare const DATEINAME_MUSTER: { exec: (s: string) => unknown }\nDATEINAME_MUSTER.exec('a')\n"
+    const ruleIds = await ruleIdsFuer(code, 'src/main/schnappschuss/__ok_regex_exec__.ts')
     expect(ruleIds).not.toContain('no-restricted-syntax')
   })
 })
