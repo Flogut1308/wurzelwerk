@@ -2,11 +2,23 @@ import Database from 'better-sqlite3'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
-import { ableitungAbweichung, datenbestandBericht, integritaetPruefen } from '../../src/main/datenbank/integritaet'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 import { baueFixture } from '../hilfsmittel/fixture-bauen'
+
+// `integritaetVollPruefen` protokolliert über `protokollInfo()` (§7: nur Code/Anzahl, nie
+// Meldungstexte) — die echte Fassung importiert `electron-log/main`, das wiederum `electron`
+// erwartet. Analog zu `test/einheit/projekt-dienst.test.ts`: das ganze Modul durch Spione ersetzen,
+// statt ein Electron-Attrappenmodul aufzubauen, das dieser Testdatei sonst nicht fehlen würde.
+vi.mock('../../src/main/protokoll/logger', () => ({
+  protokollFehler: vi.fn(),
+  protokollInfo: vi.fn(),
+  protokollDebug: vi.fn(),
+}))
+
+import { ableitungAbweichung, datenbestandBericht, integritaetPruefen, integritaetVollPruefen } from '../../src/main/datenbank/integritaet'
+import { protokollInfo } from '../../src/main/protokoll/logger'
 
 /**
  * AP-0.5, §9.3: `PRAGMA quick_check` ist der erste Schritt beim Öffnen — vor jeder Migration.
@@ -167,6 +179,62 @@ describe('main/datenbank/integritaet: datenbestandBericht', () => {
       expect(bericht.zyklusGefunden).toBe(false)
     } finally {
       db.close()
+    }
+  })
+})
+
+/**
+ * AP-0.13 — `integritaetVollPruefen(db)`: der volle `integrity_check` nach einem unsauberen Lauf
+ * (`projekt-dienst.ts`, `sperre.status === 'verwaist'`). Wirft NICHT (§7-Protokoll statt
+ * IPC-Ausnahme) und protokolliert ausschließlich Code + Anzahl — nie die Meldungstexte von
+ * `PRAGMA integrity_check` selbst (die könnten im Extremfall Fragmente aus der Datei enthalten).
+ */
+/** Typwächter für den (gemockten) `protokollInfo`-Aufruf — ohne `as` auf einen unbekannten Wert (CLAUDE.md §4). */
+function istProtokollEintragMitZeilenzahl(wert: unknown): wert is { readonly zeilenzahl: unknown } {
+  return typeof wert === 'object' && wert !== null && 'zeilenzahl' in wert
+}
+
+function protokollSchluesselMenge(wert: unknown): readonly string[] {
+  return typeof wert === 'object' && wert !== null ? Object.keys(wert).sort() : []
+}
+
+describe('main/datenbank/integritaet: integritaetVollPruefen', () => {
+  beforeEach(() => {
+    vi.mocked(protokollInfo).mockClear()
+  })
+
+  it('wirft nicht bei einer intakten Datenbank und protokolliert AUSSCHLIESSLICH code+zeilenzahl (Anzahl 0)', () => {
+    const db = new Database(':memory:')
+    db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+    try {
+      expect(() => integritaetVollPruefen(db)).not.toThrow()
+      expect(protokollInfo).toHaveBeenCalledTimes(1)
+      const [eintrag] = vi.mocked(protokollInfo).mock.calls[0] ?? []
+      // §7: NUR Code/Anzahl im Protokoll, nie die Meldungstexte von `PRAGMA integrity_check` selbst
+      // (die könnten im Extremfall Fragmente aus der Datei enthalten) — geprüft über die exakte
+      // Schlüsselmenge, nicht nur `toMatchObject` (das würde zusätzliche Felder nicht auffallen lassen).
+      expect(protokollSchluesselMenge(eintrag)).toEqual(['code', 'zeilenzahl'])
+      expect(istProtokollEintragMitZeilenzahl(eintrag) && eintrag.zeilenzahl).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('wirft nicht bei einer zerschossenen Datei, protokolliert aber eine Anzahl > 0', () => {
+    const ordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-integritaet-voll-'))
+    const dbPfad = join(ordner, 'test.sqlite')
+    writeFileSync(dbPfad, Buffer.from('das ist keine sqlite-datei, nur müll'))
+    const db = new Database(dbPfad)
+    try {
+      expect(() => integritaetVollPruefen(db)).not.toThrow()
+      const [eintrag] = vi.mocked(protokollInfo).mock.calls[0] ?? []
+      expect(protokollSchluesselMenge(eintrag)).toEqual(['code', 'zeilenzahl'])
+      const zeilenzahl = istProtokollEintragMitZeilenzahl(eintrag) ? eintrag.zeilenzahl : undefined
+      expect(typeof zeilenzahl).toBe('number')
+      expect(zeilenzahl).toBeGreaterThan(0)
+    } finally {
+      db.close()
+      rmSync(ordner, { recursive: true, force: true })
     }
   })
 })

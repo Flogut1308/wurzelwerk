@@ -14,6 +14,7 @@ import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
 import { schnappschussListeLesen } from '../schnappschuss/liste'
 import { schnappschussWiederherstellen } from '../schnappschuss/wiederherstellen'
 import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
+import { wartungDatenbestandPruefen } from '../wartung/datenbestand-pruefen'
 import { TASTENKUERZEL } from './tastenkuerzel'
 
 /**
@@ -215,6 +216,10 @@ export function menueErzeugen(status: JournalStatusNutzlast | undefined): Menu {
         {
           label: t('wartung_abgeleiteteNeuAufbauen'),
           click: () => wartungBefehlAusfuehren('wartung.abgeleiteteNeuAufbauen', wartungAbgeleiteteNeuAufbauen),
+        },
+        {
+          label: t('wartung_datenbestandPruefen'),
+          click: () => wartungBefehlAusfuehren('wartung.datenbestandPruefen', wartungDatenbestandPruefen),
         },
         { type: 'separator' },
         {

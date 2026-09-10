@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { hatZyklus, type Elternkante } from '../../core/graph/zyklus'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import { protokollInfo } from '../protokoll/logger'
 import { ABGELEITETE_TABELLEN, abgeleiteterAbzug, type AbgeleiteterAbzug } from './abgeleitet-abzug'
 import { abgeleiteteNeuAufbauenInner } from './trigger'
 
@@ -91,9 +92,19 @@ function istIntegrityCheckZeile(wert: unknown): wert is { readonly integrity_che
   return typeof wert === 'object' && wert !== null && 'integrity_check' in wert
 }
 
-/** Alle `PRAGMA integrity_check`-Zeilen, deren Wert NICHT `'ok'` ist (eine intakte Datenbank liefert genau eine Zeile `'ok'`). */
+/**
+ * Alle `PRAGMA integrity_check`-Zeilen, deren Wert NICHT `'ok'` ist (eine intakte Datenbank liefert
+ * genau eine Zeile `'ok'`). Eine Datei, die `PRAGMA` gar nicht erst ausführen lässt (z. B.
+ * `SQLITE_NOTADB` bei einer komplett zerschossenen Datei, wie bei `integritaetPruefen()` oben)
+ * zählt als EIN Fund mit einem generischen Platzhaltertext (kein Meldungstext aus der Datei, §7).
+ */
 function integrityCheckFundeErmitteln(db: Database.Database): readonly string[] {
-  const ergebnis = db.pragma('integrity_check')
+  let ergebnis: unknown
+  try {
+    ergebnis = db.pragma('integrity_check')
+  } catch {
+    return ['pragma_fehlgeschlagen']
+  }
   const zeilen = Array.isArray(ergebnis) ? ergebnis : []
   const funde: string[] = []
   for (const zeile of zeilen) {
@@ -169,4 +180,24 @@ export function datenbestandBericht(db: Database.Database): DatenbestandBericht 
     ableitungAbweichung: ableitungAbweichung(db),
     zyklusGefunden: zyklusGefundenErmitteln(db),
   }
+}
+
+/**
+ * Der volle `PRAGMA integrity_check` (im Unterschied zu `integritaetPruefen()`s `quick_check`) —
+ * läuft beim Öffnen zusätzlich, wenn die Sperrdatei-Prüfung einen unsauberen letzten Lauf zeigt
+ * (`sperre.status === 'verwaist'`, `src/main/projekt/projekt-dienst.ts`). Wirft NIE: das Ergebnis
+ * geht ausschließlich ins Protokoll (§7 — nur Code und Anzahl, KEINE der eigentlichen
+ * `integrity_check`-Meldungszeilen, die könnten Fragmente aus der Datei enthalten), ein Fund
+ * verhindert das Öffnen nicht.
+ */
+export function integritaetVollPruefen(db: Database.Database): void {
+  let zeilenzahl: number
+  try {
+    zeilenzahl = integrityCheckFundeErmitteln(db).length
+  } catch {
+    // Verteidigungslinie zusätzlich zu der in integrityCheckFundeErmitteln() selbst - diese
+    // Funktion darf unter keinen Umständen werfen (s. Funktionskommentar).
+    zeilenzahl = 1
+  }
+  protokollInfo({ code: 'integritaet_voll_pruefung', zeilenzahl })
 }
