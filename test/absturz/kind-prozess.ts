@@ -12,17 +12,37 @@
 //   node --require test/absturz/_electron-stub.cjs --import tsx test/absturz/kind-prozess.ts <dbPfad> <seed>
 //
 // Nach jedem erfolgreich zurückgekehrten `fuehreAus`-Aufruf (== erfolgreich committete
-// Transaktion) schreibt dieser Prozess eine Hochwassermarke (fortlaufender Zähler) in eine
-// Sidecar-Datei `<dbPfad>.hochwasser` — über `writeFileSync` auf eine `.tmp`-Datei gefolgt von
-// einem atomaren `renameSync` (nicht direkt auf die Zieldatei), damit ein SIGKILL mitten im
-// Schreiben nie eine halb geschriebene, unlesbare Sidecar-Datei hinterlässt: die Zieldatei enthält
-// zu jedem Zeitpunkt entweder den vorherigen vollständigen Stand oder den neuen, nie einen
-// Bruchteil davon.
+// Transaktion) schreibt dieser Prozess eine Hochwassermarke in eine Sidecar-Datei
+// `<dbPfad>.hochwasser` — über `writeFileSync` auf eine `.tmp`-Datei gefolgt von einem atomaren
+// `renameSync` (nicht direkt auf die Zieldatei), damit ein SIGKILL mitten im Schreiben nie eine
+// halb geschriebene, unlesbare Sidecar-Datei hinterlässt: die Zieldatei enthält zu jedem
+// Zeitpunkt entweder den vorherigen vollständigen Stand oder den neuen, nie einen Bruchteil davon.
+//
+// AP-0.15 (55_Architektur.md §4.8, Koaleszenz): die Hochwassermarke ist bewusst NICHT mehr ein
+// reiner Aufruf-Zähler, sondern `COUNT(*) FROM transaktion` unmittelbar nach dem `fuehreAus`-
+// Aufruf — seit der Koaleszenz können mehrere erfolgreiche `person.feldSetzen(notiz)`-Aufrufe
+// hintereinander zu EINER `transaktion`-Zeile verdichtet werden (das ist der Zweck von AP-0.15),
+// ein reiner Aufruf-Zähler wäre dadurch systematisch zu hoch und der Vergleich in
+// `sigkill.test.ts` (`lfdWerte.length >= hochwassermarke`) würde nach jedem Merge fälschlich
+// scheitern, obwohl kein einziges Byte verlorenging. `COUNT(*)` spiegelt exakt den tatsächlich
+// persistierten Stand wider und bleibt damit die richtige Grundlage für die WAL-Absturzzusage.
 import { renameSync, writeFileSync } from 'node:fs'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { SeedPrng } from '../../src/core/zufall/seed-prng'
+
+interface TransaktionAnzahlZeile {
+  readonly anzahl: number
+}
+
+function transaktionAnzahlLesen(db: ReturnType<typeof oeffnen>): number {
+  const zeile = db.prepare<[], TransaktionAnzahlZeile>('SELECT COUNT(*) AS anzahl FROM transaktion').get()
+  if (zeile === undefined) {
+    throw new Error('transaktionAnzahlLesen(): COUNT(*)-Abfrage lieferte unerwartet keine Zeile.')
+  }
+  return zeile.anzahl
+}
 
 const dbPfad = process.argv[2]
 const seedRoh = process.argv[3]
@@ -65,5 +85,5 @@ while (true) {
   }
 
   zaehler += 1
-  hochwassermarkeSchreiben(zaehler)
+  hochwassermarkeSchreiben(transaktionAnzahlLesen(db))
 }
