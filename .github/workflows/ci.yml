@@ -79,6 +79,23 @@ jobs:
       - name: Grenzen
         run: pnpm grenzen
 
+      - name: Graphviz einrichten
+        if: runner.os == 'macOS'
+        run: brew install graphviz
+
+      - name: Abhängigkeitsgraph erzeugen
+        if: runner.os == 'macOS'
+        run: pnpm grenzen:graph
+
+      - name: Abhängigkeitsgraph als Artefakt
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: abhaengigkeitsgraph
+          path: artefakte/abhaengigkeiten.svg
+          if-no-files-found: error
+          retention-days: 5
+
       - name: Test
         run: pnpm test
 

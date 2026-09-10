@@ -6,6 +6,9 @@ dist/
 dist-electron/
 release/
 
+# CI-Artefakte (u. a. Abhängigkeitsgraph aus `pnpm grenzen:graph`, ADR-025 §9)
+artefakte/
+
 # Test-Ausgaben
 coverage/
 playwright-report/

@@ -41,6 +41,35 @@ module.exports = {
       from: { path: '^src/preload' },
       to: { pathNot: '^(src/shared|src/preload)|node_modules/electron/' },
     },
+    {
+      name: 'kein-better-sqlite3-ausserhalb-main',
+      severity: 'error',
+      comment:
+        'better-sqlite3 gehört ausschließlich src/main — der Renderer sieht keine Datenbank (CLAUDE.md §2.1).',
+      from: { pathNot: '^src/main' },
+      to: { path: 'node_modules/better-sqlite3' },
+    },
+    {
+      name: 'kein-electron-ausserhalb-main-preload',
+      severity: 'error',
+      comment: 'Der Renderer läuft sandboxed und darf electron nicht importieren (55_Architektur.md §2.1).',
+      from: { pathNot: '^src/(main|preload)' },
+      to: { path: 'node_modules/electron' },
+    },
+    {
+      name: 'no-circular-core',
+      severity: 'error',
+      comment: 'src/core bleibt zyklusfrei — sonst sind Golden-/Property-Tests nicht mehr verlässlich reproduzierbar.',
+      from: { path: '^src/core' },
+      to: { circular: true },
+    },
+    {
+      name: 'not-to-unresolvable',
+      severity: 'error',
+      comment: 'Ein Import, der sich nicht auflösen lässt, ist immer ein Fehler (Tippfehler, fehlende Abhängigkeit).',
+      from: {},
+      to: { couldNotResolve: true },
+    },
   ],
   options: {
     doNotFollow: {
@@ -49,6 +78,14 @@ module.exports = {
     tsPreCompilationDeps: true,
     tsConfig: {
       fileName: 'tsconfig.json',
+    },
+    reporterOptions: {
+      dot: {
+        collapsePattern: 'node_modules/[^/]+',
+        theme: {
+          graph: { rankdir: 'TD' },
+        },
+      },
     },
   },
 }
