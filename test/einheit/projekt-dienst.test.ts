@@ -44,6 +44,16 @@ vi.mock('electron-store', () => {
 import { projektOrdnerAnlegen } from '../../src/main/projekt/ordnerformat'
 import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../../src/main/projekt/projekt-dienst'
 import { sperrdateiPfad } from '../../src/main/projekt/sperrdatei'
+import { protokollInfo } from '../../src/main/protokoll/logger'
+
+/** `integritaetVollPruefen()` (AP-0.13) protokolliert ausschließlich unter diesem Code (§7, `src/main/datenbank/integritaet.ts`). */
+const VOLLER_INTEGRITAETSCHECK_CODE = 'integritaet_voll_pruefung'
+
+function vollerIntegritaetscheckLief(): boolean {
+  return vi.mocked(protokollInfo).mock.calls.some(([eintrag]) => {
+    return typeof eintrag === 'object' && eintrag !== null && 'code' in eintrag && eintrag.code === VOLLER_INTEGRITAETSCHECK_CODE
+  })
+}
 
 const ktx: Kontext = { vorgangsId: 'v-test-0001' }
 
@@ -56,6 +66,7 @@ describe('main/projekt/projekt-dienst', () => {
 
   beforeEach(() => {
     elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-dienst-'))
+    vi.mocked(protokollInfo).mockClear()
   })
 
   afterEach(() => {
@@ -107,6 +118,15 @@ describe('main/projekt/projekt-dienst', () => {
 
     const ergebnis = projektOeffnen({ pfad: angelegt.pfad }, ktx)
     expect(ergebnis).toEqual({ status: 'geoeffnet', projekt: angelegt })
+  })
+
+  it('projektOeffnen auf einem SAUBER geschlossenen Projekt führt KEINEN vollen integrity_check aus (AP-0.13)', () => {
+    const angelegt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    projektSchliessen()
+    vi.mocked(protokollInfo).mockClear()
+
+    projektOeffnen({ pfad: angelegt.pfad }, ktx)
+    expect(vollerIntegritaetscheckLief()).toBe(false)
   })
 
   it('projektOeffnen auf einem Ordner ohne manifest.json wirft PROJEKT_KEIN_WURZELWERK_ORDNER', () => {
@@ -162,6 +182,9 @@ describe('main/projekt/projekt-dienst', () => {
 
     const ergebnis = projektOeffnen({ pfad: angelegt.pfad }, ktx)
     expect(ergebnis).toEqual({ status: 'geoeffnet', projekt: angelegt })
+    // AP-0.13: nach einem unsauberen letzten Lauf (Sperre "verwaist") läuft zusätzlich zum
+    // quick_check (integritaetPruefen, immer) der volle integrity_check (integritaetVollPruefen).
+    expect(vollerIntegritaetscheckLief()).toBe(true)
   })
 
   it('projektOeffnen unter einem erkannten Sync-Ordner liefert sync_warnung ohne zu öffnen', () => {

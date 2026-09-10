@@ -12,7 +12,7 @@ import type {
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollInfo } from '../protokoll/logger'
 import { schnappschussBeiTransaktionSetzen } from '../befehle/bus'
-import { integritaetPruefen } from '../datenbank/integritaet'
+import { integritaetPruefen, integritaetVollPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
 import { journalAufraeumen } from '../journal/aufraeumen'
@@ -54,14 +54,21 @@ function projektInfoAus(pfade: ProjektOrdnerPfade, manifest: ProjektManifest): P
 /**
  * Öffnet die Datenbankverbindung, setzt die Sperre und merkt sich das Ergebnis als das eine
  * offene Projekt dieses Prozesses. War bereits ein anderes Projekt offen, wird es zuerst geordnet
- * geschlossen.
+ * geschlossen. `unsauber` kommt vom Aufrufer (AP-0.13: `projektOeffnen` reicht
+ * `sperre.status === 'verwaist'` durch, `projektAnlegen` immer `false` — ein frisch angelegtes
+ * Projekt hatte nie einen vorherigen Lauf) — bei `true` läuft zusätzlich zum immer laufenden
+ * `quick_check` (`integritaetPruefen`) der volle `integrity_check` (`integritaetVollPruefen`, nur
+ * Protokoll, wirft nicht).
  */
-function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void {
+function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsauber: boolean): void {
   if (offenesProjekt !== undefined) {
     projektSchliessen()
   }
   const db = oeffnen(pfade.dbPfad)
   integritaetPruefen(db)
+  if (unsauber) {
+    integritaetVollPruefen(db)
+  }
   migrieren(db, {
     appVersion: app.getVersion(),
     schnappschussVor: (geoeffnet) => {
@@ -94,7 +101,7 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void 
 export function projektAnlegen(ein: ProjektAnlegenEin): ProjektInfo {
   const { pfade, manifest } = projektOrdnerAnlegen({ elternordner: ein.elternordner, projektname: ein.name })
   const info = projektInfoAus(pfade, manifest)
-  projektUebernehmen(pfade, info)
+  projektUebernehmen(pfade, info, false)
   zuletztHinzufuegen({ pfad: info.pfad, name: info.name, zuletztGeoeffnetAm: new Date().toISOString() })
   return info
 }
@@ -124,7 +131,7 @@ export function projektOeffnen(ein: ProjektOeffnenEin, ktx: Kontext, heimat: str
 
   const pfade = projektOrdnerPfade(ein.pfad)
   const info = projektInfoAus(pfade, manifest)
-  projektUebernehmen(pfade, info)
+  projektUebernehmen(pfade, info, sperre.status === 'verwaist')
   zuletztHinzufuegen({ pfad: info.pfad, name: info.name, zuletztGeoeffnetAm: new Date().toISOString() })
   return { status: 'geoeffnet', projekt: info }
 }
