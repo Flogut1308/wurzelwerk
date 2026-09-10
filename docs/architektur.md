@@ -1003,7 +1003,10 @@ Beim Schließen des Fensters wird er noch übernommen (§7.4).
 ### 6.2 Schnappschüsse (F-04)
 
 `VACUUM INTO 'snapshots/<ISO-Zeit>.sqlite'` erzeugt eine konsistente Kopie **im laufenden
-Betrieb** ohne Sperre — der Grund, warum SQLite hier die richtige Wahl war (ADR-002).
+Betrieb** ohne Sperre — der Grund, warum SQLite hier die richtige Wahl war (ADR-002). „ISO-Zeit“
+ist hier **kolonfrei** gemeint (`YYYY-MM-DDTHH-MM-SSZ`, ebenso bei `ersetzt-<Zeit>.sqlite`): `:`
+ist in Windows-Dateinamen verboten (§11), ein `:` in `<ISO-Zeit>` wäre also auf diesem
+gleichrangigen Zielsystem ein sofortiger Fehlschlag.
 
 Ausgelöst wird ein Schnappschuss:
 
