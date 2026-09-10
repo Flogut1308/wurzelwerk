@@ -3,8 +3,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { integritaetPruefen } from '../../src/main/datenbank/integritaet'
+import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
+import { ableitungAbweichung, integritaetPruefen } from '../../src/main/datenbank/integritaet'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
+import { baueFixture } from '../hilfsmittel/fixture-bauen'
 
 /**
  * AP-0.5, §9.3: `PRAGMA quick_check` ist der erste Schritt beim Öffnen — vor jeder Migration.
@@ -44,6 +46,74 @@ describe('main/datenbank/integritaet', () => {
           expect(u.code).toBe('DATENBANK_INTEGRITAET')
         }
       }
+    } finally {
+      db.close()
+    }
+  })
+})
+
+/**
+ * AP-0.13 — `ableitungAbweichung(db)`: probeweiser Neuaufbau (eigene BEGIN/ROLLBACK-Transaktion,
+ * s. Kommentar an `ableitungAbweichung`) mit Abzug vorher/nachher. Eine gesunde Datenbank meldet
+ * keine Abweichung UND der Vergleich selbst mutiert nichts (Abzug vorher == Abzug nachher, weil der
+ * Neuaufbau per ROLLBACK rückgängig gemacht wird). Eine künstlich verfälschte `person_flach`-Zeile
+ * (roher UPDATE, Journal währenddessen aus — `person_flach` ist ohnehin NICHT_JOURNALISIERT) muss
+ * als Abweichung auffallen, und nach einem echten `alleAbgeleitetenNeuAufbauen()` wieder verschwinden.
+ */
+describe('main/datenbank/integritaet: ableitungAbweichung', () => {
+  it('meldet keine Abweichung bei einer gesunden, migrierten Datenbank', () => {
+    const db = baueFixture(
+      {
+        personen: [{ schluessel: 'anna', privat: 0, ist_platzhalter: 0 }],
+        namen: [{ schluessel: 'anna-name', personSchluessel: 'anna', typ: 'geburtsname', nachname: 'Muster' }],
+      },
+      1,
+    )
+    try {
+      alleAbgeleitetenNeuAufbauen(db)
+      expect(ableitungAbweichung(db).betroffeneTabellen).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mutiert die Datenbank selbst nicht (Abzug vor dem Aufruf == Abzug nach dem Aufruf)', () => {
+    const db = baueFixture(
+      {
+        personen: [{ schluessel: 'anna', privat: 0, ist_platzhalter: 0 }],
+        namen: [{ schluessel: 'anna-name', personSchluessel: 'anna', typ: 'geburtsname', nachname: 'Muster' }],
+      },
+      1,
+    )
+    try {
+      alleAbgeleitetenNeuAufbauen(db)
+      const vorAbzug = db.prepare('SELECT person_id, anzeigename FROM person_flach ORDER BY person_id').all()
+      ableitungAbweichung(db)
+      const nachAbzug = db.prepare('SELECT person_id, anzeigename FROM person_flach ORDER BY person_id').all()
+      expect(nachAbzug).toEqual(vorAbzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('meldet person_flach als abweichend, wenn die Tabelle künstlich verfälscht wurde, und wieder leer nach echtem Neuaufbau', () => {
+    const db = baueFixture(
+      {
+        personen: [{ schluessel: 'anna', privat: 0, ist_platzhalter: 0 }],
+        namen: [{ schluessel: 'anna-name', personSchluessel: 'anna', typ: 'geburtsname', nachname: 'Muster' }],
+      },
+      1,
+    )
+    try {
+      alleAbgeleitetenNeuAufbauen(db)
+      // `person_flach` ist NICHT_JOURNALISIERT (journalisierung.ts) — ein roher UPDATE braucht keine
+      // armierte Transaktion, im Gegensatz zu einer JOURNALISIERT-Tabelle.
+      db.prepare("UPDATE person_flach SET anzeigename = 'Verfälscht'").run()
+
+      expect(ableitungAbweichung(db).betroffeneTabellen).toEqual(['person_flach'])
+
+      alleAbgeleitetenNeuAufbauen(db)
+      expect(ableitungAbweichung(db).betroffeneTabellen).toEqual([])
     } finally {
       db.close()
     }
