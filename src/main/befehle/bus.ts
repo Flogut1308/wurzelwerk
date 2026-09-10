@@ -83,6 +83,7 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
         entwaffnen(db)
       }
       const anzahl = betroffene(db, txId)
+      let anzahlEffektiv = anzahl
       let effektiveTxId = txId
       if (anzahl === 0) {
         transaktionVerwerfen(db, txId)
@@ -90,9 +91,19 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
         redoStapelVerwerfen(db) // §4.7: ein neuer Befehl verwirft den Redo-Stapel (lineares Undo-Modell) - NICHT bei einer leeren, gleich wieder verworfenen Transaktion
         // 55_Architektur.md §4.8, AP-0.15: schnelle Folgeänderungen am selben Datensatz (z. B.
         // mehrere Notiz-Tastenanschläge) zu EINEM Undo-Schritt zusammenfassen, statt vieler.
-        effektiveTxId = versucheZusammenfassen(db, { txId, lfd, zeitpunktMs, art: def.art, koaleszenzSchluessel })
+        const zusammengefasst = versucheZusammenfassen(db, { txId, lfd, zeitpunktMs, art: def.art, koaleszenzSchluessel })
+        if (zusammengefasst === null) {
+          // Merge hat NICHTS übrig gelassen (insert+delete verdichtet zu `[]`, s. Funktionskommentar
+          // von `versucheZusammenfassen`) - beide Transaktionszeilen sind bereits gelöscht. Netto
+          // wie eine leere Transaktion behandeln: kein `ereignis:datenGeaendert` mit einer
+          // gelöschten `transaktionId` (heute mit dem registrierten Befehlsvorrat unerreichbar, s.
+          // dort).
+          anzahlEffektiv = 0
+        } else {
+          effektiveTxId = zusammengefasst
+        }
       }
-      return { ergebnis, anzahl, txId: effektiveTxId, lfd }
+      return { ergebnis, anzahl: anzahlEffektiv, txId: effektiveTxId, lfd }
     })
     .immediate()
 

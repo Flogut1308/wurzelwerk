@@ -47,8 +47,18 @@ function alsOperation(wert: string): JournalOperation {
  * (55_Architektur.md §4.8). Gibt die effektive Transaktions-ID zurück: bei einem Merge die des
  * Kandidaten (dessen Zeile bleibt bestehen, `neu.txId` wird verworfen), sonst unverändert
  * `neu.txId`.
+ *
+ * Gibt `null` zurück, wenn der Merge NICHTS übrig lässt (insert+delete verdichtet zu `[]`,
+ * Verdichtungstabelle §4.8) - dann sind BEIDE Transaktionszeilen bereits gelöscht (auch die des
+ * Kandidaten). `null` ist das Signal an den Aufrufer (`src/main/befehle/bus.ts`), dass netto keine
+ * Änderung übrig geblieben ist - der Bus behandelt das wie eine leere Transaktion (kein
+ * `ereignis:datenGeaendert`, s. dortiger `anzahl === 0`-Zweig): ohne dieses Signal würde der Bus
+ * fälschlich ein Ereignis mit einer bereits gelöschten `transaktionId` melden. Mit dem heutigen
+ * Befehlsvorrat unerreichbar (nur `person.feldSetzen(notiz)` trägt einen Koaleszenz-Schlüssel, und
+ * `notiz`-Änderungen sind nie `insert`/`delete`) - bleibt aber ein correctness-Signal für jeden
+ * künftigen Befehl, der einen Schlüssel auf insert/delete-fähigen Zeilen registriert.
  */
-export function versucheZusammenfassen(db: Tx, neu: KoaleszenzNeu): string {
+export function versucheZusammenfassen(db: Tx, neu: KoaleszenzNeu): string | null {
   if (neu.koaleszenzSchluessel === null || neu.art !== 'nutzer') {
     return neu.txId
   }
@@ -103,13 +113,14 @@ export function versucheZusammenfassen(db: Tx, neu: KoaleszenzNeu): string {
 
   if (merged.length === 0) {
     // insert+delete: beide entfallen - auch die Kandidaten-Transaktionszeile bleibt nicht übrig.
+    // `null` signalisiert dem Bus, dass netto nichts übrig ist (s. Funktionskommentar).
     transaktionVerwerfen(db, kandidat.id)
-  } else {
-    // Gleitendes Fenster (Default laut Plan, s. docs/80_Offene_Fragen.md U-AP15a): der Zeitpunkt
-    // der zusammengefassten Transaktion rückt auf den der jüngsten Änderung nach - jede weitere
-    // schnelle Änderung bekommt dadurch wieder das volle 2-Sekunden-Fenster.
-    transaktionZeitpunktSetzen(db, kandidat.id, neu.zeitpunktMs)
+    return null
   }
 
+  // Gleitendes Fenster (Default laut Plan, s. docs/80_Offene_Fragen.md U-AP15a): der Zeitpunkt der
+  // zusammengefassten Transaktion rückt auf den der jüngsten Änderung nach - jede weitere schnelle
+  // Änderung bekommt dadurch wieder das volle 2-Sekunden-Fenster.
+  transaktionZeitpunktSetzen(db, kandidat.id, neu.zeitpunktMs)
   return kandidat.id
 }
