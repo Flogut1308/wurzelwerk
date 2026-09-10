@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { hatZyklus, type Elternkante } from '../../core/graph/zyklus'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { ABGELEITETE_TABELLEN, abgeleiteterAbzug, type AbgeleiteterAbzug } from './abgeleitet-abzug'
 import { abgeleiteteNeuAufbauenInner } from './trigger'
@@ -82,5 +83,90 @@ export function ableitungAbweichung(db: Database.Database): AbleitungAbweichung 
     return { betroffeneTabellen }
   } finally {
     db.exec(`DROP TABLE ${ABLEITUNG_VOCAB_TABELLE}`)
+  }
+}
+
+/** Typwächter für eine `PRAGMA integrity_check`-Ergebniszeile, ohne `as` auf einen unbekannten Wert (Muster wie `istQuickCheckZeile`). */
+function istIntegrityCheckZeile(wert: unknown): wert is { readonly integrity_check: unknown } {
+  return typeof wert === 'object' && wert !== null && 'integrity_check' in wert
+}
+
+/** Alle `PRAGMA integrity_check`-Zeilen, deren Wert NICHT `'ok'` ist (eine intakte Datenbank liefert genau eine Zeile `'ok'`). */
+function integrityCheckFundeErmitteln(db: Database.Database): readonly string[] {
+  const ergebnis = db.pragma('integrity_check')
+  const zeilen = Array.isArray(ergebnis) ? ergebnis : []
+  const funde: string[] = []
+  for (const zeile of zeilen) {
+    if (istIntegrityCheckZeile(zeile) && typeof zeile.integrity_check === 'string' && zeile.integrity_check !== 'ok') {
+      funde.push(zeile.integrity_check)
+    }
+  }
+  return funde
+}
+
+/** Ein Fund aus `PRAGMA foreign_key_check`: eine Zeile in `tabelle` verweist auf eine nicht (mehr) existierende Zeile in `ziel`. */
+export interface FremdschluesselFund {
+  readonly tabelle: string
+  readonly rowid: number | bigint
+  readonly ziel: string
+}
+
+/** Typwächter für eine `PRAGMA foreign_key_check`-Ergebniszeile (Spalten `table`/`rowid`/`parent`/`fkid`, SQLite-Doku). */
+function istForeignKeyCheckZeile(
+  wert: unknown,
+): wert is { readonly table: unknown; readonly rowid: unknown; readonly parent: unknown } {
+  return typeof wert === 'object' && wert !== null && 'table' in wert && 'rowid' in wert && 'parent' in wert
+}
+
+/** Alle `PRAGMA foreign_key_check`-Funde (leer bei referenzieller Integrität). */
+function fremdschluesselFundeErmitteln(db: Database.Database): readonly FremdschluesselFund[] {
+  const ergebnis = db.pragma('foreign_key_check')
+  const zeilen = Array.isArray(ergebnis) ? ergebnis : []
+  const funde: FremdschluesselFund[] = []
+  for (const zeile of zeilen) {
+    if (
+      istForeignKeyCheckZeile(zeile) &&
+      typeof zeile.table === 'string' &&
+      typeof zeile.parent === 'string' &&
+      (typeof zeile.rowid === 'number' || typeof zeile.rowid === 'bigint')
+    ) {
+      funde.push({ tabelle: zeile.table, rowid: zeile.rowid, ziel: zeile.parent })
+    }
+  }
+  return funde
+}
+
+interface ElternschaftKanteZeile {
+  readonly elternteil_id: string
+  readonly kind_id: string
+}
+
+/** Lädt alle Elternkanten und prüft sie über `src/core/graph/zyklus.ts` (F-01, ADR-009 Punkt 2) auf Zyklusfreiheit. */
+function zyklusGefundenErmitteln(db: Database.Database): boolean {
+  const zeilen = db.prepare<[], ElternschaftKanteZeile>('SELECT elternteil_id, kind_id FROM elternschaft').all()
+  const kanten: readonly Elternkante[] = zeilen.map((zeile) => ({ elternteilId: zeile.elternteil_id, kindId: zeile.kind_id }))
+  return hatZyklus(kanten)
+}
+
+/** Sammelbericht für den Menüpunkt „Wartung → Datenbestand prüfen“ (AP-0.13). Ein Fund ist kein Fehler — nur ein Bericht, nichts wird verändert oder verhindert. */
+export interface DatenbestandBericht {
+  readonly integrityCheckFunde: readonly string[]
+  readonly fremdschluesselFunde: readonly FremdschluesselFund[]
+  readonly ableitungAbweichung: AbleitungAbweichung
+  readonly zyklusGefunden: boolean
+}
+
+/**
+ * Führt `integrity_check`, `foreign_key_check`, den Ableitungsvergleich (`ableitungAbweichung`)
+ * und die Zyklusprüfung (`hatZyklus`) aus und fasst sie zu einem Bericht zusammen. Reine
+ * Lesefunktion — kein Wurf, kein neuer Fehlercode (ein Fund ist kein Fehler), keine Änderung am
+ * Datenbestand.
+ */
+export function datenbestandBericht(db: Database.Database): DatenbestandBericht {
+  return {
+    integrityCheckFunde: integrityCheckFundeErmitteln(db),
+    fremdschluesselFunde: fremdschluesselFundeErmitteln(db),
+    ableitungAbweichung: ableitungAbweichung(db),
+    zyklusGefunden: zyklusGefundenErmitteln(db),
   }
 }
