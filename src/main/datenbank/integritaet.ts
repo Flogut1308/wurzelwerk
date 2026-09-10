@@ -66,8 +66,11 @@ const ABLEITUNG_VOCAB_TABELLE = 'temp.wurzelwerk_integritaet_ableitung_vocab'
 export function ableitungAbweichung(db: Database.Database): AbleitungAbweichung {
   // Drei-Argument-Form (schemaname, tablename, vocabtype): die Hilfstabelle selbst lebt im
   // `temp`-Schema, die Zwei-Argument-Form würde `suche_fts` fälschlich dort statt in `main` suchen
-  // ("no such fts5 table: temp.suche_fts" - SQLite-fts5vocab-Doku).
-  db.exec(`CREATE VIRTUAL TABLE ${ABLEITUNG_VOCAB_TABELLE} USING fts5vocab('main', 'suche_fts', 'instance')`)
+  // ("no such fts5 table: temp.suche_fts" - SQLite-fts5vocab-Doku). `IF NOT EXISTS`/`IF EXISTS`
+  // (hueter-Auflage 1, AP-0.13): sollte ein früherer Aufruf zwischen `CREATE` und dem `DROP` im
+  // finally abgestürzt sein, blockiert die Karteileiche denselben Verbindungslauf nicht dauerhaft.
+  db.exec(`DROP TABLE IF EXISTS ${ABLEITUNG_VOCAB_TABELLE}`)
+  db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS ${ABLEITUNG_VOCAB_TABELLE} USING fts5vocab('main', 'suche_fts', 'instance')`)
   try {
     const vorher = abgeleiteterAbzug(db, ABLEITUNG_VOCAB_TABELLE)
 
@@ -83,7 +86,7 @@ export function ableitungAbweichung(db: Database.Database): AbleitungAbweichung 
     const betroffeneTabellen = ABGELEITETE_TABELLEN.filter((tabelle) => vorher[tabelle] !== nachher[tabelle])
     return { betroffeneTabellen }
   } finally {
-    db.exec(`DROP TABLE ${ABLEITUNG_VOCAB_TABELLE}`)
+    db.exec(`DROP TABLE IF EXISTS ${ABLEITUNG_VOCAB_TABELLE}`)
   }
 }
 
