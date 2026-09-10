@@ -37,8 +37,16 @@ export function schnappschussWiederherstellen(
 
   try {
     renameSync(pfade.dbPfad, ersetztPfad) // NIE löschen (§6.2/§6.4)
+  } catch {
+    throw new WurzelFehler('DATEI_KEIN_PLATZ')
+  }
+
+  try {
     copyFileSync(quellPfad, pfade.dbPfad)
   } catch {
+    // C2 (hueter-Auflage): Rückroll, statt das Projekt ohne `dbPfad` steckenzulassen - ein
+    // erneuter Wiederherstellungsversuch würde sonst schon an der fehlenden Datei scheitern.
+    renameSync(ersetztPfad, pfade.dbPfad)
     throw new WurzelFehler('DATEI_KEIN_PLATZ')
   }
 

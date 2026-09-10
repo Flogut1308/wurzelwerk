@@ -2,7 +2,7 @@
 // schließen, aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` verschieben (NIE löschen),
 // gewählten Schnappschuss zurückkopieren, wieder öffnen.
 import Database from 'better-sqlite3'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +33,7 @@ vi.mock('electron-store', () => {
 })
 
 import { fuehreAus } from '../../src/main/befehle/bus'
-import { offenesProjektDatenbank, projektAnlegen, projektSchliessen } from '../../src/main/projekt/projekt-dienst'
+import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen } from '../../src/main/projekt/projekt-dienst'
 import { schnappschussErzeugen } from '../../src/main/schnappschuss/erzeugen'
 import { schnappschussWiederherstellen } from '../../src/main/schnappschuss/wiederherstellen'
 
@@ -130,5 +130,46 @@ describe('schnappschussWiederherstellen() (55_Architektur.md §6.2/§6.4, AP-0.1
 
     const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
     expect(ersetzteDateien).toHaveLength(2)
+  })
+
+  it('ein fehlschlagendes copyFileSync (nach erfolgreichem renameSync) rollt zurück - baum.sqlite ist wieder da, keine verwaiste ersetzt-Datei, Projekt danach wieder öffenbar (hueter-Auflage C2)', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbVorher = offenesProjektDatenbank()
+    fuehreAus(dbVorher, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    expect(personenAnzahl(dbPfad)).toBe(1)
+
+    // Erzwingt einen `copyFileSync`-Fehlschlag OHNE Testseam in der Produktivfunktion: eine
+    // Quelle, die als Verzeichnis existiert (besteht `existsSync()`, aber `copyFileSync` scheitert
+    // an einem Verzeichnis als Quelle mit EISDIR) - `renameSync(dbPfad → ersetzt-)` läuft davor
+    // bereits erfolgreich durch.
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    mkdirSync(join(snapshotsPfad, 'kaputt.sqlite'))
+
+    try {
+      schnappschussWiederherstellen({ id: 'kaputt' }, ktx, () => Date.UTC(2026, 8, 10, 9, 0, 0))
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.code).toBe('DATEI_KEIN_PLATZ')
+      }
+    }
+
+    // Rückgerollt: baum.sqlite ist wieder da, mit unverändertem Inhalt.
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(personenAnzahl(dbPfad)).toBe(1)
+
+    // Keine verwaiste ersetzt-Datei (der Rückroll benennt sie zurück, statt sie liegen zu lassen).
+    const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
+    expect(ersetzteDateien).toHaveLength(0)
+
+    // Das Projekt ist NICHT mehr offen (der Fehlschlag passiert nach projektSchliessen(), vor
+    // dem erneuten projektOeffnen()) - lässt sich aber unverändert wieder öffnen, statt an einem
+    // fehlenden baum.sqlite zu scheitern (der eigentliche Kern der Auflage: kein "Projekt steckt").
+    expect(() => offenesProjektDatenbank()).toThrow(WurzelFehler)
+    const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
+    expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })
+    expect(personenAnzahl(dbPfad)).toBe(1)
   })
 })
