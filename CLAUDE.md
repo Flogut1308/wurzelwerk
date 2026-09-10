@@ -43,11 +43,13 @@ Die vier Sätze, die alles andere ableiten:
 1. **Der Renderer sieht keine Datenbank.** Kein SQL, kein `better-sqlite3`, kein `fs`, kein `path`, kein `require`. Nur `abfrage:`- und `befehl:`-Kanäle.
 2. **Layout kennt kein Rendering.** `src/core/layout/` bekommt Knotenmaße als **Eingabe** und gibt Koordinaten zurück. Kein `document`, keine Textmessung, kein SVG, keine Pixel.
 3. **Nur `src/main/befehle/` öffnet Transaktionen.** Ein `BEGIN` in einem Repository oder in einem IPC-Handler ist ein Fehler.
-4. **Nur `src/main/repositories/` schreibt SQL.** `db.prepare` oder `db.exec` außerhalb von `repositories/` und `abfragen/` ist ein Fehler.
+4. **SQL wird nur an entschiedenen Orten geschrieben:** `src/main/repositories/`, `src/main/abfragen/` sowie als benannte Ausnahmen `src/main/datenbank/**` (Migration/Trigger/Integrität/Abzug/VACUUM) und `src/main/journal/kontext.ts` (Journal-Armierung). `db.prepare`/`db.exec` außerhalb dieser Orte ist ein Lint-Fehler (`no-restricted-syntax`, AP-0.14).
 
 Geprüft durch `pnpm grenzen` (dependency-cruiser) und ESLint-Regeln. **Wenn ein Vorschlag eine
 Grenze verletzt, ist der Vorschlag falsch — nicht die Grenze.** Eine Grenze wird nur mit einem
-neuen ADR geändert.
+neuen ADR geändert. Diese Regeln sind zusätzlich in `test/grenzen/` gegengeprüft (je eine
+Fixture pro dependency-cruiser-Regel + ein ESLint-API-Test) — eine stillschweigend
+abgeschwächte Regel fällt dort auf.
 
 ---
 
@@ -59,6 +61,7 @@ pnpm dev                # Electron im Entwicklungsmodus mit Hot-Reload
 pnpm typen              # tsc --noEmit über alle Projekte
 pnpm lint               # ESLint
 pnpm grenzen            # dependency-cruiser: Schichtregeln aus §2
+pnpm grenzen:graph      # Abhängigkeitsgraph als SVG (Graphviz, CI-Artefakt — kein Gate)
 pnpm test               # Vitest: Einheit + Invarianten + Schema + Migration
 pnpm test:e2e           # Playwright gegen die gebaute App
 pnpm test:budget        # Leistungsbudgets (lokal Fehler, in der CI Warnung)
@@ -129,6 +132,7 @@ Das ist ADR-009 Punkt 8 und die einzige Regel, deren Verletzung Arbeit rückgän
 | Was | Wo | Werkzeug |
 |---|---|---|
 | Reine Logik (Datum, Name, Graph, Plausibilität) | `test/einheit/` | Vitest |
+| Schicht-/Grenzverletzungen | `test/grenzen/` | dependency-cruiser + ESLint-API |
 | Fachliche Invarianten | `test/invarianten/` | fast-check |
 | Layout-Koordinaten | `test/golden/` | JSON-Snapshots |
 | Schemazusicherungen | `test/schema/` | Vitest gegen eine frische Datenbank |
