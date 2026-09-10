@@ -3,7 +3,7 @@
 // blockieren (der ganze Grund, warum SQLite hier die richtige Wahl ist, ADR-002).
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
@@ -46,7 +46,7 @@ describe('schnappschussErzeugen() (55_Architektur.md §6.2, AP-0.11)', () => {
 
       expect(eintrag.id).toBe('2026-09-10T12-00-00Z')
       expect(eintrag.pfad).toBe(join(snapshotsPfad, '2026-09-10T12-00-00Z.sqlite'))
-      expect(eintrag.pfad).not.toContain(':') // Windows-Dateinamen dürfen keinen Doppelpunkt enthalten
+      expect(basename(eintrag.pfad)).not.toContain(':') // Windows-Dateinamen dürfen keinen Doppelpunkt enthalten (nur der Dateiname, nicht der Laufwerksbuchstabe C:)
       expect(existsSync(eintrag.pfad)).toBe(true)
       expect(eintrag.groesseBytes).toBeGreaterThan(0)
 
