@@ -54,6 +54,71 @@ describe('zuLoeschendeSchnappschuesse() — Aufbewahrungsauswahl (55_Architektur
     expect(behalten.length).toBeGreaterThanOrEqual(10)
   })
 
+  it('74 Schnappschüsse über 60 simulierte Tage: hart von Hand ausgerechnete Soll-Menge (hueter-Auflage A1, AP-0.11) — NICHT tautologisch', () => {
+    // VON HAND (nicht durch Aufruf von `zuLoeschendeSchnappschuesse()`) ausgerechnete Soll-Menge.
+    // Ein einfaches "ein Eintrag pro Tag über 60 Tage"-Szenario würde einen Off-by-one in
+    // `proBucketJuengstenBehalten()` NICHT zuverlässig aufdecken: bei genau einem Eintrag pro Tag
+    // überlappt die "letzte 10"-Regel die "1 pro Tag der letzten 7 Tage"-Regel immer vollständig
+    // (10 > 7), sodass ein 6-statt-7-Tage-Bug unbemerkt bliebe (durchprobiert - s. u.).
+    //
+    // Deshalb hier bewusst entkoppelt: Tag 59 ("heute") bekommt 15 Einträge (verschiedene
+    // Stunden) - das füllt die "letzte 10"-Regel VOLLSTÄNDIG mit Tag-59-Einträgen und schirmt alle
+    // älteren Tage komplett davon ab. Tag 0..58 bekommen je einen Eintrag (12:00 Uhr). Damit hängen
+    // die älteren, noch behaltenen Einträge (Tag 41/48/53..58) ausschließlich an der Tages-/
+    // Wochen-Bucket-Regel - eine Änderung von `TAGE_BEHALTEN`/`WOCHEN_BEHALTEN` verschiebt hier
+    // nachweislich das Ergebnis (mit `TAGE_BEHALTEN = 6` verschwindet z. B. Tag 53 fälschlich aus
+    // der Soll-Menge, mit `WOCHEN_BEHALTEN = 3` Tag 41 - beides von Hand geprüft).
+    //
+    // "jetzt" = Tag 59, 23:00 Uhr. heuteTag = 59, heuteWoche = floor(jetzt/WOCHE_MS) = 8.
+    // - "letzte 10": die 10 jüngsten Tag-59-Stunden (h5..h14 von 15 Stunden 0..14).
+    // - "1 pro Tag der letzten 7 Tage" (Bucket 53..59): Tag 59 bereits über die letzte-10-Regel
+    //   gedeckt; NEU dazu Tag 53, 54, 55, 56, 57, 58 (je der einzige Eintrag dieses Tages).
+    // - "1 pro Woche der letzten 4 Wochen" (Bucket 5..8, WOCHE_MS = 7 × TAG_MS; Tag 35..41 → Woche
+    //   5, 42..48 → Woche 6, 49..55 → Woche 7, 56..59 → Woche 8): der jüngste Tag je Woche ist
+    //   Tag 41, 48, 55, 59 - Tag 55 und 59 sind bereits gedeckt, Tag 41 und 48 sind NEU.
+    const jetzt = 59 * TAG_MS + 23 * STUNDE_MS
+    const liste: SchnappschussKandidat[] = []
+    for (let stunde = 0; stunde < 15; stunde += 1) {
+      liste.push(kandidat(`tag59-h${String(stunde)}`, 59 * TAG_MS + stunde * STUNDE_MS))
+    }
+    for (let tag = 0; tag < 59; tag += 1) {
+      liste.push(kandidat(`tag-${String(tag)}`, tag * TAG_MS + 12 * STUNDE_MS))
+    }
+
+    const erwartetBehalten = [
+      'tag-41',
+      'tag-48',
+      'tag-53',
+      'tag-54',
+      'tag-55',
+      'tag-56',
+      'tag-57',
+      'tag-58',
+      'tag59-h5',
+      'tag59-h6',
+      'tag59-h7',
+      'tag59-h8',
+      'tag59-h9',
+      'tag59-h10',
+      'tag59-h11',
+      'tag59-h12',
+      'tag59-h13',
+      'tag59-h14',
+    ]
+    // Selbstprüfung der Handrechnung: die erwartete Menge ist eine Teilmenge der Eingabe ohne
+    // Duplikate, mit der von Hand hergeleiteten Größe (18) - kein Tippfehler im Literal oben.
+    const eingabeIds = new Set(liste.map((eintrag) => eintrag.id))
+    expect(new Set(erwartetBehalten).size).toBe(erwartetBehalten.length)
+    expect(erwartetBehalten.length).toBe(18)
+    for (const id of erwartetBehalten) {
+      expect(eingabeIds.has(id)).toBe(true)
+    }
+
+    const ergebnis = zuLoeschendeSchnappschuesse(liste, jetzt)
+    const behalten = liste.map((eintrag) => eintrag.id).filter((id) => !ergebnis.includes(id))
+    expect(behalten.sort()).toEqual([...erwartetBehalten].sort())
+  })
+
   it('bei mehreren Schnappschüssen am selben UTC-Tag wird der jüngste behalten (Tie-Break)', () => {
     const tagAnfang = 100 * TAG_MS
     const frueh = tagAnfang + 1_000
