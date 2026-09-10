@@ -122,6 +122,25 @@ export interface JournalVerlaufEin {
   readonly grenze: number
 }
 
+/**
+ * Ein Schnappschuss aus `abfrage:schnappschuss.liste`/`befehl:schnappschuss.erzeugen`
+ * (55_Architektur.md §6.2, AP-0.11). Es gibt dafür KEINE Datenbanktabelle (Variante A) — die Liste
+ * kommt live aus dem Dateisystem (`snapshots/`-Ordner, `src/main/schnappschuss/liste.ts`). `id` ist
+ * der kolonfreie ISO-Zeit-Dateiname ohne Endung (Windows-tauglich, `docs/architektur.md` §6.2) und
+ * zugleich der stabile Schlüssel für `befehl:schnappschuss.wiederherstellen`.
+ */
+export interface SchnappschussEintrag {
+  readonly id: string
+  readonly pfad: string
+  readonly zeitpunktMs: number
+  readonly groesseBytes: number
+}
+
+/** Nutzlast von `befehl:schnappschuss.wiederherstellen` (55_Architektur.md §6.2/§6.4, AP-0.11). */
+export interface SchnappschussWiederherstellenEin {
+  readonly id: string
+}
+
 /** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
 export interface VerlaufEintrag {
   readonly id: string
@@ -150,6 +169,9 @@ export interface Vertrag {
   'befehl:journal.undo': { ein: null; aus: UndoErgebnis }
   'befehl:journal.redo': { ein: null; aus: UndoErgebnis }
   'abfrage:journal.verlauf': { ein: JournalVerlaufEin; aus: readonly VerlaufEintrag[] }
+  'befehl:schnappschuss.erzeugen': { ein: null; aus: SchnappschussEintrag }
+  'abfrage:schnappschuss.liste': { ein: null; aus: readonly SchnappschussEintrag[] }
+  'befehl:schnappschuss.wiederherstellen': { ein: SchnappschussWiederherstellenEin; aus: null }
 }
 
 export type Kanal = keyof Vertrag

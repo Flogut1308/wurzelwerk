@@ -1,8 +1,6 @@
 import type Database from 'better-sqlite3'
 import { app } from 'electron'
-import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { Kontext } from '../ipc/huelle'
 import type {
   ProjektAnlegenEin,
@@ -17,33 +15,11 @@ import { integritaetPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
 import { journalStatusMelden } from '../journal/journal-status-melder'
+import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade, type ProjektManifest, type ProjektOrdnerPfade } from './ordnerformat'
 import { sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
 import { syncAnbieterErkennen } from './sync-ordner-warnung'
 import { zuletztHinzufuegen, zuletztLesen } from './zuletzt-speicher'
-
-/**
- * Liest `user_version`, ohne den unbekannten Rückgabetyp von `db.pragma()` zu casten — nur für den
- * Dateinamen des Platzhalter-Schnappschusses gebraucht, darum ein stiller Fallback auf `0` statt
- * eines Wurfs.
- */
-function quellVersionErmitteln(db: Database.Database): number {
-  const wert = db.pragma('user_version', { simple: true })
-  return typeof wert === 'number' && Number.isInteger(wert) ? wert : 0
-}
-
-/**
- * Schnappschuss-Platzhalter bis AP-0.11 (echte Aufbewahrung/Rotation/Wiederherstellung folgen
- * dort): ein `VACUUM INTO` direkt in `snapshots/` vor jeder Migration, benannt nach der
- * Quellversion. Der Zielpfad geht als gebundener Parameter in die Anweisung (nicht per
- * String-Verkettung) — Projekt- und damit Ordnernamen können Apostrophe enthalten (O'Brien,
- * d'Aboville, §11).
- */
-function schnappschussVacuumInto(db: Database.Database, pfade: ProjektOrdnerPfade): void {
-  mkdirSync(pfade.snapshotsPfad, { recursive: true })
-  const zielPfad = join(pfade.snapshotsPfad, `vor-migration-${String(quellVersionErmitteln(db))}.sqlite`)
-  db.prepare('VACUUM INTO ?').run(zielPfad)
-}
 
 /**
  * Orchestriert anlegen/öffnen/schließen (AP-0.4). Der Prozess hält höchstens ein offenes Projekt
@@ -75,7 +51,9 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo): void 
   integritaetPruefen(db)
   migrieren(db, {
     appVersion: app.getVersion(),
-    schnappschussVor: (geoeffnet) => schnappschussVacuumInto(geoeffnet, pfade),
+    schnappschussVor: (geoeffnet) => {
+      schnappschussErzeugen(geoeffnet, pfade)
+    },
   })
   sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
   offenesProjekt = { db, pfade, info }
@@ -148,4 +126,16 @@ export function offenesProjektDatenbank(): Database.Database {
     throw new WurzelFehler('PROJEKT_NICHT_GEOEFFNET')
   }
   return offenesProjekt.db
+}
+
+/**
+ * Die Ordnerpfade (`ProjektOrdnerPfade`) des aktuell offenen Projekts (AP-0.11, für
+ * `befehl:schnappschuss.*` - dieselbe Begründung wie bei `offenesProjektDatenbank()` oben:
+ * Schnappschuss-Kanäle sind kein eigenes Repository mit Zugriff auf `offenesProjekt`).
+ */
+export function offenesProjektPfade(): ProjektOrdnerPfade {
+  if (offenesProjekt === undefined) {
+    throw new WurzelFehler('PROJEKT_NICHT_GEOEFFNET')
+  }
+  return offenesProjekt.pfade
 }

@@ -1,0 +1,36 @@
+// AP-0.11, 55_Architektur.md §6.2 (F-04, ADR-003): einen einzelnen Schnappschuss erzeugen -
+// zusammengenommen `VACUUM INTO` (schnappschuss-repo.ts) + Integritätsprüfung + Dateinamensbildung
+// (dateiname.ts). Ersetzt den Platzhalter `schnappschussVacuumInto()` aus
+// `src/main/projekt/projekt-dienst.ts` (AP-0.5).
+import type Database from 'better-sqlite3'
+import { mkdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import type { SchnappschussEintrag } from '../../shared/ipc/vertrag'
+import { schnappschussIntegritaetPruefen, vacuumInto } from '../repositories/schnappschuss-repo'
+import { kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from './dateiname'
+
+/** Nur die eine Pfadangabe, die diese Funktion braucht - vermeidet einen Importkreis zu `src/main/projekt/ordnerformat.ts`. */
+export interface SchnappschussZielOrdner {
+  readonly snapshotsPfad: string
+}
+
+/**
+ * Erzeugt einen Schnappschuss von `db` unter `pfade.snapshotsPfad` (55_Architektur.md §6.2).
+ * `jetzt` ist injizierbar (Standard `Date.now`) — Test-Seam für `test/einheit/schnappschuss.test.ts`
+ * und `test/einheit/aufbewahrung.test.ts` (deterministische Dateinamen/Zeitpunkte).
+ */
+export function schnappschussErzeugen(
+  db: Database.Database,
+  pfade: SchnappschussZielOrdner,
+  jetzt: () => number = Date.now,
+): SchnappschussEintrag {
+  mkdirSync(pfade.snapshotsPfad, { recursive: true })
+  const zeitpunktMs = jetzt()
+  const basisname = kolonfreieZeit(zeitpunktMs)
+  const pfad = join(pfade.snapshotsPfad, `${basisname}${SCHNAPPSCHUSS_ENDUNG}`)
+
+  vacuumInto(db, pfad)
+  schnappschussIntegritaetPruefen(pfad)
+
+  return { id: basisname, pfad, zeitpunktMs, groesseBytes: statSync(pfad).size }
+}

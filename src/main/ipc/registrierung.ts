@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
+import { schnappschussErzeugenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { fuehreAus } from '../befehle/bus'
@@ -10,7 +11,16 @@ import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
 import { sendeEreignis } from './ereignisse'
 import { protokollFehler } from '../protokoll/logger'
-import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../projekt/projekt-dienst'
+import {
+  offenesProjektDatenbank,
+  offenesProjektPfade,
+  projektAnlegen,
+  projektOeffnen,
+  projektSchliessen,
+  projektZuletzt,
+} from '../projekt/projekt-dienst'
+import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
+import { schnappschussListeLesen } from '../schnappschuss/liste'
 import { wartungAbgeleiteteNeuAufbauen } from '../wartung/abgeleitete-neu-aufbauen'
 import { registriere } from './huelle'
 
@@ -90,4 +100,9 @@ export function ipcRegistrierung(): void {
     return ergebnis
   })
   registriere('abfrage:journal.verlauf', journalVerlaufEingabeSchema, (ein) => journalVerlauf(offenesProjektDatenbank(), ein.grenze))
+
+  registriere('befehl:schnappschuss.erzeugen', schnappschussErzeugenEinSchema, () =>
+    schnappschussErzeugen(offenesProjektDatenbank(), offenesProjektPfade()),
+  )
+  registriere('abfrage:schnappschuss.liste', z.null(), () => schnappschussListeLesen(offenesProjektPfade().snapshotsPfad))
 }
