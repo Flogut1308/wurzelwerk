@@ -62,16 +62,25 @@ describe('generiere: Determinismus (AP-0.12-Abnahme)', () => {
     }
   })
 
-  it('verschiedene Größen (bei gleichem Seed) liefern verschiedene kanonische Abzüge', () => {
-    const kleinerLauf = generiere(200, 42)
-    const groessererLauf = generiere(2000, 42)
-    try {
-      expect(kanonischerAbzug(kleinerLauf)).not.toBe(kanonischerAbzug(groessererLauf))
-    } finally {
-      kleinerLauf.close()
-      groessererLauf.close()
-    }
-  })
+  // Baut als einziger Test hier den 2000-Personen-Korpus (AP-0.12-Pflichtgröße). Der Aufbau samt
+  // trigger-gepflegter Ableitungstabellen und kanonischem Abzug dauert auf dem langsamen
+  // Windows-CI-Runner ~7 s und lief so in Vitests 5000-ms-Default-Timeout (macOS schnell genug).
+  // Ein Timing-abhängiger Fehlschlag ist eine nichtdeterministisch rote Prüfung (CLAUDE.md §13,
+  // ADR-025) — darum hier ein expliziter, großzügiger Timeout; die Assertion bleibt unverändert.
+  it(
+    'verschiedene Größen (bei gleichem Seed) liefern verschiedene kanonische Abzüge',
+    () => {
+      const kleinerLauf = generiere(200, 42)
+      const groessererLauf = generiere(2000, 42)
+      try {
+        expect(kanonischerAbzug(kleinerLauf)).not.toBe(kanonischerAbzug(groessererLauf))
+      } finally {
+        kleinerLauf.close()
+        groessererLauf.close()
+      }
+    },
+    30000,
+  )
 })
 
 describe('fixtureLaden: Smoke-Test für alle acht Fixture-Bäume', () => {
