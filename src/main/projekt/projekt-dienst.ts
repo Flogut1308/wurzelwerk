@@ -14,6 +14,7 @@ import { protokollInfo } from '../protokoll/logger'
 import { schnappschussBeiTransaktionSetzen } from '../befehle/bus'
 import { integritaetPruefen, integritaetVollPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
+import { schemaBasisverzeichnis } from '../datenbank/migration/schema-basis'
 import { oeffnen } from '../datenbank/verbindung'
 import { journalAufraeumen } from '../journal/aufraeumen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
@@ -71,6 +72,7 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsaub
   }
   migrieren(db, {
     appVersion: app.getVersion(),
+    schemaBasis: schemaBasisverzeichnis(),
     schnappschussVor: (geoeffnet) => {
       schnappschussErzeugen(geoeffnet, pfade)
     },
