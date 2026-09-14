@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { join } from 'node:path'
 import { WurzelFehler } from '../../../shared/fehler/wurzel-fehler'
 import { generierteTriggerAnwenden } from '../journal-trigger-anwenden'
 import { MIGRATIONEN, migrationsRohInhaltLesen, pruefsummeBerechnen, type MigrationEintrag } from './registrierung'
@@ -14,6 +15,14 @@ export interface LaeufenOptionen {
   readonly migrationen?: readonly MigrationEintrag[]
   /** Test-Seam: Standard liest die echte Datei über `migrationsRohInhaltLesen`. */
   readonly inhaltLesen?: (eintrag: MigrationEintrag) => Buffer
+  /**
+   * Basisverzeichnis der Migrations-SQL (AP-0.17). Standard `join(process.cwd(), 'docs',
+   * 'schema')` — gilt für Vitest (cwd = Repo-Root) und Skripte unter `skripte/`. Der einzige
+   * Aufrufer, der abweicht, ist `src/main/projekt/projekt-dienst.ts` mit
+   * `schemaBasisverzeichnis()` (`app.getAppPath()`) — `laeufer.ts` importiert `electron` bewusst
+   * nicht selbst, s. u.
+   */
+  readonly schemaBasis?: string
   /** Test-Seam für `angewendet_am` (§4, Reproduzierbarkeit). Standard `Date.now`. */
   readonly jetzt?: () => number
   /** Für `schema_migration.app_version`. `laeufer.ts` importiert `electron` bewusst nicht selbst. */
@@ -131,7 +140,8 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
  */
 export function migrieren(db: Database.Database, opts: LaeufenOptionen = {}): void {
   const migrationen = opts.migrationen ?? MIGRATIONEN
-  const inhaltLesen = opts.inhaltLesen ?? migrationsRohInhaltLesen
+  const schemaBasis = opts.schemaBasis ?? join(process.cwd(), 'docs', 'schema')
+  const inhaltLesen = opts.inhaltLesen ?? ((eintrag: MigrationEintrag) => migrationsRohInhaltLesen(schemaBasis, eintrag))
   const jetzt = opts.jetzt ?? Date.now
   const appVersion = opts.appVersion ?? ''
   const zielVersion = zielVersionErmitteln(migrationen)
@@ -164,5 +174,5 @@ export function migrieren(db: Database.Database, opts: LaeufenOptionen = {}): vo
   // Migration angewendet wurde (early returns oberhalb decken den No-op-Fall bereits ab) - die
   // Trigger einer bereits vollständig migrierten Datei bleiben unangetastet, sie stehen als
   // physische Schemaobjekte weiter in der Datei.
-  generierteTriggerAnwenden(db)
+  generierteTriggerAnwenden(db, schemaBasis)
 }

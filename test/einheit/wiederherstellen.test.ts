@@ -9,7 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Kontext } from '../../src/main/ipc/huelle'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
-vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false } }))
+// AP-0.17: `projekt-dienst.ts` löst `docs/schema` über `schemaBasisverzeichnis()`
+// (`app.getAppPath()`) auf — die Attrappe liefert das Repo-Root, wo `docs/schema` echt liegt
+// (Vitest läuft mit cwd = Repo-Root, `vitest.config.ts`).
+vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false, getAppPath: () => process.cwd() } }))
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
   protokollInfo: vi.fn(),

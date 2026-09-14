@@ -11,13 +11,12 @@ interface TriggerNameZeile {
 }
 
 /**
- * Absoluter Pfad zu `docs/schema/trigger_generiert.sql` - Annahme analog
- * `src/main/datenbank/migration/registrierung.ts` (`migrationsDateiPfad`): `docs/` liegt neben
- * `process.cwd()`, gilt für Vitest und `electron-vite dev`. TODO (dort vermerkt): für die gebaute,
- * gepackte App ist das Bündeln von `docs/` ins Programmpaket eine spätere Aufgabe.
+ * Absoluter Pfad zu `trigger_generiert.sql`, angehängt an ein **übergebenes** Basisverzeichnis
+ * (AP-0.17) - analog `src/main/datenbank/migration/registrierung.ts` (`migrationsDateiPfad`):
+ * diese Funktion trifft selbst keine Annahme über den Prozess, der Aufrufer entscheidet.
  */
-function triggerDateiPfad(): string {
-  return join(process.cwd(), 'docs', 'schema', 'trigger_generiert.sql')
+function triggerDateiPfad(basisverzeichnis: string): string {
+  return join(basisverzeichnis, 'trigger_generiert.sql')
 }
 
 /** Namen aller vorhandenen `jrn_*`-Trigger, alphabetisch sortiert (für ein deterministisches DROP). */
@@ -36,7 +35,7 @@ function vorhandeneJrnTrigger(db: Database.Database): readonly string[] {
  * hier keine `src/main/befehle/`-Transaktion (CLAUDE.md §2), sondern selbst die
  * Schema-Wartungsoperation, aufgerufen aus `laeufer.ts` innerhalb dessen eigener Migrationslogik.
  */
-export function generierteTriggerAnwenden(db: Database.Database): void {
+export function generierteTriggerAnwenden(db: Database.Database, basisverzeichnis: string): void {
   db.exec('BEGIN')
   try {
     for (const name of vorhandeneJrnTrigger(db)) {
@@ -45,7 +44,7 @@ export function generierteTriggerAnwenden(db: Database.Database): void {
       // Werte (CLAUDE.md §6), analog zur Begründung bei `PRAGMA user_version` in laeufer.ts.
       db.exec(`DROP TRIGGER ${name}`)
     }
-    const inhalt = readFileSync(triggerDateiPfad(), 'utf8')
+    const inhalt = readFileSync(triggerDateiPfad(basisverzeichnis), 'utf8')
     db.exec(inhalt)
     db.exec('COMMIT')
   } catch (fehler) {
