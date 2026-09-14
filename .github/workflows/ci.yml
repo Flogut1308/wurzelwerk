@@ -130,6 +130,11 @@ jobs:
   langsame-gates:
     name: langsame Gates (test:e2e, test:budget)
     runs-on: macos-latest
+    # AP-0.16: `test:e2e` baut selbst (`electron-vite build && playwright test`) — kein eigener
+    # Build-Schritt hier, damit lokal und in der CI derselbe Weg läuft. `test:e2e`/`test:budget`
+    # tragen kein `--pass-with-no-tests`/`--passWithNoTests` mehr: ein Lauf ohne gefundene Tests
+    # ist rot. Der App-Start-Test in `ablauf-00-start.spec.ts` wirft, wenn er sich in der CI
+    # überspringen müsste (out/main/index.js fehlt). Damit kann dieses Gate wirklich rot werden.
     steps:
       - name: Quellcode auschecken
         uses: actions/checkout@v4
