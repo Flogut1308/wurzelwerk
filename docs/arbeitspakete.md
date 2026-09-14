@@ -39,7 +39,9 @@ Und ein schlechter: „Baue das Änderungsjournal."
 | AP-0.4 | Die App startet, legt ein `.ahnen`-Projekt an und öffnet es wieder. Noch keine Daten. |
 | AP-0.7 | Das Schema steht vollständig. Ab hier ist das Datenmodell keine Theorie mehr. |
 | AP-0.11 | **Fundament fertig.** Journal, Undo/Redo, Schnappschüsse, Migration — alles, was man nachträglich nicht reparieren kann. |
-| AP-0.15 | Phase 0 abgeschlossen. Nichts sichtbar, alles tragfähig. |
+| AP-0.15 | Alle Phase-0-Features gebaut. Nichts sichtbar, alles tragfähig. |
+| AP-0.17 | **Die gebaute App funktioniert.** Ein Paket legt ein Projekt an und öffnet es wieder — vorher scheiterte es an der nicht gebündelten Migrations-SQL. |
+| AP-0.25 | Phase 0 abgeschlossen. Die Zusagen aus §9.3 und die Restliste aus AP-0.5–0.14 sind eingelöst. |
 | AP-1.5 | **Erstes echtes Familienwissen ist in der Datenbank.** Über eine Importdatei. |
 | AP-1.7 | Man kann es ansehen: Liste, Suche, Profilseite. Ab hier ist die App benutzbar. |
 | AP-1.9 | Erster Teil von Phase 1 abgeschlossen. Der Bestand kann wachsen. |
@@ -462,12 +464,356 @@ Referenz: `55_Architektur.md` §4.8 mit der Verdichtungstabelle.
 - `test/einheit/koaleszenz.test.ts`: alle fünf Zeilen der Verdichtungstabelle, je ein Test.
 - `test/einheit/koaleszenz-grenzen.test.ts`: 2.001 ms Abstand fasst nicht zusammen; eine fremde Transaktion dazwischen fasst nicht zusammen.
 - `test/invarianten/undo-bitgleich.test.ts` läuft mit aktivierter Koaleszenz erneut grün.
+# Phase 0 — Nachzug aus dem Codereview (11.09.2026)
+
+> Befunde aus dem Review des fertigen Phase-0-Codes. **Kein neues Feature:** jedes Paket hier
+> repariert eine Zusage, die `55_Architektur.md` oder ein AP-Abnahmekriterium schon gegeben hat.
+> Die Reihenfolge ist wieder eine Abhängigkeitskette, keine Empfehlung.
+>
+> **Warum vorne ein Gate steht.** Die zwei schwersten Befunde (AP-0.16, AP-0.17) konnten nur
+> deshalb so lange unsichtbar bleiben, weil der einzige Test, der die gebaute App startet, in der
+> CI nie gelaufen ist. Ein Fix, den dieselbe Lücke wieder verdeckt, ist kein Fix — darum zuerst
+> das Gate, dann die Software.
+>
+> **Was aus dem Review NICHT hier steht:** der fehlende `QueryClientProvider` im Renderer. Den
+> bringt AP-1.6 zwangsläufig mit (ohne ihn läuft dort keine Zeile), und er scheitert laut.
+
+
+### Vorentscheidungen für den Kettenlauf
+
+`CLAUDE.md` §12 verbietet, eine fehlende Entscheidung zu raten — eine Kette, die unbeaufsichtigt
+läuft, hält an jeder an. Darum sind die Entscheidungen, die beim Schneiden der Pakete offen
+geblieben sind, hier vorab getroffen. Jede ist eine Umsetzungsentscheidung, keine
+Datenmodell- oder Architekturentscheidung (die halten weiterhin an, §12.3). Eine Abweichung ist
+zu begründen, nicht stillschweigend zu nehmen.
+
+| Paket | Frage | Entscheidung | Warum |
+|---|---|---|---|
+| 0.16 | Baut der CI-Job, oder baut `test:e2e` selbst? | `test:e2e` baut selbst (`electron-vite build && playwright test`). | Lokal und in der CI derselbe Weg. Ein Build-Schritt nur im Job lässt den lokalen Lauf weiter stillschweigend skippen — genau der Fehler, den das Paket behebt. |
+| 0.17 | Wie kommt die Migrations-SQL ins Paket? | `docs/schema/**` in `files:` von `electron-builder.yml`, Auflösung über `app.getAppPath()`. | Einzige Variante, die die Bytes unangetastet lässt (s. Abnahme). |
+| 0.18 | `before-quit` oder `will-quit`? | `before-quit`, synchrones Schließen. | §7.4 nennt `before-quit`; das spätere Entwurfs-Handshake dockt dort an, statt einen zweiten Weg zu bauen. |
+| 0.20 | Wo leben die `ereignis:`-Zod-Schemata? | `src/shared/schemata/ereignisse.ts` (neu), eine Datei. | Spiegelt `src/shared/ipc/vertrag.ts`; die Nutzlasten sind klein und gehören zusammen. |
+| 0.22 | Vergleich im Handler oder im `WHERE`? | Im Handler: vorher lesen, bei Gleichheit **nichts schreiben**. | Dann erzeugt der Handler keine `aenderung`-Zeile, und der Bus verwirft die Transaktion über seinen bestehenden `anzahl === 0`-Pfad — inklusive „kein `redoStapelVerwerfen`". Es braucht keine neue Mechanik, nur den weggelassenen Schreibvorgang. |
+| 0.24 | Woran erkennt man Triggerdrift? | `SELECT name, sql FROM sqlite_master WHERE type = 'trigger'` gegen den erzeugten Inhalt von `docs/schema/trigger_generiert.sql`. | Vergleicht, was wirklich in der Datei steht, statt einer danebengeführten Prüfsumme, die selbst driften kann. |
+
+**Was weiterhin anhält:** jede Frage, die das Datenmodell, eine Invariante oder eine
+Architekturgrenze berührt. Die Kette bricht dort ab und trägt den Punkt in `80_Offene_Fragen.md`
+ein, statt zu raten.
+
+---
+
+## AP-0.16 — Das langsame Gate scharf schalten
+
+**Auftrag** — G-01, ADR-025, `CLAUDE.md` §13. Der CI-Job „langsame Gates" kann strukturell nicht
+rot werden: er baut nicht, `out/main/index.js` fehlt darum, `test/e2e/ablauf-00-start.spec.ts`
+überspringt sich per `test.skip(!existsSync(...))` selbst, und `--pass-with-no-tests` /
+`--passWithNoTests` schlucken den Rest. **Der einzige Test, der die App wirklich startet, ist in
+der CI noch nie gelaufen.** Das ist genau der Fall, gegen den ADR-025 geschrieben wurde: die Loop
+macht die Prüfung grün statt die Software. Alle folgenden Pakete verändern Pfade, die nur E2E
+prüft — ohne dieses Paket belegt keines von ihnen etwas.
+
+**Umfang**
+`.github/workflows/ci.yml` (Job `langsame-gates`) · `package.json` (`test:e2e`, `test:budget`) ·
+`test/e2e/ablauf-00-start.spec.ts` · `test/budget/gerüst.test.ts` (neu, analog zu
+`test/einheit/gerüst.test.ts` aus AP-0.1)
+
+**Abnahme**
+- Der Job baut, bevor er E2E startet — `pnpm build` als eigener Schritt **oder** `test:e2e` baut selbst. Eine Entscheidung, nicht beides.
+- `--pass-with-no-tests` und `--passWithNoTests` sind entfernt: ein Lauf ohne gefundene Tests ist rot.
+- Der `test.skip`-Wächter in `ablauf-00-start.spec.ts` bleibt für den lokalen Lauf, **wirft** aber, wenn `process.env.CI` gesetzt ist. Ein übersprungener E2E-Lauf in der CI ist ein Fehler, keine Nachricht.
+- `test/budget/` existiert mit mindestens einem laufenden Test, damit der Jobname nicht lügt, bis AP-1.6/AP-1.8 die echten Budgets bringen.
+
+**Tests**
+- **Rot gesehen (Pflicht, AP-0.1-Maßstab):** den Fenstertitel in `hauptfenster.ts` einmal verfälschen, Job rot sehen, zurücknehmen. Eine Regel, deren Rot man nie gesehen hat, ist nicht bewiesen.
+- `test/budget/gerüst.test.ts`: ein trivialer Zeitmessungstest, damit Vitest dort belegt läuft.
+- **Nachweis im PR:** Link auf den CI-Lauf, in dem `ablauf-00-start.spec.ts` **ausgeführt** und nicht übersprungen ist.
+
+---
+
+## AP-0.17 — Migrations-SQL ins Programmpaket
+
+**Auftrag** — F-06, G-01, `55_Architektur.md` §9.2/§9.3. `migrationsDateiPfad()` löst gegen
+`process.cwd()` + `docs/schema/` auf; `electron-builder.yml` bündelt nur `out/**/*` und
+`package.json`. In der gepackten App ist `process.cwd()` nicht das Repo-Wurzelverzeichnis und
+`docs/` liegt gar nicht im Paket — **die ausgelieferte App kann kein Projekt anlegen und keines
+öffnen**, sie scheitert beim ersten `readFileSync` der Migration. Der Code vermerkt das als
+„spätere Aufgabe" (TODO in `migration/registrierung.ts`), im Laufplan läuft es seit AP-0.5 als
+Restpunkt mit. Was nirgends steht: es macht jedes gebaute Paket unbrauchbar. AP-0.16 muss vorher
+stehen, sonst belegt wieder nichts den Fix.
+
+**Umfang**
+`src/main/datenbank/migration/registrierung.ts` · `electron-builder.yml` ·
+`electron.vite.config.ts` (falls die SQL als Asset mitgezogen wird) ·
+`test/e2e/ablauf-00-projekt.spec.ts` (neu) · `test/einheit/migration-registrierung.test.ts`
+
+**Abnahme**
+- Die Migrations-SQL liegt im Paket. Der Pfad wird nicht mehr über `process.cwd()` geraten, sondern über `app.getAppPath()` bzw. einen gebündelten Import aufgelöst — mit **einer** Auflösung für Entwicklung, Test und Paket, nicht drei.
+- **Byte-Identität ist die harte Nebenbedingung.** Die Prüfsummen in `registrierung.ts` sind sha256 über den rohen Dateiinhalt und stehen in jeder bestehenden `schema_migration`-Zeile. Jede Lösung, die die Bytes verändert — SQL als TS-String-Konstante einbetten, ein Bundler, der Zeilenenden oder Whitespace normalisiert, ein Minifier — lässt **jede vorhandene Projektdatei** mit `PROJEKT_MIGRATION_GEAENDERT` scheitern. Die CRLF-Falle aus AP-0.5 ist derselbe Fehler in klein. Naheliegende Lösung, die die Bytes erhält: `docs/schema/**` in `files:` von `electron-builder.yml` aufnehmen und über `app.getAppPath()` auflösen (`readFileSync` liest transparent aus dem asar). Eine Alternative ist zu begründen, nicht zu raten (`CLAUDE.md` §12).
+- Ein `pnpm build`-Paket legt ein Projekt an, schließt es und öffnet es wieder.
+
+**Tests**
+- `test/e2e/ablauf-00-projekt.spec.ts` gegen die **gebaute** App: Projekt in einem temporären Ordner anlegen → `abfrage:version` liefert `schema = MANIFEST_SCHEMAVERSION` → schließen → wieder öffnen. Das ist zugleich das Abnahmekriterium „Phase 0 ist fertig, wenn …" aus diesem Dokument, das bisher nur unter `pnpm dev` galt.
+- `test/einheit/migration-registrierung.test.ts`: Pfadauflösung ohne `process.cwd()`-Annahme; Prüfsumme der gebündelten Datei gleich der der Quelldatei.
+
+---
+
+## AP-0.18 — Geordnetes Beenden und Einzelinstanz
+
+**Auftrag** — F-01, F-04, G-03, `55_Architektur.md` §9.3. `src/main/index.ts` registriert kein
+`before-quit`/`will-quit`; `projektSchliessen()` wird nur vom IPC-Befehl und von der
+Schnappschuss-Wiederherstellung gerufen. Beim normalen Beenden bleibt darum `projekt.lock` liegen
+und `db.close()` läuft nie. Beim nächsten Start ist die PID tot, die Sperre gilt als `verwaist`,
+und **jeder Neustart** löst den vollen `integrity_check` aus und protokolliert einen unsauberen
+Lauf. Die Absturzerkennung aus AP-0.13 unterscheidet damit nicht mehr zwischen Absturz und
+Beenden — sie ist funktional tot. §9.3 sagt wörtlich „beim geordneten Beenden gelöscht", AP-0.4
+hat es als Abnahmekriterium.
+
+**Abgrenzung:** Der Entwurfs-Ablauf aus §7.4 (`ereignis:entwuerfeUebernehmen`, 2.000-ms-Wartezeit)
+gehört **nicht** hierher — er kommt mit der Bearbeitungsoberfläche. Hier geht es nur um
+Verbindung und Sperre.
+
+**Umfang**
+`src/main/index.ts` · `src/main/projekt/projekt-dienst.ts` ·
+`test/einheit/projekt-dienst.test.ts` · `test/e2e/ablauf-00-beenden.spec.ts` (neu)
+
+**Abnahme**
+- `app.on('before-quit')` schließt ein offenes Projekt geordnet (Verbindung zu, Sperre weg), bevor der Prozess endet.
+- `app.requestSingleInstanceLock()`: eine zweite Instanz startet nicht, sondern fokussiert das bestehende Fenster.
+- Nach einem geordneten Beenden meldet der nächste Start **keinen** unsauberen Lauf; nach einem `SIGKILL` weiterhin schon.
+
+**Tests**
+- `test/e2e/ablauf-00-beenden.spec.ts`: App starten, Projekt anlegen, App beenden → `projekt.lock` existiert nicht mehr; erneut starten und öffnen → keine Protokollzeile `projekt_sperre_verwaist`. **Erst rot sehen.**
+- `test/absturz/sigkill.test.ts` bleibt **unverändert** grün: nach `SIGKILL` wird weiterhin als verwaist erkannt. Das ist die Gegenprobe — ein Fix, der die Absturzerkennung gleich mit abschaltet, wäre schlimmer als der Fehler.
+
+---
+
+## AP-0.19 — Sperre atomar setzen, Öffnen ohne Leck
+
+**Auftrag** — G-03, F-06, `55_Architektur.md` §9.3. Zwei Fehler im Öffnungspfad:
+
+1. Zwischen `sperrdateiPruefen()` (in `projektOeffnen`) und `sperrdateiSetzen()` (am **Ende** von `projektUebernehmen`) liegen Integritätsprüfung, Migration, Schnappschuss und Journalaufräumen — ein Fenster von Sekunden, in dem zwei Prozesse beide migrieren können. `writeFileSync` legt die Datei zudem nicht atomar an.
+2. Wirft `integritaetPruefen()` oder `migrieren()`, wird die bereits geöffnete Verbindung nie geschlossen — jeder fehlgeschlagene Öffnungsversuch hinterlässt ein offenes Handle samt `-wal`/`-shm`.
+
+**Umfang**
+`src/main/projekt/sperrdatei.ts` · `src/main/projekt/projekt-dienst.ts` ·
+`test/einheit/{sperrdatei,projekt-dienst}.test.ts`
+
+**Abnahme**
+- Die Sperre wird **vor** Integritätsprüfung und Migration gesetzt, atomar (`writeFileSync` mit `flag: 'wx'`); ein `EEXIST` wird zu `PROJEKT_BEREITS_GEOEFFNET`, nicht zu einer durchgereichten Ausnahme.
+- Schlägt das Öffnen nach dem Setzen der Sperre fehl, werden Sperre **und** Verbindung wieder abgeräumt: `projektUebernehmen()` hinterlässt entweder ein offenes Projekt oder gar nichts.
+- `projektSchliessen()` setzt den Schnappschuss-Auslöser aus `schnappschussBeiTransaktionSetzen()` zurück, damit kein Callback auf ein geschlossenes Projekt zeigt.
+
+**Tests**
+- `test/einheit/sperrdatei.test.ts`: ein zweites `sperrdateiSetzen()` auf denselben Ordner wirft, statt zu überschreiben. **Erst rot sehen.**
+- `test/einheit/projekt-dienst.test.ts`: ein Öffnen, das an einer beschädigten Datei scheitert, hinterlässt weder Sperre noch offenes Handle. Gegenprobe für das Handle: die Datei lässt sich danach umbenennen (unter Windows schlägt das bei offenem Handle fehl — dieselbe `EBUSY`-Beobachtung wie im bestehenden Test).
+
+---
+
+## AP-0.20 — `ereignis:`-Kanäle als geschlossener Vertrag
+
+**Auftrag** — ADR-016, `55_Architektur.md` §2.4/§2.5. `EREIGNIS_KANAELE` ist `readonly string[]`;
+damit ist der Kanal-Parameter von `sendeEreignis()` schlicht `string` und die Nutzlast `T` frei.
+Ein Tippfehler im Kanalnamen kompiliert und sendet still ins Nichts (belegt: ein erfundener
+Kanalname löst keinen Typfehler aus). Dazu fehlt ein Kanal, den die Vertragstabelle in §2.4 schon
+nennt: **`ereignis:projektGeschlossen`**. Ohne ihn erfährt der Renderer nicht, dass die
+Schnappschuss-Wiederherstellung das Projekt geschlossen und neu geöffnet hat, und zeigt einen
+Zustand, den es nicht mehr gibt. `ereignis:speicherStatus` bleibt ausdrücklich draußen (Fußzeile,
+§7.5 — kommt mit der Oberfläche).
+
+**Umfang**
+`src/shared/ipc/{vertrag,kanaele}.ts` · `src/shared/schemata/` (Zod je Nutzlast) ·
+`src/main/ipc/ereignisse.ts` · `src/main/projekt/projekt-dienst.ts` ·
+`src/renderer/ansichten/start/start-ansicht.tsx` · `src/renderer/brücke/befehl-hooks.ts`
+
+**Abnahme**
+- `EreignisKanal` ist eine geschlossene Union, `EreignisNutzlast<K>` eine Typkarte — dieselbe Technik wie `Vertrag`/`Ein`/`Aus`. `ALLE_KANAELE` bleibt `readonly string[]` (der Preload prüft dort einen rohen String aus dem Renderer).
+- `ereignis:projektGeschlossen` existiert, wird von `projektSchliessen()` gesendet und von der Startansicht abonniert; nach einer Wiederherstellung zeigt der Renderer den tatsächlichen Zustand.
+- Jede `ereignis:`-Nutzlast hat ein Zod-Schema in `src/shared/schemata/` und wird im Renderer geprüft — die `useJournalStatusAbo`-Härtung aus AP-0.10 wird damit die Regel statt die Ausnahme.
+
+**Tests**
+- `test/einheit/ereignis-vertrag.test.ts`: ein erfundener Kanalname und eine falsch geformte Nutzlast stehen je unter `@ts-expect-error`. Weicht der Typ je wieder auf, meldet `pnpm typen` „Unused '@ts-expect-error' directive" — der Test wird rot, ohne dass ihn jemand pflegen muss. **Heute ist genau diese Direktive ungenutzt: erst rot sehen.**
+- `test/einheit/projekt-dienst.test.ts`: `projektSchliessen()` sendet genau ein `ereignis:projektGeschlossen`.
+
+---
+
+## AP-0.21 — Zurückschreiben und Verdichtung härten
+
+**Auftrag** — F-02, F-03, ADR-009. Drei Löcher im Journalkern. Alle drei sind mit dem heutigen
+Befehlsvorrat unerreichbar und alle drei werden mit dem nächsten Befehl erreichbar:
+
+1. `verdichteAenderungen()` bricht die Gruppe ab, sobald `verdichtePaar()` `null` liefert: `[insert, delete] + [insert]` ergibt `[]` — die dritte Zeile steht in der Datenbank und nicht im Journal, und der Bus unterdrückt zusätzlich `ereignis:datenGeaendert`. Der Funktionskommentar verspricht ausdrücklich Generizität „für den Fall einer künftigen Mehrfach-Koaleszenz".
+2. `rohLoeschen()`/`rohErsetzen()` werten `run().changes` nicht aus: ein Undo, das seine Zeile nicht findet, läuft still durch und setzt trotzdem `status = 'zurueckgenommen'` — genau der stille No-op-Undo, gegen den `undo()` an anderer Stelle bereits mit dem `betroffene(...) === 0`-Guard verteidigt.
+3. `redo()` fehlen beide Wächter, die `undo()` hat (`betroffene(...) === 0` und `importRuecknahmeSperren()`).
+
+Dazu der Restpunkt aus AP-0.7: `datensatzExistiert()` würfe für `person_flach`/`suche_fts_quelle`
+einen SQL-Fehler statt `false`.
+
+**Umfang**
+`src/core/journal/koaleszenz-verdichtung.ts` · `src/main/repositories/basis.ts` ·
+`src/main/journal/undo.ts` · `test/einheit/{koaleszenz,undo-redo-linear}.test.ts`
+
+**Abnahme**
+- Ergibt ein Paar `null`, startet der Fold mit dem nächsten Eintrag der Gruppe neu, statt den Rest zu verwerfen.
+- `rohLoeschen`/`rohErsetzen` werfen `INTERN_UNERWARTET`, wenn `changes !== 1`.
+- `redo()` hat dieselben zwei Wächter wie `undo()`.
+- `test/invarianten/undo-bitgleich.test.ts` bleibt **unverändert** und grün (ADR-025: die Invariante ist der Maßstab, nicht das Werkstück).
+
+**Tests**
+- `test/einheit/koaleszenz.test.ts`: `[insert, delete] + [insert]` ergibt eine `insert`-Zeile, nicht `[]`. **Erst rot sehen** — heute liefert es `[]`.
+- `test/einheit/undo-redo-linear.test.ts`: ein von Hand aus der Tabelle entfernter Datensatz lässt das Undo werfen, statt still „erfolgreich" zu sein.
+
+**PR-B (geschützter Prüfpfad, eigener PR, ADR-025)**
+`test/invarianten/journal-schluessel.test.ts`: kein Primärschlüsselwert einer journalisierten
+Tabelle enthält das Trennzeichen `|`. `aenderung.datensatz_id` verkettet Verbund-Primärschlüssel
+damit (D-2 aus AP-0.8); ein `|` in einem Wert zerlegt `datensatzIdZerlegen()` falsch und
+`rohLoeschen()` trifft die falsche Zeile. Läuft gegen den Fixture-Korpus aus AP-0.12.
+**Nicht im selben PR wie der Produktivcode oben** (Memory `pruefpfad-schnitt-adr025`, Lehre aus
+AP-0.9 PR #15).
+
+---
+
+## AP-0.22 — Kein Journaleintrag ohne echte Änderung
+
+**Auftrag** — F-01, F-02, F-03, `70_UX_Konzept.md` §2 (kein Speichern-Knopf). `personFeldSetzen()`
+schreibt `geaendert_am = Date.now()` bedingungslos mit. Ein Feld auf seinen bestehenden Wert zu
+setzen erzeugt darum eine `transaktion`-Zeile, eine `aenderung`-Zeile und **verwirft den
+Redo-Stapel** — die „leere Transaktion verwerfen"-Mechanik des Busses greift für `feldSetzen`
+nie (belegt: zweimal derselbe `notiz`-Wert ergibt zwei Transaktionen). Solange nur IPC-Aufrufe
+existieren, fällt das nicht auf; mit der Bearbeitungsoberfläche (A-01/A-13, ohne Speichern-Knopf)
+schreibt jedes Verlassen eines Feldes.
+
+**Umfang**
+`src/main/befehle/person-feld-setzen.ts` · `src/main/repositories/person-repo.ts` ·
+`test/einheit/befehl-person.test.ts`
+
+**Abnahme**
+- Ein `feldSetzen` mit unverändertem Wert erzeugt **keine** `transaktion`-Zeile und lässt den Redo-Stapel stehen.
+- `NULL` gegen `NULL` gilt als unverändert (SQL-Dreiwertlogik: nicht über `=` prüfen).
+- Der Vergleich passiert im Handler oder im `WHERE` des Repositories, **nicht** im Renderer. Eine Prüfung in der Ansicht ist keine Grenze.
+
+**Tests**
+- `test/einheit/befehl-person.test.ts`: zweimal derselbe `notiz`-Wert → eine Transaktion, nicht zwei; `undo`/`redo` danach unverändert möglich; ein tatsächlich geänderter Wert erzeugt weiterhin genau eine. **Erst rot sehen.**
+
+---
+
+## AP-0.23 — Projektname und Zielpfad prüfen
+
+**Auftrag** — G-03, ADR-012, `72_Screens_und_Flows.md` S-02. `projektOrdnerAnlegen()` setzt den
+Projektnamen ungeprüft in einen Pfad: `../../evil` landet außerhalb des gewählten Elternordners
+(belegt), ein leerer Name erzeugt den versteckten Ordner `.ahnen`, und `:`/`?`/`*` scheitern erst
+auf Windows. S-02 ersetzt im zweiten Teil von Phase 1 das Elternordner-Textfeld durch einen
+Systemdialog — der **Name** bleibt dort aber ein Textfeld, und ein Zustand „ungültiger Name" ist
+nicht vorgesehen. Die Prüfung gehört ohnehin in den Hauptprozess, nicht in die Ansicht.
+
+**Umfang**
+`src/shared/schemata/projekt.ts` (neu) · `src/main/projekt/ordnerformat.ts` ·
+`src/shared/fehler/codes.ts` · `src/shared/i18n/de/fehler.json` ·
+`src/renderer/ansichten/start/start-ansicht.tsx` · `test/einheit/ordnerformat.test.ts`
+
+**Abnahme**
+- Neuer Fehlercode `PROJEKT_NAME_UNGUELTIG` mit `.titel` **und** `.was_tun` (§7: jeder Code braucht eine Handlungsanweisung).
+- Abgelehnt: leer, nur Leerzeichen, `.`/`..`, Pfadtrenner beider Plattformen, die unter Windows verbotenen Zeichen, reservierte Windows-Namen (`CON`, `PRN`, `AUX`, `NUL`, `COM1`…), Punkt oder Leerzeichen am Ende.
+- Erlaubt und getestet: Umlaute, Leerzeichen, Apostrophe (`O'Brien`, `d'Aboville`), kyrillische und polnische Namen (§11, ADR-014).
+- Zusätzlich zur Zeichenprüfung: der **aufgelöste** Ordnerpfad muss unterhalb von `elternordner` liegen. Eine Zeichen-Weißliste allein ist kein Ersatz für diese Prüfung.
+
+**Tests**
+- `test/einheit/ordnerformat.test.ts`: je ein gültiger und ein ungültiger Fall pro Regel als Tabelle; `../../evil` erzeugt keinen Ordner außerhalb des Elternordners. **Erst rot sehen.**
+- `test/einheit/i18n-vollstaendig.test.ts` bleibt grün (der neue Code hat beide Schlüssel).
+
+---
+
+## AP-0.24 — Triggerdrift und Migrations-Restpunkte
+
+**Auftrag** — F-06, ADR-017. `generierteTriggerAnwenden()` läuft nur, wenn mindestens eine
+Migration angewendet wurde. Wird ein Fehler in `skripte/trigger-generieren.ts` korrigiert, ohne
+dass eine neue Migration entsteht, bekommen neu angelegte Projekte den reparierten Trigger und
+bestehende Dateien behalten den kaputten — und kein Test sieht es, weil
+`test/schema/trigger-vorhanden.test.ts` gegen eine frische Datenbank läuft. AP-1.2 (Umschrift,
+ADR-014) ändert die abgeleiteten Daten; das ist der erste Anlass.
+
+Dazu der Restpunkt aus AP-0.8: `laeufer.ts` ruft kein `journalAus()` — die erste datenverändernde
+Migration auf einer v4-Datenbank bricht an der `NOT NULL`-Bedingung von `aenderung.transaktion_id`.
+
+**Umfang**
+`src/main/datenbank/journal-trigger-anwenden.ts` · `src/main/datenbank/migration/laeufer.ts` ·
+`src/main/projekt/projekt-dienst.ts` · `test/einheit/journal-trigger.test.ts`
+
+**Abnahme**
+- Beim Öffnen wird der Trigger-Bestand der Datei gegen `docs/schema/trigger_generiert.sql` verglichen; bei Abweichung werden die Trigger neu angewendet (idempotent: `DROP TRIGGER IF EXISTS` + `CREATE`), mit Protokollzeile `{code, zeilenzahl}` nach §7 — **keine** Triggernamen, keine Inhalte.
+- `migrieren()` klammert datenverändernde Migrationen in `journalAus()`/`journalAn()`, mit der Pflichtbegründung wie an den anderen drei Aufrufstellen.
+- Ein `pnpm trigger`-Lauf ohne Schemaänderung erzeugt weiterhin keinen Diff (AP-0.8 bleibt gültig).
+
+**Tests**
+- `test/einheit/journal-trigger.test.ts`: eine Datei auf Zielversion mit von Hand entferntem Trigger bekommt ihn beim Öffnen zurück. **Erst rot sehen.**
+
+**PR-B (geschützter Prüfpfad, eigener PR)**
+`test/invarianten/journal-vollstaendig.test.ts` um die vierte erlaubte `journalAus()`-Aufrufstelle
+erweitern: die `it.todo`-Zählung `== 3` aus AP-0.8 wird zu `== 4` und scharf. Gesondert begründen —
+die Zahl ist der Maßstab, nicht das Werkstück.
+
+---
+
+## AP-0.25 — Gate- und Werkzeughygiene *(Sammelpaket, räumt die Restliste aus AP-0.5–0.14)*
+
+**Auftrag** — ADR-021, ADR-025. Lauter kleine Punkte, die seit mehreren Paketen als „Offen aus
+AP-0.5–0.13" im Laufplan mitlaufen, plus drei aus dem Review. Einzeln je zu klein für ein Paket,
+zusammen ein Nachmittag. Bewusst **zuletzt**: das Paket verschärft Regeln, die die Pakete davor
+sonst nachträglich rot machen würden.
+
+**Umfang**
+`eslint.config.js` · `.dependency-cruiser.cjs` · `test/grenzen/{fixtures,*.test.ts}` ·
+`skripte/pruefpfad-pruefen.ts` · `src/main/id.ts` (neu) + Importe in `bus.ts`/`koaleszenz.ts`/
+`aufraeumen.ts`/`menue.ts` · `Wissen/55_Architektur.md` + `docs/architektur.md`
+
+**Abnahme**
+- ESLint: die `db.exec`-Regel greift unabhängig vom Namen des Empfängers (heute nur `db`/`tx`) — `geoeffnet.exec(...)` fällt auf.
+- dependency-cruiser: `no-circular` gilt auch für `src/main` und `src/renderer`, nicht nur für `src/core`.
+- `skripte/pruefpfad-pruefen.ts` deckt zusätzlich ab: `test/migration/`, die Migrations-Registry `src/main/datenbank/migration/registrierung.ts` und die **indirekt** von geschützten Tests importierten Helfer (`test/invarianten/_*.ts`). Alle drei stehen seit AP-0.5/0.8 als Lücke im Laufplan.
+- `neueId()` zieht nach `src/main/id.ts`. Heute wohnt die reine UUID-v7-Funktion in `src/main/ipc/huelle.ts` und schleppt damit `electron` in `bus.ts`, `koaleszenz.ts` und `aufraeumen.ts`; das funktioniert nur, weil `import { app } from 'electron'` außerhalb Electrons `undefined` ergibt statt zu werfen, und zwingt jeden Test zu einem `vi.mock('electron')`.
+- Sperrdatei-Name: `55_Architektur.md` §9.3 nennt sie `laufend.lock`, der Code `projekt.lock`. Eine Schreibweise, in beiden Dokumenten — hier gewinnt der Code, weil `projekt.lock` bereits in Tests steht (`CLAUDE.md` §13: ein Widerspruch Doku↔Code bricht das Gate).
+- Aus der Restliste erledigt und zu streichen: `docs/schema`-Bundling (AP-0.17), `datensatzExistiert`-Verengung (AP-0.21), `laeufer.ts` `journalAus()` (AP-0.24).
+
+**Tests**
+- `test/grenzen/eslint-regeln.test.ts` und `test/grenzen/verletzungen.test.ts` bekommen je eine Fixture pro neuer oder verschärfter Regel — **jede Regel einmal rot gesehen** (AP-0.14-Maßstab).
+- `test/einheit/pruefpfad-pruefen.test.ts`: ein Diff, der einen geschützten Helfer zusammen mit Produktivcode ändert, wird abgelehnt.
+
+---
+
+## AP-0.26 — Schnappschussränder *(optional, kann nach Phase 1 rutschen)*
+
+**Auftrag** — F-04. Zwei Ränder in einem Pfad, der nur im Ernstfall läuft und dann funktionieren
+muss:
+(a) Schnappschuss-Dateinamen haben Sekundenauflösung — zwei Schnappschüsse in derselben Sekunde
+ergeben denselben Namen, und `VACUUM INTO` bricht auf einer existierenden Datei ab.
+(b) `schnappschussWiederherstellen()` verschiebt nur `baum.sqlite`; bleibt nach einem unsauberen
+Schließen eine `-wal`/`-shm` liegen, gehört sie danach zur falschen Datei.
+
+**Umfang**
+`src/main/schnappschuss/{dateiname,erzeugen,wiederherstellen}.ts` ·
+`test/einheit/{schnappschuss,wiederherstellen}.test.ts`
+
+**Abnahme**
+- Ein Namenskonflikt führt zu einem eindeutigen Namen, nicht zu einem Abbruch. Das Format bleibt kolonfrei (Windows) und von `zeitAusDateiname()` parsbar.
+- Wiederherstellen räumt `-wal`/`-shm` des ersetzten Bestands mit ab (bzw. stellt sicher, dass die Verbindung vorher sauber geschlossen war).
+
+**Tests**
+- `test/einheit/schnappschuss.test.ts`: zwei Aufrufe mit demselben injizierten `jetzt()` erzeugen zwei Dateien. **Erst rot sehen.**
+- `test/einheit/wiederherstellen.test.ts`: eine vorhandene `-wal`-Datei überlebt die Wiederherstellung nicht.
+
+---
+
 
 ---
 
 **Phase 0 ist fertig, wenn:** `pnpm pruefe` grün ist, alle Invarianten aus `CLAUDE.md` §5
 laufen, die CI unter Windows und macOS grün baut, und ein leeres Projekt angelegt, geschlossen
 und wieder geöffnet werden kann. Sichtbar ist davon nichts — und das ist richtig so.
+
+> **Nachtrag 11.09.2026 (Codereview).** Der letzte Halbsatz galt nach AP-0.15 nur unter
+> `pnpm dev` und war maschinell nirgends geprüft: die gepackte App fand ihre Migrations-SQL nicht
+> (AP-0.17), das Beenden schloss das Projekt nie (AP-0.18), und der CI-Job, der das hätte zeigen
+> müssen, konnte strukturell nicht rot werden (AP-0.16). **Phase 0 gilt erst als abgeschlossen,
+> wenn AP-0.16 bis AP-0.25 durch sind** — AP-0.26 ist optional.
 
 ---
 

@@ -92,7 +92,7 @@ Der Konzeptordner bleibt die Quelle für Inhalt und Entscheidungen.
 
 Ab Phase 0 wird vollständig agentisch in Loops gearbeitet (E48, ADR-025). Damit neue Sessions klein, koordiniert und tokensparsam bleiben:
 
-- **Ein Task = eine Session = ein Branch + PR.** `58_Laufplan.md` ist der Index über den Strang. Jede Session liest **zuerst** den Laufplan und nimmt den obersten Task mit Status „offen", dessen Abhängigkeiten (`57`-Kette) „fertig" sind.
+- **Ein Task = eine Session = ein Branch + PR.** `58_Laufplan.md` ist der Index über den Strang — **Board, nicht Archiv**: je Task eine Zeile. Die Ergebnisprosa abgeschlossener Tasks steht in `58a_Ergebnisse.md`. Jede Session liest **zuerst** den Laufplan und nimmt den obersten Task mit Status „offen", dessen Abhängigkeiten (`57`-Kette) „fertig" sind.
 - **Nur lesen, was der Task nennt:** Laufplan + der AP-Abschnitt in `57` + genau die dort genannten Doc-Abschnitte + `CLAUDE.md`. Nicht ganze große Dokumente (`55` ist 82 KB). Leselast an Sub-Agenten geben.
 - **Lebenszyklus:** Laufplan+AP lesen → Plan zeigen → (Freigabe) → Branch → bauen, kleine Commits, schnelle Gates lokal grün → PR gegen `main` → CI grün (macOS+Windows, langsame Gates) → **3 Zeilen Ergebnis in `58_Laufplan.md`** (Status, PR, Folgepunkte) → Session beenden.
 - **Nichts raten:** offene Entscheidung → anhalten oder Punkt in `80` / ADR in `60` (§1, `CLAUDE.md` §12). Der Chat ist wegwerfbar; die Wahrheit steht in Docs + git.
