@@ -10,7 +10,18 @@ import { _electron as electron, expect, test } from '@playwright/test'
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 
 test.describe('Ablauf 00 — Start', () => {
-  test.skip(!existsSync(HAUPTPROZESS_EINSTIEG), 'out/main/index.js fehlt — vorher `pnpm build` laufen lassen.')
+  const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
+  // AP-0.16: In der CI baut `test:e2e` selbst (`electron-vite build`), out/main/index.js existiert
+  // also. Fehlt es hier trotzdem, würde sich der einzige App-Start-Test stillschweigend
+  // überspringen — der ADR-025-Failure-Mode, gegen den dieses Paket geschrieben ist. Darum: in der
+  // CI ist ein fehlender Einstieg ein Fehler, keine Nachricht. Lokal bleibt das Überspringen bequem.
+  if (einstiegFehlt && process.env['CI'] !== undefined) {
+    throw new Error(
+      'out/main/index.js fehlt im CI-Lauf — das E2E-Gate würde stillschweigend überspringen. ' +
+        '`test:e2e` muss zuvor bauen (electron-vite build).',
+    )
+  }
+  test.skip(einstiegFehlt, 'out/main/index.js fehlt — lokal `pnpm test:e2e` (baut selbst) oder vorher `pnpm build`.')
 
   let app: Awaited<ReturnType<typeof electron.launch>>
   let fenster: Awaited<ReturnType<typeof app.firstWindow>>
