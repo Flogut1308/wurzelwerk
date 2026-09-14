@@ -49,7 +49,8 @@ test.describe('Ablauf 00 — Projekt anlegen und wieder öffnen', () => {
     )
     expect(anlegen).toMatchObject({ ok: true, daten: { name: 'Testprojekt', schemaversion: '4' } })
 
-    // Pfad des frisch angelegten Projekts für das erneute Öffnen.
+    // Pfad des frisch angelegten Projekts für das erneute Öffnen. Cast ist sicher: die
+    // toMatchObject-Zusicherung oben hat die `ok:true`-Variante bereits geprüft (CLAUDE.md §4).
     const projektPfad = (anlegen as { ok: true; daten: { pfad: string } }).daten.pfad
 
     const schliessen = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:projekt.schliessen', null))
