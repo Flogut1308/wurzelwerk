@@ -47,16 +47,42 @@ AP-0.16 → 0.17 → 0.18 → 0.19 → 0.20 → 0.21 (+PR-B) → 0.22 → 0.23 �
 Mit `$0` startest du bei diesem Paket statt am Anfang. **AP-0.26 gehört nicht in die Kette** —
 optional, läuft einzeln über `/ap 0.26`.
 
-## Je Paket — dieselben acht Schritte, keine Abkürzung
+## Je Paket — dieselben neun Schritte, keine Abkürzung
 
-1. **Plan** via `planer` (opus). Kein Produktivcode. Der Plan nennt Dateien, Vorgehen, Tests, Risiken. **Nicht anhalten** für Freigabe — das ist der Unterschied zu `/ap`. Widerspricht der Plan einer Vorentscheidung aus `57`, ist das ein Abbruchgrund, kein Spielraum.
+1. **Plan** via `planer` (Modell s. Tabelle oben). Kein Produktivcode. Der Plan nennt Dateien, Vorgehen, Tests, Risiken — und den **Rot-Befehl samt erwarteter Fehlermeldung** für Schritt 4. **Nicht anhalten** für Freigabe — das ist der Unterschied zu `/ap`. Widerspricht der Plan einer Vorentscheidung aus `57`, ist das ein Abbruchgrund, kein Spielraum.
 2. **Branch** `ap/<id>-<kurz>`, von aktuellem `main`.
 3. **Rot sehen.** Zuerst den Test schreiben, der den Befund zeigt, und ihn **laufen lassen**. Läuft er grün, ist entweder der Test falsch oder der Befund nicht da — beides hält die Kette an. Die rote Ausgabe kommt in die Ergebniszeilen. Das ist `CLAUDE.md` §5, die einzige Regel, deren Verletzung Arbeit rückgängig macht.
-4. **Bauen** via `umsetzer` (sonnet). Kleine Commits, jeder mit grünem `pnpm pruefe`. Den geschützten Prüfpfad NICHT anfassen.
-5. **Schnelle Gates** lokal: `pnpm typen && pnpm lint && pnpm grenzen && pnpm test`.
-6. **PR** gegen `main`, Titel `AP-<id>: <Kurzname>`, Rumpf mit `Betrifft: <Anforderungs-IDs>`.
-7. **CI-Gate.** `gh pr checks <nr> --watch`. Gemergt wird **nur**, wenn alle drei grün sind: `pruefen (macos-latest)`, `pruefen (windows-latest)`, `langsame Gates (test:e2e, test:budget)`. Fehlt einer dieser drei Namen in der Ausgabe, ist das ein Abbruchgrund — nicht „vermutlich noch nicht gelaufen".
-8. **Review** via `hueter` (opus) gegen den PR-Diff. „FREIGABE MIT AUFLAGEN" heißt: Auflagen abarbeiten, CI erneut abwarten, erneut prüfen lassen. Erst dann mergen.
+4. **Rot maschinell belegen** via `mechaniker` (haiku) — **nicht** der `umsetzer`, der den Test geschrieben hat. Ablauf:
+
+   ```bash
+   BASIS=$(git merge-base main HEAD)
+   ARBEIT=$(mktemp -d) && git worktree add -q "$ARBEIT" "$BASIS"
+   for f in $(git diff --name-only "$BASIS" HEAD -- 'test/**'); do
+     mkdir -p "$ARBEIT/$(dirname "$f")" && git show "HEAD:$f" > "$ARBEIT/$f"
+   done
+   cd "$ARBEIT" && <Rot-Befehl aus dem Plan>     # erwartet: FEHLSCHLAG
+   ```
+
+   Also: der Produktivstand **vor** dem Fix, aber mit den neuen Testdateien. Der Plan aus Schritt 1
+   nennt dazu zwei Dinge — den **Rot-Befehl** und die **erwartete Fehlermeldung**. Beides gehört in
+   den PR-Rumpf, mitsamt der tatsächlichen Ausgabe.
+
+   Der Rot-Befehl ist nicht immer `pnpm test`: bei AP-0.20 ist es `pnpm typen`, und die erwartete
+   Meldung lautet `Unused '@ts-expect-error' directive`. Läuft der Befehl **grün**, fängt der Test
+   den Befund nicht — Kette anhalten. Bricht er ab, weil ein Helfer im Basisstand fehlt, ist der
+   Beleg ebenfalls nicht erbracht: dann gehört der Helfer mit in den Rot-Lauf.
+
+   **Ausnahme AP-0.16**, ehrlich benannt: dessen Befund liegt in der CI-Konfiguration, nicht im
+   Code — hier zählt allein der absichtlich rote CI-Lauf aus dem Paket, und den sieht ein Mensch an.
+   Bei jedem anderen Paket ist dieser Schritt Pflicht.
+
+   Aufräumen nicht vergessen: `git worktree remove "$ARBEIT" --force`.
+
+5. **Bauen** via `umsetzer` (sonnet). Kleine Commits, jeder mit grünem `pnpm pruefe`. Den geschützten Prüfpfad NICHT anfassen.
+6. **Schnelle Gates** lokal: `pnpm typen && pnpm lint && pnpm grenzen && pnpm test`.
+7. **PR** gegen `main`, Titel `AP-<id>: <Kurzname>`, Rumpf mit `Betrifft: <Anforderungs-IDs>`.
+8. **CI-Gate.** `gh pr checks <nr> --watch`. Gemergt wird **nur**, wenn alle drei grün sind: `pruefen (macos-latest)`, `pruefen (windows-latest)`, `langsame Gates (test:e2e, test:budget)`. Fehlt einer dieser drei Namen in der Ausgabe, ist das ein Abbruchgrund — nicht „vermutlich noch nicht gelaufen".
+9. **Review** via `hueter` (opus) gegen den PR-Diff. „FREIGABE MIT AUFLAGEN" heißt: Auflagen abarbeiten, CI erneut abwarten, erneut prüfen lassen. Erst dann mergen.
 
 Danach: `gh pr merge <nr> --squash --delete-branch`, `git switch main && git pull`, dann den
 Laufplan nachziehen — **Board und Archiv getrennt**: eine Zeile mit Status ✅, PR/Commit und
@@ -80,7 +106,7 @@ Halte an, schreibe den Stand in `58_Laufplan.md`, sag in drei Sätzen was los is
 
 - `hueter` blockiert, oder eine Auflage lässt sich nicht ohne Architekturentscheidung erfüllen.
 - CI zweimal in Folge rot am selben Commit. **Einmal** rot darf ein Rerun sein (`gh run rerun --failed`) — Windows-Flakes sind bei euch belegt, `test/migration/historisch.test.ts` mit 5000 ms Timeout. Ein Rerun, der grün wird, kommt als Flake in den Laufplan; ein zweiter roter Lauf nicht.
-- Ein Test ist beim „Rot sehen" schon grün.
+- Der Rot-Beleg aus Schritt 4 schlägt fehl: der Befehl läuft grün, oder er bricht aus einem anderen Grund ab als der erwarteten Meldung.
 - Eine Entscheidung fehlt, die **nicht** in den Vorentscheidungen steht und Datenmodell, Invariante oder Architekturgrenze berührt (`CLAUDE.md` §12.3). Eintrag nach `../Wissen/80_Offene_Fragen.md`, dann anhalten.
 - Ein Paket braucht mehr als ~10 Dateien oder hat kein einzelnes grünes Testkriterium — dann ist der Zuschnitt falsch (§12.4).
 - Der `pruefpfad-pruefen.ts`-Schritt in der CI weist einen PR ab.
