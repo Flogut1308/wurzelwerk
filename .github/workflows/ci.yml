@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Push nur auf `main` (Nachlauf nach einem Merge: der Trunk ist immer grün, 90_Arbeitsweise §7).
+  # Feature-Branches werden über ihren Pull Request geprüft — vorher gilt lokales `pnpm pruefe`.
+  # Vorher stand hier `branches: ['**']`: jeder Push auf einen PR-Branch löste zwei vollständige
+  # Läufe aus (push + pull_request), doppelte CI-Minuten und doppelte Wartezeit im Kettenlauf.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -33,7 +37,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Vergleichsbasis für Prüfpfad ermitteln
-        # Bei pull_request ist base.sha bereits main-relativ. Bei push (auch über mehrere
+        # Bei pull_request ist base.sha bereits main-relativ. Der push-Zweig greift seit dem
+        # Trigger-Umbau nur noch für `main` selbst (Nachlauf nach einem Merge, Diff dann leer);
+        # er bleibt als Rückfall stehen. Bei push (auch über mehrere
         # Pushes hinweg gewachsene Branches) ist github.event.before nur der vorherige
         # Branch-Tip — das lässt frühere Pushes (z. B. eine Migrationsdatei) aus dem Diff
         # fallen und die Migrations-Ausnahme des Prüfpfad-Gates greift dann nicht. Deshalb

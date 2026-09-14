@@ -10,6 +10,9 @@ umsetzer (sonnet); Mechanisches -> mechaniker (haiku); Review -> hueter (opus).
 1) Plan via planer. VARIANTE A: HALTE AN, zeig den Plan, warte auf "weiter".
 2) Branch ap/$0-<kurz>; via umsetzer bauen; schnelle Gates (pnpm typen lint grenzen test)
    grün; PR gegen main; hueter-Review.
-3) /usage ausgeben; 3 Zeilen Ergebnis in ../Wissen/58_Laufplan.md; dann STOPP.
+3) /usage ausgeben; Laufplan nachziehen — EINE Board-Zeile (Status, PR/Commit, ein Satz)
+   in ../Wissen/58_Laufplan.md, Volltext (Entscheidungen, Auflagen, Funde) nach
+   ../Wissen/58a_Ergebnisse.md. Nicht beides ins Board: das liest jede Session zuerst.
+   Dann STOPP.
 Offene Entscheidung -> nicht raten (CLAUDE.md §12): anhalten oder Punkt in ../Wissen/80 /
 ADR in ../Wissen/60.
