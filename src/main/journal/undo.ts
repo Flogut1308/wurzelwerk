@@ -103,6 +103,13 @@ export function redo(db: Database.Database): UndoErgebnis {
       if (ziel === undefined) {
         throw new WurzelFehler('JOURNAL_NICHTS_WIEDERHOLBAR')
       }
+      // Guard (AP-0.21, spiegelt undo() oben): ein Redo-Ziel ohne eigene `aenderung`-Zeilen würde
+      // sonst still nichts tun und `statusSetzen(...'angewendet')` ohne jede Zurückschreibung
+      // erzeugen (CLAUDE.md §5).
+      if (betroffene(db, ziel.id) === 0) {
+        throw new WurzelFehler('JOURNAL_NICHT_RUECKNEHMBAR')
+      }
+      importRuecknahmeSperren(ziel)
 
       db.pragma('defer_foreign_keys = ON') // Stolperstelle 1, s. undo() oben
       journalAus(db, 'redo: Wiederholung über den Undo-Algorithmus (55_Architektur.md §4.9) - protokolliert sich nicht selbst (Stolperstelle 2)')

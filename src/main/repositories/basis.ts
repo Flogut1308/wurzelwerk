@@ -127,8 +127,10 @@ function pkSpalten(db: Tx, tabelle: Tabelle): readonly string[] {
 /**
  * Zerlegt `aenderung.datensatz_id` wieder in die einzelnen Primärschlüsselwerte - Gegenstück zu
  * `datensatzIdSql()` in `skripte/trigger-generieren.ts` (`|`-verkettet, in `pkSpalten`-Reihenfolge).
+ * Exportiert (AP-0.21), damit die geschützte Round-Trip-Invariante (folgender PR) den echten
+ * Produktivcode statt einer Kopie prüft.
  */
-function datensatzIdZerlegen(datensatzId: string, spalten: readonly string[]): readonly string[] {
+export function datensatzIdZerlegen(datensatzId: string, spalten: readonly string[]): readonly string[] {
   const werte = datensatzId.split('|')
   if (werte.length !== spalten.length) {
     throw new WurzelFehler(
@@ -175,7 +177,13 @@ export function rohLoeschen(db: Tx, tabelle: Tabelle, datensatzId: string): void
     }
     params[`p${index}`] = wert
   })
-  db.prepare<Record<string, string>>(`DELETE FROM ${tabelle} WHERE ${wo}`).run(params)
+  const ergebnis = db.prepare<Record<string, string>>(`DELETE FROM ${tabelle} WHERE ${wo}`).run(params)
+  if (ergebnis.changes !== 1) {
+    throw new WurzelFehler(
+      'INTERN_UNERWARTET',
+      `rohLoeschen(): erwartete genau 1 betroffene Zeile für "${tabelle}"/"${datensatzId}", tatsächlich ${ergebnis.changes}.`,
+    )
+  }
 }
 
 /**
