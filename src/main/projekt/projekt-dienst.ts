@@ -22,7 +22,7 @@ import { schnappschussAufbewahrung } from '../schnappschuss/aufbewahrung'
 import { schnappschussErzeugen } from '../schnappschuss/erzeugen'
 import { schnappschussListeLesen } from '../schnappschuss/liste'
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade, type ProjektManifest, type ProjektOrdnerPfade } from './ordnerformat'
-import { sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
+import { istSperrdateiKonflikt, sperrdateiEntfernen, sperrdateiPruefen, sperrdateiSetzen } from './sperrdatei'
 import { syncAnbieterErkennen } from './sync-ordner-warnung'
 import { zuletztHinzufuegen, zuletztLesen } from './zuletzt-speicher'
 
@@ -65,30 +65,70 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsaub
   if (offenesProjekt !== undefined) {
     projektSchliessen()
   }
-  const db = oeffnen(pfade.dbPfad)
-  integritaetPruefen(db)
   if (unsauber) {
-    integritaetVollPruefen(db)
+    // Eine verwaiste Alt-Sperre erst hier entfernen, NICHT vorher: `sperrdateiPruefen()` hat sie
+    // gerade als "verwaist" erkannt (toter Prozess auf dem eigenen Host) — läge sie noch da, würde
+    // das exklusive `sperrdateiSetzen()` unten mit `EEXIST` gegen die eigene, überholte Sperre
+    // laufen, statt sie zu übernehmen.
+    sperrdateiEntfernen(pfade.ordnerPfad)
   }
-  migrieren(db, {
-    appVersion: app.getVersion(),
-    schemaBasis: schemaBasisverzeichnis(),
-    schnappschussVor: (geoeffnet) => {
-      schnappschussErzeugen(geoeffnet, pfade)
-    },
-  })
 
-  // 55_Architektur.md §6.2/§4.6, AP-0.11 — in dieser Reihenfolge nach der Migration:
-  // (a) ein Stand pro Arbeitstag "ohne Zutun", falls der letzte Schnappschuss älter als 24 h ist,
-  if (schnappschussFaelligBeimOeffnen(pfade)) {
-    schnappschussErzeugen(db, pfade)
+  // AP-0.19: die Sperre VOR jeder Datenbankoperation setzen — atomar (`flag: 'wx'`), damit
+  // zwischen `sperrdateiPruefen()` (im Aufrufer) und dem Setzen kein Fenster für einen zweiten
+  // Prozess bleibt, der dieselbe Sperre ebenfalls für frei hält.
+  try {
+    sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
+  } catch (u) {
+    if (istSperrdateiKonflikt(u)) {
+      throw new WurzelFehler('PROJEKT_BEREITS_GEOEFFNET')
+    }
+    throw u
   }
-  // (b) Rotation (letzte 10 + je einer pro Tag/Woche der letzten 7 Tage/4 Wochen), und
-  schnappschussAufbewahrung(pfade.snapshotsPfad)
-  // (c) Journalbegrenzung (30 Tage / mindestens die letzten 200).
-  journalAufraeumen(db)
 
-  sperrdateiSetzen({ ordnerPfad: pfade.ordnerPfad, appVersion: app.getVersion() })
+  let db: ReturnType<typeof oeffnen>
+  try {
+    db = oeffnen(pfade.dbPfad)
+  } catch (u) {
+    sperrdateiEntfernen(pfade.ordnerPfad)
+    // AP-0.19: `oeffnen()` setzt Pragmas direkt nach dem Öffnen und wirft darum für dieselbe
+    // Klasse kaputter Datei (z. B. SQLITE_NOTADB), die `integritaetPruefen()` unten sonst als
+    // `DATENBANK_INTEGRITAET` erkennen würde (s. Kommentar dort) — kommt der Wurf schon hier
+    // heraus, bekommt der Aufrufer trotzdem den bekannten, geschlossenen Fehlercode (§7) statt
+    // einer rohen `SqliteError` über die Funktionsgrenze.
+    throw u instanceof WurzelFehler ? u : new WurzelFehler('DATENBANK_INTEGRITAET')
+  }
+
+  try {
+    integritaetPruefen(db)
+    if (unsauber) {
+      integritaetVollPruefen(db)
+    }
+    migrieren(db, {
+      appVersion: app.getVersion(),
+      schemaBasis: schemaBasisverzeichnis(),
+      schnappschussVor: (geoeffnet) => {
+        schnappschussErzeugen(geoeffnet, pfade)
+      },
+    })
+
+    // 55_Architektur.md §6.2/§4.6, AP-0.11 — in dieser Reihenfolge nach der Migration:
+    // (a) ein Stand pro Arbeitstag "ohne Zutun", falls der letzte Schnappschuss älter als 24 h ist,
+    if (schnappschussFaelligBeimOeffnen(pfade)) {
+      schnappschussErzeugen(db, pfade)
+    }
+    // (b) Rotation (letzte 10 + je einer pro Tag/Woche der letzten 7 Tage/4 Wochen), und
+    schnappschussAufbewahrung(pfade.snapshotsPfad)
+    // (c) Journalbegrenzung (30 Tage / mindestens die letzten 200).
+    journalAufraeumen(db)
+  } catch (u) {
+    // AP-0.19: eine beschädigte/inkompatible Datenbank darf weder die Verbindung offen lassen
+    // (Windows kann eine offene Datei sonst nicht mehr löschen/verschieben) noch die soeben
+    // gesetzte Sperre stehen lassen — sonst gilt der Ordner ab jetzt fälschlich als geöffnet.
+    db.close()
+    sperrdateiEntfernen(pfade.ordnerPfad)
+    throw u
+  }
+
   offenesProjekt = { db, pfade, info }
   // 55_Architektur.md §6.2 ("alle 200 Transaktionen") — der Befehlsbus (`src/main/befehle/bus.ts`)
   // kennt selbst keine Projektpfade; dieser Aufruf registriert den echten Auslöser für das gerade
@@ -146,6 +186,13 @@ export function projektSchliessen(): void {
   offenesProjekt.db.close()
   sperrdateiEntfernen(offenesProjekt.pfade.ordnerPfad)
   offenesProjekt = undefined
+  // AP-0.19: den Auslöser auf No-op zurücksetzen — sonst zeigt der Bus (`src/main/befehle/bus.ts`)
+  // bei der nächsten "alle 200 Transaktionen"-Marke weiter auf `schnappschussErzeugen(_, pfade)`
+  // dieses bereits geschlossenen Projekts, egal welche Datenbank (z. B. eines danach geöffneten
+  // anderen Projekts oder eine Test-`:memory:`-Datenbank) die 200. Transaktion tatsächlich ausführt.
+  schnappschussBeiTransaktionSetzen(() => {
+    // No-op nach dem Schließen (AP-0.19), s. o.
+  })
   journalStatusMelden(undefined) // AP-0.10: kein Projekt mehr offen - Menü/Renderer wieder ausgegraut
 }
 
