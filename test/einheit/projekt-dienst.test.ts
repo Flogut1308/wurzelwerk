@@ -44,10 +44,14 @@ vi.mock('electron-store', () => {
   return { default: SpeicherAttrappe }
 })
 
-import { projektOrdnerAnlegen } from '../../src/main/projekt/ordnerformat'
+import { fuehreAus } from '../../src/main/befehle/bus'
+import { oeffnen } from '../../src/main/datenbank/verbindung'
+import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { projektOrdnerAnlegen, projektOrdnerPfade } from '../../src/main/projekt/ordnerformat'
 import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../../src/main/projekt/projekt-dienst'
 import { sperrdateiPfad } from '../../src/main/projekt/sperrdatei'
 import { protokollInfo } from '../../src/main/protokoll/logger'
+import { schnappschussListeLesen } from '../../src/main/schnappschuss/liste'
 
 /** `integritaetVollPruefen()` (AP-0.13) protokolliert ausschließlich unter diesem Code (§7, `src/main/datenbank/integritaet.ts`). */
 const VOLLER_INTEGRITAETSCHECK_CODE = 'integritaet_voll_pruefung'
@@ -225,5 +229,46 @@ describe('main/projekt/projekt-dienst', () => {
     // nicht entfernen (EBUSY). Das `projektSchliessen()` im afterEach greift erst nach dieser Zeile.
     projektSchliessen()
     rmSync(heimat, { recursive: true, force: true })
+  })
+
+  it('projektOeffnen an beschädigter Datei hinterlässt weder Sperre noch offene Verbindung (AP-0.19)', () => {
+    const angelegt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    projektSchliessen()
+    writeFileSync(join(angelegt.pfad, 'baum.sqlite'), 'kein sqlite header'.repeat(50))
+
+    const schliessenSpion = vi.spyOn(Database.prototype, 'close')
+    try {
+      expect(() => projektOeffnen({ pfad: angelegt.pfad }, ktx)).toThrow(WurzelFehler)
+      expect(existsSync(sperrdateiPfad(angelegt.pfad))).toBe(false)
+      expect(schliessenSpion).toHaveBeenCalled()
+    } finally {
+      schliessenSpion.mockRestore()
+    }
+  })
+
+  it('projektSchliessen setzt den Schnappschuss-Auslöser zurück (AP-0.19)', () => {
+    const angelegt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const pfadeA = projektOrdnerPfade(angelegt.pfad)
+    const standVorher = schnappschussListeLesen(pfadeA.snapshotsPfad).length
+    projektSchliessen()
+
+    // Schnappschuss-Dateinamen sind sekundengenau (kolonfreieZeit, `dateiname.ts`) — ohne einen
+    // künstlichen Zeitsprung würde ein vom stehengebliebenen Auslöser erzeugter Schnappschuss den
+    // Dateinamen des soeben beim Anlegen erzeugten treffen (`output file already exists`) und den
+    // Fehler aus einem ganz anderen Grund werfen, statt die Reset-Frage zu prüfen.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 5000)
+    try {
+      const fremdeDb = oeffnen(':memory:')
+      migrieren(fremdeDb)
+      for (let i = 0; i < 200; i += 1) {
+        fuehreAus(fremdeDb, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      }
+      fremdeDb.close()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(schnappschussListeLesen(pfadeA.snapshotsPfad)).toHaveLength(standVorher)
   })
 })
