@@ -109,15 +109,18 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
 
   db.exec('BEGIN')
   try {
-    // `journal_kontext` existiert erst ab Migration 0004 (docs/schema/0004_journal.sql) - Migration
-    // 0004 selbst braucht diese Klammer darum nicht (die `jrn_*`-Trigger existieren zu dem
-    // Zeitpunkt noch nicht, `journalAus()` liefe hier auf "no such table: journal_kontext").
-    // JEDE Migration NACH 0004 läuft auf einer bereits journalfähigen Datenbank (aktiv = 1,
-    // transaktion_id = NULL, "scharfer Ruhezustand", 55_Architektur.md §4.3): ein reines
-    // INSERT/UPDATE innerhalb der Migrations-SQL würde ohne diese Klammer an
-    // `aenderung.transaktion_id NOT NULL` scheitern, weil der `jrn_*`-Trigger versucht,
-    // `transaktion_id` mit NULL aus `journal_kontext` zu befüllen - außerhalb einer armierten
-    // Transaktion (AP-0.24, AP-0.8-Restpunkt).
+    // `journal_kontext` wird bereits in Migration 0001 angelegt (docs/schema/0001_grundgeruest.sql);
+    // 0004 fügt nur die Zeile id=1, aktiv=1 ein. Der Wächter `tabelleExistiert(journal_kontext)`
+    // überspringt `journalAus()` deshalb nur während 0001 SELBST: diese Klammer läuft VOR
+    // `db.exec(rohInhalt)`, die Tabelle wird von 0001s SQL also erst danach erzeugt. Ab 0002 ist der
+    // Wächter wahr (das UPDATE trifft bis zur 0004-Zeile schlicht 0 Zeilen, harmlos).
+    // Der eigentliche Zweck: sobald eine Datenbank die `jrn_*`-Trigger trägt (sie werden am Ende
+    // eines abgeschlossenen Migrationslaufs auf v4+ angewendet, `generierteTriggerAnwenden`), würde
+    // eine spätere datenverändernde Migration (INSERT/UPDATE auf eine journalisierte Tabelle) ohne
+    // diese Klammer an `aenderung.transaktion_id NOT NULL` scheitern: der `jrn_*`-Trigger feuert
+    // (`WHEN aktiv = 1`) außerhalb einer armierten Transaktion. `journalAus()` setzt `aktiv = 0` und
+    // schaltet die Trigger im "scharfen Ruhezustand" (55_Architektur.md §4.3) still
+    // (AP-0.24, AP-0.8-Restpunkt).
     // `grund` ist bewusst ein reines Zeichenkettenliteral OHNE Interpolation (kein Template mit
     // `${eintrag.version}`): der Scanner in test/invarianten/_journal-aufrufer.ts erkennt nur
     // `ts.StringLiteralLike` (String- oder No-Substitution-Template-Literal) als `grund` - ein
