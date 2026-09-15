@@ -89,4 +89,10 @@ describe('src/main: SQL nur in repositories/abfragen/datenbank/journal-kontext (
     const ruleIds = await ruleIdsFuer(code, 'src/main/schnappschuss/__ok_regex_exec__.ts')
     expect(ruleIds).not.toContain('no-restricted-syntax')
   })
+
+  it('geoeffnet.exec() (empfängernamenunabhängig, kein db/tx) ist außerhalb der Allowlist trotzdem verboten', async () => {
+    const code = "declare const geoeffnet: { exec: (sql: string) => unknown }\ngeoeffnet.exec('BEGIN')\n"
+    const ruleIds = await ruleIdsFuer(code, 'src/main/befehle/__verletzung_exec_beliebig__.ts')
+    expect(ruleIds).toContain('no-restricted-syntax')
+  })
 })
