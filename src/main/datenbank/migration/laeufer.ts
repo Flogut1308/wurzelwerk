@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { WurzelFehler } from '../../../shared/fehler/wurzel-fehler'
 import { generierteTriggerAnwenden } from '../journal-trigger-anwenden'
+import { journalAn, journalAus } from '../../journal/kontext'
 import { MIGRATIONEN, migrationsRohInhaltLesen, pruefsummeBerechnen, type MigrationEintrag } from './registrierung'
 
 /** Eine Zeile aus `schema_migration` (nur die für die Prüfsummenprüfung relevanten Spalten). */
@@ -108,6 +109,27 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
 
   db.exec('BEGIN')
   try {
+    // `journal_kontext` existiert erst ab Migration 0004 (docs/schema/0004_journal.sql) - Migration
+    // 0004 selbst braucht diese Klammer darum nicht (die `jrn_*`-Trigger existieren zu dem
+    // Zeitpunkt noch nicht, `journalAus()` liefe hier auf "no such table: journal_kontext").
+    // JEDE Migration NACH 0004 läuft auf einer bereits journalfähigen Datenbank (aktiv = 1,
+    // transaktion_id = NULL, "scharfer Ruhezustand", 55_Architektur.md §4.3): ein reines
+    // INSERT/UPDATE innerhalb der Migrations-SQL würde ohne diese Klammer an
+    // `aenderung.transaktion_id NOT NULL` scheitern, weil der `jrn_*`-Trigger versucht,
+    // `transaktion_id` mit NULL aus `journal_kontext` zu befüllen - außerhalb einer armierten
+    // Transaktion (AP-0.24, AP-0.8-Restpunkt).
+    // `grund` ist bewusst ein reines Zeichenkettenliteral OHNE Interpolation (kein Template mit
+    // `${eintrag.version}`): der Scanner in test/invarianten/_journal-aufrufer.ts erkennt nur
+    // `ts.StringLiteralLike` (String- oder No-Substitution-Template-Literal) als `grund` - ein
+    // `TemplateExpression` mit Platzhalter zählt dort als "kein Zeichenkettenliteral" (grund=null,
+    // Kategorie nicht erkannt). `eintrag.version` steht stattdessen in diesem Kommentar.
+    const journalfaehig = tabelleExistiert(db, 'journal_kontext')
+    if (journalfaehig) {
+      journalAus(
+        db,
+        'migration: datenverändernde Migration (Version siehe schema_migration.version dieser Transaktion) läuft ohne Journal (55_Architektur.md §4.3) - sonst füllten die jrn_*-Trigger aenderung.transaktion_id (NOT NULL) außerhalb einer armierten Transaktion',
+      )
+    }
     db.exec(rohInhalt.toString('utf8'))
     db.prepare(
       'INSERT INTO schema_migration (version, datei, pruefsumme, angewendet_am, app_version) ' +
@@ -124,6 +146,9 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
     // `as const`-Registry (registrierung.ts) bzw. aus einem oben geprüften Integer, nie aus einer
     // Nutzereingabe.
     db.pragma(`user_version = ${eintrag.version}`)
+    if (journalfaehig) {
+      journalAn(db)
+    }
     db.exec('COMMIT')
   } catch (fehler) {
     db.exec('ROLLBACK')

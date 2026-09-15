@@ -7,7 +7,13 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import { join } from 'node:path'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
-import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { migrieren, type LaeufenOptionen } from '../../src/main/datenbank/migration/laeufer'
+import {
+  MIGRATIONEN,
+  migrationsRohInhaltLesen,
+  pruefsummeBerechnen,
+  type MigrationEintrag,
+} from '../../src/main/datenbank/migration/registrierung'
 import { triggerdriftAusgleichen } from '../../src/main/datenbank/journal-trigger-anwenden'
 import { armieren, entwaffnen } from '../../src/main/journal/kontext'
 import { transaktionAnlegen } from '../../src/main/repositories/journal-repo'
@@ -239,6 +245,42 @@ END;`,
     try {
       migrieren(db)
       expect(triggerdriftAusgleichen(db, SCHEMA_BASIS)).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// AP-0.24, AP-0.8-Restpunkt: `laeufer.ts` armiert bislang keine eigene Transaktion für
+// datenverändernde Migrationen. Auf einer bereits auf Zielversion migrierten (und damit
+// journalfähigen, `aktiv = 1`) Datenbank bricht ein reines INSERT/UPDATE innerhalb einer Migration
+// darum an `aenderung.transaktion_id NOT NULL` (ADR-017) - der `jrn_*`-Trigger versucht,
+// `transaktion_id` mit NULL aus `journal_kontext` zu befüllen. Migration 0004 selbst betrifft das
+// nicht (die jrn_*-Trigger existieren zu dem Zeitpunkt noch nicht), jede SPÄTERE Migration schon.
+describe('journalAus()/journalAn()-Klammer um datenverändernde Migrationen (AP-0.24, AP-0.8, 55_Architektur.md §4.3)', () => {
+  it('eine synthetische, datenverändernde Migration NACH 0004 läuft auf einer bereits journalfähigen Datenbank durch, statt an aenderung.transaktion_id NOT NULL zu scheitern', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db) // reale Migrationen 1..4 — journal_kontext existiert danach, aktiv = 1, transaktion_id = NULL.
+
+      const ortId = uuidv7()
+      const syntheticInhalt = Buffer.from(`INSERT INTO ort (id) VALUES ('${ortId}');\n`, 'utf8')
+      const syntheticEintrag: MigrationEintrag = {
+        version: Math.max(...MIGRATIONEN.map((eintrag) => eintrag.version)) + 1,
+        datei: 'synthetisch-ap-0-24-klammer-test.sql',
+        pruefsumme: pruefsummeBerechnen(syntheticInhalt),
+      }
+
+      const opts: LaeufenOptionen = {
+        migrationen: [...MIGRATIONEN, syntheticEintrag],
+        inhaltLesen: (eintrag) =>
+          eintrag.version === syntheticEintrag.version ? syntheticInhalt : migrationsRohInhaltLesen(SCHEMA_BASIS, eintrag),
+      }
+
+      expect(() => migrieren(db, opts)).not.toThrow()
+
+      const zeile = db.prepare<{ readonly id: string }, { readonly id: string }>('SELECT id FROM ort WHERE id = @id').get({ id: ortId })
+      expect(zeile?.id).toBe(ortId)
     } finally {
       db.close()
     }
