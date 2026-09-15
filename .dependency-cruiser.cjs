@@ -57,10 +57,12 @@ module.exports = {
       to: { path: 'node_modules/electron' },
     },
     {
-      name: 'no-circular-core',
+      name: 'no-circular',
       severity: 'error',
-      comment: 'src/core bleibt zyklusfrei — sonst sind Golden-/Property-Tests nicht mehr verlässlich reproduzierbar.',
-      from: { path: '^src/core' },
+      comment:
+        'src/core, src/main und src/renderer bleiben zyklusfrei — in src/core sonst Golden-/Property-Tests nicht mehr ' +
+        'verlässlich reproduzierbar, in src/main/src/renderer sonst Modulinitialisierung/Bündelung unvorhersagbar (AP-0.25).',
+      from: { path: '^src/(core|main|renderer)' },
       to: { circular: true },
     },
     {

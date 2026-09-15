@@ -82,14 +82,18 @@ describe('dependency-cruiser: jede Regel hat eine treffende Fixture', () => {
     expect(verstossFuer(datei, regel)).toBeDefined()
   })
 
-  it('zirkulaer-a.ts/zirkulaer-b.ts verletzen no-circular-core', () => {
+  it.each([
+    ['src/core/zirkulaer-a.ts', 'src/core/zirkulaer-b.ts'],
+    ['src/main/zirkulaer-a.ts', 'src/main/zirkulaer-b.ts'],
+    ['src/renderer/zirkulaer-a.ts', 'src/renderer/zirkulaer-b.ts'],
+  ])('%s/%s verletzen no-circular', (dateiA, dateiB) => {
     const zyklusVerstoss = violations.find(
-      (v) => v.rule.name === 'no-circular-core' && (v.from === 'src/core/zirkulaer-a.ts' || v.from === 'src/core/zirkulaer-b.ts'),
+      (v) => v.rule.name === 'no-circular' && (v.from === dateiA || v.from === dateiB),
     )
     expect(zyklusVerstoss).toBeDefined()
   })
 
   it('genau ein Verstoß je Fixture — keine unerwarteten Zusatztreffer', () => {
-    expect(violations).toHaveLength(9)
+    expect(violations).toHaveLength(11)
   })
 })
