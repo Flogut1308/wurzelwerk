@@ -111,9 +111,13 @@ module.exports = tseslint.config(
             'src/main/journal/kontext.ts (ADR-021, CLAUDE.md §2).',
         },
         {
-          selector: "CallExpression[callee.object.name=/^(db|tx)$/][callee.property.name='exec']",
+          // Empfängernamenunabhängig (AP-0.25 PR-3): jede `.exec()`-Stelle trifft die Regel,
+          // unabhängig davon, wie die Datenbankverbindung/Transaktion im Code heißt (`db`, `tx`,
+          // `geoeffnet`, …). Ausgenommen ist nur RegExp#exec — Konstanten mit `_MUSTER`-Suffix
+          // (Konvention für Muster-RegExp, siehe src/main/schnappschuss/dateiname.ts).
+          selector: "CallExpression[callee.property.name='exec']:not([callee.object.name=/_MUSTER$/])",
           message:
-            'db.exec()/tx.exec() nur in src/main/repositories/, src/main/abfragen/, src/main/datenbank/ oder ' +
+            '.exec() (SQL) nur in src/main/repositories/, src/main/abfragen/, src/main/datenbank/ oder ' +
             'src/main/journal/kontext.ts (ADR-021, CLAUDE.md §2).',
         },
       ],
