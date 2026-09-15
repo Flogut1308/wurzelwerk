@@ -122,6 +122,7 @@ jobs:
           name: paket-${{ matrix.os }}
           path: dist/**
           if-no-files-found: error
+          retention-days: 5
 
       - name: Screenshot Hauptfenster
         if: runner.os == 'Windows'
@@ -134,6 +135,7 @@ jobs:
           name: screenshot-hauptfenster-windows
           path: artefakte/hauptfenster-windows.png
           if-no-files-found: error
+          retention-days: 5
 
   langsame-gates:
     name: langsame Gates (test:e2e, test:budget)
