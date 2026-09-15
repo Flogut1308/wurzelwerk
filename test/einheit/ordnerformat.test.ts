@@ -8,6 +8,7 @@ import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0-test', isPackaged: false } }))
 
 import { leseManifest, projektOrdnerAnlegen, projektOrdnerPfade } from '../../src/main/projekt/ordnerformat'
+import { projektnameGueltig } from '../../src/shared/schemata/projekt'
 
 /**
  * AP-0.4: Projektordner-Format (50_Datenmodell.md §3, ADR-002). `projektOrdnerAnlegen` erzeugt die
@@ -111,5 +112,82 @@ describe('main/projekt/ordnerformat (50_Datenmodell.md §3)', () => {
     expect(pfade.snapshotsPfad).toBe(join(elternordner, 'X.ahnen', 'snapshots'))
     expect(pfade.exportPfad).toBe(join(elternordner, 'X.ahnen', 'export'))
     expect(pfade.manifestPfad).toBe(join(elternordner, 'X.ahnen', 'manifest.json'))
+  })
+
+  it('lehnt ../../evil ab und legt keinen Ordner außerhalb des Elternordners an', () => {
+    expect(() => projektOrdnerAnlegen({ elternordner, projektname: '../../evil' })).toThrow(WurzelFehler)
+    try {
+      projektOrdnerAnlegen({ elternordner, projektname: '../../evil' })
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.code).toBe('PROJEKT_NAME_UNGUELTIG')
+      }
+    }
+    expect(existsSync(join(elternordner, '..', '..', 'evil.ahnen'))).toBe(false)
+  })
+
+  it.each([
+    'Testbaum',
+    ' Testbaum',
+    'CONcert',
+    'COM10',
+    'a.b',
+  ])('projektOrdnerAnlegen legt "%s" an (Integrationsfall gültig)', (projektname) => {
+    const { manifest } = projektOrdnerAnlegen({ elternordner, projektname })
+    expect(manifest.projektname).toBe(projektname)
+  })
+
+  it.each(['', '   ', '.', '..', 'a/b', 'a\\b', 'a:b', 'CON', 'com1', 'CON.txt', 'Name.', 'Name '])(
+    'projektOrdnerAnlegen lehnt ungültigen Projektnamen "%s" ab → PROJEKT_NAME_UNGUELTIG',
+    (projektname) => {
+      expect(() => projektOrdnerAnlegen({ elternordner, projektname })).toThrow(WurzelFehler)
+      try {
+        projektOrdnerAnlegen({ elternordner, projektname })
+        expect.unreachable()
+      } catch (u) {
+        expect(u).toBeInstanceOf(WurzelFehler)
+        if (u instanceof WurzelFehler) {
+          expect(u.code).toBe('PROJEKT_NAME_UNGUELTIG')
+        }
+      }
+    },
+  )
+})
+
+describe('projektnameGueltig (AP-0.23, §11 — plattformunabhängige Regeln)', () => {
+  it.each([
+    ['Testbaum', true],
+    ['Müller Familie', true],
+    ["O'Brien", true],
+    ["d'Aboville", true],
+    ['Ковалёв', true],
+    ['Kowalski-Żółć', true],
+    ['', false],
+    ['   ', false],
+    ['.', false],
+    ['..', false],
+    ['a/b', false],
+    ['a\\b', false],
+    ['a:b', false],
+    ['a<b', false],
+    ['a>b', false],
+    ['a"b', false],
+    ['a|b', false],
+    ['a?b', false],
+    ['a*b', false],
+    ['CON', false],
+    ['com1', false],
+    ['LPT1', false],
+    ['AUX', false],
+    ['PRN', false],
+    ['NUL', false],
+    ['CON.txt', false],
+    ['CONcert', true],
+    ['Name.', false],
+    ['Name ', false],
+  ])('projektnameGueltig(%j) === %s', (name, erwartet) => {
+    expect(projektnameGueltig(name)).toBe(erwartet)
   })
 })

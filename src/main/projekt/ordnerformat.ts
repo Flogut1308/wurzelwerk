@@ -1,9 +1,10 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { z } from 'zod'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
+import { projektnameGueltig } from '../../shared/schemata/projekt'
 
 /** 50_Datenmodell.md §3: die Endung, die einen Ordner als Wurzelwerk-Projekt kennzeichnet. */
 export const PROJEKT_ORDNER_ENDUNG = '.ahnen'
@@ -70,7 +71,25 @@ export interface ProjektOrdnerAnlegenAus {
  * funktioniert auch mit Leerzeichen und Umlauten im Projektnamen.
  */
 export function projektOrdnerAnlegen(ein: ProjektOrdnerAnlegenEin): ProjektOrdnerAnlegenAus {
+  // Namensprüfung (AP-0.23, §11): Pfadtrenner, reservierte Systemnamen, verbotene Zeichen — noch
+  // bevor überhaupt ein Pfad gebaut wird.
+  if (!projektnameGueltig(ein.projektname)) {
+    throw new WurzelFehler('PROJEKT_NAME_UNGUELTIG')
+  }
+
   const ordnerPfad = join(ein.elternordner, `${ein.projektname}${PROJEKT_ORDNER_ENDUNG}`)
+
+  // Verteidigung in der Tiefe: selbst wenn `projektnameGueltig` einen Fall übersieht (z. B. eine
+  // künftige Regellücke), darf der aufgelöste Ordnerpfad den Elternordner nicht verlassen. Ein
+  // `path.relative`-Ergebnis, das mit `..` beginnt oder absolut ist, zeigt genau das an — robuster
+  // als ein `startsWith`-Vergleich auf rohen Zeichenketten (AP-0.23).
+  const aufgeloesterEltern = resolve(ein.elternordner)
+  const aufgeloesterOrdner = resolve(ordnerPfad)
+  const relativ = relative(aufgeloesterEltern, aufgeloesterOrdner)
+  if (relativ.startsWith('..') || isAbsolute(relativ)) {
+    throw new WurzelFehler('PROJEKT_NAME_UNGUELTIG')
+  }
+
   const pfade = projektOrdnerPfade(ordnerPfad)
 
   // Ein vorhandenes manifest.json markiert einen bereits angelegten Projektordner. Ohne diese

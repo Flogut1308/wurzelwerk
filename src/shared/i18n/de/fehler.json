@@ -87,6 +87,10 @@
     "titel": "Kein Projekt geöffnet",
     "was_tun": "Zuerst ein Projekt anlegen oder öffnen, bevor diese Aktion ausgeführt wird."
   },
+  "PROJEKT_NAME_UNGUELTIG": {
+    "titel": "Projektname ungültig",
+    "was_tun": "Einen anderen Namen wählen: nicht leer, ohne Schrägstrich oder Backslash, ohne die Zeichen < > : \" | ? *, kein reservierter Systemname (z. B. CON, PRN, AUX, NUL, COM1, LPT1) und ohne Punkt oder Leerzeichen am Ende."
+  },
   "DATEI_NICHT_LESBAR": {
     "titel": "Datei nicht lesbar",
     "was_tun": "Prüfen, ob die Datei noch existiert und Leserechte bestehen, und es erneut versuchen."
