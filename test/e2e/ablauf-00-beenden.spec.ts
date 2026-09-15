@@ -34,9 +34,10 @@ test.describe('Ablauf 00 — Geordnetes Beenden und Einzelinstanz', () => {
 
   test.beforeAll(() => {
     elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-beenden-'))
-    // Eigener --user-data-dir: isoliert `app.getPath('logs')`/`wurzelwerk.log` dieses Tests von
-    // parallel laufenden E2E-Specs (die sonst dieselbe Standard-Log-Datei teilen würden) und hält
-    // die Einzelinstanz-Sperre für beide (sequenziellen) Instanzen dieses Tests konsistent.
+    // Eigener --user-data-dir hält die Einzelinstanz-Sperre für beide (sequenziellen) Instanzen
+    // dieses Tests konsistent. Hinweis: `app.getPath('logs')` liegt auf macOS unter
+    // `~/Library/Logs/<appName>` und wird von --user-data-dir NICHT verschoben — die Log-Datei ist
+    // also prozessübergreifend geteilt; die Prüfung unten trägt dem Rechnung (s. dort).
     userDataDir = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-userdata-'))
   })
 
@@ -60,6 +61,12 @@ test.describe('Ablauf 00 — Geordnetes Beenden und Einzelinstanz', () => {
     const projektPfad = (anlegen as { ok: true; daten: { pfad: string } }).daten.pfad
     expect(existsSync(join(projektPfad, 'projekt.lock'))).toBe(true)
 
+    // Log-Pfad NOCH aus der ersten Instanz holen (nach dem Quit ist die CDP-Verbindung weg). Der
+    // Ort ist auf macOS geteilt (`~/Library/Logs/<appName>`, s. beforeAll) — er wird unten nach dem
+    // Beenden gelöscht, damit die `verwaist`-Prüfung nur die zweite Instanz sieht, nicht Altzeilen
+    // dieses oder früherer Läufe. Playwright läuft hier seriell (workers: 1), kein Nebenschreiber.
+    const logDatei = join(await app.evaluate(({ app: elektronApp }) => elektronApp.getPath('logs')), 'wurzelwerk.log')
+
     const prozessBeendet = new Promise<void>((resolve) => {
       const kindprozess = app.process()
       if (kindprozess.exitCode !== null) {
@@ -76,6 +83,10 @@ test.describe('Ablauf 00 — Geordnetes Beenden und Einzelinstanz', () => {
 
     expect(existsSync(join(projektPfad, 'projekt.lock'))).toBe(false)
 
+    // Log leeren: ab hier kann nur die zweite Instanz schreiben. Ohne das würde die Prüfung unten
+    // auch Altzeilen (erste Instanz, frühere Läufe) sehen — der Ort ist geteilt (s. beforeAll).
+    rmSync(logDatei, { force: true })
+
     // Zweite Instanz, gleicher --user-data-dir: öffnet dasselbe Projekt erneut. War die Sperre
     // sauber entfernt (geordnetes Beenden), erkennt projekt-dienst.ts sie nicht als `verwaist`.
     const app2 = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG, `--user-data-dir=${userDataDir}`] })
@@ -87,8 +98,11 @@ test.describe('Ablauf 00 — Geordnetes Beenden und Einzelinstanz', () => {
       )
       expect(oeffnen).toMatchObject({ ok: true, daten: { status: 'geoeffnet' } })
 
-      const logOrdner = await app2.evaluate(({ app: elektronApp }) => elektronApp.getPath('logs'))
-      const logInhalt = readFileSync(join(logOrdner, 'wurzelwerk.log'), 'utf8')
+      // Öffnen eines sauber geschlossenen Projekts protokolliert nichts — die Log-Datei kann also
+      // ganz fehlen. Genau das ist der Gutfall: keine Datei ⇒ keine `projekt_sperre_verwaist`-Zeile.
+      // Nur ein liegengebliebenes `projekt.lock` (der Defekt dieses AP) würde beim erneuten Öffnen
+      // die `verwaist`-Zeile erzeugen und die Datei anlegen.
+      const logInhalt = existsSync(logDatei) ? readFileSync(logDatei, 'utf8') : ''
       expect(logInhalt).not.toContain('projekt_sperre_verwaist')
     } finally {
       await app2.close()
