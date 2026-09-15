@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { WurzelFehler } from '../../../shared/fehler/wurzel-fehler'
-import { generierteTriggerAnwenden } from '../journal-trigger-anwenden'
+import { generierteTriggerAnwenden } from './trigger-anwenden'
 import { journalAn, journalAus } from '../../journal/kontext'
 import { MIGRATIONEN, migrationsRohInhaltLesen, pruefsummeBerechnen, type MigrationEintrag } from './registrierung'
 
