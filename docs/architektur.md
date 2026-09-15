@@ -199,7 +199,7 @@ wurzelwerk/
 │   │   ├── projekt/
 │   │   │   ├── projekt-dienst.ts      anlegen, öffnen, schließen
 │   │   │   ├── ordnerformat.ts        .ahnen-Aufbau, manifest.json
-│   │   │   ├── sperrdatei.ts          laufend.lock — doppeltes Öffnen, Absturzerkennung
+│   │   │   ├── sperrdatei.ts          projekt.lock — doppeltes Öffnen, Absturzerkennung
 │   │   │   └── sync-ordner-warnung.ts ADR-002 Konsequenz
 │   │   ├── datenbank/
 │   │   │   ├── verbindung.ts          Pragmas an genau einer Stelle
@@ -1393,7 +1393,7 @@ Transaktionen kosten (`synchronous = NORMAL`, §3.1), die Datei aber nicht besch
 
 Erkennung und Aufräumen:
 
-- Beim Öffnen wird `laufend.lock` mit Prozess-ID und Zeitstempel geschrieben, beim geordneten Beenden gelöscht. Existiert sie beim Öffnen noch und läuft der Prozess nicht mehr, war der letzte Lauf unsauber → `PRAGMA integrity_check` (vollständig, nicht nur `quick_check`) und ein Hinweis im Protokoll.
+- Beim Öffnen wird `projekt.lock` mit Prozess-ID und Zeitstempel geschrieben, beim geordneten Beenden gelöscht. Existiert sie beim Öffnen noch und läuft der Prozess nicht mehr, war der letzte Lauf unsauber → `PRAGMA integrity_check` (vollständig, nicht nur `quick_check`) und ein Hinweis im Protokoll.
 - Existiert sie und der Prozess **läuft**: `PROJEKT_BEREITS_GEOEFFNET`. Zwei Fenster auf derselben Datei sind bei WAL technisch möglich, aber der Abfragecache im zweiten Fenster wüsste nichts von den Änderungen des ersten. Verhindern ist ehrlicher als halb unterstützen.
 - WAL-Wiederherstellung macht SQLite beim Öffnen selbst; halb geschriebene Transaktionen sind danach weg — das ist die Zusage, nicht ein Nebeneffekt.
 - Menüpunkt *Wartung → Datenbestand prüfen* führt `integrity_check`, `foreign_key_check`, die Ableitungs-Gleichheitsprüfung aus §5.3 und die Zyklusprüfung aus `core/graph/zyklus.ts` aus und zeigt einen Bericht (Vorarbeit für F-08).

@@ -18,5 +18,4 @@ ist `NOT NULL` mit Fremdschlüssel.
 **Konsequenzen:** Das Journal wird größer (etwa Faktor 10 gegenüber Feld-Diffs; bei 50.000
 Änderungen ~40 MB statt ~4 MB — bei einer Datei mit Fotos kein Argument, und die Begrenzung
 deckelt es). Trigger sind im Debugger unsichtbar. `50_Datenmodell.md` §2.10 wird angepasst.
-`journal_kontext.aktiv = 0` gibt es an genau drei Stellen: Migration, Undo/Redo, Großimport —
-namentlich aufgeführt in einem Test, der bei einer vierten Stelle rot wird.
+`journal_kontext.aktiv = 0` wird in drei Kategorien aufgerufen (Migration, Undo/Redo, Großimport); aktuell drei Aufrufstellen, mit AP-1.5 vier. Der Test wirft rot bei einer Aufrufstelle außerhalb dieser Kategorien.
