@@ -10,6 +10,14 @@ on:
   pull_request:
     branches: [main]
 
+# Ein Lauf je Branch. Schiebt jemand zweimal kurz hintereinander auf denselben Pull Request,
+# wird der ältere Lauf abgebrochen statt zu Ende bezahlt. Auf `main` wird **nicht** abgebrochen:
+# der Nachlauf nach einem Merge ist der Beleg, dass der Trunk grün ist (90_Arbeitsweise §7) —
+# ein abgebrochener Lauf wäre dort ein Loch in der Historie.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pruefen:
     name: pruefen (${{ matrix.os }})
@@ -114,6 +122,7 @@ jobs:
           name: paket-${{ matrix.os }}
           path: dist/**
           if-no-files-found: error
+          retention-days: 5
 
       - name: Screenshot Hauptfenster
         if: runner.os == 'Windows'
@@ -126,6 +135,7 @@ jobs:
           name: screenshot-hauptfenster-windows
           path: artefakte/hauptfenster-windows.png
           if-no-files-found: error
+          retention-days: 5
 
   langsame-gates:
     name: langsame Gates (test:e2e, test:budget)
