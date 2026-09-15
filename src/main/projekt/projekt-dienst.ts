@@ -16,6 +16,7 @@ import { integritaetPruefen, integritaetVollPruefen } from '../datenbank/integri
 import { migrieren } from '../datenbank/migration/laeufer'
 import { schemaBasisverzeichnis } from '../datenbank/migration/schema-basis'
 import { oeffnen } from '../datenbank/verbindung'
+import { sendeEreignis } from '../ipc/ereignisse'
 import { journalAufraeumen } from '../journal/aufraeumen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { schnappschussAufbewahrung } from '../schnappschuss/aufbewahrung'
@@ -183,6 +184,7 @@ export function projektSchliessen(): void {
   if (offenesProjekt === undefined) {
     return
   }
+  const pfad = offenesProjekt.pfade.ordnerPfad
   offenesProjekt.db.close()
   sperrdateiEntfernen(offenesProjekt.pfade.ordnerPfad)
   offenesProjekt = undefined
@@ -194,6 +196,10 @@ export function projektSchliessen(): void {
     // No-op nach dem Schließen (AP-0.19), s. o.
   })
   journalStatusMelden(undefined) // AP-0.10: kein Projekt mehr offen - Menü/Renderer wieder ausgegraut
+  // AP-0.20: genau einmal je tatsächlichem Schließen (hinter dem obigen Guard) — u. a. Grundlage
+  // dafür, dass die Start-Ansicht auch nach einem Schließen "hinter dem Rücken des Renderers"
+  // (z. B. einer Wiederherstellung) wieder den Startzustand zeigt.
+  sendeEreignis('ereignis:projektGeschlossen', { pfad })
 }
 
 /** `abfrage:projekt.zuletzt`. */

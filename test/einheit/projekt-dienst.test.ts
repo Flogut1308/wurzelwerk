@@ -47,6 +47,7 @@ vi.mock('electron-store', () => {
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { sendeEreignis } from '../../src/main/ipc/ereignisse'
 import { projektOrdnerAnlegen, projektOrdnerPfade } from '../../src/main/projekt/ordnerformat'
 import { projektAnlegen, projektOeffnen, projektSchliessen, projektZuletzt } from '../../src/main/projekt/projekt-dienst'
 import { sperrdateiPfad } from '../../src/main/projekt/sperrdatei'
@@ -270,5 +271,25 @@ describe('main/projekt/projekt-dienst', () => {
     }
 
     expect(schnappschussListeLesen(pfadeA.snapshotsPfad)).toHaveLength(standVorher)
+  })
+
+  it('projektSchliessen sendet genau ein ereignis:projektGeschlossen (AP-0.20)', () => {
+    projektAnlegen({ elternordner, name: 'Testbaum' })
+    vi.mocked(sendeEreignis).mockClear()
+
+    projektSchliessen()
+
+    const rufe = vi.mocked(sendeEreignis).mock.calls.filter(([kanal]) => kanal === 'ereignis:projektGeschlossen')
+    expect(rufe).toHaveLength(1)
+  })
+
+  it('projektSchliessen ohne offenes Projekt sendet KEIN ereignis:projektGeschlossen (No-op, AP-0.20)', () => {
+    // afterEach hat das vorherige Projekt bereits geschlossen — offenesProjekt ist undefined.
+    vi.mocked(sendeEreignis).mockClear()
+
+    projektSchliessen()
+
+    const rufe = vi.mocked(sendeEreignis).mock.calls.filter(([kanal]) => kanal === 'ereignis:projektGeschlossen')
+    expect(rufe).toHaveLength(0)
   })
 })

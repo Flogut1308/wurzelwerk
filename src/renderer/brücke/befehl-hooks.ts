@@ -16,8 +16,8 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
-import type { Ein, JournalStatusNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
-import { journalStatusNutzlastSchema } from '../../shared/schemata/journal'
+import type { Ein, JournalStatusNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
+import { datenGeaendertNutzlastSchema, journalStatusNutzlastSchema, projektGeschlossenNutzlastSchema } from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
 
 /**
@@ -54,12 +54,16 @@ export function usePersonLoeschen(): UseMutationResult<null, AppFehler, Ein<'bef
 /**
  * Invalidiert pauschal den gesamten `@tanstack/react-query`-Cache nach jedem `ereignis:
  * datenGeaendert`-Push (D-EREIGNIS: die Nutzlast trägt kein `betroffen`-Feld, es gibt also nichts
- * Selektives nachzuführen). Kein Consumer vor AP-1.6, siehe Modul-Kommentar.
+ * Selektives nachzuführen). Kein Consumer vor AP-1.6, siehe Modul-Kommentar. `nutzlast` kommt als
+ * `unknown` vom Preload — `datenGeaendertNutzlastSchema.parse(...)` prüft sie, bevor invalidiert
+ * wird (AP-0.20: dieselbe Härtung wie bei `useJournalStatusAbo` unten, jetzt für jeden
+ * `ereignis:`-Hook Regel statt Ausnahme).
  */
 export function useDatenGeaendertAbo(): void {
   const queryClient = useQueryClient()
   useEffect(() => {
-    return window.wurzelwerk.abonnieren('ereignis:datenGeaendert', () => {
+    return window.wurzelwerk.abonnieren('ereignis:datenGeaendert', (nutzlast) => {
+      datenGeaendertNutzlastSchema.parse(nutzlast)
       void queryClient.invalidateQueries()
     })
   }, [queryClient])
@@ -78,6 +82,21 @@ export function useJournalStatusAbo(setter: (status: JournalStatusNutzlast) => v
       setter(journalStatusNutzlastSchema.parse(nutzlast))
     })
   }, [setter])
+}
+
+/**
+ * Reicht jeden `ereignis:projektGeschlossen`-Push an `bei` weiter (AP-0.20) — u. a. für die
+ * Start-Ansicht, die dann auf den Startzustand zurückfällt, auch wenn `projektSchliessen()` nicht
+ * über ihren eigenen Button, sondern hinter ihrem Rücken ausgelöst wurde (z. B. eine spätere
+ * Wiederherstellung). `nutzlast` kommt als `unknown` vom Preload, `projektGeschlossenNutzlastSchema.parse`
+ * prüft sie — dieselbe Begründung wie bei `useJournalStatusAbo` oben.
+ */
+export function useProjektGeschlossenAbo(bei: (nutzlast: ProjektGeschlossenNutzlast) => void): void {
+  useEffect(() => {
+    return window.wurzelwerk.abonnieren('ereignis:projektGeschlossen', (nutzlast) => {
+      bei(projektGeschlossenNutzlastSchema.parse(nutzlast))
+    })
+  }, [bei])
 }
 
 /** `befehl:journal.undo` (55_Architektur.md §4.7/§4.9, AP-0.10) — nimmt die neueste rücknehmbare Transaktion zurück. */
