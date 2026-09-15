@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { v7 as uuidv7 } from 'uuid'
 
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
   protokollInfo: vi.fn(),

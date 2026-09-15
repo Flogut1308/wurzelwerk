@@ -17,7 +17,6 @@ import {
   type AenderungEintrag,
 } from '../../src/core/journal/koaleszenz-verdichtung'
 
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
   protokollInfo: vi.fn(),

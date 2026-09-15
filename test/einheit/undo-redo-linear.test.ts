@@ -4,7 +4,6 @@
 // vollständig erhalten bleibt - auch über verworfene Redo-Schritte hinweg.
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
   protokollInfo: vi.fn(),
