@@ -115,6 +115,23 @@ describe('main/projekt/projekt-dienst', () => {
     expect(existsSync(sperrdateiPfad(info.pfad))).toBe(false)
   })
 
+  it('projektSchliessen ohne offenes Projekt ist ein No-op (kein Wurf) — AP-0.18, das nutzt before-quit aus', () => {
+    // Kein projektAnlegen()/projektOeffnen() zuvor — offenesProjekt ist bereits undefined
+    // (afterEach hat das vorherige Projekt geschlossen). Das ist genau der Fall, den
+    // src/main/lebenszyklus.ts bei before-quit ohne je geöffnetes Projekt auslöst.
+    expect(() => {
+      projektSchliessen()
+    }).not.toThrow()
+
+    // Und: ein zweiter Aufruf direkt nach einem regulären Schließen ist ebenso ein No-op.
+    const info = projektAnlegen({ elternordner, name: 'Testbaum' })
+    projektSchliessen()
+    expect(existsSync(sperrdateiPfad(info.pfad))).toBe(false)
+    expect(() => {
+      projektSchliessen()
+    }).not.toThrow()
+  })
+
   it('projektOeffnen öffnet ein zuvor angelegtes und geordnet geschlossenes Projekt erneut', () => {
     const angelegt = projektAnlegen({ elternordner, name: 'Testbaum' })
     projektSchliessen()
