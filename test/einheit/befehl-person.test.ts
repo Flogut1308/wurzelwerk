@@ -15,6 +15,8 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
+import { redoZiel } from '../../src/main/repositories/journal-repo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface PersonZeile {
@@ -60,6 +62,19 @@ function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   const db = oeffnen(':memory:')
   migrieren(db)
   return db
+}
+
+interface TransaktionZahl {
+  readonly anzahl: number
+}
+
+/** Muster identisch zu `test/einheit/koaleszenz.test.ts`. */
+function transaktionAnzahl(db: ReturnType<typeof oeffnen>): number {
+  const zeile = db.prepare<[], TransaktionZahl>('SELECT COUNT(*) AS anzahl FROM transaktion').get()
+  if (zeile === undefined) {
+    throw new Error('transaktionAnzahl(): COUNT(*)-Abfrage lieferte unerwartet keine Zeile.')
+  }
+  return zeile.anzahl
 }
 
 describe('person.anlegen (AP-0.9)', () => {
@@ -153,6 +168,82 @@ describe('person.loeschen (AP-0.9)', () => {
     const db = neueTestDatenbank()
     try {
       expect(() => fuehreAus(db, 'person.loeschen', { id: 'nicht-vorhanden' })).toThrow(WurzelFehler)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.22)', () => {
+  // `gesperrt_bis` statt `notiz` (wie in der Aufgabenbeschreibung für den Redo-Test empfohlen):
+  // `notiz` trägt einen Koaleszenz-Schlüssel (`src/main/befehle/registrierung.ts`, AP-0.15) und
+  // fasst zwei rasch aufeinanderfolgende `notiz`-Änderungen IMMER zu einer Transaktion zusammen —
+  // unabhängig davon, ob der zweite Wert überhaupt vom ersten abweicht. Mit `notiz` wäre dieser
+  // Test schon vor dem AP-0.22-Fix grün (die Koaleszenz verdeckt den Fehler) bzw. bei
+  // unterschiedlichen Werten fälschlich rot (die Koaleszenz fasst trotzdem zusammen) - in beiden
+  // Fällen kein Beleg für das hier geprüfte Verhalten. `gesperrt_bis` hat keinen Koaleszenz-
+  // Schlüssel und macht damit einzig den AP-0.22-Effekt sichtbar.
+  it('derselbe gesperrt_bis-Wert zweimal hintereinander erzeugt keine zweite Transaktion und keine zweite aenderung-Zeile', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+
+      // Erste Änderung: gesperrt_bis war zuvor NULL, ist jetzt 100 - echte Änderung.
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 })
+      const anzahlVorher = transaktionAnzahl(db)
+
+      // Zweite Änderung: identischer Wert - No-op, darf keine neue Transaktion/aenderung erzeugen.
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 })
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+      expect(aenderungenFuerPerson(db, id)).toHaveLength(2) // insert (anlegen) + genau ein update (erste Änderung)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('unterschiedliche Werte erzeugen weiterhin je eine eigene Transaktion (Regression)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const anzahlVorher = transaktionAnzahl(db)
+
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 })
+      const anzahlNachErster = transaktionAnzahl(db)
+      expect(anzahlNachErster).toBe(anzahlVorher + 1)
+
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 200 })
+      expect(transaktionAnzahl(db)).toBe(anzahlNachErster + 1)
+
+      expect(aenderungenFuerPerson(db, id)).toHaveLength(3) // insert + zwei updates
+    } finally {
+      db.close()
+    }
+  })
+
+  it('No-op verwirft den Redo-Stapel NICHT (im Gegensatz zu einem echten neuen Befehl, §4.7)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+
+      // gesperrt_bis trägt keinen Koaleszenz-Schlüssel (AP-0.15 fasst nur `notiz` zusammen) - zwei
+      // echte Änderungen bleiben also zwei separate Transaktionen.
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 }) // T1
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 200 }) // T2
+
+      undo(db) // Wert zurück auf 100, T2 ist jetzt das Redo-Ziel
+      const anzahlVorher = transaktionAnzahl(db)
+      const redoZielVorher = redoZiel(db)?.id
+      expect(redoZielVorher).toBeDefined()
+
+      // No-op: der Wert ist bereits 100 - darf weder eine Transaktion anlegen noch den Redo-Stapel verwerfen.
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 })
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+      expect(redoZiel(db)?.id).toBe(redoZielVorher)
+
+      redo(db) // funktioniert weiterhin - Wert wieder 200
+      expect(personLesen(db, id)?.geaendert_am).not.toBeNull()
     } finally {
       db.close()
     }
