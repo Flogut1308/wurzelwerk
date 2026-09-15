@@ -42,3 +42,26 @@ derselbe Vergleich mindestens eine neue/geänderte Datei unter `docs/schema/00NN
 prüfen Fachverhalten (Bitgleichheit, Layout-Koordinaten), das sich nicht mechanisch gegen eine
 einzelne begleitende Datei nachvollziehen lässt. Fehlt die begleitende Migrationsdatei im Vergleich,
 gilt die ursprüngliche Sperre für `test/schema` unverändert weiter.
+
+### Nachtrag (AP-0.25): Migrations-Prüfsummen (`registrierung.ts`) und `test/migration/` sind schema-bedingt geschützt
+
+**Ausgangslage:** §1 nennt „die Migrations-Prüfsummen" als geschützten Pfad. Konkret ist das die
+Liste `MIGRATIONEN` in `src/main/datenbank/migration/registrierung.ts` (sha256 je Migrationsdatei).
+Diese Datei matcht zugleich `^src/` (Produktivcode). Eine **ausnahmslose** Sperre wäre hier
+unmöglich einzuhalten: **jede** neue Migration muss `registrierung.ts` um genau eine Prüfsummenzeile
+ergänzen (und `test/migration/` um eine Fixture-Datenbank der Vorgängerversion, §6/CLAUDE.md) — ein
+ausnahmslos gesperrter Pfad würde also jeden legitimen Migrations-PR blockieren.
+
+**Warum kein Reward-Hacking-Risiko bei begleitender Migration:** Wie `test/schema` (Nachtrag AP-0.7)
+sind beide **maschinell nachvollziehbare Spiegel** der Migrationsdatei, kein unabhängiges
+Prüfmaterial. Eine neue Prüfsummenzeile in `registrierung.ts` lässt sich Byte für Byte gegen die
+sha256 der begleitenden `docs/schema/00NN_*.sql` nachrechnen; eine neue `test/migration/`-Fixture
+gehört fachlich zwingend zur selben neuen Version. Steht die Migrationsdatei im selben Diff, ist eine
+aufgeweichte Prüfung sofort sichtbar.
+
+**Entscheidung:** `skripte/pruefpfad-pruefen.ts` behandelt `src/main/datenbank/migration/registrierung.ts`
+und `test/migration/**` **schema-bedingt** — geschützt wie zuvor, aber aus der Sperre genommen, wenn
+derselbe Vergleich mindestens eine neue/geänderte `docs/schema/00NN_*.sql` enthält. **Ohne** begleitende
+Migrationsdatei gilt die Sperre unverändert (eine isolierte Prüfsummenänderung ohne Migration ist
+genau der zu fangende Manipulationsfall und wird weiterhin als Vermischung abgelehnt).
+`test/invarianten/` und `test/golden/` bleiben ausnahmslos gesperrt.
