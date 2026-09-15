@@ -13,6 +13,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollInfo } from '../protokoll/logger'
 import { schnappschussBeiTransaktionSetzen } from '../befehle/bus'
 import { integritaetPruefen, integritaetVollPruefen } from '../datenbank/integritaet'
+import { triggerdriftAusgleichen } from '../datenbank/journal-trigger-anwenden'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { schemaBasisverzeichnis } from '../datenbank/migration/schema-basis'
 import { oeffnen } from '../datenbank/verbindung'
@@ -60,9 +61,11 @@ function projektInfoAus(pfade: ProjektOrdnerPfade, manifest: ProjektManifest): P
  * `sperre.status === 'verwaist'` durch, `projektAnlegen` immer `false` — ein frisch angelegtes
  * Projekt hatte nie einen vorherigen Lauf) — bei `true` läuft zusätzlich zum immer laufenden
  * `quick_check` (`integritaetPruefen`) der volle `integrity_check` (`integritaetVollPruefen`, nur
- * Protokoll, wirft nicht).
+ * Protokoll, wirft nicht). `vorgangsId` ist optional (§7: Protokollzeilen erlauben sie optional) -
+ * `projektOeffnen` reicht `ktx.vorgangsId` durch, `projektAnlegen` hat (noch) keinen `Kontext` und
+ * ruft ohne auf.
  */
-function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsauber: boolean): void {
+function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsauber: boolean, vorgangsId?: string): void {
   if (offenesProjekt !== undefined) {
     projektSchliessen()
   }
@@ -111,6 +114,17 @@ function projektUebernehmen(pfade: ProjektOrdnerPfade, info: ProjektInfo, unsaub
         schnappschussErzeugen(geoeffnet, pfade)
       },
     })
+
+    // AP-0.24 (F-06): erreicht auch Dateien, für die migrieren() oben ein No-op war (bereits auf
+    // Zielversion) - ein Trigger-Fix ohne begleitende neue Migration greift sonst nie.
+    const triggerAbweichungen = triggerdriftAusgleichen(db, schemaBasisverzeichnis())
+    if (triggerAbweichungen > 0) {
+      protokollInfo({
+        ...(vorgangsId !== undefined ? { vorgangsId } : {}),
+        code: 'trigger_drift_behoben',
+        zeilenzahl: triggerAbweichungen,
+      })
+    }
 
     // 55_Architektur.md §6.2/§4.6, AP-0.11 — in dieser Reihenfolge nach der Migration:
     // (a) ein Stand pro Arbeitstag "ohne Zutun", falls der letzte Schnappschuss älter als 24 h ist,
@@ -174,7 +188,7 @@ export function projektOeffnen(ein: ProjektOeffnenEin, ktx: Kontext, heimat: str
 
   const pfade = projektOrdnerPfade(ein.pfad)
   const info = projektInfoAus(pfade, manifest)
-  projektUebernehmen(pfade, info, sperre.status === 'verwaist')
+  projektUebernehmen(pfade, info, sperre.status === 'verwaist', ktx.vorgangsId)
   zuletztHinzufuegen({ pfad: info.pfad, name: info.name, zuletztGeoeffnetAm: new Date().toISOString() })
   return { status: 'geoeffnet', projekt: info }
 }
