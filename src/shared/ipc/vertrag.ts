@@ -94,6 +94,18 @@ export interface JournalStatusNutzlast {
 }
 
 /**
+ * Nutzlast von `ereignis:projektGeschlossen` (AP-0.20): der Ordnerpfad des Projekts, das gerade
+ * geschlossen wurde — z. B. nach einer Wiederherstellung, die `projektSchliessen()` hinter dem
+ * Rücken des Renderers auslöst (`src/main/projekt/projekt-dienst.ts`). Der Renderer nutzt `pfad`
+ * bislang nur zum Zurücksetzen auf den Startzustand, nicht zum Abgleich mit einem konkret
+ * angezeigten Projekt — das Feld steht trotzdem schon jetzt bereit, weil es die Nutzlast ist, die
+ * ohnehin ansteht (kein zweiter Vertrag nötig, wenn eine spätere Ansicht sie braucht).
+ */
+export interface ProjektGeschlossenNutzlast {
+  readonly pfad: string
+}
+
+/**
  * Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab
  * (AP-0.9). Steht in `src/shared`, nicht in `src/main/repositories/journal-repo.ts`, weil
  * `VerlaufEintrag` (AP-0.10, unten) diese Union ebenfalls braucht und `src/shared` nichts aus
@@ -177,3 +189,17 @@ export interface Vertrag {
 export type Kanal = keyof Vertrag
 export type Ein<K extends Kanal> = Vertrag[K]['ein']
 export type Aus<K extends Kanal> = Vertrag[K]['aus']
+
+/**
+ * Die Typkarte der `ereignis:`-Kanäle (Hauptprozess → Renderer, §2.5, AP-0.20) — analog zu
+ * `Vertrag` oben, aber ohne `ein`/`aus`-Unterscheidung: ein Ereignis hat nur eine Nutzlast, keine
+ * Anfrage. `ereignis:speicherStatus` ist bewusst NICHT enthalten (§7.5, noch kein Kanal).
+ */
+export interface EreignisVertrag {
+  'ereignis:datenGeaendert': DatenGeaendertNutzlast
+  'ereignis:journalStatus': JournalStatusNutzlast
+  'ereignis:projektGeschlossen': ProjektGeschlossenNutzlast
+}
+
+export type EreignisKanal = keyof EreignisVertrag
+export type EreignisNutzlast<K extends EreignisKanal> = EreignisVertrag[K]

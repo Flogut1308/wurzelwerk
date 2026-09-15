@@ -17,7 +17,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
 import type { Ein, JournalStatusNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
-import { journalStatusNutzlastSchema } from '../../shared/schemata/journal'
+import { journalStatusNutzlastSchema } from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
 
 /**

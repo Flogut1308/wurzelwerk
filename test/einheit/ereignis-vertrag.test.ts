@@ -9,7 +9,7 @@
 // Signatur beide Aufrufe anstandslos durchlässt).
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
+vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }))
 
 import { sendeEreignis } from '../../src/main/ipc/ereignisse'
 import { EREIGNIS_KANAELE } from '../../src/shared/ipc/kanaele'

@@ -1,4 +1,4 @@
-import type { Kanal } from './vertrag'
+import type { EreignisKanal, Kanal } from './vertrag'
 
 /**
  * Weißliste aller `abfrage:`/`befehl:`-Kanäle aus `Vertrag` (ADR-016). Der Preload prüft jeden
@@ -25,7 +25,10 @@ const kanaele: readonly Kanal[] = [
 export const ALLE_KANAELE: readonly string[] = kanaele
 
 /**
- * Weißliste aller `ereignis:`-Kanäle (Hauptprozess → Renderer). AP-0.9 ergänzt die ersten beiden
- * Kanäle des Befehlsbusses; `ereignis:speicherStatus` folgt später.
+ * Weißliste aller `ereignis:`-Kanäle (Hauptprozess → Renderer, AP-0.20: gegen `EreignisKanal`
+ * geprüft — ein Tippfehler in der Liste wäre schon hier ein Typfehler, analog zu `kanaele` oben).
+ * Der EXPORT bleibt `readonly string[]`: der Preload prüft rohe, ungeprüfte Strings dagegen
+ * (Abnahme, nicht ändern). `ereignis:speicherStatus` folgt später (§7.5).
  */
-export const EREIGNIS_KANAELE: readonly string[] = ['ereignis:datenGeaendert', 'ereignis:journalStatus']
+const ereignisKanaele: readonly EreignisKanal[] = ['ereignis:datenGeaendert', 'ereignis:journalStatus', 'ereignis:projektGeschlossen']
+export const EREIGNIS_KANAELE: readonly string[] = ereignisKanaele
