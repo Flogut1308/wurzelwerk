@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { aufrufen } from '../../brücke/aufrufen'
+import { useProjektGeschlossenAbo } from '../../brücke/befehl-hooks'
 import type { FehlerCode } from '../../../shared/fehler/codes'
 import type { ProjektInfo, SyncAnbieter, ZuletztEintrag } from '../../../shared/ipc/vertrag'
 
@@ -55,6 +56,20 @@ export function StartAnsicht() {
   useEffect(() => {
     zuletztLaden()
   }, [zuletztLaden])
+
+  // AP-0.20: `projektSchliessen()` kann auch hinter dem Rücken dieser Ansicht laufen (z. B. eine
+  // spätere Wiederherstellung, die das offene Projekt schließt, ohne dass der Renderer den
+  // "Schließen"-Button gedrückt hätte) — die Ansicht zeigt danach den Startzustand, statt weiter
+  // ein bereits geschlossenes Projekt anzuzeigen. Eine volle Spiegelung des Wiederherstellungs-
+  // Ablaufs (eigene Meldung, Neuladen der Ansicht) folgt mit der Wiederherstellungs-UI späterer
+  // Phasen (§14) — hier reicht der Rückfall auf den Startzustand.
+  useProjektGeschlossenAbo(
+    useCallback(() => {
+      setAktuellesProjekt(null)
+      setSyncWarnung(null)
+      setFehlerCode(null)
+    }, []),
+  )
 
   const projektOeffnenAufrufen = useCallback(
     (pfad: string, syncBestaetigt?: boolean) => {
