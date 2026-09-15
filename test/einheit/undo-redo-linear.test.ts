@@ -16,6 +16,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { redo, undo } from '../../src/main/journal/undo'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { redoZiel, undoZiel } from '../../src/main/repositories/journal-repo'
 
 interface TransaktionZeile {
@@ -69,6 +70,24 @@ describe('undo()/redo() — lineares Undo-Modell über den echten Befehlsbus (55
       expect(historie).toHaveLength(3) // idA-Anlage, idB-Anlage (verworfen), idC-Anlage - NICHTS verschwindet aus transaktion (§4.6)
       expect(historie.map((zeile) => zeile.status)).toEqual(['angewendet', 'verworfen', 'angewendet'])
       expect(personVorhanden(db, idC)).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('undo() wirft, wenn die Zielzeile von Hand aus der Tabelle entfernt wurde (kein stiller No-op-Undo, F-02)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+
+      journalAus(db, 'Testvorbereitung (AP-0.21): Zielzeile von Hand entfernen, ohne dass sich das Undo-Ziel selbst protokolliert.')
+      db.prepare<{ readonly id: string }>('DELETE FROM person WHERE id = @id').run({ id })
+      journalAn(db)
+
+      // `rohLoeschen()` wirft `WurzelFehler('INTERN_UNERWARTET', ...)` mit einer eigenen
+      // Klartextmeldung (kein Code-Text in `message`, s. `WurzelFehler`-Konstruktor) - die
+      // erwartete Meldung nennt die geprüfte Bedingung ("erwartete genau 1 betroffene Zeile").
+      expect(() => undo(db)).toThrow(/erwartete genau 1 betroffene Zeile/)
     } finally {
       db.close()
     }
