@@ -11,7 +11,7 @@
 // Schreibvorgänge dort), das Schreiben hier erzeugt also ohnehin keine weiteren `aenderung`-Zeilen.
 import type Database from 'better-sqlite3'
 import { zuBegrenzendeTransaktionen } from '../../core/journal/begrenzung-auswahl'
-import { neueId } from '../ipc/huelle'
+import { neueId } from '../id'
 import {
   aenderungenLoeschen,
   alteTransaktionenLesen,

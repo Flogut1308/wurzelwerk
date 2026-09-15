@@ -5,7 +5,7 @@
 // Bus-Transaktion (`src/main/befehle/bus.ts`, CLAUDE.md §2: kein eigenes `BEGIN` hier) und schreibt
 // KEIN eigenes SQL (kein `db.prepare`/`db.exec` - ESLint no-restricted-syntax, CLAUDE.md §2 Regel
 // 4) - jeder Zugriff läuft über `src/main/repositories/journal-repo.ts`.
-import { neueId } from '../ipc/huelle'
+import { neueId } from '../id'
 import {
   aenderungEinfuegen,
   aenderungenLoeschen,
