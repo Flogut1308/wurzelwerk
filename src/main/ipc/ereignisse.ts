@@ -1,12 +1,13 @@
 import { BrowserWindow } from 'electron'
-import { EREIGNIS_KANAELE } from '../../shared/ipc/kanaele'
+import type { EreignisKanal, EreignisNutzlast } from '../../shared/ipc/vertrag'
 
 /**
- * Sendet ein `ereignis:`-Push an alle offenen Fenster (§2.5). `EREIGNIS_KANAELE` ist in AP-0.2
- * noch leer — Phase 1 ergänzt die ersten Kanäle (`ereignis:datenGeaendert` u.a.), diese Funktion
- * steht schon jetzt bereit, damit kein zweiter Weg für Pushes entsteht.
+ * Sendet ein `ereignis:`-Push an alle offenen Fenster (§2.5). Der Kanal bindet die Nutzlast über
+ * `EreignisNutzlast<K>` an `EreignisVertrag` (AP-0.20) — ein erfundener Kanalname oder eine
+ * unvollständige Nutzlast sind damit ein Typfehler am Aufrufer, nicht erst eine Laufzeitüberraschung
+ * beim `journalStatusNutzlastSchema.parse(...)` im Renderer.
  */
-export function sendeEreignis<T>(kanal: (typeof EREIGNIS_KANAELE)[number], nutzlast: T): void {
+export function sendeEreignis<K extends EreignisKanal>(kanal: K, nutzlast: EreignisNutzlast<K>): void {
   for (const fenster of BrowserWindow.getAllWindows()) {
     fenster.webContents.send(kanal, nutzlast)
   }
