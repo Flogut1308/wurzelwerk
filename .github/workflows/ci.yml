@@ -10,6 +10,14 @@ on:
   pull_request:
     branches: [main]
 
+# Ein Lauf je Branch. Schiebt jemand zweimal kurz hintereinander auf denselben Pull Request,
+# wird der ältere Lauf abgebrochen statt zu Ende bezahlt. Auf `main` wird **nicht** abgebrochen:
+# der Nachlauf nach einem Merge ist der Beleg, dass der Trunk grün ist (90_Arbeitsweise §7) —
+# ein abgebrochener Lauf wäre dort ein Loch in der Historie.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pruefen:
     name: pruefen (${{ matrix.os }})
