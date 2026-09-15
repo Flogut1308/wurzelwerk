@@ -1,3 +1,7 @@
+// Gestaltung zuerst: über den Modulgraph importiert (nicht per <link> in index.html), damit Vite
+// bündelt, die Ladereihenfolge deterministisch ist (Tokens vor Grundstilen) und HMR greift.
+import './gestaltung/tokens.css'
+import './gestaltung/basis.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { I18nextProvider } from 'react-i18next'
