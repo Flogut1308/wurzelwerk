@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import type { JournalisierteTabelle } from '../journal/journalisierung'
 
 /**
  * Ein Datenbank-Handle innerhalb einer bereits offenen Transaktion (55_Architektur.md §1.2).
@@ -79,9 +80,12 @@ interface ExistenzZeile {
  * Literal aus `ALLE_TABELLEN` (nie eine Nutzereingabe) — SQLite erlaubt keine Parameterbindung
  * für Bezeichner, darum steht der Tabellenname direkt im SQL-Text, während `id` als benannter
  * Parameter gebunden bleibt (CLAUDE.md §6: immer benannte Parameter, kein zusammengesetztes SQL
- * für Werte).
+ * für Werte). Auf `JournalisierteTabelle` verengt (AP-0.21, AP-0.7-Restpunkt): die Abfrage nimmt
+ * `id` als skalaren Primärschlüssel an, was nur für journalisierte Anwendertabellen gilt — ein
+ * Aufruf mit `person_flach`/`suche_fts_quelle` (NICHT_JOURNALISIERT, keine `id`-Spalte) wird damit
+ * zum Compile-Fehler statt zur Laufzeit `no such column: id` zu werfen.
  */
-export function datensatzExistiert(tx: Tx, tabelle: Tabelle, id: string): boolean {
+export function datensatzExistiert(tx: Tx, tabelle: JournalisierteTabelle, id: string): boolean {
   const zeile = tx
     .prepare<{ readonly id: string }, ExistenzZeile>(`SELECT 1 AS vorhanden FROM ${tabelle} WHERE id = @id LIMIT 1`)
     .get({ id })
@@ -113,9 +117,11 @@ interface TabelleInfoZeile {
  * dieselbe Regel wie `skripte/trigger-generieren.ts` (`spaltenUndPrimaerschluessel`, D-2/AP-0.8
  * Planungsnotiz: `aenderung.datensatz_id` verkettet mehrere PK-Spaltenwerte mit `|`, in genau
  * dieser Reihenfolge). Hier unabhängig nachgebaut, weil `skripte/` kein Bestandteil der
- * Architekturschichten aus CLAUDE.md §2 ist und nicht von `src/main/` importiert wird.
+ * Architekturschichten aus CLAUDE.md §2 ist und nicht von `src/main/` importiert wird. Exportiert
+ * (AP-0.21), damit die geschützte Round-Trip-Invariante (folgender PR) den echten Produktivcode
+ * statt einer Kopie prüft.
  */
-function pkSpalten(db: Tx, tabelle: Tabelle): readonly string[] {
+export function pkSpalten(db: Tx, tabelle: Tabelle): readonly string[] {
   return db
     .prepare<[], TabelleInfoZeile>(`PRAGMA table_info(${tabelle})`)
     .all()
@@ -225,5 +231,12 @@ export function rohErsetzen(db: Tx, tabelle: Tabelle, zeile: ZeileWerte): void {
   }
   const setListe = spalten.map((spalte) => `${spalte} = @${spalte}`).join(', ')
   const wo = spaltenPk.map((spalte) => `${spalte} = @${spalte}`).join(' AND ')
-  db.prepare<ZeileWerte>(`UPDATE ${tabelle} SET ${setListe} WHERE ${wo}`).run(zeile)
+  const ergebnis = db.prepare<ZeileWerte>(`UPDATE ${tabelle} SET ${setListe} WHERE ${wo}`).run(zeile)
+  if (ergebnis.changes !== 1) {
+    const pkWerte = spaltenPk.map((spalte) => zeile[spalte]).join('|')
+    throw new WurzelFehler(
+      'INTERN_UNERWARTET',
+      `rohErsetzen(): erwartete genau 1 betroffene Zeile für "${tabelle}"/"${pkWerte}", tatsächlich ${ergebnis.changes}.`,
+    )
+  }
 }
