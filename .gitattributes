@@ -8,3 +8,6 @@
 # SQLite-Fixtures und Projektdatenbanken sind Binärdateien und dürfen nie
 # zeilenendennormalisiert werden (sonst Korruption beim Checkout).
 *.sqlite binary
+
+# Schriftdateien sind Binärdateien und dürfen nie zeilenendennormalisiert werden.
+*.woff2 binary
