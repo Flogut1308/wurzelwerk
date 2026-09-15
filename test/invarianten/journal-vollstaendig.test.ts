@@ -21,16 +21,19 @@
 //    55_Architektur.md §4.3). `journalAusAufrufstellen()` (_journal-aufrufer.ts) scannt src/ per
 //    TypeScript-AST nach echten Aufrufstellen von `journalAus()` (ohne die Definition in
 //    kontext.ts selbst) und ordnet jede über den Text ihres verpflichtenden `grund`-Arguments
-//    einer der drei Kategorien zu. In AP-0.8 ist die Produktiv-Aufrufermenge LEER (Undo = AP-0.10,
-//    Großimport = AP-1.5, Migration ruft `journalAus()` noch nicht auf) - die aktive Prüfung
-//    unten ("höchstens drei, jede erkennbar begründet") ist damit trivial grün; sie wird
-//    unmittelbar rot, sobald eine vierte, nicht kategorisierbare Aufrufstelle auftaucht. Die
-//    schärfere "== 3, genau eine je Kategorie"-Prüfung steht als `it.todo` (aktivierbar, sobald
-//    AP-0.10 und AP-1.5 existieren).
+//    einer der drei Kategorien zu. Seit AP-0.24 (PR-A: Migrations-Klammer, laeufer.ts; AP-0.10:
+//    Undo/Redo, undo.ts) sind DREI Aufrufstellen erreichbare Realität: Migration genau 1,
+//    Undo/Redo genau 2 (undo + redo), Großimport noch 0 (AP-1.5 existiert nicht). Die aktive
+//    Prüfung unten nagelt diese Multimenge KATEGORIESCHARF fest (nicht bloß die Summe): jede
+//    einzelne Kategoriezahl. Damit fällt das Entfernen der Migrations-Stelle (migration → 0)
+//    ebenso auf wie eine vierte, nicht kategorisierbare Aufrufstelle (unbekannte ≠ [] / gesamt > 3).
+//    Der `it.todo` markiert den Nachfolgezustand (Großimport-Aufrufstelle aus AP-1.5 hebt die
+//    Gesamtzahl auf 4 / grossimport auf 1).
 import { describe, expect, it } from 'vitest'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { JOURNALISIERT } from '../../src/main/journal/journalisierung'
+import type { JournalAusKategorie } from './_journal-aufrufer'
 import { journalAusAufrufeAusQuelltext, journalAusAufrufstellen } from './_journal-aufrufer'
 import { minimalZeileFuer, vorstufeAnlegen } from './_journal-minimalzeilen'
 
@@ -53,9 +56,11 @@ describe('Invariante: kein Schreibvorgang auf einer journalisierten Tabelle ohne
 })
 
 describe('Invariante: nur Migration, Undo/Redo und Großimport dürfen das Journal abschalten (55_Architektur.md §4.3)', () => {
-  it('jede journalAus()-Aufrufstelle in src/ (außer der Definition selbst) trägt eine erkennbare Begründung, und es sind höchstens drei', () => {
+  it('die journalAus()-Aufrufstellen in src/ sind kategoriescharf verteilt: Migration=1, Undo/Redo=2, Großimport=0, keine unbekannte Kategorie, gesamt=3', () => {
     const aufrufstellen = journalAusAufrufstellen()
 
+    // Bestehende Zusicherung (nicht abgeschwächt): keine Aufrufstelle trägt einen grund, der zu
+    // keiner der drei erlaubten Kategorien passt.
     const unbekannte = aufrufstellen.filter((stelle) => stelle.kategorie === null)
     expect(
       unbekannte,
@@ -63,19 +68,31 @@ describe('Invariante: nur Migration, Undo/Redo und Großimport dürfen das Journ
         `(Migration/Undo-Redo/Großimport) passt: ${unbekannte.map((s) => `${s.datei}:${s.zeile} (grund=${JSON.stringify(s.grund)})`).join(', ') || '—'}`,
     ).toEqual([])
 
+    const zähleKategorie = (kategorie: JournalAusKategorie): number =>
+      aufrufstellen.filter((stelle) => stelle.kategorie === kategorie).length
+    const stellenText = aufrufstellen.map((s) => `${s.datei}:${s.zeile} (${s.kategorie ?? 'unbekannt'})`).join(', ') || '—'
+
+    // Kategoriescharf: jede einzelne Zahl festgenagelt, nicht nur die Summe. Fällt eine Kategorie
+    // aus (z. B. Migrations-Klammer entfernt → migration=0) oder taucht eine zusätzliche auf, wird
+    // die betroffene Zusicherung rot - eine reine Summenprüfung finge das Verschieben zwischen
+    // Kategorien nicht.
+    expect(zähleKategorie('migration'), `Migrations-Aufrufstellen (erwartet genau 1): ${stellenText}`).toBe(1)
+    expect(zähleKategorie('undo_redo'), `Undo/Redo-Aufrufstellen (erwartet genau 2 - undo + redo): ${stellenText}`).toBe(2)
+    expect(
+      zähleKategorie('grossimport'),
+      `Großimport-Aufrufstellen (erwartet 0 - AP-1.5 existiert noch nicht): ${stellenText}`,
+    ).toBe(0)
+
     expect(
       aufrufstellen.length,
-      `Mehr als drei journalAus()-Aufrufstellen (§4.3 erlaubt genau drei): ${aufrufstellen.map((s) => `${s.datei}:${s.zeile}`).join(', ')}`,
-    ).toBeLessThanOrEqual(3)
+      `Gesamtzahl journalAus()-Aufrufstellen (erwartet genau 3 = 1 Migration + 2 Undo/Redo): ${stellenText}`,
+    ).toBe(3)
   })
 
-  // AP-0.8: die Produktiv-Aufrufermenge ist aktuell LEER (Undo/Redo = AP-0.10, Großimport = AP-1.5,
-  // Migration ruft journalAus() noch nicht auf) - eine scharfe "genau drei, je eine Kategorie"-
-  // Prüfung wäre hier nicht sinnvoll aktivierbar. Der Test oben deckt schon "nie mehr als drei,
-  // jede erkennbar begründet" ab. Aktivieren, sobald AP-0.10 (Undo/Redo) und AP-1.5 (Großimport)
-  // ihre journalAus()-Aufrufer angelegt haben (Migration bleibt ggf. weiterhin ungenutzt, dann
-  // reicht "zwei von drei besetzt" - siehe dann docs/arbeitspakete.md).
-  it.todo('genau drei journalAus()-Aufrufstellen, je eine für Migration, Undo/Redo und Großimport')
+  // Nachfolge-Marker: AP-1.5 (Großimport) legt seine eigene journalAus()-Aufrufstelle an. Dann ist
+  // die erreichbare Realität grossimport=1 und die Gesamtzahl 4 - der aktive it oben ist dann
+  // anzupassen (grossimport toBe(1), length toBe(4)), NICHT diese Prüfung abzuschwächen.
+  it.todo('journal-vollstaendig: grossimport-Aufrufstelle (AP-1.5) hebt grossimport auf 1 und die Gesamtzahl auf 4')
 })
 
 describe('Selbstprüfung des Scanners: journalAusAufrufeAusQuelltext erkennt beide Aufrufformen (hueter-Review PR #13, Auflage 1)', () => {
