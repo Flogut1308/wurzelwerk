@@ -5,10 +5,25 @@
 // vollständigem `wert_alt_json`/`wert_neu_json` (alle Spalten, ADR-017).
 import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
+import { join } from 'node:path'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { triggerdriftAusgleichen } from '../../src/main/datenbank/journal-trigger-anwenden'
 import { armieren, entwaffnen } from '../../src/main/journal/kontext'
 import { transaktionAnlegen } from '../../src/main/repositories/journal-repo'
+
+const SCHEMA_BASIS = join(process.cwd(), 'docs', 'schema')
+
+interface TriggerSqlZeile {
+  readonly sql: string | null
+}
+
+function triggerSql(db: ReturnType<typeof oeffnen>, name: string): string | null {
+  const zeile = db
+    .prepare<{ readonly name: string }, TriggerSqlZeile>("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = @name")
+    .get({ name })
+  return zeile === undefined ? null : zeile.sql
+}
 
 interface AenderungZeile {
   readonly id: string
@@ -158,6 +173,72 @@ describe('jrn_*-Trigger schreiben vollständige aenderung-Zeilen (AP-0.8, 55_Arc
       expect(() => db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: uuidv7() })).toThrow(
         /NOT NULL constraint failed: aenderung\.transaktion_id/,
       )
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// AP-0.24 (F-06): eine geänderte/neu erzeugte Datei-Fassung von `trigger_generiert.sql` (etwa nach
+// einem Trigger-Fix ohne begleitende neue Migration) erreicht eine bereits bestehende Datenbank
+// nie - `generierteTriggerAnwenden()` läuft heute nur innerhalb `migrieren()`, wenn tatsächlich
+// mindestens eine Migration angewendet wird. `triggerdriftAusgleichen()` schließt diese Lücke beim
+// Öffnen (unabhängig von einer Migration).
+describe('triggerdriftAusgleichen erkennt und behebt Trigger-Drift beim Öffnen (AP-0.24, F-06)', () => {
+  it('ein body-mutierter jrn_*-Trigger wird erkannt (anzahl > 0) und auf den Datei-Stand zurückgesetzt', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      const referenz = triggerSql(db, 'jrn_person_ai')
+      if (referenz === null) {
+        throw new Error('Testvoraussetzung verletzt: jrn_person_ai fehlt nach frischer Migration.')
+      }
+
+      db.exec('DROP TRIGGER jrn_person_ai')
+      db.exec(
+        `CREATE TRIGGER jrn_person_ai AFTER INSERT ON person
+WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
+BEGIN
+  SELECT 1;
+END;`,
+      )
+      expect(triggerSql(db, 'jrn_person_ai')).not.toBe(referenz)
+
+      const anzahl = triggerdriftAusgleichen(db, SCHEMA_BASIS)
+
+      expect(anzahl).toBeGreaterThan(0)
+      expect(triggerSql(db, 'jrn_person_ai')).toBe(referenz)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein fehlender jrn_*-Trigger wird erkannt (anzahl > 0) und wiederhergestellt', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      const referenz = triggerSql(db, 'jrn_person_ai')
+      if (referenz === null) {
+        throw new Error('Testvoraussetzung verletzt: jrn_person_ai fehlt nach frischer Migration.')
+      }
+
+      db.exec('DROP TRIGGER jrn_person_ai')
+      expect(triggerSql(db, 'jrn_person_ai')).toBeNull()
+
+      const anzahl = triggerdriftAusgleichen(db, SCHEMA_BASIS)
+
+      expect(anzahl).toBeGreaterThan(0)
+      expect(triggerSql(db, 'jrn_person_ai')).toBe(referenz)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('kein Drift (frisch migrierte Datenbank): anzahl = 0', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      expect(triggerdriftAusgleichen(db, SCHEMA_BASIS)).toBe(0)
     } finally {
       db.close()
     }
