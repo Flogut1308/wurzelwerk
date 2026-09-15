@@ -167,6 +167,17 @@ describe('verdichteAenderungen() — Gruppierung + Fold (AP-0.15)', () => {
   it('leere Eingaben: leeres Ergebnis', () => {
     expect(verdichteAenderungen([], [])).toEqual([])
   })
+
+  it('[insert, delete] + [insert] ergibt eine insert-Zeile (Fold-Restart, F-03)', () => {
+    const alt = [
+      eintrag({ operation: 'insert', wertNeuJson: '{"a":1}' }),
+      eintrag({ operation: 'delete', wertAltJson: '{"a":1}' }),
+    ]
+    const neu = [eintrag({ operation: 'insert', wertNeuJson: '{"a":2}' })]
+    const ergebnis = verdichteAenderungen(alt, neu)
+    expect(ergebnis).toHaveLength(1)
+    expect(ergebnis[0]).toEqual(eintrag({ operation: 'insert', wertAltJson: null, wertNeuJson: '{"a":2}' }))
+  })
 })
 
 describe('Gruppe B — Orchestrierung über den echten Bus (55_Architektur.md §4.8, AP-0.15)', () => {
