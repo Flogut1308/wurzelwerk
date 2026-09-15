@@ -287,7 +287,7 @@ Referenz: `55_Architektur.md` §4.2 bis §4.4.
 
 **Tests**
 - `test/schema/trigger-vorhanden.test.ts`: Jede Tabelle steht in genau einer der beiden Listen; jede journalisierte hat drei Trigger. Eine neue Tabelle ohne Eintrag macht den Test rot.
-- `test/invarianten/journal-vollstaendig.test.ts`: Ein direkter `INSERT` ohne Armierung **scheitert**. Genau drei Stellen im Code rufen `journalAus()`; eine vierte macht den Test rot.
+- `test/invarianten/journal-vollstaendig.test.ts`: Ein direkter `INSERT` ohne Armierung **scheitert**. `journalAus()` wird auf drei Kategorien beschränkt (Migration, Undo/Redo, Großimport); aktuell drei Aufrufstellen, mit AP-1.5 vier. Ein Aufruf außerhalb dieser Kategorien macht den Test rot.
 - `test/einheit/journal-trigger.test.ts`: Für jede Operation entsteht eine Zeile mit korrekter `operation`, aufsteigender `reihenfolge` und vollständigem JSON.
 - `test/einheit/trigger-generator.test.ts`: Der Generator erzeugt für eine Beispieltabelle die erwartete SQL-Zeichenkette.
 
