@@ -4,7 +4,7 @@
 import type { PersonAnlegenEin } from '../../shared/schemata/befehle'
 import { einfuegen } from '../repositories/person-repo'
 import type { Tx } from '../repositories/basis'
-import { neueId } from '../ipc/huelle'
+import { neueId } from '../id'
 
 /**
  * `id` und die Zeitstempel `erstellt_am`/`geaendert_am` kommen vom Handler, nicht vom Aufrufer

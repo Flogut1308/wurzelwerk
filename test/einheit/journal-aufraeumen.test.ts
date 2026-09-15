@@ -5,7 +5,6 @@
 // `JOURNAL_NICHT_RUECKNEHMBAR` statt eines stillen No-op-Undos (Test zuerst rot, CLAUDE.md §5).
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
   protokollInfo: vi.fn(),

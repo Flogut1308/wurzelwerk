@@ -1,5 +1,4 @@
 import { app, ipcMain } from 'electron'
-import { v7 as uuidv7 } from 'uuid'
 import { z } from 'zod'
 import type { FehlerCode } from '../../shared/fehler/codes'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
@@ -7,15 +6,11 @@ import type { Ergebnis } from '../../shared/ipc/ergebnis'
 import type { Aus, Ein, Kanal } from '../../shared/ipc/vertrag'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollFehler } from '../protokoll/logger'
+import { neueId } from '../id'
 
 /** Wird jedem Handler mitgegeben — bislang nur die Vorgangs-ID (§2.4). */
 export interface Kontext {
   readonly vorgangsId: string
-}
-
-/** UUID v7 (zeitsortierbar) als Vorgangs-ID; dieselbe ID steht im Protokoll (ADR-016). */
-export function neueId(): string {
-  return uuidv7()
 }
 
 const sqliteFehlerSchema = z.object({ code: z.string() })
