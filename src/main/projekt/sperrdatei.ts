@@ -20,7 +20,7 @@ const sperrdateiInhaltSchema: z.ZodType<SperrdateiInhalt> = z.object({
   gesetztAm: z.string(),
 })
 
-const prozessFehlerSchema = z.object({ code: z.string() })
+const dateisystemFehlerSchema = z.object({ code: z.string() })
 
 export type SperrdateiStatus = 'frei' | 'belegt' | 'verwaist'
 
@@ -38,6 +38,12 @@ export interface SperrdateiSetzenEin {
   readonly appVersion: string
 }
 
+/**
+ * `flag: 'wx'` (AP-0.19): exklusiv-atomares Anlegen. Existiert `projekt.lock` bereits, wirft
+ * `writeFileSync` mit `code === 'EEXIST'`, statt die fremde Sperre stillschweigend zu
+ * überschreiben — vorher lag zwischen `sperrdateiPruefen()` und `sperrdateiSetzen()` ein Fenster,
+ * in dem ein zweiter Prozess dieselbe Sperre für frei halten und ebenfalls setzen konnte.
+ */
 export function sperrdateiSetzen(ein: SperrdateiSetzenEin): void {
   const inhalt: SperrdateiInhalt = {
     pid: process.pid,
@@ -45,7 +51,13 @@ export function sperrdateiSetzen(ein: SperrdateiSetzenEin): void {
     appVersion: ein.appVersion,
     gesetztAm: new Date().toISOString(),
   }
-  writeFileSync(sperrdateiPfad(ein.ordnerPfad), JSON.stringify(inhalt, null, 2), 'utf8')
+  writeFileSync(sperrdateiPfad(ein.ordnerPfad), JSON.stringify(inhalt, null, 2), { encoding: 'utf8', flag: 'wx' })
+}
+
+/** Type-Guard für den `EEXIST`-Fall von {@link sperrdateiSetzen} (AP-0.19). */
+export function istSperrdateiKonflikt(u: unknown): boolean {
+  const geprueft = dateisystemFehlerSchema.safeParse(u)
+  return geprueft.success && geprueft.data.code === 'EEXIST'
 }
 
 export function sperrdateiEntfernen(ordnerPfad: string): void {
@@ -60,7 +72,7 @@ function prozessLebt(pid: number): boolean {
     process.kill(pid, 0)
     return true
   } catch (u) {
-    const geprueft = prozessFehlerSchema.safeParse(u)
+    const geprueft = dateisystemFehlerSchema.safeParse(u)
     // ESRCH: keine PID mit dieser Nummer → als tot werten. Jeder andere Fall (z. B. EPERM, der
     // Prozess existiert, gehört aber einem anderen Benutzer) konservativ als lebend werten.
     return !(geprueft.success && geprueft.data.code === 'ESRCH')

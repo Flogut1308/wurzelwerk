@@ -86,4 +86,9 @@ describe('main/projekt/sperrdatei', () => {
     writeFileSync(sperrdateiPfad(ordnerPfad), '{ kein json')
     expect(sperrdateiPruefen(ordnerPfad)).toEqual({ status: 'belegt' })
   })
+
+  it('zweites sperrdateiSetzen() auf denselben Ordner wirft, statt zu überschreiben (AP-0.19)', () => {
+    sperrdateiSetzen({ ordnerPfad, appVersion: '0.1.0-test' })
+    expect(() => sperrdateiSetzen({ ordnerPfad, appVersion: '0.2.0-test' })).toThrow()
+  })
 })

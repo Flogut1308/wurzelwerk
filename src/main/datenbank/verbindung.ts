@@ -11,21 +11,30 @@ import { suchnormalform } from '../../core/name/suchnormalform'
  */
 export function oeffnen(pfad: string): Database.Database {
   const db = new Database(pfad)
-  db.pragma('journal_mode = WAL')
-  db.pragma('synchronous = NORMAL')
-  db.pragma('foreign_keys = ON')
-  db.pragma('busy_timeout = 5000')
-  db.pragma('temp_store = MEMORY')
-  db.function('uuid7', () => uuidv7())
-  // AP-0.7 (55_Architektur.md §5.2): Trigger UND `alleAbgeleitetenNeuAufbauen()` rufen exakt
-  // dieselben SQL-Funktionen auf - das ist die Bitgleichheits-Garantie. `deterministic: true`
-  // erlaubt SQLite, die Funktionen in Indizes/generierten Spalten zu verwenden und Aufrufe mit
-  // gleichem Argument zu cachen; beide Funktionen hier sind reine Funktionen aus src/core (CLAUDE.md
-  // §4: kein Date.now/Math.random dort), erfüllen die Zusage also tatsächlich. Varargs-Guard: SQL
-  // NULL kommt hier nie als JS `undefined` an (better-sqlite3 reicht `null` durch) - `arg ?? ''`
-  // deckt beide ab, weil `src/core` selbst nichts von SQL/NULL wissen darf.
-  db.function('suchnormalform', { deterministic: true }, (arg: unknown) => suchnormalform(textArgument(arg)))
-  db.function('koelner_phonetik', { deterministic: true }, (arg: unknown) => koelnerPhonetik(textArgument(arg)))
+  try {
+    db.pragma('journal_mode = WAL')
+    db.pragma('synchronous = NORMAL')
+    db.pragma('foreign_keys = ON')
+    db.pragma('busy_timeout = 5000')
+    db.pragma('temp_store = MEMORY')
+    db.function('uuid7', () => uuidv7())
+    // AP-0.7 (55_Architektur.md §5.2): Trigger UND `alleAbgeleitetenNeuAufbauen()` rufen exakt
+    // dieselben SQL-Funktionen auf - das ist die Bitgleichheits-Garantie. `deterministic: true`
+    // erlaubt SQLite, die Funktionen in Indizes/generierten Spalten zu verwenden und Aufrufe mit
+    // gleichem Argument zu cachen; beide Funktionen hier sind reine Funktionen aus src/core (CLAUDE.md
+    // §4: kein Date.now/Math.random dort), erfüllen die Zusage also tatsächlich. Varargs-Guard: SQL
+    // NULL kommt hier nie als JS `undefined` an (better-sqlite3 reicht `null` durch) - `arg ?? ''`
+    // deckt beide ab, weil `src/core` selbst nichts von SQL/NULL wissen darf.
+    db.function('suchnormalform', { deterministic: true }, (arg: unknown) => suchnormalform(textArgument(arg)))
+    db.function('koelner_phonetik', { deterministic: true }, (arg: unknown) => koelnerPhonetik(textArgument(arg)))
+  } catch (u) {
+    // AP-0.19: `new Database(pfad)` öffnet die Datei bereits (offener OS-Handle) - wirft eines der
+    // Pragmas danach (z. B. `SQLITE_NOTADB` bei einer beschädigten Datei), bliebe dieser Handle
+    // ohne dieses `close()` für immer offen: `oeffnen()` gibt nie zurück, also bekommt niemand
+    // außerhalb dieser Funktion je eine Referenz, um ihn selbst zu schließen.
+    db.close()
+    throw u
+  }
   return db
 }
 
