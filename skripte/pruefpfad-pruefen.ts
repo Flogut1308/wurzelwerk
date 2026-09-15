@@ -127,6 +127,13 @@ interface SchutzWurzel {
 // importieren; test/schema entsprechend 'schema_bedingt' (AP-0.25 PR-4). test/golden existiert
 // zum Zeitpunkt dieses Nachtrags noch nicht (Phase 2, Layout) - der Scan überspringt fehlende
 // Ordner statt zu brechen.
+// REIHENFOLGE-ABHÄNGIGKEIT (bewusst): die 'immer'-Wurzeln stehen VOR der 'schema_bedingt'-Wurzel.
+// Der `bereitsExpandiert`-Schutz (s.u.) expandiert einen tief verschachtelten Helfer nur beim
+// ERSTEN Besuch; sein eigener Modus wird zwar bei jedem Besuch auf 'immer' hochgestuft, seine
+// transitiven Importe aber nicht erneut. Würde eine schema_bedingt-Wurzel vor einer 'immer'-Wurzel
+// verarbeitet, könnten solche tiefer liegenden Helfer fälschlich nur 'schema_bedingt' erhalten.
+// Heute nicht ausnutzbar (keine Datei wird über beide Pfade erreicht); bei Ergänzung neuer Wurzeln
+// die 'immer'-Wurzeln zuerst listen (oder nach Modusstärke sortieren).
 const SCHUTZ_WURZELN: readonly SchutzWurzel[] = [
   { ordner: 'test/invarianten', modus: 'immer' },
   { ordner: 'test/golden', modus: 'immer' },
