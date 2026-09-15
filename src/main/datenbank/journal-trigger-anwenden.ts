@@ -1,22 +1,22 @@
-// AP-0.8, 55_Architektur.md §4.4: "Trigger werden erzeugt, nicht geschrieben." Diese Datei WENDET
-// den von `pnpm trigger` (skripte/trigger-generieren.ts) erzeugten `jrn_*`-Triggerblock an - sie
-// GENERIERT ihn nicht. `generierteTriggerAnwenden()` wird von `src/main/datenbank/migration/
-// laeufer.ts` genau einmal nach jeder abgeschlossenen Migrationsschleife aufgerufen (nicht je
-// Einzelmigration) - das erreicht aber nur Datenbanken, für die gerade tatsächlich eine Migration
-// lief. `triggerdriftAusgleichen()` (AP-0.24, F-06) schließt die Lücke für bestehende Dateien: ein
-// Trigger-Fix OHNE begleitende neue Migration (etwa ein reiner `pnpm trigger`-Neulauf nach einer
-// Korrektur in `docs/schema/*.sql`-Kommentaren, die den generierten Body ändert) erreicht sie sonst
-// nie, weil `migrieren()` bei bereits aktueller `user_version` ein No-op ist und
-// `generierteTriggerAnwenden()` dann gar nicht läuft.
+// AP-0.8, 55_Architektur.md §4.4: "Trigger werden erzeugt, nicht geschrieben." `generierteTrigger
+// Anwenden()` (in `./migration/trigger-anwenden.ts`) wendet den von `pnpm trigger`
+// (skripte/trigger-generieren.ts) erzeugten `jrn_*`-Triggerblock an; sie wird von
+// `src/main/datenbank/migration/laeufer.ts` genau einmal nach jeder abgeschlossenen
+// Migrationsschleife aufgerufen (nicht je Einzelmigration) - das erreicht aber nur Datenbanken, für
+// die gerade tatsächlich eine Migration lief. `triggerdriftAusgleichen()` (AP-0.24, F-06) schließt
+// die Lücke für bestehende Dateien: ein Trigger-Fix OHNE begleitende neue Migration (etwa ein
+// reiner `pnpm trigger`-Neulauf nach einer Korrektur in `docs/schema/*.sql`-Kommentaren, die den
+// generierten Body ändert) erreicht sie sonst nie, weil `migrieren()` bei bereits aktueller
+// `user_version` ein No-op ist und `generierteTriggerAnwenden()` dann gar nicht läuft.
+//
+// AP-0.25 PR-1: `generierteTriggerAnwenden()` selbst liegt in `./migration/trigger-anwenden.ts`
+// (abhängigkeitsfrei), damit diese Datei zwar weiter `migrieren` aus `./migration/laeufer`
+// importiert (für den SOLL-Abbild-Referenzlauf in `sollAbbild()`), aber `./migration/laeufer.ts`
+// nicht mehr zurück auf diese Datei zeigt - das löst den vormaligen Importzyklus auf.
 import type Database from 'better-sqlite3'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { generierteTriggerAnwenden } from './migration/trigger-anwenden'
 import { migrieren } from './migration/laeufer'
 import { oeffnen } from './verbindung'
-
-interface TriggerNameZeile {
-  readonly name: string
-}
 
 interface TriggerNameSqlZeile {
   readonly name: string
@@ -60,49 +60,6 @@ function sollAbbild(basisverzeichnis: string): ReadonlyMap<string, string> {
   }
   sollAbbildCache.set(basisverzeichnis, abbild)
   return abbild
-}
-
-/**
- * Absoluter Pfad zu `trigger_generiert.sql`, angehängt an ein **übergebenes** Basisverzeichnis
- * (AP-0.17) - analog `src/main/datenbank/migration/registrierung.ts` (`migrationsDateiPfad`):
- * diese Funktion trifft selbst keine Annahme über den Prozess, der Aufrufer entscheidet.
- */
-function triggerDateiPfad(basisverzeichnis: string): string {
-  return join(basisverzeichnis, 'trigger_generiert.sql')
-}
-
-/** Namen aller vorhandenen `jrn_*`-Trigger, alphabetisch sortiert (für ein deterministisches DROP). */
-function vorhandeneJrnTrigger(db: Database.Database): readonly string[] {
-  return db
-    .prepare<[], TriggerNameZeile>("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'jrn\\_%' ESCAPE '\\'")
-    .all()
-    .map((zeile) => zeile.name)
-    .sort((a, b) => a.localeCompare(b))
-}
-
-/**
- * Löscht alle vorhandenen `jrn_*`-Journal-Trigger und wendet `docs/schema/trigger_generiert.sql`
- * neu an (55_Architektur.md §4.4: "als letzter Schritt jeder Migration"). Läuft in einer eigenen
- * Transaktion - analog zu `src/main/datenbank/trigger.ts` (`alleAbgeleitetenNeuAufbauen`) ist das
- * hier keine `src/main/befehle/`-Transaktion (CLAUDE.md §2), sondern selbst die
- * Schema-Wartungsoperation, aufgerufen aus `laeufer.ts` innerhalb dessen eigener Migrationslogik.
- */
-export function generierteTriggerAnwenden(db: Database.Database, basisverzeichnis: string): void {
-  db.exec('BEGIN')
-  try {
-    for (const name of vorhandeneJrnTrigger(db)) {
-      // `name` kommt ausschließlich aus sqlite_master (nie aus einer Nutzereingabe) - SQLite
-      // erlaubt für Bezeichner (Trigger-/Tabellennamen) ohnehin kein Parameter-Binding, nur für
-      // Werte (CLAUDE.md §6), analog zur Begründung bei `PRAGMA user_version` in laeufer.ts.
-      db.exec(`DROP TRIGGER ${name}`)
-    }
-    const inhalt = readFileSync(triggerDateiPfad(basisverzeichnis), 'utf8')
-    db.exec(inhalt)
-    db.exec('COMMIT')
-  } catch (fehler) {
-    db.exec('ROLLBACK')
-    throw fehler
-  }
 }
 
 /**
