@@ -101,6 +101,16 @@
   --wz-status-neutral-rahmen: #DAD5CA;
   --wz-status-neutral-text: #57534B;
 
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) — Leitprinzip 1, 10_Vision_Scope §4.
+     Vertrauens-Achse: Grün = verankert, Ocker = vorläufig. Bedeutung nie über Farbe allein
+     (§1.2 Regel 4) — das Abzeichen-Label trägt sie. Werte aus der Konfidenz-/status-Palette. ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #E9F0E4;
+  --wz-beleg-selbst-erlebt-rahmen: #BFD3B4;
+  --wz-beleg-selbst-erlebt-text: #2F5227;
+  --wz-beleg-hoerensagen-flaeche: #F3EDDD;
+  --wz-beleg-hoerensagen-rahmen: #DAC79A;
+  --wz-beleg-hoerensagen-text: #6E5316;
+
   /* ---- §1.2 Konfidenz (ordinal, Helligkeit monoton) ---- */
   --wz-daten-konfidenz-1: #A5664A;
   --wz-daten-konfidenz-2: #745E2B;
@@ -268,6 +278,14 @@
     --wz-status-neutral-rahmen: #3E423F;
     --wz-status-neutral-text: #B4B0A6;
 
+    /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+    --wz-beleg-selbst-erlebt-flaeche: #1D2A1E;
+    --wz-beleg-selbst-erlebt-rahmen: #35492F;
+    --wz-beleg-selbst-erlebt-text: #A8CE9A;
+    --wz-beleg-hoerensagen-flaeche: #272216;
+    --wz-beleg-hoerensagen-rahmen: #4A3F27;
+    --wz-beleg-hoerensagen-text: #D9BE84;
+
     --wz-daten-konfidenz-1: #A66447;
     --wz-daten-konfidenz-2: #A6873F;
     --wz-daten-konfidenz-3: #80AF4B;
@@ -389,6 +407,14 @@
   --wz-status-neutral-rahmen: #3E423F;
   --wz-status-neutral-text: #B4B0A6;
 
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #1D2A1E;
+  --wz-beleg-selbst-erlebt-rahmen: #35492F;
+  --wz-beleg-selbst-erlebt-text: #A8CE9A;
+  --wz-beleg-hoerensagen-flaeche: #272216;
+  --wz-beleg-hoerensagen-rahmen: #4A3F27;
+  --wz-beleg-hoerensagen-text: #D9BE84;
+
   --wz-daten-konfidenz-1: #A66447;
   --wz-daten-konfidenz-2: #A6873F;
   --wz-daten-konfidenz-3: #80AF4B;
@@ -508,6 +534,14 @@
   --wz-status-neutral-flaeche: #F2F0EB;
   --wz-status-neutral-rahmen: #DAD5CA;
   --wz-status-neutral-text: #57534B;
+
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #E9F0E4;
+  --wz-beleg-selbst-erlebt-rahmen: #BFD3B4;
+  --wz-beleg-selbst-erlebt-text: #2F5227;
+  --wz-beleg-hoerensagen-flaeche: #F3EDDD;
+  --wz-beleg-hoerensagen-rahmen: #DAC79A;
+  --wz-beleg-hoerensagen-text: #6E5316;
 
   --wz-daten-konfidenz-1: #A5664A;
   --wz-daten-konfidenz-2: #745E2B;

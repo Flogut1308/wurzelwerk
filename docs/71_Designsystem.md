@@ -99,6 +99,15 @@ sich entscheidet, ob ein Themenwechsel funktioniert.
 Konfidenzstufe 1 („Vermutung") ist kein Fehler, und eine gelbe Warnung darf nicht wie
 „wahrscheinlich" aussehen. Zwei getrennte Paletten, das ist eine Anforderung an den Entwurf.
 
+**Beleg-Unmittelbarkeit** — trägt die Unterscheidung *selbst erlebt* vs. *vom Hörensagen*
+(`unmittelbarkeit`, Leitprinzip 1 aus `10_Vision_Scope.md` §4), je in `-flaeche`, `-rahmen`, `-text`:
+
+`--wz-beleg-selbst-erlebt` · `--wz-beleg-hoerensagen`
+
+Eigener Rollensatz, weil *Herkunft* (Beleg) und *Bewertung* (Konfidenz/Status) verschiedene Achsen
+sind. Die Bedeutung wird nie über den Farbton allein getragen — das Belegabzeichen trägt das Label
+(§1.2 Regel 4). Verwendet in `Belegabzeichen`/`BelegPopover` (§2.2) und im Interview-Modus (§3.5).
+
 ### 1.2 Farbe — Datenebenen
 
 `70_UX_Konzept.md` §5 lässt **immer nur eine** Datenebene gleichzeitig aktiv sein, mit Legende.
