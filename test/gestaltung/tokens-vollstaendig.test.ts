@@ -70,6 +70,10 @@ const rootDekl = deklarationen(blockInhalt(ohneKommentare, ':root {'))
 const dunkelDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-theme="dunkel"] {'))
 const hellDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-theme="hell"] {'))
 const kompaktDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-dichte="kompakt"] {'))
+// Der Systemvorgabe-Dunkelblock: die Überschreibungen im @media(prefers-color-scheme: dark).
+// Er treibt die STANDARDEINSTELLUNG (§1.7 Regel 3, kein data-theme gestempelt) und wird sonst
+// von keinem Test erfasst — eine nur hier vergessene Rolle träfe genau die Vorgabe.
+const mediaDunkelDekl = deklarationen(blockInhalt(ohneKommentare, '@media (prefers-color-scheme: dark) {'))
 
 // Alle irgendwo deklarierten Rollen (auch im Systemvorgabe-@media-Block).
 const alleDekl = new Set<string>()
@@ -148,6 +152,21 @@ describe('tokens.css — Vollständigkeit des Token-Vertrags (docs/71 §1)', () 
     const nurHell = [...hellDekl.keys()].filter((r) => !dunkelDekl.has(r))
     expect(nurDunkel, `nur im Dunkelthema: ${nurDunkel.join(', ')}`).toEqual([])
     expect(nurHell, `nur im Hellthema: ${nurHell.join(', ')}`).toEqual([])
+  })
+
+  it('hält @media(prefers-color-scheme: dark) deckungsgleich mit [data-theme="dunkel"] — Namen UND Werte', () => {
+    // §1.7 Regel 1/3: Die Systemvorgabe (dunkel) muss dieselben Rollen mit denselben Werten
+    // tragen wie das ausdrücklich gewählte Dunkelthema, sonst driftet die Standardeinstellung
+    // still ab. Heute deckungsgleich — hier festgezurrt, bevor es das nicht mehr ist.
+    expect(mediaDunkelDekl.size).toBeGreaterThan(80) // Schutz gegen versehentlich leere Erkennung
+    const nurMedia = [...mediaDunkelDekl.keys()].filter((r) => !dunkelDekl.has(r))
+    const nurDunkel = [...dunkelDekl.keys()].filter((r) => !mediaDunkelDekl.has(r))
+    expect(nurMedia, `nur im @media(dark)-Block: ${nurMedia.join(', ')}`).toEqual([])
+    expect(nurDunkel, `nur im [data-theme="dunkel"]-Block: ${nurDunkel.join(', ')}`).toEqual([])
+    const wertAbweichung = [...dunkelDekl]
+      .filter(([name, wert]) => mediaDunkelDekl.get(name) !== wert)
+      .map(([name]) => name)
+    expect(wertAbweichung, `Wertabweichung @media(dark) ↔ dunkel: ${wertAbweichung.join(', ')}`).toEqual([])
   })
 
   it('überschreibt in der kompakten Dichte genau die vier Dichtetokens (§1.6)', () => {
