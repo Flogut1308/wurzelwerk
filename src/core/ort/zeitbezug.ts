@@ -1,0 +1,58 @@
+// Core-lokale Zeitbezug-Logik für Ortsnamen und Ortszugehörigkeiten (AP-1.2, 50_Datenmodell.md
+// §2.4). Reines TypeScript, KEIN Import aus src/shared (CLAUDE.md §2). Die Typen hier bilden nur
+// die für den Zeitbezug relevanten Felder von `ortsname`/`ortszugehoerigkeit` ab, bewusst OHNE
+// DB-Felder (keine `id`, kein `ort_id`) — der Kern bleibt frei von Datenbank-Konzepten. `art`
+// spiegelt `OrtszugehoerigkeitArtEnum` (src/shared/schemata/ortszugehoerigkeit.ts).
+
+/** Deckt sich mit `OrtszugehoerigkeitArtEnum` (src/shared/schemata/ortszugehoerigkeit.ts). */
+export type OrtszugehoerigkeitArt = 'politisch' | 'kirchlich'
+
+export interface OrtsnameEintrag {
+  readonly name: string
+  /** julianische Tageszahl (JDN), inklusive. `undefined` = nach unten offen. */
+  readonly gueltigVon?: number
+  /** julianische Tageszahl (JDN), inklusive. `undefined` = nach oben offen. */
+  readonly gueltigBis?: number
+  readonly istBevorzugt?: boolean
+}
+
+export interface ZugehoerigkeitEintrag {
+  readonly uebergeordnetId: string
+  readonly art: OrtszugehoerigkeitArt
+  /** julianische Tageszahl (JDN), inklusive. `undefined` = nach unten offen. */
+  readonly gueltigVon?: number
+  /** julianische Tageszahl (JDN), inklusive. `undefined` = nach oben offen. */
+  readonly gueltigBis?: number
+}
+
+/** `undefined` an einer Grenze bedeutet "offen" in diese Richtung. */
+function istGueltigBei(gueltigVon: number | undefined, gueltigBis: number | undefined, jdn: number): boolean {
+  const vonPasst = gueltigVon === undefined || gueltigVon <= jdn
+  const bisPasst = gueltigBis === undefined || jdn <= gueltigBis
+  return vonPasst && bisPasst
+}
+
+/**
+ * Findet den zu `jdn` gültigen Ortsnamen (Grenzen inklusive, offene Enden über `undefined`).
+ * Ohne `jdn` wird stattdessen der als `istBevorzugt` markierte Name geliefert — für Ansichten
+ * ohne Datumsbezug (z. B. eine Ortsliste).
+ */
+export function gueltigerOrtsname(namen: readonly OrtsnameEintrag[], jdn?: number): OrtsnameEintrag | undefined {
+  if (jdn === undefined) {
+    return namen.find((eintrag) => eintrag.istBevorzugt === true)
+  }
+  return namen.find((eintrag) => istGueltigBei(eintrag.gueltigVon, eintrag.gueltigBis, jdn))
+}
+
+/**
+ * Filtert Ortszugehörigkeiten zuerst nach `art` (politisch/kirchlich werden NIE gemischt — ein
+ * Ort kann am selben Tag zu einem anderen politischen Kreis UND einem anderen kirchlichen
+ * Sprengel gehören), erst danach nach Gültigkeit zu `jdn`.
+ */
+export function zugehoerigkeitsketteZuDatum(
+  zugehoerigkeiten: readonly ZugehoerigkeitEintrag[],
+  art: OrtszugehoerigkeitArt,
+  jdn: number,
+): readonly ZugehoerigkeitEintrag[] {
+  return zugehoerigkeiten.filter((eintrag) => eintrag.art === art && istGueltigBei(eintrag.gueltigVon, eintrag.gueltigBis, jdn))
+}
