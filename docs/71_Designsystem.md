@@ -133,6 +133,20 @@ Jede Ebene ist eine eigene Palette:
 Regel 3 und 4 sind der Grund, warum die Konfidenzpalette nicht einfach eine
 Ampel sein kann. Sie muss auf einem gedruckten Poster genauso funktionieren wie am Bildschirm.
 
+**Umsetzung (PR #48):** `test/gestaltung/datenpaletten.test.ts` prüft diese Regeln maschinell in
+beiden Themen. Zwei Präzisierungen, die die Umsetzung erzwungen hat:
+- Regel 2 („Text darauf") greift nur für **text-tragende** Flächen (`generation`, `strang`,
+  `geschlecht`, `diagnose`). Für `konfidenz` (der `KonfidenzPunkt` ist ein Punkt, §2.1 — kein Text
+  darauf) und `beziehung` (Kantenfarben, §5 — die Kantenform trägt die Bedeutung) ist sie
+  gegenstandslos; Regel 1 gilt für beide weiter.
+- Regel 4 wird für die **ordinale** Konfidenzpalette scharf geprüft (die Reihenfolge muss auch
+  farbfehlsichtig lesbar bleiben, ΔE76 ≥ 5). Für kategoriale Paletten kollabiert Deuteranopie die
+  Rot-Grün-Achse — 12 farbunterscheidbare Stufen sind bauartbedingt unmöglich; hier trägt die
+  zweite Kodierung (Regel 4 Satz 2), nicht der Farbton.
+- Offener Punkt: die **dunkle** Konfidenzrampe kann Regel 1∧2∧3 nicht zugleich erfüllen (Fläche
+  ≥3:1, Text ≥4,5:1, Stufenabstand ≥8 L*) — sie bräuchte eine hellere Neuspreizung. Vermerkt in
+  `80_Offene_Fragen.md` §11 (U-DF8).
+
 ### 1.3 Typografie
 
 **Rollen** (feste Namen, offene Werte):
