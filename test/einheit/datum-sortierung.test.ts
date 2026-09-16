@@ -155,4 +155,16 @@ describe('sortIntervall (src/core/datum/sortierschluessel.ts, AP-1.1)', () => {
     const julianisch = sortIntervall({ kalender: 'julian', modifikator: 'exakt', praezision: 'jahr', datum: { jahr: 1700 } })
     expect(julianisch).not.toEqual(gregorianisch)
   })
+
+  it("'nach 9999' bleibt gültig: sortVon wird an SENTINEL_JDN_MAX geklammert, sortVon <= sortBis", () => {
+    const nach = sortIntervall({ kalender: 'gregorian', modifikator: 'nach', praezision: 'jahr', datum: { jahr: 9999 } })
+    expect(nach.sortVon).toBeLessThanOrEqual(nach.sortBis)
+    expect(nach.sortVon).toBe(SENTINEL_JDN_MAX)
+  })
+
+  it("defensiv: 'vor' am unteren Sentinel-Rand bleibt gültig, sortBis >= SENTINEL_JDN_MIN", () => {
+    const vor = sortIntervall({ kalender: 'gregorian', modifikator: 'vor', praezision: 'jahr', datum: { jahr: -4712 } })
+    expect(vor.sortBis).toBeGreaterThanOrEqual(SENTINEL_JDN_MIN)
+    expect(vor.sortVon).toBeLessThanOrEqual(vor.sortBis)
+  })
 })

@@ -98,9 +98,19 @@ export function sortIntervall(eingabe: SortIntervallEingabe): SortIntervall {
 
   switch (modifikator) {
     case 'vor':
-      return { sortVon: SENTINEL_JDN_MIN, sortBis: teildatumAnfang(datum, praezision, kalender) - 1 }
+      // Geklammert: bei einem Teildatum nahe SENTINEL_JDN_MIN würde "- 1" unter die untere
+      // Sentinel-Konstante fallen und sortVon <= sortBis verletzen (AP-1.1-Invariante).
+      return {
+        sortVon: SENTINEL_JDN_MIN,
+        sortBis: Math.max(teildatumAnfang(datum, praezision, kalender) - 1, SENTINEL_JDN_MIN),
+      }
     case 'nach':
-      return { sortVon: teildatumEnde(datum, praezision, kalender) + 1, sortBis: SENTINEL_JDN_MAX }
+      // Geklammert: bei "nach 9999" liegt teildatumEnde() bereits auf SENTINEL_JDN_MAX, "+ 1"
+      // würde darüber hinausschießen und sortVon <= sortBis verletzen (AP-1.1-Invariante).
+      return {
+        sortVon: Math.min(teildatumEnde(datum, praezision, kalender) + 1, SENTINEL_JDN_MAX),
+        sortBis: SENTINEL_JDN_MAX,
+      }
     case 'zwischen':
     case 'von_bis': {
       const ende = zweitesDatum ?? datum
