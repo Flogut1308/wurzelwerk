@@ -1,0 +1,160 @@
+// Reine Daten: Umschrift-Tabellen Kyrillisch <-> Latein (AP-1.2, ADR-014). KEINE Funktionen
+// hier, nur `as const`-Tabellen — die Logik (Ladezeit-Maps, NFC-Normalisierung) steht in
+// umschrift.ts.
+//
+// WICHTIG — NICHT mit src/core/name/suchnormalform.ts zusammenlegen: Die dortige
+// KYRILLISCH_ZU_LATEIN-Tabelle (AP-0.7) ist ISO-9-NAH, aber bewusst diakritikafrei und
+// viele-zu-eins (z. B. щ -> "sc", ж -> "zh") — perfekt für einen Such-Index, aber NICHT
+// umkehrbar. Die ISO9_TABELLE hier ist ISO 9:1995 EXAKT: jedes Zeichenpaar ist 1:1, die
+// lateinische Seite ist über die gesamte Tabelle eindeutig, keine Digraphen — nur so lässt sich
+// aus der Umschrift das kyrillische Original zurückgewinnen (iso9Zurueck() in umschrift.ts).
+// Wer beide Tabellen zusammenlegt, macht die Suchnormalform weniger robust (Diakritika tauchen
+// wieder auf) oder die Umschrift nicht mehr umkehrbar — deshalb zwei getrennte Dateien, zwei
+// getrennte Zwecke.
+
+/**
+ * ISO 9:1995, Kyrillisch (russisches Alphabet) -> Latein, EXAKT. Strikt 1:1: jede lateinische
+ * Zeichenkette taucht über die gesamte Tabelle genau einmal auf. `ъ` (hartes Zeichen) und `ь`
+ * (weiches Zeichen) sind im Kyrillischen nie großgeschrieben (sie stehen nie am Wortanfang) und
+ * haben daher keine Großschreibungs-Variante in dieser Tabelle.
+ */
+export const ISO9_TABELLE: readonly (readonly [kyrillisch: string, lateinisch: string])[] = [
+  ['а', 'a'],
+  ['А', 'A'],
+  ['б', 'b'],
+  ['Б', 'B'],
+  ['в', 'v'],
+  ['В', 'V'],
+  ['г', 'g'],
+  ['Г', 'G'],
+  ['д', 'd'],
+  ['Д', 'D'],
+  ['е', 'e'],
+  ['Е', 'E'],
+  ['ё', 'ë'],
+  ['Ё', 'Ë'],
+  ['ж', 'ž'],
+  ['Ж', 'Ž'],
+  ['з', 'z'],
+  ['З', 'Z'],
+  ['и', 'i'],
+  ['И', 'I'],
+  ['й', 'j'],
+  ['Й', 'J'],
+  ['к', 'k'],
+  ['К', 'K'],
+  ['л', 'l'],
+  ['Л', 'L'],
+  ['м', 'm'],
+  ['М', 'M'],
+  ['н', 'n'],
+  ['Н', 'N'],
+  ['о', 'o'],
+  ['О', 'O'],
+  ['п', 'p'],
+  ['П', 'P'],
+  ['р', 'r'],
+  ['Р', 'R'],
+  ['с', 's'],
+  ['С', 'S'],
+  ['т', 't'],
+  ['Т', 'T'],
+  ['у', 'u'],
+  ['У', 'U'],
+  ['ф', 'f'],
+  ['Ф', 'F'],
+  ['х', 'h'],
+  ['Х', 'H'],
+  ['ц', 'c'],
+  ['Ц', 'C'],
+  ['ч', 'č'],
+  ['Ч', 'Č'],
+  ['ш', 'š'],
+  ['Ш', 'Š'],
+  ['щ', 'ŝ'],
+  ['Щ', 'Ŝ'],
+  ['ъ', 'ʺ'],
+  ['ы', 'y'],
+  ['Ы', 'Y'],
+  ['ь', 'ʹ'],
+  ['э', 'è'],
+  ['Э', 'È'],
+  ['ю', 'û'],
+  ['Ю', 'Û'],
+  ['я', 'â'],
+  ['Я', 'Â'],
+] as const
+
+/**
+ * DIN 1460, Kyrillisch -> Latein, NUR VORWÄRTS. Identisch mit ISO9_TABELLE, außer bei vier
+ * Buchstaben, die DIN 1460 als Digraph statt als Diakritikum schreibt: х -> "ch", щ -> "šč",
+ * ю -> "ju", я -> "ja". Das ist ausdrücklich viele-zu-eins (z. B. liefern sowohl "щ" als auch die
+ * Zeichenfolge "ш"+"ч" denselben DIN-1460-Text "šč") — deshalb gibt es KEINE
+ * din1460Zurueck()-Funktion (umschrift.ts), eine Rückumwandlung wäre nicht eindeutig.
+ */
+export const DIN1460_VORWAERTS_TABELLE: readonly (readonly [kyrillisch: string, lateinisch: string])[] = [
+  ['а', 'a'],
+  ['А', 'A'],
+  ['б', 'b'],
+  ['Б', 'B'],
+  ['в', 'v'],
+  ['В', 'V'],
+  ['г', 'g'],
+  ['Г', 'G'],
+  ['д', 'd'],
+  ['Д', 'D'],
+  ['е', 'e'],
+  ['Е', 'E'],
+  ['ё', 'ë'],
+  ['Ё', 'Ë'],
+  ['ж', 'ž'],
+  ['Ж', 'Ž'],
+  ['з', 'z'],
+  ['З', 'Z'],
+  ['и', 'i'],
+  ['И', 'I'],
+  ['й', 'j'],
+  ['Й', 'J'],
+  ['к', 'k'],
+  ['К', 'K'],
+  ['л', 'l'],
+  ['Л', 'L'],
+  ['м', 'm'],
+  ['М', 'M'],
+  ['н', 'n'],
+  ['Н', 'N'],
+  ['о', 'o'],
+  ['О', 'O'],
+  ['п', 'p'],
+  ['П', 'P'],
+  ['р', 'r'],
+  ['Р', 'R'],
+  ['с', 's'],
+  ['С', 'S'],
+  ['т', 't'],
+  ['Т', 'T'],
+  ['у', 'u'],
+  ['У', 'U'],
+  ['ф', 'f'],
+  ['Ф', 'F'],
+  ['х', 'ch'],
+  ['Х', 'Ch'],
+  ['ц', 'c'],
+  ['Ц', 'C'],
+  ['ч', 'č'],
+  ['Ч', 'Č'],
+  ['ш', 'š'],
+  ['Ш', 'Š'],
+  ['щ', 'šč'],
+  ['Щ', 'Šč'],
+  ['ъ', 'ʺ'],
+  ['ы', 'y'],
+  ['Ы', 'Y'],
+  ['ь', 'ʹ'],
+  ['э', 'è'],
+  ['Э', 'È'],
+  ['ю', 'ju'],
+  ['Ю', 'Ju'],
+  ['я', 'ja'],
+  ['Я', 'Ja'],
+] as const
