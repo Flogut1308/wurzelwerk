@@ -1,0 +1,266 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": {
+    "am": "2026-08-23",
+    "werkzeug": "claude-skill:wurzelwerk-import-vertrag",
+    "werkzeug_version": "1.0.0"
+  },
+  "zusammenfassung": {
+    "personen": 3,
+    "orte": 3,
+    "ereignisse": 1,
+    "elternschaften": 2,
+    "aussagen": 3,
+    "notizen_unverarbeitet": 2
+  },
+  "quellen": [
+    {
+      "id": "tmp:q-erna",
+      "typ": "muendlich",
+      "titel": "Gespraech mit Erna Wruck, 12.09.2026",
+      "informant_person": "tmp:erna",
+      "gespraechsdatum": {
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "2026-09-12"
+      },
+      "form": "gespraech",
+      "unmittelbarkeit": "vom_hoerensagen",
+      "informationsart": "sekundaer",
+      "notiz": "Erna hat ihren Grossvater nie gekannt; sie gibt wieder, was ihre Mutter erzaehlt hat."
+    },
+    {
+      "id": "tmp:q-grabstein",
+      "typ": "grabstein",
+      "titel": "Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11 (Foto von Verwandten 2019)",
+      "art": "original",
+      "informationsart": "primaer"
+    },
+    {
+      "id": "tmp:q-brief",
+      "typ": "familienbesitz",
+      "titel": "Brief von Tante Lotte an ihre Schwester, undatiert, wohl 1960er",
+      "art": "original",
+      "informationsart": "sekundaer"
+    }
+  ],
+  "personen": [
+    {
+      "id": "tmp:erna",
+      "geschlecht": "F",
+      "lebend_status": "lebend",
+      "privat": true,
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Erna",
+          "nachname": "Wruck",
+          "ist_bevorzugt": true
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "Ich bin Erna, geboren Wruck.",
+          "konfidenz": 4
+        }
+      ]
+    },
+    {
+      "id": "tmp:august",
+      "geschlecht": "M",
+      "lebend_status": "verstorben",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "August",
+          "nachname": "Wruck",
+          "original_text": "August Wruck",
+          "ist_bevorzugt": true
+        }
+      ],
+      "unsicherheit": "Nur aus zweiter Hand bezeugt. Der Grabstein nennt einen August Wruck, aber ob es derselbe ist, ist nicht belegt.",
+      "konfidenz": 2,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "Mein Grossvater hiess August. Der ist noch in Ostpreussen geboren.",
+          "konfidenz": 2
+        },
+        {
+          "quelle": "tmp:q-grabstein",
+          "transkript": "AUGUST WRUCK",
+          "konfidenz": 3
+        }
+      ]
+    },
+    {
+      "id": "tmp:vater-august",
+      "ist_platzhalter": true,
+      "platzhalter_grund": "unbekannt",
+      "unsicherheit": "Erna weiss nur, dass Augusts Vater 'auch schon Schmied war'. Kein Name.",
+      "konfidenz": 1,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "Dessen Vater war auch schon Schmied, glaube ich.",
+          "konfidenz": 1
+        }
+      ]
+    }
+  ],
+  "orte": [
+    {
+      "id": "tmp:ort-kwidzyn",
+      "typ": "stadt",
+      "namen": [
+        {
+          "name": "Marienwerder",
+          "sprache": "de",
+          "gueltig_bis": 1945,
+          "original_text": "Ostpreussen, hat Erna gesagt"
+        },
+        {
+          "name": "Kwidzyn",
+          "sprache": "pl",
+          "gueltig_von": 1945,
+          "ist_bevorzugt": true
+        }
+      ],
+      "notiz": "Erna sagte 'Ostpreussen'. Marienwerder lag in Westpreussen, nicht in Ostpreussen. Die Ortszuordnung ist eine Annahme aufgrund des Grabsteinfundorts, nicht Ernas Aussage.",
+      "zugehoerigkeiten": [
+        {
+          "uebergeordnet": "tmp:ort-westpreussen",
+          "art": "politisch",
+          "gueltig_bis": 1945
+        },
+        {
+          "uebergeordnet": "tmp:ort-polen",
+          "art": "politisch",
+          "gueltig_von": 1945
+        }
+      ]
+    },
+    {
+      "id": "tmp:ort-westpreussen",
+      "typ": "provinz",
+      "namen": [{ "name": "Westpreussen", "sprache": "de", "gueltig_bis": 1945, "ist_bevorzugt": true }]
+    },
+    {
+      "id": "tmp:ort-polen",
+      "typ": "staat",
+      "namen": [{ "name": "Polen", "sprache": "de", "gueltig_von": 1945, "ist_bevorzugt": true }]
+    }
+  ],
+  "ereignisse": [
+    {
+      "id": "tmp:e-geb-august",
+      "typ": "geburt",
+      "ort": "tmp:ort-kwidzyn",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "etwa",
+        "praezision": "jahrzehnt",
+        "wert1": "1890",
+        "original_text": "so um 1890 rum, sagt Erna"
+      },
+      "beteiligungen": [{ "person": "tmp:august", "rolle": "hauptperson" }],
+      "beschreibung": "Geburtsort ist erschlossen, nicht bezeugt. Siehe Notiz am Ort.",
+      "konfidenz": 2,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "so um 1890 rum",
+          "konfidenz": 2
+        }
+      ]
+    }
+  ],
+  "elternschaften": [
+    {
+      "elternteil": "tmp:vater-august",
+      "kind": "tmp:august",
+      "typ": "biologisch",
+      "konfidenz": 1,
+      "belege": [{ "quelle": "tmp:q-erna", "konfidenz": 1 }],
+      "notiz": "Nur ueber die Aussage 'dessen Vater'."
+    },
+    {
+      "elternteil": "tmp:august",
+      "kind": "tmp:erna",
+      "typ": "biologisch",
+      "konfidenz": 1,
+      "belege": [{ "quelle": "tmp:q-erna", "konfidenz": 1 }],
+      "notiz": "ACHTUNG: Erna nennt August ihren Grossvater, nicht ihren Vater. Diese Kante ist bewusst falsch gesetzt, damit der Trockenlauf sie als IMP-302 meldet."
+    }
+  ],
+  "aussagen": [
+    {
+      "subjekt_typ": "person",
+      "subjekt": "tmp:august",
+      "praedikat": "todesdatum",
+      "wert_text": "1961",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "jahr",
+        "wert1": "1961"
+      },
+      "konfidenz": 3,
+      "begruendung": "Der Grabstein ist die staerkere Quelle. Bevorzugt gegenueber Ernas Erinnerung.",
+      "ist_bevorzugt": true,
+      "belege": [
+        {
+          "quelle": "tmp:q-grabstein",
+          "transkript": "AUGUST WRUCK 1890 - 1961",
+          "konfidenz": 3
+        }
+      ]
+    },
+    {
+      "subjekt_typ": "person",
+      "subjekt": "tmp:august",
+      "praedikat": "todesdatum",
+      "wert_text": "1958",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "etwa",
+        "praezision": "jahr",
+        "wert1": "1958",
+        "original_text": "der ist gestorben, als ich in die Schule kam, das war 58 oder 59"
+      },
+      "unsicherheit": "Widerspricht dem Grabstein um drei Jahre. Beide Angaben bleiben stehen.",
+      "konfidenz": 2,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "der ist gestorben, als ich in die Schule kam, das war 58 oder 59",
+          "konfidenz": 2
+        }
+      ]
+    },
+    {
+      "subjekt_typ": "person",
+      "subjekt": "tmp:august",
+      "praedikat": "beruf",
+      "wert_text": "Schmied",
+      "ist_bevorzugt": true,
+      "konfidenz": 2,
+      "belege": [{ "quelle": "tmp:q-erna", "transkript": "Der war Schmied.", "konfidenz": 2 }]
+    }
+  ],
+  "notizen_unverarbeitet": [
+    {
+      "text": "Erna sagte: 'Und dann war da noch der Bruder, der nach Kanada gegangen ist, der Otto oder Ottokar, das weiss ich nicht mehr genau. Der hat drueben geheiratet.'",
+      "warum": "Zwei moegliche Vornamen, keine weiteren Angaben. Eine Person mit unsicherem Namen anzulegen wuerde eine Entscheidung vorwegnehmen, die Florian treffen soll. Nicht angelegt.",
+      "betrifft_vermutlich": ["tmp:august"],
+      "herkunft": "Aufnahme 00:14:22"
+    },
+    {
+      "text": "Im Brief von Tante Lotte steht: 'seit dem Unglueck in der Werkstatt war er nicht mehr derselbe'.",
+      "warum": "Unklar, wer gemeint ist und was das Unglueck war. Weder als Ereignis noch als Diagnose zuordenbar. Wortlaut bewahrt.",
+      "herkunft": "Brief von Tante Lotte, Seite 2"
+    }
+  ]
+}

@@ -1,0 +1,227 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": {
+    "am": "2026-08-23",
+    "werkzeug": "claude-skill:wurzelwerk-import-vertrag",
+    "werkzeug_version": "1.0.0",
+    "bearbeiter": "Florian"
+  },
+  "pruefsumme_quelltext": "sha256-3b1f0c6a9d2e4f5081a7b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708",
+  "zusammenfassung": {
+    "personen": 3,
+    "orte": 1,
+    "ereignisse": 3,
+    "elternschaften": 2,
+    "partnerschaften": 1,
+    "aussagen": 1,
+    "notizen_unverarbeitet": 0
+  },
+  "quellen": [
+    {
+      "id": "tmp:q-stammbuch",
+      "typ": "familienbesitz",
+      "titel": "Familienstammbuch Gutnoff, Seite 1-2 (Fotografie vom 20.08.2026)",
+      "art": "original",
+      "informationsart": "primaer",
+      "notiz": "Blaues Heft aus dem Nachlass. Handschrift durchgehend dieselbe."
+    }
+  ],
+  "personen": [
+    {
+      "id": "tmp:karl",
+      "geschlecht": "M",
+      "lebend_status": "verstorben",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Karl Friedrich",
+          "rufname_index": 0,
+          "nachname": "Gutnoff",
+          "original_text": "Karl Friedrich Gutnoff",
+          "ist_bevorzugt": true
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-stammbuch",
+          "seite": "1",
+          "transkript": "Karl Friedrich Gutnoff, geb. 14. Maerz 1901 in Marienwerder",
+          "konfidenz": 4
+        }
+      ]
+    },
+    {
+      "id": "tmp:emma",
+      "geschlecht": "F",
+      "lebend_status": "verstorben",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Emma",
+          "nachname": "Wruck",
+          "original_text": "Emma Wruck",
+          "ist_bevorzugt": true
+        },
+        {
+          "typ": "ehename",
+          "vornamen": "Emma",
+          "nachname": "Gutnoff",
+          "gueltig_von": 1925
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-stammbuch",
+          "seite": "1",
+          "transkript": "verheiratet am 9. Mai 1925 mit Emma Wruck",
+          "konfidenz": 4
+        }
+      ]
+    },
+    {
+      "id": "tmp:helene",
+      "geschlecht": "F",
+      "lebend_status": "verstorben",
+      "namen": [
+        {
+          "typ": "geburtsname",
+          "vornamen": "Helene Martha",
+          "rufname_index": 0,
+          "nachname": "Gutnoff",
+          "original_text": "Helene Martha Gutnoff",
+          "ist_bevorzugt": true
+        }
+      ],
+      "konfidenz": 4,
+      "belege": [
+        {
+          "quelle": "tmp:q-stammbuch",
+          "seite": "2",
+          "transkript": "Kind: Helene Martha, geb. 3. Februar 1927",
+          "konfidenz": 4
+        }
+      ]
+    }
+  ],
+  "orte": [
+    {
+      "id": "tmp:ort-marienwerder",
+      "typ": "stadt",
+      "namen": [
+        {
+          "name": "Marienwerder",
+          "sprache": "de",
+          "gueltig_bis": 1945,
+          "ist_bevorzugt": true,
+          "original_text": "Marienwerder"
+        }
+      ]
+    }
+  ],
+  "ereignisse": [
+    {
+      "id": "tmp:e-geb-karl",
+      "typ": "geburt",
+      "ort": "tmp:ort-marienwerder",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "1901-03-14"
+      },
+      "beteiligungen": [{ "person": "tmp:karl", "rolle": "hauptperson" }],
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "1", "konfidenz": 4 }]
+    },
+    {
+      "id": "tmp:e-trauung",
+      "typ": "trauung",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "1925-05-09"
+      },
+      "beteiligungen": [
+        { "person": "tmp:karl", "rolle": "braeutigam" },
+        { "person": "tmp:emma", "rolle": "braut" }
+      ],
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "1", "konfidenz": 4 }]
+    },
+    {
+      "id": "tmp:e-geb-helene",
+      "typ": "geburt",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "1927-02-03"
+      },
+      "beteiligungen": [
+        { "person": "tmp:helene", "rolle": "hauptperson" },
+        { "person": "tmp:karl", "rolle": "vater" },
+        { "person": "tmp:emma", "rolle": "mutter" }
+      ],
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "2", "konfidenz": 4 }]
+    }
+  ],
+  "elternschaften": [
+    {
+      "elternteil": "tmp:karl",
+      "kind": "tmp:helene",
+      "typ": "biologisch",
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "2", "konfidenz": 4 }]
+    },
+    {
+      "elternteil": "tmp:emma",
+      "kind": "tmp:helene",
+      "typ": "biologisch",
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "2", "konfidenz": 4 }]
+    }
+  ],
+  "partnerschaften": [
+    {
+      "id": "tmp:p-karl-emma",
+      "typ": "ehe_zivil",
+      "beteiligte": [
+        { "person": "tmp:karl", "rolle": "ehepartner" },
+        { "person": "tmp:emma", "rolle": "ehepartner" }
+      ],
+      "beginn": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "tag",
+        "wert1": "1925-05-09"
+      },
+      "reihenfolge": 1,
+      "konfidenz": 4,
+      "belege": [{ "quelle": "tmp:q-stammbuch", "seite": "1", "konfidenz": 4 }]
+    }
+  ],
+  "aussagen": [
+    {
+      "subjekt_typ": "person",
+      "subjekt": "tmp:karl",
+      "praedikat": "beruf",
+      "wert_text": "Schmied",
+      "gueltig_von": 1925,
+      "ist_bevorzugt": true,
+      "konfidenz": 3,
+      "belege": [
+        {
+          "quelle": "tmp:q-stammbuch",
+          "seite": "1",
+          "transkript": "Karl Friedrich Gutnoff, Schmied",
+          "konfidenz": 3
+        }
+      ]
+    }
+  ],
+  "notizen_unverarbeitet": []
+}
