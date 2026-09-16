@@ -1,0 +1,26 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": { "am": "2026-09-16", "werkzeug": "handarbeit" },
+  "zusammenfassung": { "personen": 1, "notizen_unverarbeitet": 0 },
+  "quellen": [
+    { "id": "tmp:q1", "typ": "familienbesitz", "titel": "Testquelle" }
+  ],
+  "personen": [
+    {
+      "id": "tmp:person1",
+      "konfidenz": 4,
+      "belege": [ { "quelle": "tmp:q1", "konfidenz": 4 } ],
+      "namen": [ { "nachname": "Muster" } ]
+    }
+  ],
+  "ereignisse": [
+    {
+      "id": "tmp:e1",
+      "typ": "geburt",
+      "konfidenz": 3,
+      "belege": [ { "quelle": "tmp:q1", "konfidenz": 3 } ],
+      "beteiligungen": [ { "person": "tmp:person1", "rolle": "hauptperson" } ],
+      "datum": { "modifikator": "etwa", "praezision": "jahr", "wert1": "1890" }
+    }
+  ]
+}

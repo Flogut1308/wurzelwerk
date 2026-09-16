@@ -1,0 +1,39 @@
+{
+  "fehler": {
+    "IMP_101": {
+      "titel": "Datei ist kein gültiges JSON",
+      "beschreibung": "Die Importdatei lässt sich nicht als JSON lesen — vermutlich ein Syntaxfehler oder eine abgeschnittene Datei.",
+      "was_tun": "Die Datei in einem JSON-fähigen Editor öffnen und die Fehlerstelle korrigieren. Wurde die Datei von einem Werkzeug erzeugt, prüfen, ob die Ausgabe vollständig ist (Ausgabelimit erreicht?), und neu erzeugen lassen."
+    },
+    "IMP_102": {
+      "titel": "Vertrag fehlt oder ist unbekannt",
+      "beschreibung": "Das Feld \"vertrag\" fehlt oder trägt nicht den Wert \"wurzelwerk-import/v1\".",
+      "was_tun": "Das Feld \"vertrag\" auf \"wurzelwerk-import/v1\" setzen. Stammt die Datei aus einer neueren Vertragsversion, eine ältere oder neuere Wurzelwerk-Fassung verwenden, die diese Version kennt."
+    },
+    "IMP_103": {
+      "titel": "Pflichtfeld fehlt",
+      "beschreibung": "An der genannten Stelle fehlt ein Feld, das der Vertrag zwingend verlangt.",
+      "was_tun": "Das fehlende Feld ergänzen. Ist der Wert tatsächlich nicht bekannt, das zugehörige Objekt so anlegen, wie es der Vertrag für diesen Fall vorsieht (z. B. als Platzhalter mit platzhalter_grund, oder mit ausdrücklich niedriger Konfidenz plus unsicherheit)."
+    },
+    "IMP_104": {
+      "titel": "Wert außerhalb der erlaubten Werte, falscher Typ oder unbekanntes Feld",
+      "beschreibung": "Ein Wert entspricht nicht der erlaubten Werteliste oder dem erwarteten Typ, liegt außerhalb des zulässigen Bereichs, oder ein Feldname ist im Vertrag nicht vorgesehen.",
+      "was_tun": "Den Wert gegen die erlaubte Werteliste bzw. den erlaubten Bereich in docs/import-vertrag/wurzelwerk-import-v1.schema.json prüfen und korrigieren. Bei einem unbekannten Feldnamen: auf Tippfehler prüfen, oder das Feld entfernen, falls es nicht Teil dieser Vertragsversion ist."
+    },
+    "IMP_105": {
+      "titel": "Zusammenfassung passt nicht zur tatsächlichen Anzahl",
+      "beschreibung": "Die deklarierte Anzahl unter \"zusammenfassung\" stimmt nicht mit der tatsächlichen Länge des zugehörigen Arrays überein — ein typisches Zeichen für eine abgeschnittene oder nachträglich veränderte Datei.",
+      "was_tun": "Die tatsächliche Anzahl der Einträge nachzählen und \"zusammenfassung\" entsprechend korrigieren. Weicht die Anzahl unerwartet stark ab, prüfen, ob die Datei beim Erzeugen abgeschnitten wurde, und vollständig neu erzeugen lassen."
+    },
+    "IMP_106": {
+      "titel": "Datumsregel verletzt",
+      "beschreibung": "Ein Datumswert verletzt die Vertragsregeln: entweder fehlt original_text bei einem modifikator ungleich exakt, oder bei zwischen/von_bis fehlt wert1 oder wert2, oder zweitwert steht ohne zweitkalender.",
+      "was_tun": "Bei einem unscharfen Datum (modifikator ungleich exakt) original_text mit dem genauen Wortlaut der Quelle ergänzen. Bei zwischen/von_bis beide Werte (wert1 und wert2) angeben. Bei einer Doppeldatierung zusätzlich zweitkalender zu zweitwert ergänzen."
+    },
+    "IMP_107": {
+      "titel": "Kennung entspricht nicht dem Muster",
+      "beschreibung": "Eine Kennung folgt nicht dem Muster tmp:… oder db:… (Buchstaben, Ziffern, _ . - erlaubt, 1–64 Zeichen nach dem Doppelpunkt).",
+      "was_tun": "Die Kennung mit dem Präfix tmp: (für neue, nur in dieser Datei gültige Objekte) oder db: (für bereits vorhandene Datensätze) versehen und auf unzulässige Zeichen prüfen."
+    }
+  }
+}
