@@ -132,9 +132,9 @@
   --wz-daten-generation-3: #5B7A5E;
   --wz-daten-generation-4: #8A5F55;
   --wz-daten-generation-5: #5D5A7A;
-  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-6: #757549;
   --wz-daten-generation-7: #456A66;
-  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-8: #876F42;
   --wz-daten-generation-9: #6B5273;
   --wz-daten-generation-10: #3F6355;
   --wz-daten-generation-11: #7C5B6B;
@@ -153,7 +153,7 @@
   /* ---- §1.2 Geschlecht ---- */
   --wz-daten-geschlecht-m: #4C6B7A;
   --wz-daten-geschlecht-f: #7A6A4C;
-  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-u: #8E8779;
   --wz-daten-geschlecht-x: #5D5A7A;
 
   /* ---- §1.2 Diagnosekategorien (bindend: CHECK in docs/schema/0002_kern.sql, diagnose.kategorie) ---- */
@@ -163,11 +163,11 @@
   --wz-daten-diagnose-krebs: #6B5273;
   --wz-daten-diagnose-neuro-psych: #5D5A7A;
   --wz-daten-diagnose-nieren: #5B7A5E;
-  --wz-daten-diagnose-autoimmun: #8B7346;
-  --wz-daten-diagnose-angeboren-genetisch: #457F76;
+  --wz-daten-diagnose-autoimmun: #876F42;
+  --wz-daten-diagnose-angeboren-genetisch: #427C73;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
-  --wz-daten-diagnose-sonstiges: #8A8375;
+  --wz-daten-diagnose-sonstiges: #8E8779;
 
   /* ---- §1.2 Beziehungstypen (Kantenfarbe; die Form trägt die Hauptinformation) ---- */
   --wz-daten-beziehung-biologisch: #5C564B;
@@ -561,9 +561,9 @@
   --wz-daten-generation-3: #5B7A5E;
   --wz-daten-generation-4: #8A5F55;
   --wz-daten-generation-5: #5D5A7A;
-  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-6: #757549;
   --wz-daten-generation-7: #456A66;
-  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-8: #876F42;
   --wz-daten-generation-9: #6B5273;
   --wz-daten-generation-10: #3F6355;
   --wz-daten-generation-11: #7C5B6B;
@@ -580,7 +580,7 @@
 
   --wz-daten-geschlecht-m: #4C6B7A;
   --wz-daten-geschlecht-f: #7A6A4C;
-  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-u: #8E8779;
   --wz-daten-geschlecht-x: #5D5A7A;
 
   --wz-daten-diagnose-atemwege: #46707F;
@@ -589,11 +589,11 @@
   --wz-daten-diagnose-krebs: #6B5273;
   --wz-daten-diagnose-neuro-psych: #5D5A7A;
   --wz-daten-diagnose-nieren: #5B7A5E;
-  --wz-daten-diagnose-autoimmun: #8B7346;
-  --wz-daten-diagnose-angeboren-genetisch: #457F76;
+  --wz-daten-diagnose-autoimmun: #876F42;
+  --wz-daten-diagnose-angeboren-genetisch: #427C73;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
-  --wz-daten-diagnose-sonstiges: #8A8375;
+  --wz-daten-diagnose-sonstiges: #8E8779;
 
   --wz-daten-beziehung-biologisch: #5C564B;
   --wz-daten-beziehung-adoptiv: #7A6A4C;
