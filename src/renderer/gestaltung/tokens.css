@@ -146,15 +146,15 @@
   --wz-daten-geschlecht-u: #8A8375;
   --wz-daten-geschlecht-x: #5D5A7A;
 
-  /* ---- §1.2 Diagnosekategorien (Namen aus 50_Datenmodell.md §2.12) ---- */
+  /* ---- §1.2 Diagnosekategorien (bindend: CHECK in docs/schema/0002_kern.sql, diagnose.kategorie) ---- */
   --wz-daten-diagnose-atemwege: #46707F;
   --wz-daten-diagnose-herz-kreislauf: #8A4A55;
   --wz-daten-diagnose-stoffwechsel: #7A6A45;
   --wz-daten-diagnose-krebs: #6B5273;
-  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
-  --wz-daten-diagnose-bewegung: #5B7A5E;
-  --wz-daten-diagnose-verdauung: #8B7346;
-  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-neuro-psych: #5D5A7A;
+  --wz-daten-diagnose-nieren: #5B7A5E;
+  --wz-daten-diagnose-autoimmun: #8B7346;
+  --wz-daten-diagnose-angeboren-genetisch: #457F76;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
   --wz-daten-diagnose-sonstiges: #8A8375;
@@ -312,10 +312,10 @@
     --wz-daten-diagnose-herz-kreislauf: #C08A92;
     --wz-daten-diagnose-stoffwechsel: #B3A279;
     --wz-daten-diagnose-krebs: #A288AB;
-    --wz-daten-diagnose-nerven-psyche: #9490B4;
-    --wz-daten-diagnose-bewegung: #8FB393;
-    --wz-daten-diagnose-verdauung: #C4A87A;
-    --wz-daten-diagnose-sinne: #79B4A9;
+    --wz-daten-diagnose-neuro-psych: #9490B4;
+    --wz-daten-diagnose-nieren: #8FB393;
+    --wz-daten-diagnose-autoimmun: #C4A87A;
+    --wz-daten-diagnose-angeboren-genetisch: #79B4A9;
     --wz-daten-diagnose-infektion: #B48FA0;
     --wz-daten-diagnose-unfall: #A9A69E;
     --wz-daten-diagnose-sonstiges: #BFBBB1;
@@ -433,10 +433,10 @@
   --wz-daten-diagnose-herz-kreislauf: #C08A92;
   --wz-daten-diagnose-stoffwechsel: #B3A279;
   --wz-daten-diagnose-krebs: #A288AB;
-  --wz-daten-diagnose-nerven-psyche: #9490B4;
-  --wz-daten-diagnose-bewegung: #8FB393;
-  --wz-daten-diagnose-verdauung: #C4A87A;
-  --wz-daten-diagnose-sinne: #79B4A9;
+  --wz-daten-diagnose-neuro-psych: #9490B4;
+  --wz-daten-diagnose-nieren: #8FB393;
+  --wz-daten-diagnose-autoimmun: #C4A87A;
+  --wz-daten-diagnose-angeboren-genetisch: #79B4A9;
   --wz-daten-diagnose-infektion: #B48FA0;
   --wz-daten-diagnose-unfall: #A9A69E;
   --wz-daten-diagnose-sonstiges: #BFBBB1;
@@ -553,10 +553,10 @@
   --wz-daten-diagnose-herz-kreislauf: #8A4A55;
   --wz-daten-diagnose-stoffwechsel: #7A6A45;
   --wz-daten-diagnose-krebs: #6B5273;
-  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
-  --wz-daten-diagnose-bewegung: #5B7A5E;
-  --wz-daten-diagnose-verdauung: #8B7346;
-  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-neuro-psych: #5D5A7A;
+  --wz-daten-diagnose-nieren: #5B7A5E;
+  --wz-daten-diagnose-autoimmun: #8B7346;
+  --wz-daten-diagnose-angeboren-genetisch: #457F76;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
   --wz-daten-diagnose-sonstiges: #8A8375;

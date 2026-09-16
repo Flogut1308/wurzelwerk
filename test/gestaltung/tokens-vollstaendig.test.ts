@@ -11,6 +11,33 @@ const css = readFileSync(tokensPfad, 'utf8')
 // Kommentare entfernen, damit eine auskommentierte Rolle nicht fälschlich als vorhanden zählt.
 const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, '')
 
+// Die Diagnose-Kategorien sind KEINE frei wählbare Handliste: der bindende Vertrag ist die
+// ausgelieferte CHECK-Bedingung in docs/schema/0002_kern.sql (Schema v1, seit AP-0.6 auf main,
+// in jeder migrierten Projektdatenbank aktiv). Die Tokens folgen dem Schema, nicht umgekehrt.
+// Aus dem Schema abgeleitet (statt abgetippt), damit eine künftige Divergenz rot wird statt
+// eingefroren zu bleiben (ADR-025: die Prüfung ist der Maßstab, nicht das Werkstück).
+const schemaPfad = fileURLToPath(new URL('../../docs/schema/0002_kern.sql', import.meta.url))
+const schemaSql = readFileSync(schemaPfad, 'utf8')
+
+/** Die IN(...)-Werte des `kategorie`-CHECK aus der `diagnose`-Tabelle, `_` → `-` für Tokennamen. */
+function diagnoseKategorienAusSchema(): readonly string[] {
+  const anfang = schemaSql.indexOf('CREATE TABLE diagnose')
+  if (anfang === -1) throw new Error('Tabelle diagnose fehlt in 0002_kern.sql')
+  const treffer = schemaSql
+    .slice(anfang)
+    .match(/kategorie\s+TEXT\s+CHECK\s*\(\s*kategorie\s+IN\s*\(([^)]*)\)/i)
+  if (treffer === null || treffer[1] === undefined) {
+    throw new Error('Diagnose-kategorie-CHECK nicht in 0002_kern.sql gefunden')
+  }
+  const werte = [...treffer[1].matchAll(/'([^']+)'/g)]
+    .map((m) => m[1])
+    .filter((w): w is string => w !== undefined)
+    .map((w) => w.replace(/_/g, '-'))
+  if (werte.length === 0) throw new Error('Leere Diagnose-Kategorienliste aus 0002_kern.sql')
+  return werte
+}
+const diagnoseKategorien = diagnoseKategorienAusSchema()
+
 /** Inhalt des ausgeglichenen `{…}`-Blocks direkt hinter `selektor`. */
 function blockInhalt(quelle: string, selektor: string): string {
   const start = quelle.indexOf(selektor)
@@ -74,10 +101,8 @@ const paragraf1Rollen: readonly string[] = [
   ...Array.from({ length: 12 }, (_, i) => `--wz-daten-generation-${i + 1}`),
   ...Array.from({ length: 8 }, (_, i) => `--wz-daten-strang-${i + 1}`),
   ...bereich('daten-geschlecht', ['m', 'f', 'u', 'x']),
-  ...bereich('daten-diagnose', [
-    'atemwege', 'herz-kreislauf', 'stoffwechsel', 'krebs', 'nerven-psyche', 'bewegung',
-    'verdauung', 'sinne', 'infektion', 'unfall', 'sonstiges',
-  ]),
+  // §1.2: „Kategorien aus 50_Datenmodell.md §2.12" — bindend ist der Schema-CHECK, siehe oben.
+  ...diagnoseKategorien.map((k) => `--wz-daten-diagnose-${k}`),
   ...bereich('daten-beziehung', [
     'biologisch', 'adoptiv', 'stief', 'pflege', 'ehe', 'partnerschaft', 'geschieden', 'ungesichert',
   ]),
