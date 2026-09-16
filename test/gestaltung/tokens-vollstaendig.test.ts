@@ -125,6 +125,8 @@ const paragraf1Rollen: readonly string[] = [
   ...bereich('kurve', ['standard', 'hinein', 'hinaus']),
   // §1.6 Dichte
   '--wz-zeilenhoehe-tabelle', '--wz-abstand-feld', '--wz-innenabstand-zelle',
+  // §1.1 Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) — Leitprinzip 1, 10_Vision_Scope §4
+  ...['selbst-erlebt', 'hoerensagen'].flatMap((u) => bereich(`beleg-${u}`, ['flaeche', 'rahmen', 'text'])),
 ]
 
 describe('tokens.css — Vollständigkeit des Token-Vertrags (docs/71 §1)', () => {
