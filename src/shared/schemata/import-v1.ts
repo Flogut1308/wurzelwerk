@@ -596,10 +596,10 @@ const aussageBasis = z.strictObject({
   belege: belegeSchema,
 })
 
-/** §3.6 `anyOf`: genau eines von `wert_text`/`wert_zahl`/`wert_ref` ist Pflicht. */
+/** §3.6 `anyOf`: mindestens eines von `wert_text`/`wert_zahl`/`wert_ref` ist Pflicht. */
 const aussageSchema: z.ZodType<Aussage> = aussageBasis.superRefine((aussage, ctx) => {
   if (aussage.wert_text === undefined && aussage.wert_zahl === undefined && aussage.wert_ref === undefined) {
-    pflichtfeldIssue(ctx, [], 'Genau eines von wert_text, wert_zahl oder wert_ref ist Pflicht.')
+    pflichtfeldIssue(ctx, [], 'Mindestens eines von wert_text, wert_zahl oder wert_ref ist Pflicht.')
   }
 })
 

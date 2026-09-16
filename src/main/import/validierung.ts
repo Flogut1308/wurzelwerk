@@ -124,7 +124,7 @@ function leseImpCodeParam(issue: z.core.$ZodIssue): ImpCode | undefined {
 }
 
 function istImpCode(wert: string): wert is ImpCode {
-  return (ALLE_IMP_CODES as readonly string[]).includes(wert)
+  return ALLE_IMP_CODES.some((code) => code === wert)
 }
 
 function dedupliziere(befunde: readonly Stufe1Befund[]): readonly Stufe1Befund[] {
