@@ -1,5 +1,6 @@
 // Benannte Re-Exporte aller Kern-Entitäten-Schemata (AP-0.6).
 export * from './gemeinsam'
+export * from './datum'
 export * from './person'
 export * from './name'
 export * from './name-phonetik'

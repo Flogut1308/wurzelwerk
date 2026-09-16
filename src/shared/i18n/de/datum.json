@@ -1,0 +1,11 @@
+{
+  "um": "um {{jahr}}",
+  "vor": "vor {{jahr}}",
+  "nach": "nach {{jahr}}",
+  "zwischen": "zwischen {{von}} und {{bis}}",
+  "tag_monat_jahr": "{{tag}}.{{monat}}.{{jahr}}",
+  "monat_jahr": "{{monat}} {{jahr}}",
+  "jahr": "{{jahr}}",
+  "jahrzehnt": "{{jahrzehnt}}er",
+  "originaltext": "{{text}}"
+}

@@ -850,7 +850,7 @@ und später jede Ansicht darauf aufbauen. Reines `src/core/`, keine Datenbank, k
 **Tests**
 - `test/einheit/datum-parser.test.ts`: eine Tabelle mit ~50 Eingaben und erwarteten Ergebnissen, plus die Fälle, die **nicht** geparst werden dürfen (`31.02.1900`, `1901-13-01`).
 - `test/invarianten/datum-rundlauf.test.ts` (fast-check): `formatiere(parse(x))` ist stabil; `parse` ist idempotent; `sort_von ≤ sort_bis` für jeden erzeugten Wert.
-- `test/einheit/datum-kalender.test.ts`: bekannte Umrechnungspaare julianisch/gregorianisch (z. B. 1700-02-18 jul. = 1700-03-01 greg.).
+- `test/einheit/datum-kalender.test.ts`: bekannte Umrechnungspaare julianisch/gregorianisch (z. B. 1700-02-18 jul. = 1700-02-28 greg. — 1700 ist julianisches, aber kein gregorianisches Schaltjahr, der Zehn-Tage-Versatz gilt bis zum julianischen Schalttag).
 - `test/einheit/datum-sortierung.test.ts`: Eine gemischte Liste unscharfer Daten sortiert in der erwarteten Ordnung.
 
 ---
