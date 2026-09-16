@@ -1,0 +1,593 @@
+/*
+ * Wurzelwerk — Token-Vertrag.
+ * Quelle: design-export/Wurzelwerk Designsprache/Wurzelwerk Designsprache.dc.html (Rohexport des
+ * Claude-Design-Projekts). Struktur und Namen nach docs/71_Designsystem.md §1 (verbindlich).
+ * Der Code benutzt NIE einen Farbwert direkt, sondern immer eine Rolle (§1.1). Farbliterale stehen
+ * ausschließlich hier — geprüft von test/gestaltung/keine-literale.test.ts.
+ *
+ * Struktur (§1.7):
+ *   :root                                   vollständige helle Fassung (jede Rolle einmal)
+ *   :root:not([data-theme="hell"]) @media   Systemvorgabe dunkel — nur Überschreibungen
+ *   :root[data-theme="dunkel"]              ausdrücklich dunkel — dieselben Überschreibungen
+ *   :root[data-theme="hell"]               ausdrücklich hell — die hellen Rollen explizit
+ *   :root[data-dichte="kompakt"]           genau die vier Dichtetokens (§1.6)
+ * Keine Farbe hat ihre einzige Definition in einem Medien- oder Themenblock (§1.7 Regel 1).
+ */
+
+:root {
+  /* ---- §1.3 Schrift: Familien ---- */
+  --wz-familie-ui: "Source Sans 3", system-ui, sans-serif;
+  --wz-familie-original: "Source Serif 4", Georgia, serif;
+  --wz-familie-technisch: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* ---- §1.8 Mehrsprachigkeit (additiv, in §1 nicht benannt — siehe PR/80_Offene_Fragen) ---- */
+  --wz-sprachen-ui: de, ru, uk, en;
+  --wz-name-hauptname-marke: var(--wz-akzent-basis);
+  --wz-name-transliteration: var(--wz-familie-original); /* Serif kursiv */
+  --wz-name-schrift-etikett: var(--wz-familie-technisch); /* Mono */
+
+  /* ---- §1.3 Schrift: Rollen (Familie / Grad / Zeile / Stärke / Laufweite) ---- */
+  --wz-schrift-titel-gross:   700 40px/44px var(--wz-familie-ui);
+  --wz-schrift-titel:         600 24px/30px var(--wz-familie-ui);
+  --wz-schrift-titel-klein:   600 16px/22px var(--wz-familie-ui);
+  --wz-schrift-koerper:       400 15px/23px var(--wz-familie-ui);
+  --wz-schrift-koerper-klein: 400 13.5px/20px var(--wz-familie-ui);
+  --wz-schrift-beschriftung:  500 12px/16px var(--wz-familie-ui);
+  --wz-schrift-hilfe:         400 12.5px/18px var(--wz-familie-ui);
+  --wz-schrift-original:      italic 400 17px/26px var(--wz-familie-original);
+  --wz-schrift-technisch:     400 13px/20px var(--wz-familie-technisch);
+  --wz-schrift-zahl-tabelle:  400 18px/26px var(--wz-familie-ui);
+  --wz-laufweite-titel-gross: -0.02em;
+  --wz-laufweite-beschriftung: 0.08em;
+  --wz-ziffern-tabelle: tabular-nums;
+
+  /* ---- §1.1 Flächen ---- */
+  --wz-flaeche-grund: #F3F0EA;
+  --wz-flaeche-basis: #FAF8F4;
+  --wz-flaeche-erhoben: #FCFBF8;
+  --wz-flaeche-ueberlagert: #FFFEFB;
+  --wz-flaeche-vertieft: #F0EDE6;
+  --wz-flaeche-hover: #EFEBE3;
+  --wz-flaeche-aktiv: #E6E1D6;
+  --wz-flaeche-auswahl: #E4EEEC;
+  --wz-flaeche-gesperrt: #F1EEE8;
+
+  /* ---- §1.1 Text ---- */
+  --wz-text-primaer: #232019;
+  --wz-text-sekundaer: #5C564B;
+  --wz-text-tertiaer: #6F695C;
+  --wz-text-invers: #F7FBFA;
+  --wz-text-gesperrt: #867B65;
+  --wz-text-akzent: #2C625F;
+  --wz-text-original: #3A3226;
+
+  /* ---- §1.1 Rahmen und Linien ---- */
+  --wz-rahmen-fein: #E2DDD2;
+  --wz-rahmen-standard: #908878;
+  --wz-rahmen-stark: #867B65;
+  --wz-rahmen-fokus: #1F5C58;
+  --wz-rahmen-akzent: #35726E;
+  --wz-rahmen-gestrichelt: #867B65;
+  --wz-rahmen-gestrichelt-muster: 4px 2px;
+  --wz-rahmen-fokus-breite: 2px;
+  --wz-rahmen-fokus-versatz: 2px;
+
+  /* ---- §1.1 Akzent ---- */
+  --wz-akzent-basis: #35726E;
+  --wz-akzent-hover: #2C625F;
+  --wz-akzent-aktiv: #234F4C;
+  --wz-akzent-schwach: #DCE8E6;
+  --wz-akzent-auf-akzent: #F7FBFA;
+
+  /* ---- §1.1 Status ---- */
+  --wz-status-info-basis: #3A5F8A;
+  --wz-status-info-flaeche: #EAF0F7;
+  --wz-status-info-rahmen: #BCD0E4;
+  --wz-status-info-text: #2C4B70;
+  --wz-status-erfolg-basis: #4A7C43;
+  --wz-status-erfolg-flaeche: #EDF3EA;
+  --wz-status-erfolg-rahmen: #C4D8BF;
+  --wz-status-erfolg-text: #3A6335;
+  --wz-status-warnung-basis: #A9761E;
+  --wz-status-warnung-flaeche: #F8F1E2;
+  --wz-status-warnung-rahmen: #E4D2AB;
+  --wz-status-warnung-text: #7E5714;
+  --wz-status-fehler-basis: #9C3B2E;
+  --wz-status-fehler-flaeche: #FBF2F0;
+  --wz-status-fehler-rahmen: #E2C8C3;
+  --wz-status-fehler-text: #832F24;
+  --wz-status-neutral-basis: #6E6A61;
+  --wz-status-neutral-flaeche: #F2F0EB;
+  --wz-status-neutral-rahmen: #DAD5CA;
+  --wz-status-neutral-text: #57534B;
+
+  /* ---- §1.2 Konfidenz (ordinal, Helligkeit monoton) ---- */
+  --wz-daten-konfidenz-1: #A5664A;
+  --wz-daten-konfidenz-2: #745E2B;
+  --wz-daten-konfidenz-3: #3C5322;
+  --wz-daten-konfidenz-4: #1D4029;
+
+  /* ---- §1.2 nachgetragene Rollen (additiv, in §1 nicht benannt — siehe PR/80_Offene_Fragen) ---- */
+  --wz-daten-kante: #867B65;
+  --wz-rahmen-verweis: #35726E;
+  --wz-flaeche-verweis: #DCE8E6;
+  --wz-daten-spanne-belegt: #3C5322;
+  --wz-daten-spanne-moeglich: rgba(165, 102, 74, 0.32);
+  --wz-rahmen-raster: #EFEBE3;
+  --wz-muster-erinnerung: repeating-linear-gradient(135deg, currentColor 0 3px, transparent 3px 6px);
+
+  /* ---- §1.2 Generation (kategorial, zyklisch ab 13) ---- */
+  --wz-daten-generation-1: #4C6B7A;
+  --wz-daten-generation-2: #7A6A4C;
+  --wz-daten-generation-3: #5B7A5E;
+  --wz-daten-generation-4: #8A5F55;
+  --wz-daten-generation-5: #5D5A7A;
+  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-7: #456A66;
+  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-9: #6B5273;
+  --wz-daten-generation-10: #3F6355;
+  --wz-daten-generation-11: #7C5B6B;
+  --wz-daten-generation-12: #5A6C86;
+
+  /* ---- §1.2 Strang (1–4 väterlich kühl, 5–8 mütterlich warm) ---- */
+  --wz-daten-strang-1: #3F6480;
+  --wz-daten-strang-2: #4A7A86;
+  --wz-daten-strang-3: #4F6A93;
+  --wz-daten-strang-4: #46756B;
+  --wz-daten-strang-5: #8A5B57;
+  --wz-daten-strang-6: #7E5A3E;
+  --wz-daten-strang-7: #8A6B47;
+  --wz-daten-strang-8: #7C5266;
+
+  /* ---- §1.2 Geschlecht ---- */
+  --wz-daten-geschlecht-m: #4C6B7A;
+  --wz-daten-geschlecht-f: #7A6A4C;
+  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-x: #5D5A7A;
+
+  /* ---- §1.2 Diagnosekategorien (Namen aus 50_Datenmodell.md §2.12) ---- */
+  --wz-daten-diagnose-atemwege: #46707F;
+  --wz-daten-diagnose-herz-kreislauf: #8A4A55;
+  --wz-daten-diagnose-stoffwechsel: #7A6A45;
+  --wz-daten-diagnose-krebs: #6B5273;
+  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
+  --wz-daten-diagnose-bewegung: #5B7A5E;
+  --wz-daten-diagnose-verdauung: #8B7346;
+  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-infektion: #7C5B6B;
+  --wz-daten-diagnose-unfall: #6E6A61;
+  --wz-daten-diagnose-sonstiges: #8A8375;
+
+  /* ---- §1.2 Beziehungstypen (Kantenfarbe; die Form trägt die Hauptinformation) ---- */
+  --wz-daten-beziehung-biologisch: #5C564B;
+  --wz-daten-beziehung-adoptiv: #7A6A4C;
+  --wz-daten-beziehung-stief: #8B7346;
+  --wz-daten-beziehung-pflege: #5B7A5E;
+  --wz-daten-beziehung-ehe: #35726E;
+  --wz-daten-beziehung-partnerschaft: #457F76;
+  --wz-daten-beziehung-geschieden: #9C3B2E;
+  --wz-daten-beziehung-ungesichert: #867B65;
+
+  /* ---- §1.4 Abstände (4-px-Raster; Benennung nach Wert) ---- */
+  --wz-abstand-0: 0;
+  --wz-abstand-2: 2px;
+  --wz-abstand-4: 4px;
+  --wz-abstand-8: 8px;
+  --wz-abstand-12: 12px;
+  --wz-abstand-16: 16px;
+  --wz-abstand-20: 20px;
+  --wz-abstand-24: 24px;
+  --wz-abstand-32: 32px;
+  --wz-abstand-40: 40px;
+  --wz-abstand-48: 48px;
+  --wz-abstand-64: 64px;
+  --wz-abstand-96: 96px;
+
+  /* ---- §1.4 Radien ---- */
+  --wz-radius-klein: 4px;
+  --wz-radius-standard: 6px;
+  --wz-radius-gross: 8px;
+  --wz-radius-modal: 10px;
+  --wz-radius-voll: 999px;
+
+  /* ---- §1.4 Schatten (nur Ebenentrennung) ---- */
+  --wz-schatten-keiner: none;
+  --wz-schatten-panel: 0 1px 2px rgba(35, 32, 25, 0.06);
+  --wz-schatten-popover: 0 4px 12px rgba(35, 32, 25, 0.10);
+  --wz-schatten-modal: 0 12px 32px rgba(35, 32, 25, 0.16);
+
+  /* ---- §1.5 Bewegung ---- */
+  --wz-dauer-sofort: 0ms;
+  --wz-dauer-kurz: 120ms;
+  --wz-dauer-mittel: 160ms;
+  --wz-dauer-lang: 200ms;
+  --wz-kurve-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --wz-kurve-hinein: cubic-bezier(0, 0, 0.2, 1);
+  --wz-kurve-hinaus: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---- §1.6 Dichte: Vorgabe komfortabel ---- */
+  --wz-zeilenhoehe-tabelle: 40px;
+  --wz-abstand-feld: 16px;
+  --wz-innenabstand-zelle: 12px 16px;
+  --wz-trefferflaeche-min: 32px;
+}
+
+/* ---- Systemvorgabe dunkel: nur Überschreibungen ---- */
+:root:not([data-theme="hell"]) {
+  @media (prefers-color-scheme: dark) {
+    --wz-flaeche-grund: #1B1D1C;
+    --wz-flaeche-basis: #212422;
+    --wz-flaeche-erhoben: #292D2B;
+    --wz-flaeche-ueberlagert: #31352F;
+    --wz-flaeche-vertieft: #191B1A;
+    --wz-flaeche-hover: #2E3230;
+    --wz-flaeche-aktiv: #383D3A;
+    --wz-flaeche-auswahl: #243330;
+    --wz-flaeche-gesperrt: #1E211F;
+
+    --wz-text-primaer: #E8E5DE;
+    --wz-text-sekundaer: #A9A69E;
+    --wz-text-tertiaer: #9A968C;
+    --wz-text-invers: #14201F;
+    --wz-text-gesperrt: #818F8A;
+    --wz-text-akzent: #7CC0BA;
+    --wz-text-original: #DFD8C9;
+
+    --wz-rahmen-fein: #383D3A;
+    --wz-rahmen-standard: #727F7A;
+    --wz-rahmen-stark: #818F8A;
+    --wz-rahmen-fokus: #86C4BE;
+    --wz-rahmen-akzent: #5A9C97;
+    --wz-rahmen-gestrichelt: #818F8A;
+
+    --wz-akzent-basis: #5A9C97;
+    --wz-akzent-hover: #6BAEA9;
+    --wz-akzent-aktiv: #7CC0BA;
+    --wz-akzent-schwach: #243330;
+    --wz-akzent-auf-akzent: #14201F;
+
+    --wz-status-info-basis: #7FA6CE;
+    --wz-status-info-flaeche: #1D2733;
+    --wz-status-info-rahmen: #35485F;
+    --wz-status-info-text: #A8C4E0;
+    --wz-status-erfolg-basis: #86B57C;
+    --wz-status-erfolg-flaeche: #1E2820;
+    --wz-status-erfolg-rahmen: #37492F;
+    --wz-status-erfolg-text: #ADCFA4;
+    --wz-status-warnung-basis: #D3A455;
+    --wz-status-warnung-flaeche: #2A2418;
+    --wz-status-warnung-rahmen: #4E4128;
+    --wz-status-warnung-text: #E2C48C;
+    --wz-status-fehler-basis: #D4796A;
+    --wz-status-fehler-flaeche: #2B1E1C;
+    --wz-status-fehler-rahmen: #52332E;
+    --wz-status-fehler-text: #E5A69B;
+    --wz-status-neutral-basis: #9A968C;
+    --wz-status-neutral-flaeche: #232624;
+    --wz-status-neutral-rahmen: #3E423F;
+    --wz-status-neutral-text: #B4B0A6;
+
+    --wz-daten-konfidenz-1: #A66447;
+    --wz-daten-konfidenz-2: #A6873F;
+    --wz-daten-konfidenz-3: #80AF4B;
+    --wz-daten-konfidenz-4: #87C79C;
+
+    /* ---- §1.2 nachgetragene Rollen ---- */
+    --wz-daten-kante: #818F8A;
+    --wz-rahmen-verweis: #5A9C97;
+    --wz-flaeche-verweis: #243330;
+    --wz-daten-spanne-belegt: #80AF4B;
+    --wz-daten-spanne-moeglich: rgba(166, 100, 71, 0.40);
+    --wz-rahmen-raster: #262A28;
+
+    --wz-daten-generation-1: #7FA2B4;
+    --wz-daten-generation-2: #B4A17C;
+    --wz-daten-generation-3: #8FB393;
+    --wz-daten-generation-4: #C2928A;
+    --wz-daten-generation-5: #9490B4;
+    --wz-daten-generation-6: #B3B382;
+    --wz-daten-generation-7: #79A6A1;
+    --wz-daten-generation-8: #C4A87A;
+    --wz-daten-generation-9: #A288AB;
+    --wz-daten-generation-10: #749B8C;
+    --wz-daten-generation-11: #B48FA0;
+    --wz-daten-generation-12: #8FA1BC;
+
+    --wz-daten-strang-1: #7FA2B4;
+    --wz-daten-strang-2: #79A6A1;
+    --wz-daten-strang-3: #8FA1BC;
+    --wz-daten-strang-4: #74A79A;
+    --wz-daten-strang-5: #C2928A;
+    --wz-daten-strang-6: #B4A17C;
+    --wz-daten-strang-7: #C4A87A;
+    --wz-daten-strang-8: #B48FA0;
+
+    --wz-daten-geschlecht-m: #7FA2B4;
+    --wz-daten-geschlecht-f: #B4A17C;
+    --wz-daten-geschlecht-u: #A9A69E;
+    --wz-daten-geschlecht-x: #9490B4;
+
+    --wz-daten-diagnose-atemwege: #79A6B4;
+    --wz-daten-diagnose-herz-kreislauf: #C08A92;
+    --wz-daten-diagnose-stoffwechsel: #B3A279;
+    --wz-daten-diagnose-krebs: #A288AB;
+    --wz-daten-diagnose-nerven-psyche: #9490B4;
+    --wz-daten-diagnose-bewegung: #8FB393;
+    --wz-daten-diagnose-verdauung: #C4A87A;
+    --wz-daten-diagnose-sinne: #79B4A9;
+    --wz-daten-diagnose-infektion: #B48FA0;
+    --wz-daten-diagnose-unfall: #A9A69E;
+    --wz-daten-diagnose-sonstiges: #BFBBB1;
+
+    --wz-daten-beziehung-biologisch: #C3BFB4;
+    --wz-daten-beziehung-adoptiv: #B4A17C;
+    --wz-daten-beziehung-stief: #C4A87A;
+    --wz-daten-beziehung-pflege: #8FB393;
+    --wz-daten-beziehung-ehe: #5A9C97;
+    --wz-daten-beziehung-partnerschaft: #79A6A1;
+    --wz-daten-beziehung-geschieden: #D4796A;
+    --wz-daten-beziehung-ungesichert: #7C7A72;
+
+    --wz-schatten-panel: 0 1px 2px rgba(0, 0, 0, 0.32);
+    --wz-schatten-popover: 0 4px 12px rgba(0, 0, 0, 0.44);
+    --wz-schatten-modal: 0 12px 32px rgba(0, 0, 0, 0.56);
+  }
+}
+
+/* ---- Ausdrücklich gewählt: dunkel. Dieselben Überschreibungen. ---- */
+:root[data-theme="dunkel"] {
+  --wz-flaeche-grund: #1B1D1C;
+  --wz-flaeche-basis: #212422;
+  --wz-flaeche-erhoben: #292D2B;
+  --wz-flaeche-ueberlagert: #31352F;
+  --wz-flaeche-vertieft: #191B1A;
+  --wz-flaeche-hover: #2E3230;
+  --wz-flaeche-aktiv: #383D3A;
+  --wz-flaeche-auswahl: #243330;
+  --wz-flaeche-gesperrt: #1E211F;
+
+  --wz-text-primaer: #E8E5DE;
+  --wz-text-sekundaer: #A9A69E;
+  --wz-text-tertiaer: #9A968C;
+  --wz-text-invers: #14201F;
+  --wz-text-gesperrt: #818F8A;
+  --wz-text-akzent: #7CC0BA;
+  --wz-text-original: #DFD8C9;
+
+  --wz-rahmen-fein: #383D3A;
+  --wz-rahmen-standard: #727F7A;
+  --wz-rahmen-stark: #818F8A;
+  --wz-rahmen-fokus: #86C4BE;
+  --wz-rahmen-akzent: #5A9C97;
+  --wz-rahmen-gestrichelt: #818F8A;
+
+  --wz-akzent-basis: #5A9C97;
+  --wz-akzent-hover: #6BAEA9;
+  --wz-akzent-aktiv: #7CC0BA;
+  --wz-akzent-schwach: #243330;
+  --wz-akzent-auf-akzent: #14201F;
+
+  --wz-status-info-basis: #7FA6CE;
+  --wz-status-info-flaeche: #1D2733;
+  --wz-status-info-rahmen: #35485F;
+  --wz-status-info-text: #A8C4E0;
+  --wz-status-erfolg-basis: #86B57C;
+  --wz-status-erfolg-flaeche: #1E2820;
+  --wz-status-erfolg-rahmen: #37492F;
+  --wz-status-erfolg-text: #ADCFA4;
+  --wz-status-warnung-basis: #D3A455;
+  --wz-status-warnung-flaeche: #2A2418;
+  --wz-status-warnung-rahmen: #4E4128;
+  --wz-status-warnung-text: #E2C48C;
+  --wz-status-fehler-basis: #D4796A;
+  --wz-status-fehler-flaeche: #2B1E1C;
+  --wz-status-fehler-rahmen: #52332E;
+  --wz-status-fehler-text: #E5A69B;
+  --wz-status-neutral-basis: #9A968C;
+  --wz-status-neutral-flaeche: #232624;
+  --wz-status-neutral-rahmen: #3E423F;
+  --wz-status-neutral-text: #B4B0A6;
+
+  --wz-daten-konfidenz-1: #A66447;
+  --wz-daten-konfidenz-2: #A6873F;
+  --wz-daten-konfidenz-3: #80AF4B;
+  --wz-daten-konfidenz-4: #87C79C;
+
+  /* ---- §1.2 nachgetragene Rollen ---- */
+  --wz-daten-kante: #818F8A;
+  --wz-rahmen-verweis: #5A9C97;
+  --wz-flaeche-verweis: #243330;
+  --wz-daten-spanne-belegt: #80AF4B;
+  --wz-daten-spanne-moeglich: rgba(166, 100, 71, 0.40);
+  --wz-rahmen-raster: #262A28;
+
+  --wz-daten-generation-1: #7FA2B4;
+  --wz-daten-generation-2: #B4A17C;
+  --wz-daten-generation-3: #8FB393;
+  --wz-daten-generation-4: #C2928A;
+  --wz-daten-generation-5: #9490B4;
+  --wz-daten-generation-6: #B3B382;
+  --wz-daten-generation-7: #79A6A1;
+  --wz-daten-generation-8: #C4A87A;
+  --wz-daten-generation-9: #A288AB;
+  --wz-daten-generation-10: #749B8C;
+  --wz-daten-generation-11: #B48FA0;
+  --wz-daten-generation-12: #8FA1BC;
+
+  --wz-daten-strang-1: #7FA2B4;
+  --wz-daten-strang-2: #79A6A1;
+  --wz-daten-strang-3: #8FA1BC;
+  --wz-daten-strang-4: #74A79A;
+  --wz-daten-strang-5: #C2928A;
+  --wz-daten-strang-6: #B4A17C;
+  --wz-daten-strang-7: #C4A87A;
+  --wz-daten-strang-8: #B48FA0;
+
+  --wz-daten-geschlecht-m: #7FA2B4;
+  --wz-daten-geschlecht-f: #B4A17C;
+  --wz-daten-geschlecht-u: #A9A69E;
+  --wz-daten-geschlecht-x: #9490B4;
+
+  --wz-daten-diagnose-atemwege: #79A6B4;
+  --wz-daten-diagnose-herz-kreislauf: #C08A92;
+  --wz-daten-diagnose-stoffwechsel: #B3A279;
+  --wz-daten-diagnose-krebs: #A288AB;
+  --wz-daten-diagnose-nerven-psyche: #9490B4;
+  --wz-daten-diagnose-bewegung: #8FB393;
+  --wz-daten-diagnose-verdauung: #C4A87A;
+  --wz-daten-diagnose-sinne: #79B4A9;
+  --wz-daten-diagnose-infektion: #B48FA0;
+  --wz-daten-diagnose-unfall: #A9A69E;
+  --wz-daten-diagnose-sonstiges: #BFBBB1;
+
+  --wz-daten-beziehung-biologisch: #C3BFB4;
+  --wz-daten-beziehung-adoptiv: #B4A17C;
+  --wz-daten-beziehung-stief: #C4A87A;
+  --wz-daten-beziehung-pflege: #8FB393;
+  --wz-daten-beziehung-ehe: #5A9C97;
+  --wz-daten-beziehung-partnerschaft: #79A6A1;
+  --wz-daten-beziehung-geschieden: #D4796A;
+  --wz-daten-beziehung-ungesichert: #7C7A72;
+
+  --wz-schatten-panel: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --wz-schatten-popover: 0 4px 12px rgba(0, 0, 0, 0.44);
+  --wz-schatten-modal: 0 12px 32px rgba(0, 0, 0, 0.56);
+}
+
+/* ---- Ausdrücklich gewählt: hell. Zurück auf die :root-Fassung. ---- */
+:root[data-theme="hell"] {
+  --wz-flaeche-grund: #F3F0EA;
+  --wz-flaeche-basis: #FAF8F4;
+  --wz-flaeche-erhoben: #FCFBF8;
+  --wz-flaeche-ueberlagert: #FFFEFB;
+  --wz-flaeche-vertieft: #F0EDE6;
+  --wz-flaeche-hover: #EFEBE3;
+  --wz-flaeche-aktiv: #E6E1D6;
+  --wz-flaeche-auswahl: #E4EEEC;
+  --wz-flaeche-gesperrt: #F1EEE8;
+
+  --wz-text-primaer: #232019;
+  --wz-text-sekundaer: #5C564B;
+  --wz-text-tertiaer: #6F695C;
+  --wz-text-invers: #F7FBFA;
+  --wz-text-gesperrt: #867B65;
+  --wz-text-akzent: #2C625F;
+  --wz-text-original: #3A3226;
+
+  --wz-rahmen-fein: #E2DDD2;
+  --wz-rahmen-standard: #908878;
+  --wz-rahmen-stark: #867B65;
+  --wz-rahmen-fokus: #1F5C58;
+  --wz-rahmen-akzent: #35726E;
+  --wz-rahmen-gestrichelt: #867B65;
+
+  --wz-akzent-basis: #35726E;
+  --wz-akzent-hover: #2C625F;
+  --wz-akzent-aktiv: #234F4C;
+  --wz-akzent-schwach: #DCE8E6;
+  --wz-akzent-auf-akzent: #F7FBFA;
+
+  --wz-status-info-basis: #3A5F8A;
+  --wz-status-info-flaeche: #EAF0F7;
+  --wz-status-info-rahmen: #BCD0E4;
+  --wz-status-info-text: #2C4B70;
+  --wz-status-erfolg-basis: #4A7C43;
+  --wz-status-erfolg-flaeche: #EDF3EA;
+  --wz-status-erfolg-rahmen: #C4D8BF;
+  --wz-status-erfolg-text: #3A6335;
+  --wz-status-warnung-basis: #A9761E;
+  --wz-status-warnung-flaeche: #F8F1E2;
+  --wz-status-warnung-rahmen: #E4D2AB;
+  --wz-status-warnung-text: #7E5714;
+  --wz-status-fehler-basis: #9C3B2E;
+  --wz-status-fehler-flaeche: #FBF2F0;
+  --wz-status-fehler-rahmen: #E2C8C3;
+  --wz-status-fehler-text: #832F24;
+  --wz-status-neutral-basis: #6E6A61;
+  --wz-status-neutral-flaeche: #F2F0EB;
+  --wz-status-neutral-rahmen: #DAD5CA;
+  --wz-status-neutral-text: #57534B;
+
+  --wz-daten-konfidenz-1: #A5664A;
+  --wz-daten-konfidenz-2: #745E2B;
+  --wz-daten-konfidenz-3: #3C5322;
+  --wz-daten-konfidenz-4: #1D4029;
+
+  /* ---- §1.2 nachgetragene Rollen ---- */
+  --wz-daten-kante: #867B65;
+  --wz-rahmen-verweis: #35726E;
+  --wz-flaeche-verweis: #DCE8E6;
+  --wz-daten-spanne-belegt: #3C5322;
+  --wz-daten-spanne-moeglich: rgba(165, 102, 74, 0.32);
+  --wz-rahmen-raster: #EFEBE3;
+
+  --wz-daten-generation-1: #4C6B7A;
+  --wz-daten-generation-2: #7A6A4C;
+  --wz-daten-generation-3: #5B7A5E;
+  --wz-daten-generation-4: #8A5F55;
+  --wz-daten-generation-5: #5D5A7A;
+  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-7: #456A66;
+  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-9: #6B5273;
+  --wz-daten-generation-10: #3F6355;
+  --wz-daten-generation-11: #7C5B6B;
+  --wz-daten-generation-12: #5A6C86;
+
+  --wz-daten-strang-1: #3F6480;
+  --wz-daten-strang-2: #4A7A86;
+  --wz-daten-strang-3: #4F6A93;
+  --wz-daten-strang-4: #46756B;
+  --wz-daten-strang-5: #8A5B57;
+  --wz-daten-strang-6: #7E5A3E;
+  --wz-daten-strang-7: #8A6B47;
+  --wz-daten-strang-8: #7C5266;
+
+  --wz-daten-geschlecht-m: #4C6B7A;
+  --wz-daten-geschlecht-f: #7A6A4C;
+  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-x: #5D5A7A;
+
+  --wz-daten-diagnose-atemwege: #46707F;
+  --wz-daten-diagnose-herz-kreislauf: #8A4A55;
+  --wz-daten-diagnose-stoffwechsel: #7A6A45;
+  --wz-daten-diagnose-krebs: #6B5273;
+  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
+  --wz-daten-diagnose-bewegung: #5B7A5E;
+  --wz-daten-diagnose-verdauung: #8B7346;
+  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-infektion: #7C5B6B;
+  --wz-daten-diagnose-unfall: #6E6A61;
+  --wz-daten-diagnose-sonstiges: #8A8375;
+
+  --wz-daten-beziehung-biologisch: #5C564B;
+  --wz-daten-beziehung-adoptiv: #7A6A4C;
+  --wz-daten-beziehung-stief: #8B7346;
+  --wz-daten-beziehung-pflege: #5B7A5E;
+  --wz-daten-beziehung-ehe: #35726E;
+  --wz-daten-beziehung-partnerschaft: #457F76;
+  --wz-daten-beziehung-geschieden: #9C3B2E;
+  --wz-daten-beziehung-ungesichert: #867B65;
+
+  --wz-schatten-panel: 0 1px 2px rgba(35, 32, 25, 0.06);
+  --wz-schatten-popover: 0 4px 12px rgba(35, 32, 25, 0.10);
+  --wz-schatten-modal: 0 12px 32px rgba(35, 32, 25, 0.16);
+}
+
+/* ---- §1.6 Dichte kompakt: genau vier Tokens ---- */
+:root[data-dichte="kompakt"] {
+  --wz-zeilenhoehe-tabelle: 30px;
+  --wz-abstand-feld: 10px;
+  --wz-innenabstand-zelle: 6px 10px;
+  --wz-schrift-koerper: 400 13.5px/20px var(--wz-familie-ui);
+}
+
+/* ---- §1.5 Bewegung abschalten: alle Dauern auf sofort ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --wz-dauer-kurz: 0ms;
+    --wz-dauer-mittel: 0ms;
+    --wz-dauer-lang: 0ms;
+  }
+}

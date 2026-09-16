@@ -1,0 +1,68 @@
+/*
+ * Wurzelwerk — Grundstile.
+ * Zurücksetzung, Grundtypografie und Fokusring. Farbe kommt ausschließlich über Rollen aus
+ * tokens.css (docs/71_Designsystem.md §1.1); diese Datei enthält KEIN Farbliteral — geprüft von
+ * test/gestaltung/keine-literale.test.ts. Kein !important (§1.7 Regel 2).
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* Formularelemente, Bildlaufleisten und Systemfarben folgen dem aktuellen Thema. */
+  color-scheme: light dark;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--wz-flaeche-grund);
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-koerper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Medien passen sich ihrem Container an, statt ihn zu sprengen. */
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Bedienelemente erben die Oberflächenschrift, statt Systemvorgaben zu ziehen. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Fokusring: immer sichtbar, nie ausgeschaltet (§1.1 --wz-rahmen-fokus, §5). */
+:focus-visible {
+  outline: var(--wz-rahmen-fokus-breite) solid var(--wz-rahmen-fokus);
+  outline-offset: var(--wz-rahmen-fokus-versatz);
+}
+
+/* §1.5 / §5: Bewegung respektiert die Systemvorgabe — von Anfang an, eine Regel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms;
+    animation-duration: 0ms;
+    scroll-behavior: auto;
+  }
+}
