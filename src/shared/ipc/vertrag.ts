@@ -1,4 +1,5 @@
 import type { FehlerCode } from '../fehler/codes'
+import type { PruefBericht } from '../import/imp-codes'
 import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
 
 /**
@@ -153,6 +154,15 @@ export interface SchnappschussWiederherstellenEin {
   readonly id: string
 }
 
+/**
+ * Nutzlast von `abfrage:import.pruefen` (AP-1.3b, 56_Import_Vertrag.md §4): der Pfad der
+ * Importdatei auf der Festplatte. Der Kanal ist bewusst `abfrage:`, nicht `befehl:` — die Prüfung
+ * schreibt nichts (§11, ADR-016; U-AP1.3b-kanal in docs/80_Offene_Fragen.md).
+ */
+export interface ImportPruefenEin {
+  readonly pfad: string
+}
+
 /** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
 export interface VerlaufEintrag {
   readonly id: string
@@ -184,6 +194,7 @@ export interface Vertrag {
   'befehl:schnappschuss.erzeugen': { ein: null; aus: SchnappschussEintrag }
   'abfrage:schnappschuss.liste': { ein: null; aus: readonly SchnappschussEintrag[] }
   'befehl:schnappschuss.wiederherstellen': { ein: SchnappschussWiederherstellenEin; aus: null }
+  'abfrage:import.pruefen': { ein: ImportPruefenEin; aus: PruefBericht }
 }
 
 export type Kanal = keyof Vertrag

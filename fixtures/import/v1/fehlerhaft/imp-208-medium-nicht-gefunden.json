@@ -1,0 +1,19 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": { "am": "2026-09-17", "werkzeug": "handarbeit" },
+  "zusammenfassung": { "personen": 1, "medien": 1, "notizen_unverarbeitet": 0 },
+  "quellen": [
+    { "id": "tmp:q1", "typ": "familienbesitz", "titel": "Testquelle" }
+  ],
+  "personen": [
+    {
+      "id": "tmp:person1",
+      "konfidenz": 4,
+      "namen": [ { "nachname": "Muster" } ],
+      "belege": [ { "quelle": "tmp:q1", "konfidenz": 4 } ]
+    }
+  ],
+  "medien": [
+    { "id": "tmp:medium1", "relativer_pfad": "fotos/opa.jpg" }
+  ]
+}
