@@ -8,7 +8,7 @@
   "zusammenfassung": {
     "personen": 3,
     "orte": 3,
-    "ereignisse": 1,
+    "ereignisse": 2,
     "elternschaften": 2,
     "aussagen": 3,
     "notizen_unverarbeitet": 2
@@ -173,6 +173,26 @@
           "quelle": "tmp:q-erna",
           "transkript": "so um 1890 rum",
           "konfidenz": 2
+        }
+      ]
+    },
+    {
+      "id": "tmp:e-geb-erna",
+      "typ": "geburt",
+      "datum": {
+        "kalender": "gregorian",
+        "modifikator": "exakt",
+        "praezision": "jahr",
+        "wert1": "1896"
+      },
+      "beteiligungen": [{ "person": "tmp:erna", "rolle": "hauptperson" }],
+      "beschreibung": "Ergaenzt fuer AP-1.4a (56_Import_Vertrag.md Paragraph 6.2, Beispielrechnung 1890+6 Jahre): Ernas eigenes Geburtsjahr, damit der Altersabstand zur bewusst falsch gesetzten Elternkante mit August (elternschaften[1], IMP-302) rechnerisch pruefbar ist.",
+      "konfidenz": 3,
+      "belege": [
+        {
+          "quelle": "tmp:q-erna",
+          "transkript": "Ich bin 1896 geboren.",
+          "konfidenz": 3
         }
       ]
     }

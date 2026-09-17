@@ -79,6 +79,76 @@
       "titel": "Dieselbe Person zweimal beteiligt",
       "beschreibung": "beteiligte bzw. beteiligungen verweist an der genannten Stelle zweimal auf dieselbe Person.",
       "was_tun": "Die doppelte Beteiligung entfernen, oder — falls die Person tatsächlich zwei verschiedene Rollen im selben Ereignis/derselben Partnerschaft hatte — prüfen, ob stattdessen zwei getrennte Einträge mit unterschiedlichen Rollen gemeint sind."
+    },
+    "IMP_301": {
+      "titel": "Tod vor Geburt, Bestattung vor Tod oder Ehe vor Geburt",
+      "beschreibung": "Die zeitliche Reihenfolge zweier Ereignisse derselben Person (oder Partnerschaft) ist nicht plausibel: ein Sterbedatum liegt vor dem Geburtsdatum, eine Bestattung vor dem Tod, oder eine Ehe beginnt vor der Geburt eines Beteiligten.",
+      "was_tun": "Die beteiligten Datumswerte gegen die Quelle prüfen. Häufige Ursache: ein vertauschtes Jahr oder ein Datum, das versehentlich der falschen Person zugeordnet wurde."
+    },
+    "IMP_302": {
+      "titel": "Unplausibles Alter des Elternteils bei der Geburt",
+      "beschreibung": "Der Elternteil wäre bei der Geburt des Kindes jünger als 12 oder älter als 55 (Mutter) bzw. 80 (Vater) Jahre gewesen.",
+      "was_tun": "Prüfen, ob hier eine Generation fehlt. Häufige Ursache: In Gesprächen sind Verwandtschaftsangaben relativ zum Erzähler — \"mein Großvater\" ist nicht automatisch der Vater des Erzählers."
+    },
+    "IMP_303": {
+      "titel": "Koordinate ohne Herkunft",
+      "beschreibung": "Ein Ort trägt Koordinaten, aber keine Angabe, woher sie stammen.",
+      "was_tun": "Das Feld koordinaten.herkunft ergänzen (z. B. \"aus Kirchenbuch\", \"geschätzt anhand des Ortsnamens\"). Ohne belegbare Herkunft die Koordinate lieber weglassen."
+    },
+    "IMP_304": {
+      "titel": "Unbekanntes Prädikat",
+      "beschreibung": "Das Prädikat einer Aussage gehört nicht zur Liste der bekannten Prädikate (u. a. beruf, konfession, wohnort, todesdatum).",
+      "was_tun": "Prüfen, ob ein bekanntes Prädikat gemeint war (Tippfehler?). Ist das Prädikat tatsächlich neu, ist das kein Fehler — nur ein Hinweis zur Kontrolle."
+    },
+    "IMP_305": {
+      "titel": "Umschrift ohne Original oder als bevorzugter Name",
+      "beschreibung": "Ein fremdschriftlicher Name (z. B. kyrillisch) hat keinen zugehörigen Originaleintrag, oder eine Umschrift ist als bevorzugter Name markiert (ADR-014: eine Umschrift ist immer zusätzlich, nie ein Ersatz).",
+      "was_tun": "Den Originalnamen in Originalschrift als eigenen Eintrag ergänzen (umschrift_von darauf verweisen lassen). ist_bevorzugt nie auf dem transliterierten Eintrag setzen."
+    },
+    "IMP_306": {
+      "titel": "Diagnose mit hoher Konfidenz aus rein mündlicher Quelle",
+      "beschreibung": "Eine Diagnose mit konfidenz 3 oder 4 stützt sich ausschließlich auf mündliche Quellen — ohne dokumentarischen Beleg ist diese Sicherheit selten gerechtfertigt.",
+      "was_tun": "Die Konfidenz ehrlich neu einschätzen, oder eine dokumentarische Quelle (Arztbrief, Totenschein, Sterbeurkunde) ergänzen, falls vorhanden."
+    },
+    "IMP_307": {
+      "titel": "Lebensdauer über 110 Jahre",
+      "beschreibung": "Zwischen Geburts- und Sterbedatum dieser Person liegen mehr als 110 Jahre.",
+      "was_tun": "Geburts- und Sterbedatum gegen die Quelle prüfen. Häufige Ursache: ein Jahrhundert- oder Tippfehler in einem der beiden Datumswerte."
+    },
+    "IMP_308": {
+      "titel": "Ereignisdatum außerhalb der Existenz des Ortes",
+      "beschreibung": "Das Datum dieses Ereignisses liegt außerhalb der Zeitspanne, in der der referenzierte Ort laut existiert_von/existiert_bis bestanden hat.",
+      "was_tun": "Prüfen, ob der richtige Ort referenziert ist (z. B. Vorgänger-/Nachfolgeort bei einer Umbenennung), oder ob existiert_von/existiert_bis am Ort korrekt gepflegt ist."
+    },
+    "IMP_309": {
+      "titel": "Person ohne jede Beziehung und ohne Ereignis",
+      "beschreibung": "Diese Person hat weder eine Elternschaft noch eine Partnerschaft noch ein Ereignis — nach A-12 zulässig, aber meist ein Versehen.",
+      "was_tun": "Prüfen, ob eine Beziehung oder ein Ereignis vergessen wurde. Ist die Person tatsächlich bewusst isoliert erfasst (z. B. reine Randnotiz), ist kein Handeln nötig."
+    },
+    "IMP_310": {
+      "titel": "Kein unverarbeitetes Material trotz umfangreicher Quelle",
+      "beschreibung": "notizen_unverarbeitet ist leer, obwohl das Ausgangsmaterial (erkennbar an pruefsumme_quelltext) umfangreich war — bei einem längeren Gespräch ist das unwahrscheinlich.",
+      "was_tun": "Stichprobenartig gegen das ursprüngliche Transkript/Material prüfen, ob tatsächlich alles zugeordnet werden konnte, statt Unklares stillschweigend zu deuten."
+    },
+    "IMP_401": {
+      "titel": "Mögliche Dublette",
+      "beschreibung": "Eine neu angelegte Person ähnelt (Name + Geburtsdaten) einer bereits im Projekt vorhandenen Person.",
+      "was_tun": "Die beiden Personen vergleichen. Import legt im Zweifel getrennt an (W-05) — ein Zusammenführen erfolgt bewusst und bestätigt im Merge-Werkzeug, nie automatisch."
+    },
+    "IMP_402": {
+      "titel": "Widerspruch zu bestehendem bevorzugten Wert",
+      "beschreibung": "Eine bereits vorhandene Person bekommt einen als bevorzugt markierten Wert, der einem schon bestehenden bevorzugten Wert widerspricht.",
+      "was_tun": "Prüfen, welcher Wert tatsächlich der bessere ist. Ohne ausdrückliches ueberschreiben bleibt der bestehende Wert unangetastet — der neue Wert wird als zusätzliche, konkurrierende Aussage angelegt."
+    },
+    "IMP_403": {
+      "titel": "Möglicherweise bereits vorhandener Ort",
+      "beschreibung": "Ein neu angelegter Ort hat denselben bevorzugten Namen und liegt im Umkreis von 5 km eines bereits vorhandenen Ortes.",
+      "was_tun": "Prüfen, ob es sich um denselben Ort handelt. Falls ja, im Merge-Werkzeug zusammenführen, statt zwei Orte parallel zu pflegen."
+    },
+    "IMP_404": {
+      "titel": "Quelle mit identischem Titel existiert schon",
+      "beschreibung": "Eine neu angelegte Quelle trägt denselben Titel wie eine bereits im Projekt vorhandene Quelle.",
+      "was_tun": "Prüfen, ob es sich um dieselbe Quelle handelt (z. B. dasselbe Gespräch zweimal importiert). Falls ja, die bestehende Quelle referenzieren (db:-Kennung) statt eine neue anzulegen."
     }
   }
 }

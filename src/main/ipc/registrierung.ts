@@ -7,6 +7,7 @@ import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema 
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { fuehreAus } from '../befehle/bus'
+import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
 import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
@@ -50,6 +51,10 @@ const projektOeffnenEingabeSchema: z.ZodType<Ein<'befehl:projekt.oeffnen'>> = z.
 })
 
 const importPruefenEingabeSchema: z.ZodType<Ein<'abfrage:import.pruefen'>> = z.object({
+  pfad: z.string(),
+})
+
+const importTrockenlaufEingabeSchema: z.ZodType<Ein<'befehl:import.trockenlauf'>> = z.object({
   pfad: z.string(),
 })
 
@@ -119,4 +124,8 @@ export function ipcRegistrierung(): void {
   // ENTSCHIEDEN: `abfrage:`, nicht `befehl:` — die Prüfung schreibt nichts (§11, ADR-016;
   // U-AP1.3b-kanal in docs/80_Offene_Fragen.md).
   registriere('abfrage:import.pruefen', importPruefenEingabeSchema, (ein) => importPruefen(offenesProjektDatenbank(), ein.pfad))
+
+  // `befehl:`, NICHT `abfrage:` — der Trockenlauf schreibt während der Ausführung (in einer
+  // Transaktion, die anschließend zurückgerollt wird, 56_Import_Vertrag.md §6.1, AP-1.4a).
+  registriere('befehl:import.trockenlauf', importTrockenlaufEingabeSchema, (ein) => importTrockenlaufDurchfuehren(offenesProjektDatenbank(), ein.pfad))
 }

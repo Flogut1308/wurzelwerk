@@ -1,7 +1,9 @@
 /**
  * Prüfbefunde des Import-Vertrags `wurzelwerk-import/v1` (56_Import_Vertrag.md §4, AP-1.3a +
- * AP-1.3b). `ALLE_IMP_CODES` ist die einzige Quelle der Wahrheit für IMP-101…IMP-107 (Stufe 1,
- * Schema) und IMP-201…IMP-209 (Stufe 2, Referenzen/Struktur); `ImpCode` wird daraus abgeleitet.
+ * AP-1.3b + AP-1.4a). `ALLE_IMP_CODES` ist die einzige Quelle der Wahrheit für IMP-101…IMP-107
+ * (Stufe 1, Schema), IMP-201…IMP-209 (Stufe 2, Referenzen/Struktur), IMP-301…IMP-310 (Stufe 3,
+ * Plausibilität — Hinweis) und IMP-401…IMP-404 (Stufe 4, Kollisionen mit dem Bestand — Hinweis);
+ * `ImpCode` wird daraus abgeleitet.
  *
  * Bewusst eine EIGENE, von `ALLE_FEHLERCODES` (src/shared/fehler/codes.ts) getrennte Union:
  * IMP-Codes sind Berichtsbefunde eines Prüflaufs (`pruefeImport`) über eine Importdatei — kein
@@ -26,19 +28,34 @@ export const ALLE_IMP_CODES = [
   'IMP-207',
   'IMP-208',
   'IMP-209',
+  'IMP-301',
+  'IMP-302',
+  'IMP-303',
+  'IMP-304',
+  'IMP-305',
+  'IMP-306',
+  'IMP-307',
+  'IMP-308',
+  'IMP-309',
+  'IMP-310',
+  'IMP-401',
+  'IMP-402',
+  'IMP-403',
+  'IMP-404',
 ] as const
 
 export type ImpCode = (typeof ALLE_IMP_CODES)[number]
 
 /**
  * Ein einzelner Prüfbefund (56_Import_Vertrag.md §5 — Format der Fehlermeldung). Stufe 1 und
- * Stufe 2 kennen beide nur den Schweregrad `fehler` (Stufe 3/4, HINWEIS, sind nicht Teil dieses
- * Arbeitspakets). `zeile` (§5 Punkt 4) kommt aus dem Positionsindex (`src/core/import/positionsindex.ts`,
- * AP-1.3b) und bleibt `undefined`, wenn der Pfad im Rohtext nicht auffindbar ist (z. B. ein
- * Pflichtfeld, das komplett fehlt).
+ * Stufe 2 tragen `schweregrad: 'fehler'` (verhindern den Import); Stufe 3 und Stufe 4 (AP-1.4a)
+ * tragen `schweregrad: 'hinweis'` (verhindern nichts, §4). `zeile` (§5 Punkt 4) kommt aus dem
+ * Positionsindex (`src/core/import/positionsindex.ts`, AP-1.3b) und bleibt `undefined`, wenn der
+ * Pfad im Rohtext nicht auffindbar ist (z. B. ein Pflichtfeld, das komplett fehlt, oder ein
+ * Stufe-4-Fund ohne festen Pfad in DIESER Datei).
  */
 export interface Befund {
-  readonly schweregrad: 'fehler'
+  readonly schweregrad: 'fehler' | 'hinweis'
   readonly code: ImpCode
   readonly pfad: string
   readonly kennung?: string

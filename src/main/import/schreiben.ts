@@ -53,11 +53,37 @@ export interface SchreibOptionen {
   readonly neueId?: () => string
 }
 
+/**
+ * Eine einzelne "WIRD ERGÄNZT"-Zeile für den Trockenlauf-Bericht (56_Import_Vertrag.md §6.2 Punkt
+ * 2, AP-1.4a): eine neue Aussage (+ ihr Beleg), deren Subjekt eine bereits bestehende `db:`-Kennung
+ * ist — im Unterschied zu einer Aussage über eine in DIESEM Lauf neu angelegte Entität ("WIRD
+ * ANGELEGT"). Nur `aussage`/`zitat`/`aussage_zitat` können "ergänzt" sein: jede andere Tabelle wird
+ * für eine `db:`-Kennung von `schreibeImport()` gar nicht erst beschrieben (§2.1 Schutzregel — die
+ * eigene Zeile/ihre unmittelbaren Kindzeilen werden bei `db:` übersprungen, s. Moduldoku oben).
+ */
+export interface ErgaenzungEintrag {
+  readonly subjektTyp: AussageSubjektTyp
+  /** Die aufgelöste UUID (== `aussage.subjekt_id`). */
+  readonly subjektId: string
+  /** Die ursprüngliche `db:<uuid>`-Kennung, wie sie im Vertrag stand (für die Berichtsanzeige). */
+  readonly subjektKennung: string
+  readonly praedikat: string
+  readonly wertText?: string | undefined
+  readonly wertZahl?: number | undefined
+  readonly istBevorzugt?: boolean | undefined
+  /** `id` der soeben eingefügten `aussage`-Zeile — für `findeBevorzugungsKonflikte()`
+   * (`src/main/abfragen/import-kollision.ts`, IMP-402), damit diese neue Zeile bei der Suche nach
+   * einem WIDERSPRECHENDEN bestehenden bevorzugten Wert nicht sich selbst trifft. */
+  readonly aussageId: string
+}
+
 /** Ergebnis von `schreibeImport()`: die Kennungsauflösung (für den Aufrufer, z. B. den
- * Trockenlauf-Bericht oder `import_herkunft`) + eine Zeilenzählung je Tabelle. */
+ * Trockenlauf-Bericht oder `import_herkunft`) + eine Zeilenzählung je Tabelle + die Liste der
+ * "WIRD ERGÄNZT"-Aussagen (AP-1.4a). */
 export interface SchreibErgebnis {
   readonly kennungen: ReadonlyMap<string, string>
   readonly zeilen: Readonly<Record<string, number>>
+  readonly ergaenzungen: readonly ErgaenzungEintrag[]
 }
 
 /** `true`, wenn eine Kennung `db:` ist (referenziert einen vorhandenen Datensatz, §2.1). */
@@ -136,6 +162,15 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
     }
     return uuid
   }
+
+  // AP-1.4a: Rückwärtsauflösung UUID -> ursprüngliche `db:`-Kennung, NUR für tatsächlich
+  // referenzierte (nicht neu angelegte) Entitäten — Grundlage für `ergaenzungen` unten (§6.2 "WIRD
+  // ERGÄNZT"). Gebaut direkt nach Pass 1, weil `kennungen` ab hier vollständig befüllt ist.
+  const uuidZuDbKennung = new Map<string, string>()
+  kennungen.forEach((uuid, kennung) => {
+    if (istDbKennung(kennung)) uuidZuDbKennung.set(uuid, kennung)
+  })
+  const ergaenzungen: ErgaenzungEintrag[] = []
 
   const aussagenAufgaben: AussageAufgabe[] = []
 
@@ -512,6 +547,20 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
     })
     zaehle('aussage')
 
+    const bestehendeKennung = uuidZuDbKennung.get(eingabe.subjektId)
+    if (bestehendeKennung !== undefined) {
+      ergaenzungen.push({
+        subjektTyp: eingabe.subjektTyp,
+        subjektId: eingabe.subjektId,
+        subjektKennung: bestehendeKennung,
+        praedikat: eingabe.praedikat,
+        wertText: eingabe.wertText,
+        wertZahl: eingabe.wertZahl,
+        istBevorzugt: eingabe.istBevorzugt,
+        aussageId,
+      })
+    }
+
     eingabe.belege.forEach((beleg) => {
       const zitatId = neueId()
       belegRepo.zitatEinfuegen(tx, {
@@ -540,5 +589,5 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
     zeilen[tabelle] = anzahl
   })
 
-  return { kennungen, zeilen }
+  return { kennungen, zeilen, ergaenzungen }
 }
