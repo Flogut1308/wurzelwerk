@@ -111,6 +111,14 @@
     "titel": "Verweis in der Importdatei fehlt",
     "was_tun": "Die Importdatei auf vollständige Verweise prüfen und erneut exportieren."
   },
+  "IMPORT_MEDIUM_NICHT_KOPIERBAR": {
+    "titel": "Mediendatei konnte nicht kopiert werden",
+    "was_tun": "Prüfen, ob die Mediendatei neben der Importdatei liegt und lesbar ist, dann den Import erneut starten. Es wurde nichts importiert."
+  },
+  "IMPORT_SCHNAPPSCHUSS_FEHLGESCHLAGEN": {
+    "titel": "Schnappschuss vor dem Import fehlgeschlagen",
+    "was_tun": "Speicherplatz und Schreibrechte im Projektordner prüfen, dann den Import erneut starten. Es wurde nichts importiert."
+  },
   "INTERN_UNERWARTET": {
     "titel": "Unerwarteter interner Fehler",
     "was_tun": "Die Anwendung neu starten. Tritt der Fehler weiterhin auf, das Protokoll an den Support senden."
