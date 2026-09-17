@@ -7,10 +7,12 @@ import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema 
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { fuehreAus } from '../befehle/bus'
+import { importAusfuehren } from '../befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
 import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
+import { undoZiel } from '../repositories/journal-repo'
 import { sendeEreignis } from './ereignisse'
 import { protokollFehler } from '../protokoll/logger'
 import {
@@ -55,6 +57,10 @@ const importPruefenEingabeSchema: z.ZodType<Ein<'abfrage:import.pruefen'>> = z.o
 })
 
 const importTrockenlaufEingabeSchema: z.ZodType<Ein<'befehl:import.trockenlauf'>> = z.object({
+  pfad: z.string(),
+})
+
+const importAusfuehrenEingabeSchema: z.ZodType<Ein<'befehl:import.ausfuehren'>> = z.object({
   pfad: z.string(),
 })
 
@@ -128,4 +134,22 @@ export function ipcRegistrierung(): void {
   // `befehl:`, NICHT `abfrage:` — der Trockenlauf schreibt während der Ausführung (in einer
   // Transaktion, die anschließend zurückgerollt wird, 56_Import_Vertrag.md §6.1, AP-1.4a).
   registriere('befehl:import.trockenlauf', importTrockenlaufEingabeSchema, (ein) => importTrockenlaufDurchfuehren(offenesProjektDatenbank(), ein.pfad))
+
+  // AP-1.5, ADR-019: der echte Import. `undoZiel()` NACH dem Schreiben liefert die soeben
+  // committete Import-Transaktion (klein oder groß, beide Wege setzen `rueckgaengig_moeglich = 1`
+  // per Schema-Default) — für das `ereignis:datenGeaendert`, das der Bus (`fuehreAus()`) sonst
+  // selbst auslöst (dieser Kanal läuft NICHT über den Bus, s. Kopfkommentar von `import-ausfuehren.ts`).
+  // Bei `importGesperrt` wurde nichts geschrieben — dann geht kein Ereignis raus.
+  registriere('befehl:import.ausfuehren', importAusfuehrenEingabeSchema, (ein) => {
+    const db = offenesProjektDatenbank()
+    const bericht = importAusfuehren(db, ein)
+    if (!bericht.importGesperrt) {
+      const ziel = undoZiel(db)
+      if (ziel !== undefined) {
+        sendeEreignis('ereignis:datenGeaendert', { transaktionId: ziel.id, ursache: 'import.ausfuehren' })
+      }
+      journalStatusMelden(db)
+    }
+    return bericht
+  })
 }

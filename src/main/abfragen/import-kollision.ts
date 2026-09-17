@@ -215,6 +215,7 @@ export function findeOrtsDubletten(db: Database.Database, kandidaten: readonly O
 }
 
 interface AussageWertZeile {
+  readonly id: string
   readonly wert_text: string | null
   readonly wert_zahl: number | null
   readonly wert_ref_id: string | null
@@ -235,27 +236,57 @@ function wertRepraesentation(zeile: AussageWertZeile): string {
   return `${zeile.wert_text ?? ''}|${zeile.wert_zahl ?? ''}|${zeile.wert_ref_id ?? ''}`
 }
 
+/** Eine bestehende bevorzugte Aussage zu (subjektTyp, subjektId, praedikat) — mit `id`, AP-1.5:
+ * Grundlage sowohl für `findeBevorzugungsKonflikte()` (IMP-402-Hinweis) als auch für die
+ * ueberschreiben-Demotion in `src/main/import/schreiben.ts` (`aussageRepo.bevorzugungAberkennen`). */
+export interface BevorzugteAussage {
+  readonly id: string
+  readonly wertText: string | null
+  readonly wertZahl: number | null
+  readonly wertRefId: string | null
+}
+
+/**
+ * Liefert alle bestehenden bevorzugten Aussagen (`ist_bevorzugt = 1`) zu (subjektTyp, subjektId,
+ * praedikat), optional ohne `ausschlussId` (die soeben im selben Lauf eingefügte, noch nicht
+ * bevorzugte Aussage selbst — IMP-402-Aufrufer). Kein Schema-`UNIQUE` erzwingt "höchstens eine"
+ * (docs/schema/0002_kern.sql: `aussage.ist_bevorzugt` trägt nur einen `CHECK` auf den Wertebereich,
+ * keine Eindeutigkeit über `(subjekt_typ, subjekt_id, praedikat)`) — die Aufrufer entscheiden
+ * darum bewusst selbst, ob mehr als ein Treffer für sie ein Fehlerfall ist (AP-1.5 Leitentscheidung:
+ * `schreiben.ts` stoppt in diesem Fall, statt zu raten).
+ */
+export function bevorzugteAussagen(
+  db: Database.Database,
+  subjektTyp: string,
+  subjektId: string,
+  praedikat: string,
+  ausschlussId?: string,
+): readonly BevorzugteAussage[] {
+  const zeilen = db
+    .prepare<{ readonly subjektTyp: string; readonly subjektId: string; readonly praedikat: string; readonly ausschlussId: string }, AussageWertZeile>(
+      `SELECT id, wert_text, wert_zahl, wert_ref_id FROM aussage
+       WHERE subjekt_typ = @subjektTyp AND subjekt_id = @subjektId AND praedikat = @praedikat
+         AND ist_bevorzugt = 1 AND id != @ausschlussId`,
+    )
+    .all({ subjektTyp, subjektId, praedikat, ausschlussId: ausschlussId ?? '' })
+  return zeilen.map((zeile) => ({ id: zeile.id, wertText: zeile.wert_text, wertZahl: zeile.wert_zahl, wertRefId: zeile.wert_ref_id }))
+}
+
 /** IMP-402: `db:`-Subjekt bekommt einen bevorzugten Wert, der einem bereits bestehenden
  * bevorzugten Wert (anderes Prädikat-Subjekt-Paar, `ist_bevorzugt = 1`, andere `aussage.id`)
  * widerspricht. */
 export function findeBevorzugungsKonflikte(db: Database.Database, ergaenzungen: readonly BevorzugteErgaenzung[]): readonly KonfliktFund[] {
   const funde: KonfliktFund[] = []
   for (const ergaenzung of ergaenzungen) {
-    const bestehende = db
-      .prepare<{ readonly subjektTyp: string; readonly subjektId: string; readonly praedikat: string; readonly neueId: string }, AussageWertZeile>(
-        `SELECT wert_text, wert_zahl, wert_ref_id FROM aussage
-         WHERE subjekt_typ = @subjektTyp AND subjekt_id = @subjektId AND praedikat = @praedikat
-           AND ist_bevorzugt = 1 AND id != @neueId`,
-      )
-      .all({ subjektTyp: ergaenzung.subjektTyp, subjektId: ergaenzung.subjektId, praedikat: ergaenzung.praedikat, neueId: ergaenzung.neueAussageId })
+    const bestehende = bevorzugteAussagen(db, ergaenzung.subjektTyp, ergaenzung.subjektId, ergaenzung.praedikat, ergaenzung.neueAussageId)
 
     const neueRepraesentation = `${ergaenzung.wertText ?? ''}|${ergaenzung.wertZahl ?? ''}|`
     for (const zeile of bestehende) {
-      if (wertRepraesentation(zeile) === neueRepraesentation) continue
+      if (wertRepraesentation({ id: zeile.id, wert_text: zeile.wertText, wert_zahl: zeile.wertZahl, wert_ref_id: zeile.wertRefId }) === neueRepraesentation) continue
       funde.push({
         subjektKennung: ergaenzung.subjektKennung,
         praedikat: ergaenzung.praedikat,
-        bestehenderWert: zeile.wert_text ?? (zeile.wert_zahl !== null ? String(zeile.wert_zahl) : zeile.wert_ref_id ?? ''),
+        bestehenderWert: zeile.wertText ?? (zeile.wertZahl !== null ? String(zeile.wertZahl) : zeile.wertRefId ?? ''),
       })
     }
   }

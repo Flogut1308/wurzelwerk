@@ -22,13 +22,13 @@
 //    TypeScript-AST nach echten Aufrufstellen von `journalAus()` (ohne die Definition in
 //    kontext.ts selbst) und ordnet jede über den Text ihres verpflichtenden `grund`-Arguments
 //    einer der drei Kategorien zu. Seit AP-0.24 (PR-A: Migrations-Klammer, laeufer.ts; AP-0.10:
-//    Undo/Redo, undo.ts) sind DREI Aufrufstellen erreichbare Realität: Migration genau 1,
-//    Undo/Redo genau 2 (undo + redo), Großimport noch 0 (AP-1.5 existiert nicht). Die aktive
-//    Prüfung unten nagelt diese Multimenge KATEGORIESCHARF fest (nicht bloß die Summe): jede
-//    einzelne Kategoriezahl. Damit fällt das Entfernen der Migrations-Stelle (migration → 0)
-//    ebenso auf wie eine vierte, nicht kategorisierbare Aufrufstelle (unbekannte ≠ [] / gesamt > 3).
-//    Der `it.todo` markiert den Nachfolgezustand (Großimport-Aufrufstelle aus AP-1.5 hebt die
-//    Gesamtzahl auf 4 / grossimport auf 1).
+//    Undo/Redo, undo.ts) und AP-1.5 (Großimport, `src/main/befehle/import-ausfuehren.ts`) sind
+//    VIER Aufrufstellen erreichbare Realität: Migration genau 1, Undo/Redo genau 2 (undo + redo),
+//    Großimport genau 1. Die aktive Prüfung unten nagelt diese Multimenge KATEGORIESCHARF fest
+//    (nicht bloß die Summe): jede einzelne Kategoriezahl. Damit fällt das Entfernen der
+//    Migrations-Stelle (migration → 0) ebenso auf wie eine fünfte, nicht kategorisierbare
+//    Aufrufstelle (unbekannte ≠ [] / gesamt > 4). (AP-1.5-Nachtrag: löst den bis dahin aktiven
+//    `it.todo` "grossimport-Aufrufstelle hebt grossimport auf 1 / gesamt auf 4" auf.)
 import { describe, expect, it } from 'vitest'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
@@ -56,7 +56,7 @@ describe('Invariante: kein Schreibvorgang auf einer journalisierten Tabelle ohne
 })
 
 describe('Invariante: nur Migration, Undo/Redo und Großimport dürfen das Journal abschalten (55_Architektur.md §4.3)', () => {
-  it('die journalAus()-Aufrufstellen in src/ sind kategoriescharf verteilt: Migration=1, Undo/Redo=2, Großimport=0, keine unbekannte Kategorie, gesamt=3', () => {
+  it('die journalAus()-Aufrufstellen in src/ sind kategoriescharf verteilt: Migration=1, Undo/Redo=2, Großimport=1, keine unbekannte Kategorie, gesamt=4', () => {
     const aufrufstellen = journalAusAufrufstellen()
 
     // Bestehende Zusicherung (nicht abgeschwächt): keine Aufrufstelle trägt einen grund, der zu
@@ -80,19 +80,14 @@ describe('Invariante: nur Migration, Undo/Redo und Großimport dürfen das Journ
     expect(zähleKategorie('undo_redo'), `Undo/Redo-Aufrufstellen (erwartet genau 2 - undo + redo): ${stellenText}`).toBe(2)
     expect(
       zähleKategorie('grossimport'),
-      `Großimport-Aufrufstellen (erwartet 0 - AP-1.5 existiert noch nicht): ${stellenText}`,
-    ).toBe(0)
+      `Großimport-Aufrufstellen (erwartet genau 1 - AP-1.5 befehle/import-ausfuehren.ts): ${stellenText}`,
+    ).toBe(1)
 
     expect(
       aufrufstellen.length,
-      `Gesamtzahl journalAus()-Aufrufstellen (erwartet genau 3 = 1 Migration + 2 Undo/Redo): ${stellenText}`,
-    ).toBe(3)
+      `Gesamtzahl journalAus()-Aufrufstellen (erwartet genau 4 = 1 Migration + 2 Undo/Redo + 1 Großimport): ${stellenText}`,
+    ).toBe(4)
   })
-
-  // Nachfolge-Marker: AP-1.5 (Großimport) legt seine eigene journalAus()-Aufrufstelle an. Dann ist
-  // die erreichbare Realität grossimport=1 und die Gesamtzahl 4 - der aktive it oben ist dann
-  // anzupassen (grossimport toBe(1), length toBe(4)), NICHT diese Prüfung abzuschwächen.
-  it.todo('journal-vollstaendig: grossimport-Aufrufstelle (AP-1.5) hebt grossimport auf 1 und die Gesamtzahl auf 4')
 })
 
 describe('Selbstprüfung des Scanners: journalAusAufrufeAusQuelltext erkennt beide Aufrufformen (hueter-Review PR #13, Auflage 1)', () => {

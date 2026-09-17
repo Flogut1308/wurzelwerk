@@ -144,6 +144,16 @@ export function statusSetzen(tx: Tx, transaktionId: string, status: TransaktionS
 }
 
 /**
+ * Setzt `transaktion.snapshot_pfad` (ADR-019, AP-1.5): der Großimport hinterlegt hier den Pfad
+ * des Schnappschusses, der VOR seinen (unjournalisierten) Schreibvorgängen erzeugt wurde — die
+ * Grundlage, über die `src/main/journal/undo.ts` (`importZuruecknehmen`) diese Transaktion später
+ * als Datei-Wiederherstellung statt als zeilenweises Undo erkennt.
+ */
+export function snapshotPfadSetzen(tx: Tx, transaktionId: string, snapshotPfad: string): void {
+  tx.prepare('UPDATE transaktion SET snapshot_pfad = @snapshotPfad WHERE id = @id').run({ id: transaktionId, snapshotPfad })
+}
+
+/**
  * Verwirft den kompletten Redo-Stapel (55_Architektur.md §4.7): sobald ein neuer Befehl läuft,
  * werden alle `zurueckgenommen`-Transaktionen auf `verworfen` gesetzt - das lineare Undo-Modell.
  * Aufgerufen vom Befehlsbus (`src/main/befehle/bus.ts`), NICHT für eine leere (verworfene)

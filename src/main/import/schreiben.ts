@@ -26,6 +26,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { AussageSubjektTypEnum } from '../../shared/schemata/gemeinsam'
 import type { ImportDatei } from '../../shared/schemata/import-v1'
 import { neueId as neueIdStandard } from '../id'
+import { bevorzugteAussagen } from '../abfragen/import-kollision'
 import type { Tx } from '../repositories/basis'
 import * as aussageRepo from '../repositories/aussage-repo'
 import * as belegRepo from '../repositories/beleg-repo'
@@ -38,6 +39,7 @@ import * as nameRepo from '../repositories/name-repo'
 import * as ortRepo from '../repositories/ort-repo'
 import * as personRepo from '../repositories/person-repo'
 import { datumSpalten, type DatumSpaltengruppe } from './datum-spalten'
+import type { MedienkopieAbbildung } from './medienkopie'
 
 // `Beleg` ist im Vertrag nicht exportiert (nur `ImportDatei`, s. `src/shared/schemata/import-v1.ts`)
 // — hier per Indexzugriff auf ein Feld extrahiert, das dieselbe `belegeSchema`-Form trägt wie
@@ -51,6 +53,11 @@ const LEERE_DATUM_SPALTEN: DatumSpaltengruppe = datumSpalten(undefined)
 export interface SchreibOptionen {
   readonly erstelltAm: number
   readonly neueId?: () => string
+  /** AP-1.5: Abbildung `medien[].relativer_pfad` → kopiertes Ziel (`src/main/import/medienkopie.ts`).
+   * OHNE dieses Feld (Default, u. a. der gesamte Trockenlauf) bleibt `medium.relativer_pfad`
+   * unverändert der Vertragswert — bewusst identisches Verhalten zu vor AP-1.5 (Leitentscheidung:
+   * "Default Identität → Trockenlaufverhalten UNVERÄNDERT"). */
+  readonly medienAufloesung?: MedienkopieAbbildung
 }
 
 /**
@@ -132,6 +139,7 @@ interface AussageAufgabe {
 export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen): SchreibErgebnis {
   const neueId = opt.neueId ?? neueIdStandard
   const erstelltAm = opt.erstelltAm
+  const medienAufloesung = opt.medienAufloesung
 
   const zeilenZaehler = new Map<string, number>()
   function zaehle(tabelle: string): void {
@@ -170,6 +178,18 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
   kennungen.forEach((uuid, kennung) => {
     if (istDbKennung(kennung)) uuidZuDbKennung.set(uuid, kennung)
   })
+
+  // AP-1.5, §2.1 Schutzregel: die aufgelösten UUIDs jeder Person mit `ueberschreiben: true`. Nur an
+  // `db:`-Kennungen möglich (IMP-205 hätte alles andere schon abgelehnt) — Grundlage für die
+  // Bevorzugungs-Ersetzung weiter unten (Schritt 10). Heute nur auf `Person` (einziges Vertragsfeld
+  // mit `ueberschreiben`, s. `src/shared/schemata/import-v1.ts`).
+  const ueberschreibenSubjekte = new Set<string>()
+  datei.personen?.forEach((p) => {
+    if (p.ueberschreiben === true) {
+      ueberschreibenSubjekte.add(aufloesen(p.id))
+    }
+  })
+
   const ergaenzungen: ErgaenzungEintrag[] = []
 
   const aussagenAufgaben: AussageAufgabe[] = []
@@ -226,9 +246,11 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
   datei.medien?.forEach((m) => {
     const id = aufloesen(m.id)
     if (istDbKennung(m.id)) return
+    const aufgeloestesMedium = medienAufloesung?.get(m.relativer_pfad)
     mediumRepo.einfuegen(tx, {
       id,
-      relativerPfad: m.relativer_pfad,
+      relativerPfad: aufgeloestesMedium?.relativerPfad ?? m.relativer_pfad,
+      dateiname: aufgeloestesMedium?.dateiname ?? null,
       titel: m.titel ?? null,
       beschreibung: m.beschreibung ?? null,
       datum: datumSpalten(m.datum),
@@ -527,6 +549,35 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
   //     Objektzeilen (inkl. `quelle`), jede `belege[].quelle` löst darum sicher auf.
   aussagenAufgaben.forEach((eingabe) => {
     const aussageId = neueId()
+
+    // AP-1.5, §2.1 Schutzregel: eine neue bevorzugte Aussage darf einen bestehenden bevorzugten
+    // Wert NICHT einfach ersetzen. `bevorzugteAussagen()` findet Kandidaten für (subjektTyp,
+    // subjektId, praedikat) — normalerweise höchstens einer (kein DB-Constraint erzwingt das,
+    // s. Kommentar dort); mehr als einer ist eine unerwartete Bestandsverletzung, die diese
+    // Funktion NICHT rät, sondern meldet (Leitentscheidung AP-1.5, CLAUDE.md §12).
+    let istBevorzugtEffektiv = eingabe.istBevorzugt
+    if (eingabe.istBevorzugt === true) {
+      const bestehende = bevorzugteAussagen(tx, eingabe.subjektTyp, eingabe.subjektId, eingabe.praedikat)
+      if (bestehende.length > 1) {
+        throw new WurzelFehler(
+          'INTERN_UNERWARTET',
+          `schreibeImport(): mehr als eine bestehende bevorzugte Aussage zu (${eingabe.subjektTyp}, ${eingabe.subjektId}, ${eingabe.praedikat}) — nicht eindeutig, Import gestoppt statt geraten (AP-1.5 Leitentscheidung).`,
+        )
+      }
+      const vorhandene = bestehende[0]
+      if (vorhandene !== undefined) {
+        if (ueberschreibenSubjekte.has(eingabe.subjektId)) {
+          // MIT ueberschreiben: die bestehende bevorzugte Aussage wird demotet (im Journal, da tx
+          // armiert), die neue bleibt bevorzugt.
+          aussageRepo.bevorzugungAberkennen(tx, vorhandene.id)
+        } else {
+          // OHNE ueberschreiben: die neue Aussage steht als zweite, konkurrierende daneben — der
+          // bestehende bevorzugte Wert bleibt es (§2.1 Schutzregel, B-04/E21).
+          istBevorzugtEffektiv = false
+        }
+      }
+    }
+
     aussageRepo.einfuegen(tx, {
       id: aussageId,
       subjektTyp: eingabe.subjektTyp,
@@ -537,7 +588,7 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       wertRefId: eingabe.wertRefId ?? null,
       datum: eingabe.datum ?? LEERE_DATUM_SPALTEN,
       konfidenz: eingabe.konfidenz,
-      istBevorzugt: boolZuInt(eingabe.istBevorzugt),
+      istBevorzugt: boolZuInt(istBevorzugtEffektiv),
       begruendung: eingabe.begruendung ?? null,
       unsicherheit: eingabe.unsicherheit ?? null,
       gueltigVon: eingabe.gueltigVon ?? null,
@@ -556,7 +607,7 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
         praedikat: eingabe.praedikat,
         wertText: eingabe.wertText,
         wertZahl: eingabe.wertZahl,
-        istBevorzugt: eingabe.istBevorzugt,
+        istBevorzugt: istBevorzugtEffektiv,
         aussageId,
       })
     }

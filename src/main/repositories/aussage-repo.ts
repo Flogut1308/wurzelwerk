@@ -72,6 +72,16 @@ export function einfuegen(tx: Tx, ein: AussageEinfuegenEin): void {
   })
 }
 
+/**
+ * Demotet eine bestehende bevorzugte Aussage (`ist_bevorzugt = 0`, AP-1.5, §2.1 Schutzregel/
+ * ADR-026): einziger Schreibpfad für die `ueberschreiben: true`-Ersetzung aus
+ * `src/main/import/schreiben.ts`. Läuft in einer bereits offenen, armierten Transaktion — die
+ * `jrn_*`-Trigger schreiben das UPDATE dadurch wie jeden anderen Schreibvorgang ins Journal.
+ */
+export function bevorzugungAberkennen(tx: Tx, aussageId: string): void {
+  tx.prepare('UPDATE aussage SET ist_bevorzugt = 0 WHERE id = @id').run({ id: aussageId })
+}
+
 /** Nutzlast von `zitatVerknuepfen()`: alle Spalten von `aussage_zitat`
  * (docs/schema/0002_kern.sql §2.7, Verknüpfungstabelle ohne eigenes `id`). */
 export interface AussageZitatVerknuepfenEin {
