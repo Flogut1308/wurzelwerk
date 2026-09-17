@@ -6,7 +6,7 @@
 import type { PersonAnlegenEin, PersonFeldSetzenEin } from '../../shared/schemata/befehle'
 import type { Tx } from './basis'
 
-/** Spalten von `person` (docs/schema/0002_kern.sql), für `lesen()`. */
+/** Spalten von `person` (docs/schema/0002_kern.sql + 0005_import_luecken.sql), für `lesen()`. */
 export interface PersonZeile {
   readonly id: string
   readonly geschlecht: string | null
@@ -16,6 +16,7 @@ export interface PersonZeile {
   readonly gesperrt_bis: number | null
   readonly ist_platzhalter: 0 | 1
   readonly platzhalter_grund: string | null
+  readonly unsicherheit: string | null
   readonly erstellt_am: number | null
   readonly geaendert_am: number | null
 }
@@ -27,11 +28,14 @@ export interface PersonEinfuegenEin extends PersonAnlegenEin {
   readonly geaendertAm: number
 }
 
-/** Legt eine `person`-Zeile an (benannte Parameter, CLAUDE.md §6). */
-export function einfuegen(tx: Tx, ein: PersonEinfuegenEin): void {
+/** Legt eine `person`-Zeile an (benannte Parameter, CLAUDE.md §6). `unsicherheit` (0005-Spalte,
+ * AP-1.3c/ADR-026) fehlt in `PersonAnlegenEin` (AP-0.9, vor 0005) — deshalb hier optional statt
+ * über `PersonEinfuegenEin` erzwungen, mit `null`-Vorgabe für den bestehenden Aufrufer
+ * (`src/main/befehle/person-anlegen.ts`). */
+export function einfuegen(tx: Tx, ein: PersonEinfuegenEin & { readonly unsicherheit?: string | null }): void {
   tx.prepare(
-    `INSERT INTO person (id, geschlecht, lebend_status, privat, notiz, gesperrt_bis, ist_platzhalter, platzhalter_grund, erstellt_am, geaendert_am)
-     VALUES (@id, @geschlecht, @lebendStatus, @privat, @notiz, @gesperrtBis, @istPlatzhalter, @platzhalterGrund, @erstelltAm, @geaendertAm)`,
+    `INSERT INTO person (id, geschlecht, lebend_status, privat, notiz, gesperrt_bis, ist_platzhalter, platzhalter_grund, unsicherheit, erstellt_am, geaendert_am)
+     VALUES (@id, @geschlecht, @lebendStatus, @privat, @notiz, @gesperrtBis, @istPlatzhalter, @platzhalterGrund, @unsicherheit, @erstelltAm, @geaendertAm)`,
   ).run({
     id: ein.id,
     geschlecht: ein.geschlecht ?? null,
@@ -41,6 +45,7 @@ export function einfuegen(tx: Tx, ein: PersonEinfuegenEin): void {
     gesperrtBis: ein.gesperrt_bis ?? null,
     istPlatzhalter: ein.ist_platzhalter,
     platzhalterGrund: ein.platzhalter_grund ?? null,
+    unsicherheit: ein.unsicherheit ?? null,
     erstelltAm: ein.erstelltAm,
     geaendertAm: ein.geaendertAm,
   })
@@ -116,7 +121,7 @@ export function loeschen(tx: Tx, id: string): void {
 export function lesen(tx: Tx, id: string): PersonZeile | undefined {
   return tx
     .prepare<{ readonly id: string }, PersonZeile>(
-      `SELECT id, geschlecht, lebend_status, privat, notiz, gesperrt_bis, ist_platzhalter, platzhalter_grund, erstellt_am, geaendert_am
+      `SELECT id, geschlecht, lebend_status, privat, notiz, gesperrt_bis, ist_platzhalter, platzhalter_grund, unsicherheit, erstellt_am, geaendert_am
        FROM person WHERE id = @id`,
     )
     .get({ id })
