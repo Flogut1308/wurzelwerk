@@ -62,6 +62,7 @@ const PERSON_SPALTEN = [
   'platzhalter_grund',
   'erstellt_am',
   'geaendert_am',
+  'unsicherheit', // docs/schema/0005_import_luecken.sql (AP-1.3c): $defs/Person.unsicherheit, IMP-206
 ].sort((a, b) => a.localeCompare(b))
 
 function spaltenVon(json: string | null): readonly string[] {

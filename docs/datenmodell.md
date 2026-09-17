@@ -198,6 +198,39 @@ negativbefund(
 )
 ```
 
+`aussage.subjekt_typ` hat seit Migration `0005_import_luecken.sql` (AP-1.3c, ADR-026) acht statt
+sechs Werte: `person|ereignis|elternschaft|partnerschaft|ort|name|diagnose|risikofaktor` — die
+letzten beiden, weil `56_Import_Vertrag.md` §2.3 auch für Diagnose und Risikofaktor `belege`
+verlangt. `zitat.zeitmarke_sekunden REAL` (A-16, Interview-Zeitstempel), `person.unsicherheit TEXT`
+und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migration ergänzt.
+
+**Existenzbehauptung — wo Beleg und Konfidenz einer Entität leben (entschieden 17.09.2026, ADR-026).**
+Beleg und Konfidenz für **Person, Ereignis, Elternschaft und Partnerschaft** werden **nicht** als
+Spalte an der Entität geführt, sondern als Aussage:
+
+- `praedikat = 'existenz'` · `subjekt_typ` = der Entitätstyp · `subjekt_id` = deren `id`
+- `wert_text` ist **festgelegt auf `'ja'`**. Jeder andere Wert erzeugt über
+  `person_flach.hat_widerspruch` (Gruppierung nach `praedikat`, Vergleich der Werte) einen
+  **erfundenen Widerspruch**. Das ist kein Stilpunkt, sondern der Grund, warum der Wert festgenagelt ist.
+- Die Belege hängen über `aussage_zitat` an dieser Aussage — es gibt **keinen** zweiten Belegpfad.
+
+Das ist Leitprinzip 1 („Aussagen statt Felder", oben) und braucht keine Schemaänderung:
+`praedikat` ist per E-6 freier TEXT mit offener Menge, und `aussage.subjekt_typ` nimmt genau diese
+vier Typen bereits auf.
+
+Zwei Nebenbefunde, die beim Bauen sonst als Fehler gelesen werden:
+
+1. `person_flach.konfidenz_min` ist die **Untergrenze über alle** Aussagen einer Person, nicht die
+   Existenzkonfidenz. Eine Existenz-Aussage mit 4 verschwindet hinter einem Beruf mit 1. Wer „wie
+   sicher ist, dass diese Person existierte" zeigen will, liest `aussage` direkt.
+2. `person_flach` wird **ausschließlich** aus `aussage` gespeist, nie aus `ereignis` — es gibt
+   keinen `abl_ereignis_*`-Trigger. Der Import muss zu jedem Geburts-/Todesereignis **zusätzlich**
+   Aussagen mit `praedikat='geburtsdatum'`/`'todesdatum'`/`'geburtsort'` schreiben, sonst bleibt die
+   Personenliste datumsleer.
+
+`elternschaft.konfidenz` (Schema v1, als ungeprüfte Annahme kommentiert) wird **nicht mehr
+geschrieben** und bleibt NULL; sie ist nullable, der Ausbau ist eine spätere Aufräummigration.
+
 ### 2.8 Persona-Ebene (Phase 3)
 ```sql
 persona(

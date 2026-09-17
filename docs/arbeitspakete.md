@@ -906,6 +906,53 @@ Kanal `befehl:import.pruefen`
 
 ---
 
+## AP-1.3c — Schemalücken des Importvertrags schließen (Migration 0005)
+
+**Auftrag** — D-10, ADR-026. Entstanden aus der Prüfung von U-1.4a-beleg: die dort vermutete Lücke
+(Beleg/Konfidenz an der Entität) existiert **nicht** — `aussage` + `aussage_zitat` tragen sie, und
+die abgeleitete Schicht liest sie schon so (ADR-026). Es gibt aber **vier andere** Vertragsfelder
+ohne Ziel und ein CHECK, das zwei belegpflichtige Objektarten aussperrt. **Das ist ein
+Migrations-AP: er läuft NICHT in der Kette** (`/kette`), sondern einzeln, `planer` und `hueter`
+beide **opus** — AP-0.17-Klasse: ein Fehler macht bestehende Projektdateien unöffenbar, und keine
+CI sieht es, weil sie nur frische Datenbanken kennt.
+
+**Umfang**
+`docs/schema/0005_import_luecken.sql` · `src/main/datenbank/migration/registrierung.ts`
+(Eintrag v5 + Prüfsumme, `SCHEMA_VERSION` 4→5) · `pnpm trigger` (Neugenerierung `jrn_*`/`abl_*`) ·
+`fixtures/datenbanken/schema-v4.sqlite` (eingefroren) · `test/migration/` ·
+`docs/adr/ADR-026-*.md` · Doku-Sync `Wissen/` → `docs/` (50 §2.7, 60, 80)
+
+**Die fünf Lücken** (Herleitung: Prüfbericht 17.09.2026)
+
+| # | Änderung | Vertragsfeld | Art |
+|---|---|---|---|
+| 1 | `zitat.zeitmarke_sekunden REAL` | `$defs/Beleg.zeitmarke_sekunden` (A-16), 8× in `beispiel-3-interview.json` | ADD COLUMN |
+| 2 | `person.unsicherheit TEXT` | `$defs/Person.unsicherheit`, Pflicht bei `konfidenz ≤ 2` (IMP-206) | ADD COLUMN |
+| 3 | `aussage.unsicherheit TEXT` | `$defs/Aussage.unsicherheit` (≠ `begruendung`, IMP-207) | ADD COLUMN |
+| 4 | `aussage.gueltig_von INTEGER` / `gueltig_bis INTEGER` | `$defs/Aussage.gueltig_von/bis` (A-08) | ADD COLUMN |
+| 5 | `aussage.subjekt_typ`-CHECK um `'diagnose'`, `'risikofaktor'` erweitern | `$defs/Diagnose.belege`, `$defs/Risikofaktor.belege` (§2.3) | **Tabellenneubau** |
+
+**Vorentscheidungen**
+- **Alle fünf in einer Migration.** Eine Aufteilung hieße zwei Migrationen für eine Lücke, jede mit eingefrorener Fixture-DB, Triggerlauf, Prüfsumme und Migrationstests. Diagnosen und Risikofaktoren sind in Phase 1 im Schreibpfad: `diagnosen`/`risikofaktoren` sind Felder erster Ebene im Vertrag v1 (`wurzelwerk-import-v1.schema.json:52-53`) und stehen in `beispiel-3-interview.json`, das AP-1.3a akzeptieren muss.
+- **Punkt 5 als CHECK-Erweiterung, nicht als `diagnose_zitat`/`risikofaktor_zitat`.** Zwei Belegtabellen für zwei Sonderfälle brächen die Einheitlichkeit, die ADR-026 gerade herstellt; die Konfidenz liegt dort ohnehin schon als Spalte.
+- **`diagnose.icd10` bleibt.** Der Vertrag sagt „kein ICD-10" (E24), die Spalte existiert — eine Spalte zu viel, die niemand füllt. Sie zu entfernen wäre ein **zweiter** Tabellenneubau. Als hingenommene Divergenz in `80` notieren, nicht mitrenovieren.
+- **Der Tabellenneubau (Punkt 5) lief NICHT über den zunächst erwogenen `PRAGMA legacy_alter_table`-Trick vor einem einfachen `RENAME`.** Eine Probe zeigte: das schützt nicht die Fremdschlüssel-Definitionen anderer Tabellen (`risikofaktor.quelle_beruf_id` zeigte danach trotzdem auf den umbenannten Namen) — verworfen. Stattdessen ein Drei-Phasen-Muster: `aussage_zitat`/`risikofaktor` erst OHNE ihren Fremdschlüssel auf `aussage` neu bauen (neutralisiert die einzigen zwei eingehenden FKs), dann `aussage` gefahrlos neu bauen, dann `aussage_zitat`/`risikofaktor` ein zweites Mal MIT Fremdschlüssel auf die neue `aussage` neu bauen (plus deren vier Indizes). Ein eng auf die eine `RENAME`-Anweisung begrenztes `PRAGMA legacy_alter_table = ON` schützt zusätzlich `abl_person_*`/`abl_name_*`/`abl_ortsname_*` (referenzieren `aussage` in Unterabfragen) vor stillem Umschreiben ihrer Trigger-Körper — ein erst im roten Testlauf sichtbarer zweiter Stolperstein. Details: ADR-026-Nachtrag.
+
+**Abnahme**
+- Migration 4→5 läuft in einer Transaktion je Version, `user_version` in derselben TX (AP-0.5-Mechanik, unverändert).
+- **Byte-Identität:** die Prüfsumme in `registrierung.ts` gehört zur neuen Datei; bestehende Prüfsummen bleiben unangetastet.
+- `pnpm trigger` neu gelaufen: die neuen Spalten stehen im Journal-Abbild (`jrn_*`), bei Punkt 5 zusätzlich `abl_aussage_*` neu erzeugt. **Kein** Eintrag in der JOURNALISIERT-Liste ändert sich — es entsteht keine neue Tabelle. `docs/schema/0003_abgeleitet.sql` bleibt dabei byte-identisch (nur `jrn_aussage_*`/`jrn_zitat_*`/`jrn_person_*` ändern sich).
+- Der Tabellenneubau aus Punkt 5 **erhält alle Daten**: Zeilenzahl und Voll-Spalten-Abzug von `aussage`/`aussage_zitat`/`risikofaktor` vor/nach sind identisch, Trigger und Indizes sind danach wieder vollständig da, `PRAGMA foreign_key_check` liefert 0 Zeilen, und die Fremdschlüssel-Wirkung (CASCADE/SET NULL) ist nach der Migration nachweislich funktionsfähig, nicht nur strukturell vorhanden.
+- Eine gepackte App öffnet eine Projektdatei auf Stand 4 und hebt sie auf 5 (AP-0.17-Abnahmemuster).
+
+**Tests**
+- `test/migration/historisch.test.ts`: Aufstieg 4→5 gegen die eingefrorene `schema-v4.sqlite`.
+- `test/migration/pruefsumme.test.ts`: geänderte Migrationsdatei → `PROJEKT_MIGRATION_GEAENDERT`.
+- `test/schema/*`: die fünf neuen Spalten/der neue CHECK sind zugesichert (geschützter Prüfpfad — schema-bedingt zulässig im selben PR, ADR-025-Nachtrag).
+- `test/migration/import-luecken.test.ts` (neu): Aufstieg gegen die Fixture, Datenerhaltung des Tabellenneubaus (Zeilenzahlen, Voll-Spalten-Abzug, Indizes, Trigger, FK-Wirkung), CHECK-Grenze vor/nach der Migration, `person_flach`-Nachführung über `abl_aussage_ai` nach der Migration.
+
+---
+
 ## AP-1.4 — Trockenlauf und Bericht
 
 **Auftrag** — D-10 (Trockenlauf), ADR-010 Punkt 3. Umsetzung nach `56_Import_Vertrag.md` §6.

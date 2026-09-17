@@ -1,10 +1,18 @@
-// §2.7 Aussage (docs/schema/0002_kern.sql).
+// §2.7 Aussage (docs/schema/0002_kern.sql, seit Migration 0005 docs/schema/0005_import_luecken.sql,
+// AP-1.3c, ADR-026).
 import { z } from 'zod'
-import { BoolWert, DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum, KonfidenzSchema, SubjektTypEnum } from './gemeinsam'
+import {
+  AussageSubjektTypEnum,
+  BoolWert,
+  DatumModifikatorEnum,
+  DatumPraezisionEnum,
+  KalenderEnum,
+  KonfidenzSchema,
+} from './gemeinsam'
 
 export interface Aussage {
   readonly id: string
-  readonly subjekt_typ: z.infer<typeof SubjektTypEnum>
+  readonly subjekt_typ: z.infer<typeof AussageSubjektTypEnum>
   readonly subjekt_id: string
   readonly praedikat: string
   readonly wert_text?: string | undefined
@@ -24,11 +32,14 @@ export interface Aussage {
   readonly konfidenz?: number | undefined
   readonly ist_bevorzugt?: 0 | 1 | undefined
   readonly begruendung?: string | undefined
+  readonly unsicherheit?: string | undefined
+  readonly gueltig_von?: number | undefined
+  readonly gueltig_bis?: number | undefined
 }
 
 export const aussageSchema: z.ZodType<Aussage> = z.object({
   id: z.string(),
-  subjekt_typ: SubjektTypEnum,
+  subjekt_typ: AussageSubjektTypEnum,
   subjekt_id: z.string(),
   praedikat: z.string(),
   wert_text: z.string().optional(),
@@ -48,4 +59,7 @@ export const aussageSchema: z.ZodType<Aussage> = z.object({
   konfidenz: KonfidenzSchema.optional(),
   ist_bevorzugt: BoolWert.optional(),
   begruendung: z.string().optional(),
+  unsicherheit: z.string().optional(),
+  gueltig_von: z.number().int().optional(),
+  gueltig_bis: z.number().int().optional(),
 })

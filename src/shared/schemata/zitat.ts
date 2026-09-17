@@ -1,4 +1,5 @@
-// §2.7 Zitat (docs/schema/0002_kern.sql).
+// §2.7 Zitat (docs/schema/0002_kern.sql, seit Migration 0005 docs/schema/0005_import_luecken.sql,
+// AP-1.3c: $defs/Beleg.zeitmarke_sekunden, A-16).
 import { z } from 'zod'
 import { DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum, KonfidenzSchema } from './gemeinsam'
 
@@ -25,6 +26,7 @@ export interface Zitat {
   readonly uebersetzung?: string | undefined
   readonly konfidenz?: number | undefined
   readonly medium_id?: string | undefined
+  readonly zeitmarke_sekunden?: number | undefined
 }
 
 export const zitatSchema: z.ZodType<Zitat> = z.object({
@@ -50,4 +52,5 @@ export const zitatSchema: z.ZodType<Zitat> = z.object({
   uebersetzung: z.string().optional(),
   konfidenz: KonfidenzSchema.optional(),
   medium_id: z.string().optional(),
+  zeitmarke_sekunden: z.number().optional(),
 })

@@ -3,6 +3,7 @@
 // Schema muss die Werteliste als Menge exakt der zugehörigen Zod-Aufzählung entsprechen.
 import { describe, expect, it } from 'vitest'
 import {
+  AussageSubjektTypEnum,
   BeteiligungRolleEnum,
   DatumModifikatorEnum,
   DatumPraezisionEnum,
@@ -104,7 +105,10 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   { tabelle: 'quelle', spalte: 'form', zodEnum: QuelleFormEnum },
   { tabelle: 'quelle', spalte: 'unmittelbarkeit', zodEnum: UnmittelbarkeitEnum },
   ...datumsgruppenZuordnungen('zitat', 'zugriffsdatum'),
-  { tabelle: 'aussage', spalte: 'subjekt_typ', zodEnum: SubjektTypEnum },
+  // aussage.subjekt_typ hat seit Migration 0005 (AP-1.3c, ADR-026) acht Werte (+ 'diagnose',
+  // 'risikofaktor') und führt darum ein eigenes Enum statt des sechswertigen SubjektTypEnum, das
+  // medium_zuordnung.subjekt_typ weiter unten unverändert nutzt.
+  { tabelle: 'aussage', spalte: 'subjekt_typ', zodEnum: AussageSubjektTypEnum },
   ...datumsgruppenZuordnungen('aussage', 'datum'),
   ...datumsgruppenZuordnungen('medium', 'datum'),
   { tabelle: 'medium_zuordnung', spalte: 'subjekt_typ', zodEnum: SubjektTypEnum },
