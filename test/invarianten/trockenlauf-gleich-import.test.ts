@@ -24,10 +24,21 @@
 //
 // Zusätzlich zu den drei vorhandenen gültigen Fixtures (alle deutlich unter der Schwelle
 // `RUECKNAHME_SCHWELLE_ZEILEN = 500` geänderter Zeilen, s. `test/einheit/import-undo-klein.test.ts`)
-// ein deterministisch generierter Großfall (800 Personen, analog
-// `test/einheit/import-undo-gross.test.ts`) — nur der erreicht den Schnappschuss-Zweig von
+// ein deterministisch generierter Großfall — nur der erreicht den Schnappschuss-Zweig von
 // `importAusfuehren()` (ADR-019), den keine der drei gültigen Fixtures auslöst. Ohne ihn bliebe der
 // `schnappschussErzeugen()`-Vorschreibpfad von dieser Invariante ungeprüft.
+//
+// Personenzahl (CI-Nachtrag, Windows-Timeout in PR #63 bei 800 Personen, 23,8 s > 20-s-Limit):
+// jede generierte Person schreibt gemessen genau 5 geänderte Zeilen (person + name +
+// Existenz-Aussage + aussage_zitat + zitat), plus 1 feste Zeile für die Quelle — empirisch
+// bestätigt (`geaenderteZeilenAnzahl = 5 * anzahl + 1`, lokal gemessen: 90 → 451/„undo", 100 →
+// 501/„schnappschuss"). Die Mindestzahl, um die Schwelle zu überschreiten, ist also 100 — gewählt
+// wird `ANZAHL_PERSONEN_GROSS = 200` (2× die Mindestzahl, komfortable Reserve, 1001 geänderte
+// Zeilen, weit über 500), statt der früheren 800. Das Verhalten (Trockenlauf schreibt+rollt
+// zurück, echter Import committet mit VOR-Schreib-Schnappschuss) bleibt bei jeder Anzahl > 100
+// dasselbe — 200 ist deutlich schneller (weniger Personen zu schreiben UND zu kopieren) und
+// zusätzlich per Assertion unten (`ruecknahmeArt === 'schnappschuss'`) gegen ein stilles
+// Abrutschen unter die Schwelle abgesichert.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,6 +49,7 @@ import { importTrockenlaufDurchfuehren } from '../../src/main/befehle/import-tro
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { alsText } from '../../src/main/import/bericht'
+import type { Trockenlaufbericht } from '../../src/shared/import/trockenlauf-bericht'
 
 const GUELTIG_ORDNER = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/', import.meta.url))
 
@@ -50,14 +62,15 @@ function gueltigeFixturePfade(): readonly string[] {
     .map((name) => join(GUELTIG_ORDNER, name))
 }
 
-const ANZAHL_PERSONEN_GROSS = 800
+const ANZAHL_PERSONEN_GROSS = 200
 
-/** Deterministisch generierter Großfall — analog `test/einheit/import-undo-gross.test.ts`: 800
- * Personen liegen weit über der Schwelle `RUECKNAHME_SCHWELLE_ZEILEN` (500 geänderte Zeilen) und
- * lösen damit den Schnappschuss-Zweig von `importAusfuehren()` aus (der einzige Zweig, der VOR dem
- * Schreiben `schnappschussErzeugen()` aufruft, s. Kopfkommentar von
- * `src/main/befehle/import-ausfuehren.ts`). Keine `Math.random`/`Date.now`-Abhängigkeit — feste
- * Schleife über einen festen Index, feste Zeichenketten. */
+/** Deterministisch generierter Großfall — analog `test/einheit/import-undo-gross.test.ts`, aber
+ * mit 200 statt 800 Personen (s. Kopfkommentar): liegt mit ~1001 geänderten Zeilen weit über der
+ * Schwelle `RUECKNAHME_SCHWELLE_ZEILEN` (500) und löst damit den Schnappschuss-Zweig von
+ * `importAusfuehren()` aus (der einzige Zweig, der VOR dem Schreiben `schnappschussErzeugen()`
+ * aufruft, s. Kopfkommentar von `src/main/befehle/import-ausfuehren.ts`). Keine
+ * `Math.random`/`Date.now`-Abhängigkeit — feste Schleife über einen festen Index, feste
+ * Zeichenketten. */
 function baueGrossenImport(anzahl: number): unknown {
   const personen = Array.from({ length: anzahl }, (_, i) => ({
     id: `tmp:p${i}`,
@@ -93,8 +106,10 @@ describe('Invariante: Trockenlaufbericht == Bericht des echten Imports (AP-1.5, 
 
   /** Baut zwei frische, migrierte Datenbanken im selben (leeren) Ausgangszustand, führt gegen die
    * eine `importTrockenlaufDurchfuehren()` und gegen die andere `importAusfuehren()` aus und
-   * vergleicht die beiden zurückgegebenen Berichte — strukturiert UND als Klartext. */
-  function pruefeBerichtGleichheit(importPfad: string): void {
+   * vergleicht die beiden zurückgegebenen Berichte — strukturiert UND als Klartext. Gibt den
+   * echten Bericht zurück, damit Aufrufer bei Bedarf zusätzliche Zusicherungen (z. B.
+   * `ruecknahmeArt`) auf demselben Lauf prüfen können, ohne einen dritten Import auszulösen. */
+  function pruefeBerichtGleichheit(importPfad: string): Trockenlaufbericht {
     const dbTrockenlauf = oeffnen(join(ordnerTrockenlauf, 'baum.sqlite'))
     const dbEcht = oeffnen(join(ordnerEcht, 'baum.sqlite'))
     try {
@@ -106,6 +121,7 @@ describe('Invariante: Trockenlaufbericht == Bericht des echten Imports (AP-1.5, 
 
       expect(berichtEcht).toEqual(berichtTrockenlauf)
       expect(alsText(berichtEcht)).toBe(alsText(berichtTrockenlauf))
+      return berichtEcht
     } finally {
       dbTrockenlauf.close()
       dbEcht.close()
@@ -116,11 +132,28 @@ describe('Invariante: Trockenlaufbericht == Bericht des echten Imports (AP-1.5, 
     pruefeBerichtGleichheit(pfad)
   })
 
-  it('Großfall (800 Personen, > RUECKNAHME_SCHWELLE_ZEILEN, Schnappschuss-Zweig): Trockenlaufbericht ist gleich dem Bericht des echten Imports', () => {
-    const importPfad = join(ordnerTrockenlauf, 'import-gross.json')
-    writeFileSync(importPfad, JSON.stringify(baueGrossenImport(ANZAHL_PERSONEN_GROSS)), 'utf8')
-    pruefeBerichtGleichheit(importPfad)
-  })
+  it(
+    'Großfall (200 Personen, > RUECKNAHME_SCHWELLE_ZEILEN, Schnappschuss-Zweig): Trockenlaufbericht ist gleich dem Bericht des echten Imports',
+    () => {
+      const importPfad = join(ordnerTrockenlauf, 'import-gross.json')
+      writeFileSync(importPfad, JSON.stringify(baueGrossenImport(ANZAHL_PERSONEN_GROSS)), 'utf8')
+
+      const bericht = pruefeBerichtGleichheit(importPfad)
+
+      // Der eigentliche Sinn des Großfalls (s. Kopfkommentar): OHNE diese Zusicherung könnte die
+      // Personenzahl unbemerkt unter die Schwelle rutschen (z. B. bei einer künftigen Änderung der
+      // Zeilen-pro-Person-Zahl) und der Schnappschuss-Zweig bliebe stillschweigend ungeprüft.
+      expect(bericht.zusammenfassung.ruecknahmeArt).toBe('schnappschuss')
+      expect(bericht.zusammenfassung.geaenderteZeilenAnzahl).toBeGreaterThan(500)
+    },
+    // Explizites, großzügiges Timeout NUR für diesen einen schweren Fall (zwei volle Importe von
+    // 200 Personen samt Schnappschuss-Dateioperationen) — auf dem langsameren Windows-CI-Runner
+    // reichte das vitest-Standard-Timeout selbst nach der Verkleinerung von 800 auf 200 Personen
+    // nicht sicher aus (PR #63: 800 Personen liefen dort in 23,8 s gegen ein 20-s-Limit). `it()`s
+    // dritter Parameter ist eine reine Zahl in Millisekunden (kein Optionsobjekt, s.
+    // vitest-Signatur — analog `test/invarianten/abgeleitet-gleich.test.ts:168`).
+    40_000,
+  )
 })
 
 // Absicherung gegen einen leeren `it.each` (CLAUDE.md §13: additive Tests, keine leere Prüfung,
