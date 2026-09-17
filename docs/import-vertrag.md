@@ -244,7 +244,7 @@ beliebig viele Elternkanten (A-06).
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
 | `subjekt_typ`, `subjekt` | ja | worüber die Aussage geht |
-| `praedikat` | ja | freie Zeichenkette, aber unbekannte werden gemeldet (IMP-304). Bekannt sind u. a. `beruf`, `konfession`, `wohnort`, `todesdatum`, `todesursache`, `alter_bei_tod`, `hofname`, `ausbildung`, `militaerdienst`, `auswanderung`, `vermoegen`, `mitgliedschaft` |
+| `praedikat` | ja | freie Zeichenkette, aber unbekannte werden gemeldet (IMP-304). Bekannt sind u. a. `beruf`, `konfession`, `wohnort`, `todesdatum`, `todesursache`, `alter_bei_tod`, `hofname`, `ausbildung`, `militaerdienst`, `auswanderung`, `vermoegen`, `mitgliedschaft`, `existenz` (ADR-026: Beleg/Konfidenz einer Entität als Aussage mit `wert_text='ja'` — importintern erzeugt, s. `50_Datenmodell.md` §2.7, aber ein zulässiges `praedikat`, sollte es doch einmal direkt in `aussagen[]` auftauchen) |
 | genau eines von `wert_text` / `wert_zahl` / `wert_ref` | ja | `wert_ref` zeigt auf einen Ort oder eine Person |
 | `datum`, `gueltig_von`, `gueltig_bis` | nein | Beruf 1780–1795 (A-08) |
 | `ist_bevorzugt` | nein | der angezeigte Wert bei Widerspruch |
