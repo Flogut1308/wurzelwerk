@@ -1,5 +1,6 @@
 import type { FehlerCode } from '../fehler/codes'
 import type { PruefBericht } from '../import/imp-codes'
+import type { Trockenlaufbericht } from '../import/trockenlauf-bericht'
 import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
 
 /**
@@ -163,6 +164,16 @@ export interface ImportPruefenEin {
   readonly pfad: string
 }
 
+/**
+ * Nutzlast von `befehl:import.trockenlauf` (AP-1.4a, 56_Import_Vertrag.md §6): der Pfad der
+ * Importdatei. Bewusst `befehl:`, NICHT `abfrage:` — anders als `abfrage:import.pruefen` SCHREIBT
+ * der Trockenlauf während der Ausführung (in einer Transaktion, die anschließend zurückgerollt
+ * wird, §6.1) und testet dabei u. a. das Journal; das ist kein reiner Lesevorgang mehr.
+ */
+export interface ImportTrockenlaufEin {
+  readonly pfad: string
+}
+
 /** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
 export interface VerlaufEintrag {
   readonly id: string
@@ -195,6 +206,7 @@ export interface Vertrag {
   'abfrage:schnappschuss.liste': { ein: null; aus: readonly SchnappschussEintrag[] }
   'befehl:schnappschuss.wiederherstellen': { ein: SchnappschussWiederherstellenEin; aus: null }
   'abfrage:import.pruefen': { ein: ImportPruefenEin; aus: PruefBericht }
+  'befehl:import.trockenlauf': { ein: ImportTrockenlaufEin; aus: Trockenlaufbericht }
 }
 
 export type Kanal = keyof Vertrag

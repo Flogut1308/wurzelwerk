@@ -22,6 +22,7 @@ const kanaele: readonly Kanal[] = [
   'befehl:journal.redo',
   'abfrage:journal.verlauf',
   'abfrage:import.pruefen',
+  'befehl:import.trockenlauf',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
