@@ -174,6 +174,15 @@ export interface ImportTrockenlaufEin {
   readonly pfad: string
 }
 
+/**
+ * Nutzlast von `befehl:import.ausfuehren` (AP-1.5, 56_Import_Vertrag.md §6.3, ADR-019): der Pfad
+ * der Importdatei — derselbe wie bei `befehl:import.trockenlauf`, diesmal schreibt der Kanal
+ * tatsächlich (nach erfolgreicher Sondierung, s. `src/main/befehle/import-ausfuehren.ts`).
+ */
+export interface ImportAusfuehrenEin {
+  readonly pfad: string
+}
+
 /** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
 export interface VerlaufEintrag {
   readonly id: string
@@ -207,6 +216,7 @@ export interface Vertrag {
   'befehl:schnappschuss.wiederherstellen': { ein: SchnappschussWiederherstellenEin; aus: null }
   'abfrage:import.pruefen': { ein: ImportPruefenEin; aus: PruefBericht }
   'befehl:import.trockenlauf': { ein: ImportTrockenlaufEin; aus: Trockenlaufbericht }
+  'befehl:import.ausfuehren': { ein: ImportAusfuehrenEin; aus: Trockenlaufbericht }
 }
 
 export type Kanal = keyof Vertrag
