@@ -3,6 +3,12 @@
 // (`imp-1xx-*.json`). `pruefeStufe1` muss für jede Datei GENAU den erwarteten Code liefern —
 // nicht mehr (sonst wäre die Verletzung nicht isoliert) und nicht weniger (sonst würde die Regel
 // gar nicht greifen).
+//
+// Seit AP-1.3b liegen in DEMSELBEN Ordner zusätzlich `imp-2xx-*.json`-Fixturen (Stufe 2,
+// Referenzen/Struktur, geprüft in `import-fehlercodes-stufe2.test.ts` über `pruefeImport()`). Sie
+// sind bewusst schema-GÜLTIG (nur eine Stufe-2-Regel verletzt) — `pruefeStufe1` allein akzeptiert
+// sie, darum filtert dieser Test hier gezielt auf `imp-1xx-*` und lässt die 2xx-Dateien für die
+// eigene, dafür zuständige Prüfung.
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,12 +41,13 @@ function jsonDateien(ordner: string): readonly string[] {
     .sort()
 }
 
-const fehlerhafteDateien = jsonDateien(FEHLERHAFT_ORDNER)
+const STUFE1_CODES = ALLE_IMP_CODES.filter((code) => code.startsWith('IMP-1'))
+const fehlerhafteDateien = jsonDateien(FEHLERHAFT_ORDNER).filter((name) => /^imp-1\d{2}-/.test(name))
 
 describe('Stufe-1-Fehlercodes: jede Fehlerfixture löst genau ihren Code aus (§4, §5)', () => {
-  it('deckt jeden IMP-Code aus ALLE_IMP_CODES mit mindestens einer Fixture ab', () => {
+  it('deckt jeden Stufe-1-Code aus ALLE_IMP_CODES mit mindestens einer Fixture ab', () => {
     const abgedeckt = new Set(fehlerhafteDateien.map(erwarteterCodeAusDateiname))
-    for (const code of ALLE_IMP_CODES) {
+    for (const code of STUFE1_CODES) {
       expect(abgedeckt.has(code), `Kein Fixture für ${code}`).toBe(true)
     }
   })
