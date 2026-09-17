@@ -38,7 +38,11 @@ function pflichtfeldIssue(ctx: z.core.$RefinementCtx, pfad: (string | number)[],
 // Datumswert (§2.4, Anhang A $defs.Datumswert)
 // ---------------------------------------------------------------------------------------------
 
-interface Datumswert {
+// Exportiert (AP-1.3d): `src/main/import/datum-spalten.ts` bildet diese Vertragsform auf die
+// DB-Spaltengruppe ab (`_kalender…_doppeljahr`, 50_Datenmodell.md §2.3) — unter einem eigenen
+// Namen importiert (`Datumswert as VertragsDatumswert`), damit sie dort nicht mit
+// `src/core/datum/typen.ts`s `Datumswert` (bereits aufgelöste Sortier-JDNs) kollidiert.
+export interface Datumswert {
   readonly kalender?: z.infer<typeof KalenderEnum> | undefined
   readonly modifikator: z.infer<typeof DatumModifikatorEnum>
   readonly praezision: z.infer<typeof DatumPraezisionEnum>
