@@ -40,6 +40,39 @@ describe('pruefePlausibilitaet() — Stufe 3 (56_Import_Vertrag.md §4)', () => 
     expect(codes(nicht)).not.toContain('IMP-301')
   })
 
+  it('IMP-301: Bestattung vor Tod löst aus, Bestattung nach Tod nicht', () => {
+    const auslösend: PlausibilitaetEingabe = {
+      ...LEERE_EINGABE,
+      personen: [{ kennung: 'tmp:a', pfad: 'personen[0]', tod: { von: JAHR(1950), bis: JAHR(1950) }, beerdigung: { von: JAHR(1949), bis: JAHR(1949) } }],
+    }
+    expect(codes(auslösend)).toContain('IMP-301')
+
+    const nicht: PlausibilitaetEingabe = {
+      ...LEERE_EINGABE,
+      personen: [{ kennung: 'tmp:a', pfad: 'personen[0]', tod: { von: JAHR(1950), bis: JAHR(1950) }, beerdigung: { von: JAHR(1950), bis: JAHR(1950) } }],
+    }
+    expect(codes(nicht)).not.toContain('IMP-301')
+  })
+
+  it('IMP-301: Ehe vor Geburt eines Beteiligten löst aus, Ehe nach Geburt nicht', () => {
+    const basis: PlausibilitaetEingabe = {
+      ...LEERE_EINGABE,
+      personen: [{ kennung: 'tmp:a', pfad: 'personen[0]', geburt: { von: JAHR(1900), bis: JAHR(1900) } }],
+    }
+
+    const auslösend: PlausibilitaetEingabe = {
+      ...basis,
+      partnerschaften: [{ pfad: 'partnerschaften[0]', beginn: { von: JAHR(1890), bis: JAHR(1890) }, beteiligte: ['tmp:a'] }],
+    }
+    expect(codes(auslösend)).toContain('IMP-301')
+
+    const nicht: PlausibilitaetEingabe = {
+      ...basis,
+      partnerschaften: [{ pfad: 'partnerschaften[0]', beginn: { von: JAHR(1925), bis: JAHR(1925) }, beteiligte: ['tmp:a'] }],
+    }
+    expect(codes(nicht)).not.toContain('IMP-301')
+  })
+
   it('IMP-302: Elternteil bei Geburt des Kindes jünger als 12 löst aus, 15 Jahre nicht', () => {
     const basis: PlausibilitaetEingabe = {
       ...LEERE_EINGABE,

@@ -31,7 +31,7 @@ class TrockenlaufRueckrollen extends Error {
 }
 
 /**
- * Führt den Trockenlauf für die Datei unter `pfad` durch (`abfrage:import.trockenlauf` — s.
+ * Führt den Trockenlauf für die Datei unter `pfad` durch (`befehl:import.trockenlauf` — s.
  * `src/shared/ipc/vertrag.ts` zur Kanalbenennung). Öffnet eine `IMMEDIATE`-Transaktion, armiert das
  * Journal mit einer Wegwerf-`transaktion`-Zeile, ruft die Orchestrierung und rollt danach IMMER
  * zurück — unabhängig davon, ob der Import akzeptiert wurde oder nicht. Die Datenbank ist nach
