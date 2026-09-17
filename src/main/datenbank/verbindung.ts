@@ -8,9 +8,13 @@ import { suchnormalform } from '../../core/name/suchnormalform'
  * (55_Architektur.md §3.1, ADR-002, §6). `foreign_keys = ON` gilt pro Verbindung, nicht pro
  * Datei — SQLite schaltet sie aus Rückwärtskompatibilität sonst ab, und ohne sie ist das halbe
  * Datenmodell nur Dokumentation. Darum wird `foreign_keys` ausschließlich hier gesetzt.
+ *
+ * `opts.quelle` öffnet stattdessen aus einem serialisierten Abbild (`db.serialize()`, AP-1.3c) —
+ * Pragmas/Funktionen sind identisch zum Datei-/`:memory:`-Pfad. Einziger Zweck: ein Testhelfer
+ * klont so einen einmal migrierten `:memory:`-Zustand billig, statt jedes Mal neu zu migrieren.
  */
-export function oeffnen(pfad: string): Database.Database {
-  const db = new Database(pfad)
+export function oeffnen(pfad: string, opts?: { readonly quelle?: Buffer }): Database.Database {
+  const db = new Database(opts?.quelle ?? pfad)
   try {
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = NORMAL')
