@@ -24,19 +24,46 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { journalAus } from '../../src/main/journal/kontext'
 
+// AP-1.3c (Performance, geschützter Prüfpfad NICHT betroffen — nur dieser Helfer + eine neue
+// Beleg-Testdatei ändern sich, s. Kopfkommentar von test/einheit/hilfen-abgeleitet-klon.test.ts):
+// `frischeDatenbankMitAbgeleitetemSchema()` migrierte bislang bei JEDEM Aufruf neu — bei 1000
+// fast-check-Läufen in `test/invarianten/abgeleitet-gleich.test.ts` also 1000 volle Migrationen
+// samt `journalAus`/`vocab`-Aufbau. Das trug zum Windows-CI-Timeout in 0005 bei (s. dortiger
+// Kopfkommentar). Der neue `oeffnen(pfad, { quelle })`-Seam (src/main/datenbank/verbindung.ts)
+// öffnet stattdessen aus einem `db.serialize()`-Abbild — Pragmas/SQL-Funktionen werden dabei
+// IDENTISCH zum bisherigen Pfad gesetzt (derselbe `oeffnen()`-Codepfad, kein Sonderfall). Die
+// migrierte Vorlage wird darum genau EINMAL pro Testprozess gebaut und modul-gememoized als
+// `Buffer` gehalten; jeder Aufruf klont daraus eine frische `:memory:`-Verbindung. Der Beleg, dass
+// der Klon sich in jeder geprüften Hinsicht (Schema, Pragmas, SQL-Funktionen, Trigger-Verhalten,
+// FK-Durchsetzung) identisch zum alten Direktpfad verhält, steht in
+// `test/einheit/hilfen-abgeleitet-klon.test.ts`.
+let templatePuffer: Buffer | undefined
+
+function vorlagePufferErzeugen(): Buffer {
+  const vorlage = oeffnen(':memory:')
+  migrieren(vorlage)
+  vorlage.exec("CREATE VIRTUAL TABLE vocab USING fts5vocab('suche_fts', 'instance')")
+  journalAus(
+    vorlage,
+    'AP-0.7-Testhelfer (test/einheit/_hilfen-abgeleitet.ts): prüft abl_*-Trigger ohne Befehlsbus-Armierung (Bus erst AP-0.9).',
+  )
+  const puffer = vorlage.serialize()
+  vorlage.close()
+  return puffer
+}
+
 /**
  * Frische, vollständig migrierte (bis `SCHEMA_VERSION`, inkl. abgeleitetem Schema seit v3)
- * In-Memory-Datenbank. Legt zusätzlich die `fts5vocab`-Hilfstabelle `vocab` an (siehe
- * `sucheFtsInhaltAbzug`) und deaktiviert das Änderungsjournal (s. Moduldoku oben — diese Tests
+ * In-Memory-Datenbank. Enthält zusätzlich die `fts5vocab`-Hilfstabelle `vocab` (siehe
+ * `sucheFtsInhaltAbzug`) und hat das Änderungsjournal deaktiviert (s. Moduldoku oben — diese Tests
  * decken die `abl_*`-Trigger ab, nicht das Journal, und schreiben ohne Befehlsbus-Armierung).
- * Aufrufer schließt die Verbindung selbst (`db.close()`).
+ * Baut die migrierte Vorlage nur beim ersten Aufruf (modul-gememoizt); jeder Aufruf danach klont
+ * daraus über `oeffnen(':memory:', { quelle })` (s. Kommentar oben). Aufrufer schließt die
+ * zurückgegebene Verbindung selbst (`db.close()`).
  */
 export function frischeDatenbankMitAbgeleitetemSchema(): Database.Database {
-  const db = oeffnen(':memory:')
-  migrieren(db)
-  db.exec("CREATE VIRTUAL TABLE vocab USING fts5vocab('suche_fts', 'instance')")
-  journalAus(db, 'AP-0.7-Testhelfer (test/einheit/_hilfen-abgeleitet.ts): prüft abl_*-Trigger ohne Befehlsbus-Armierung (Bus erst AP-0.9).')
-  return db
+  templatePuffer ??= vorlagePufferErzeugen()
+  return oeffnen(':memory:', { quelle: templatePuffer })
 }
 
 interface FtsInstanzZeile {
