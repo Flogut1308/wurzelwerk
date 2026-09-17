@@ -34,6 +34,51 @@
       "titel": "Kennung entspricht nicht dem Muster",
       "beschreibung": "Eine Kennung folgt nicht dem Muster tmp:… oder db:… (Buchstaben, Ziffern, _ . - erlaubt, 1–64 Zeichen nach dem Doppelpunkt).",
       "was_tun": "Die Kennung mit dem Präfix tmp: (für neue, nur in dieser Datei gültige Objekte) oder db: (für bereits vorhandene Datensätze) versehen und auf unzulässige Zeichen prüfen."
+    },
+    "IMP_201": {
+      "titel": "tmp:-Kennung ist in dieser Datei nicht definiert",
+      "beschreibung": "An der genannten Stelle wird eine tmp:-Kennung referenziert, die in derselben Datei kein zugehöriges Objekt mit dieser id besitzt.",
+      "was_tun": "Ein Objekt mit genau dieser id in der Datei ergänzen, oder die Referenz auf eine bereits definierte tmp:-Kennung korrigieren. Bezieht sich die Referenz auf einen bereits im Projekt vorhandenen Datensatz, stattdessen die passende db:-Kennung eintragen."
+    },
+    "IMP_202": {
+      "titel": "db:-Kennung existiert im Projekt nicht",
+      "beschreibung": "An der genannten Stelle wird eine db:-Kennung referenziert, zu der im aktuell geöffneten Projekt kein Datensatz gefunden wurde.",
+      "was_tun": "Die db:-Kennung gegen den tatsächlichen Datenbestand prüfen (Tippfehler? falsches Projekt geöffnet?). Handelt es sich um ein neu anzulegendes Objekt, stattdessen eine tmp:-Kennung verwenden und das Objekt in der Datei definieren."
+    },
+    "IMP_203": {
+      "titel": "Doppelte Kennung",
+      "beschreibung": "Dieselbe id wird in dieser Datei mehr als einmal für ein eigenständiges Objekt vergeben (z. B. zwei Quellen oder zwei Personen mit identischer id).",
+      "was_tun": "Jeder id genau ein Objekt zuordnen — der zweiten (und jeder weiteren) Fundstelle eine neue, eindeutige tmp:-Kennung geben."
+    },
+    "IMP_204": {
+      "titel": "Zyklus in elternschaften",
+      "beschreibung": "Eine Kette von Elternschaften führt zurück zu ihrem Ausgangspunkt — die genannte Person wäre über die vorhandenen Elternkanten ihr eigener Vorfahre.",
+      "was_tun": "Die Elternschaftskette nachverfolgen und die Kante entfernen oder korrigieren, die den Zyklus schließt. Häufige Ursache: eine Elternkante wurde versehentlich in die falsche Richtung (Kind statt Elternteil) eingetragen."
+    },
+    "IMP_205": {
+      "titel": "ueberschreiben bei tmp:-Kennung, oder ohne db:",
+      "beschreibung": "ueberschreiben: true ist nur an einer db:-Kennung sinnvoll — an einer neu angelegten tmp:-Kennung gibt es noch keinen bestehenden Wert, der ersetzt werden könnte.",
+      "was_tun": "Bei einer neuen Person (tmp:) das Feld ueberschreiben entfernen. Soll tatsächlich ein bestehender bevorzugter Wert ersetzt werden, die Person über ihre echte db:-Kennung referenzieren."
+    },
+    "IMP_206": {
+      "titel": "Konfidenz 1 oder 2 ohne unsicherheit",
+      "beschreibung": "Bei konfidenz 1 (\"Vermutung\") oder 2 (\"unsicher\") muss das Feld unsicherheit stehen und erklären, was an dieser Person unklar ist.",
+      "was_tun": "Das Feld unsicherheit ergänzen — ein Satz genügt. Ist die Angabe doch gesichert, konfidenz auf 3 oder 4 setzen."
+    },
+    "IMP_207": {
+      "titel": "ist_bevorzugt ohne begruendung bei konkurrierenden Aussagen",
+      "beschreibung": "Mehrere Aussagen zu demselben Subjekt und Prädikat stehen sich widersprechend gegenüber, und die als ist_bevorzugt markierte Aussage nennt keine begruendung, warum sie den Vorzug bekommt.",
+      "was_tun": "Das Feld begruendung an der bevorzugten Aussage ergänzen (z. B. \"Der Grabstein ist die stärkere Quelle\"). Ist keine der Aussagen eindeutig vorzuziehen, ist_bevorzugt auf keiner der beiden setzen."
+    },
+    "IMP_208": {
+      "titel": "Mediendatei nicht gefunden",
+      "beschreibung": "Unter dem angegebenen relativer_pfad (relativ zur Importdatei) wurde keine Datei gefunden.",
+      "was_tun": "Prüfen, ob die Mediendatei tatsächlich neben der Importdatei liegt und relativer_pfad exakt (inkl. Groß-/Kleinschreibung und Dateiendung) übereinstimmt."
+    },
+    "IMP_209": {
+      "titel": "Dieselbe Person zweimal beteiligt",
+      "beschreibung": "beteiligte bzw. beteiligungen verweist an der genannten Stelle zweimal auf dieselbe Person.",
+      "was_tun": "Die doppelte Beteiligung entfernen, oder — falls die Person tatsächlich zwei verschiedene Rollen im selben Ereignis/derselben Partnerschaft hatte — prüfen, ob stattdessen zwei getrennte Einträge mit unterschiedlichen Rollen gemeint sind."
     }
   }
 }
