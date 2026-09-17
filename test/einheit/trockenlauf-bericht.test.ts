@@ -1,17 +1,17 @@
 // AP-1.4a, 56_Import_Vertrag.md §6.2: der strukturierte Bericht für `beispiel-2-widersprueche.json`
 // (Stufe 1+2 akzeptiert) — erwartete WIRD-ANGELEGT-Zahlen, eine Dublettenmeldung (Stufe 4, gegen
-// eine vorab geseedete Bestandsperson "August Wruck") und die Blockreihenfolge in `alsText()`.
+// eine vorab geseedete Bestandsperson "August Wruck"), der Stufe-3-Fund IMP-302 auf der absichtlich
+// falsch gesetzten Elternkante und die Blockreihenfolge in `alsText()`.
 //
-// ABWEICHUNG vom ursprünglichen Plan (dokumentiert, s. PR-Beschreibung/docs/80_Offene_Fragen.md
-// U-AP1.4a-imp302): `beispiel-2-widersprueche.json` trägt für "Erna" KEIN Geburtsdatum (weder als
-// `ereignisse[]`-Eintrag noch als Aussage) — die absichtlich falsch gesetzte Elternkante
-// (`tmp:august -> tmp:erna`, `elternschaften[1]`) kann darum mit einer korrekten, nicht
-// erfundenen Implementierung von IMP-302 (die BEIDE Geburtsdaten kennen muss, s.
-// `src/core/plausibilitaet/regeln.ts`) nicht ausgelöst werden — anders als das illustrative
-// Beispiel in 56_Import_Vertrag.md §6.2 (dort trägt "tmp:erna" explizit "geb. 1896"). Dieser Test
-// prüft darum den TATSÄCHLICHEN, korrekten Befund (keine Stufe-3-Hinweise) statt eine Zahl zu
-// erzwingen, die die Fixture nicht hergibt. `plausibilitaet.test.ts` zeigt IMP-302 an einem Fall,
-// der beide Geburtsdaten trägt.
+// Nachtrag (Kettenlauf-Folgeauftrag): `beispiel-2-widersprueche.json` trug ursprünglich für "Erna"
+// kein Geburtsdatum, wodurch die korrekte (nicht erfundene) IMP-302-Logik nicht auslösen konnte.
+// Die Fixture wurde darum vervollständigt (alle drei Kopien — `fixtures/import/v1/gueltig/`,
+// `docs/56_Beispiele/`, `../Wissen/56_Beispiele/` — synchron): ein neues `ereignisse[]`-Element
+// `tmp:e-geb-erna` (Geburt 1896, exakt) mit dem Sollwert aus dem illustrativen Beispiel in
+// 56_Import_Vertrag.md §6.2 ("August, geb. etwa 1890" + 6 Jahre = 1896). Damit meldet der
+// Trockenlauf jetzt genau den in §6.2 vorgesehenen Fund: "Elternteil wäre 6 Jahre alt gewesen" auf
+// `elternschaften[1]` — und NICHT auf `elternschaften[0]` (der Platzhaltervater `vater-august` hat
+// kein Geburtsdatum, IMP-302 kann dort nicht ausgelöst werden).
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { alsText } from '../../src/main/import/bericht'
@@ -89,7 +89,7 @@ function seedeAugustWruck(db: ReturnType<typeof frischeDatenbankMitJournal>): st
 }
 
 describe('Trockenlauf-Bericht (beispiel-2-widersprueche.json, 56_Import_Vertrag.md §6.2)', () => {
-  it('Stufe 1+2 akzeptiert, erwartete WIRD-ANGELEGT-Zahlen, importGesperrt=false, keine Stufe-3-Hinweise', () => {
+  it('Stufe 1+2 akzeptiert, erwartete WIRD-ANGELEGT-Zahlen, importGesperrt=false, genau ein IMP-302-Hinweis', () => {
     const db = frischeDatenbankMitJournal()
     try {
       seedeAugustWruck(db)
@@ -102,14 +102,22 @@ describe('Trockenlauf-Bericht (beispiel-2-widersprueche.json, 56_Import_Vertrag.
       const tabelle = (name: string): number => bericht.wirdAngelegt.find((e) => e.tabelle === name)?.anzahl ?? 0
       expect(tabelle('person')).toBe(3)
       expect(tabelle('ort')).toBe(3)
-      expect(tabelle('ereignis')).toBe(1)
+      expect(tabelle('ereignis')).toBe(2) // Geburt August + Geburt Erna (Nachtrag)
       expect(tabelle('elternschaft')).toBe(2)
       expect(tabelle('quelle')).toBe(3)
-      expect(tabelle('aussage')).toBe(11) // 6 Existenz (3 Personen + 1 Ereignis + 2 Elternschaften) + geburtsdatum + geburtsort + 3 reguläre aussagen[]
+      // 7 Existenz (3 Personen + 2 Ereignisse + 2 Elternschaften) + 2 geburtsdatum (August, Erna)
+      // + 1 geburtsort (nur August hat ein `ort`-Feld) + 3 reguläre aussagen[]
+      expect(tabelle('aussage')).toBe(13)
 
-      // s. Kopfkommentar: mit korrekter (nicht erfundener) IMP-302-Logik kann diese Fixture das
-      // Prädikat NICHT auslösen, weil "erna" kein eigenes Geburtsdatum trägt.
-      expect(bericht.hinweise).toEqual([])
+      // s. Kopfkommentar: die Fixture ist jetzt vollständig — IMP-302 löst genau EINMAL aus, auf
+      // der absichtlich falsch gesetzten Kante `elternschaften[1]` (August wäre bei Ernas Geburt
+      // ~6 Jahre alt gewesen). Der Platzhaltervater (`elternschaften[0]`) hat kein Geburtsdatum —
+      // dort kann IMP-302 nicht auslösen, s. `regeln.ts`.
+      expect(bericht.hinweise).toHaveLength(1)
+      expect(bericht.hinweise[0]?.code).toBe('IMP-302')
+      expect(bericht.hinweise[0]?.pfad).toBe('elternschaften[1]')
+      expect(bericht.hinweise.some((h) => h.pfad === 'elternschaften[0]')).toBe(false)
+      expect(bericht.zusammenfassung.hinweisAnzahl).toBe(1)
     } finally {
       db.close()
     }
