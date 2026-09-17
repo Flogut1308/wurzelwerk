@@ -1,4 +1,5 @@
-// §2.1 Person (docs/schema/0002_kern.sql).
+// §2.1 Person (docs/schema/0002_kern.sql, seit Migration 0005 docs/schema/0005_import_luecken.sql,
+// AP-1.3c: $defs/Person.unsicherheit, Pflicht bei konfidenz <= 2, IMP-206).
 import { z } from 'zod'
 import { BoolWert } from './gemeinsam'
 
@@ -15,6 +16,7 @@ export interface Person {
   readonly gesperrt_bis?: number | undefined
   readonly ist_platzhalter: 0 | 1
   readonly platzhalter_grund?: z.infer<typeof PlatzhalterGrundEnum> | undefined
+  readonly unsicherheit?: string | undefined
 }
 
 export const personSchema: z.ZodType<Person> = z.object({
@@ -26,4 +28,5 @@ export const personSchema: z.ZodType<Person> = z.object({
   gesperrt_bis: z.number().int().optional(),
   ist_platzhalter: BoolWert,
   platzhalter_grund: PlatzhalterGrundEnum.optional(),
+  unsicherheit: z.string().optional(),
 })

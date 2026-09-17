@@ -23,10 +23,29 @@ export const KonfidenzSchema = z.number().int().min(1).max(4)
 export const BoolWert = z.union([z.literal(0), z.literal(1)])
 
 /**
- * E-7: Diskriminator für die polymorphen `subjekt_id`-Spalten in `aussage` und (Annahme,
- * siehe SQL-Kommentar) `medium_zuordnung`.
+ * E-7: Diskriminator für die polymorphe `subjekt_id`-Spalte in `medium_zuordnung` (Annahme, siehe
+ * SQL-Kommentar) — sechs Werte. `aussage.subjekt_typ` hat seit Migration 0005 (AP-1.3c, ADR-026)
+ * zwei weitere Werte und führt darum ein eigenes `AussageSubjektTypEnum` (s.u.), statt dieses hier
+ * wiederzuverwenden.
  */
 export const SubjektTypEnum = z.enum(['person', 'ereignis', 'elternschaft', 'partnerschaft', 'ort', 'name'])
+
+/**
+ * E-7: Diskriminator für die polymorphe `subjekt_id`-Spalte in `aussage`. Acht Werte seit Migration
+ * 0005 (AP-1.3c, ADR-026, `docs/schema/0005_import_luecken.sql`): `56_Import_Vertrag.md` §2.3
+ * verlangt `belege` auch für Diagnose und Risikofaktor, darum um `'diagnose'`/`'risikofaktor'`
+ * erweitert gegenüber `SubjektTypEnum` (das für `medium_zuordnung`/Import bei sechs Werten bleibt).
+ */
+export const AussageSubjektTypEnum = z.enum([
+  'person',
+  'ereignis',
+  'elternschaft',
+  'partnerschaft',
+  'ort',
+  'name',
+  'diagnose',
+  'risikofaktor',
+])
 
 /**
  * Deckt sich mit `feld_definition.gilt_fuer` — für `feld_wert.subjekt_typ` wiederverwendet

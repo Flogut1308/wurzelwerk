@@ -49,6 +49,7 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'platzhalter_grund',
     'erstellt_am',
     'geaendert_am',
+    'unsicherheit', // docs/schema/0005_import_luecken.sql (AP-1.3c): $defs/Person.unsicherheit, IMP-206
   ],
   name: [
     'id',
@@ -210,6 +211,7 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'medium_id',
     'erstellt_am',
     'geaendert_am',
+    'zeitmarke_sekunden', // docs/schema/0005_import_luecken.sql (AP-1.3c): $defs/Beleg.zeitmarke_sekunden, A-16
   ],
   aussage: [
     'id',
@@ -235,6 +237,10 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'begruendung',
     'erstellt_am',
     'geaendert_am',
+    // docs/schema/0005_import_luecken.sql (AP-1.3c, ADR-026, Tabellenneubau): drei neue Spalten.
+    'unsicherheit', // $defs/Aussage.unsicherheit (!= begruendung, IMP-207)
+    'gueltig_von', // $defs/Aussage.gueltig_von (A-08)
+    'gueltig_bis', // $defs/Aussage.gueltig_bis (A-08)
   ],
   aussage_zitat: ['aussage_id', 'zitat_id', 'erstellt_am', 'geaendert_am'],
   negativbefund: [
