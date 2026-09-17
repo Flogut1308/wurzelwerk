@@ -52,3 +52,28 @@ describe('bauePositionsindex (§5 Punkt 4)', () => {
     expect(index.zeileFuer('nicht.vorhanden')).toBeUndefined()
   })
 })
+
+// hueter-Auflage PR #56: das benannte Kernrisiko — String-Escapes und Struktur-Zeichen (`{`/`[`/`"`)
+// IM WERT — war bisher nicht testfixiert. Zeile:
+// 1  {
+// 2    "mit_escapes": "wert mit \" anführung, \\ backslash, { klammer, [ liste",
+// 3    "danach": "folgezeile"
+// 4  }
+const TEXT_MIT_ESCAPES = [
+  '{',
+  '  "mit_escapes": "wert mit \\" anführung, \\\\ backslash, { klammer, [ liste",',
+  '  "danach": "folgezeile"',
+  '}',
+].join('\n')
+
+describe('bauePositionsindex: String-Escapes verwirren den Scanner nicht (hueter-Auflage PR #56)', () => {
+  const index = bauePositionsindex(TEXT_MIT_ESCAPES)
+
+  it('überliest das escapte Anführungszeichen (\\") und den escapten Backslash (\\\\) im Stringwert selbst korrekt', () => {
+    expect(index.zeileFuer(pfadFormat(['mit_escapes']))).toBe(2)
+  })
+
+  it('lässt sich von {, [ und " IM Stringwert nicht als Struktur täuschen — das Folgefeld liegt auf der richtigen Zeile', () => {
+    expect(index.zeileFuer(pfadFormat(['danach']))).toBe(3)
+  })
+})
