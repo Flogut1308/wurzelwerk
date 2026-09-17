@@ -15,6 +15,7 @@
 import { describe, expect, it } from 'vitest'
 import type Database from 'better-sqlite3'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { journalAus } from '../../src/main/journal/kontext'
 import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
@@ -79,7 +80,7 @@ describe('Beleg: Klon-Pfad von frischeDatenbankMitAbgeleitetemSchema() verhält 
     try {
       expect(pragmaEinfach(klon, 'foreign_keys')).toBe(1)
       expect(pragmaEinfach(klon, 'busy_timeout')).toBe(5000)
-      expect(pragmaEinfach(klon, 'user_version')).toBe(4)
+      expect(pragmaEinfach(klon, 'user_version')).toBe(SCHEMA_VERSION)
       expect(pragmaEinfach(klon, 'integrity_check')).toBe('ok')
       expect(klon.pragma('foreign_key_check')).toEqual([])
       expect(journalKontextAktiv(klon)).toBe(0)
