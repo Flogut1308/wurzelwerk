@@ -7,6 +7,7 @@ import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema 
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { fuehreAus } from '../befehle/bus'
+import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
 import { sendeEreignis } from './ereignisse'
@@ -46,6 +47,10 @@ const projektAnlegenEingabeSchema: z.ZodType<Ein<'befehl:projekt.anlegen'>> = z.
 const projektOeffnenEingabeSchema: z.ZodType<Ein<'befehl:projekt.oeffnen'>> = z.object({
   pfad: z.string(),
   syncBestaetigt: z.boolean().optional(),
+})
+
+const importPruefenEingabeSchema: z.ZodType<Ein<'abfrage:import.pruefen'>> = z.object({
+  pfad: z.string(),
 })
 
 /**
@@ -110,4 +115,8 @@ export function ipcRegistrierung(): void {
     schnappschussWiederherstellen(ein, ktx)
     return null
   })
+
+  // ENTSCHIEDEN: `abfrage:`, nicht `befehl:` — die Prüfung schreibt nichts (§11, ADR-016;
+  // U-AP1.3b-kanal in docs/80_Offene_Fragen.md).
+  registriere('abfrage:import.pruefen', importPruefenEingabeSchema, (ein) => importPruefen(offenesProjektDatenbank(), ein.pfad))
 }
