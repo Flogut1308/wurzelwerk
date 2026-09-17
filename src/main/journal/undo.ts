@@ -7,11 +7,23 @@
 // `src/main/befehle/` eine eigene Transaktionsklammer öffnen). `undo()`/`redo()` werden über
 // `befehl:journal.undo`/`befehl:journal.redo` erreichbar (`src/main/ipc/registrierung.ts`,
 // AP-0.10 PR-A2), nicht über `fuehreAus()`.
+//
+// AP-1.5-Nachtrag (ADR-019): eine Großimport-Transaktion hat KEINE `aenderung`-Zeilen (Journal
+// war beim Schreiben aus, s. `src/main/befehle/import-ausfuehren.ts`) — ihre Rücknahme läuft
+// darum NICHT über die zeilenweise Schleife unten, sondern über den Datei-Wiederherstellungsweg
+// (`importZuruecknehmen()`, analog zum Muster in `src/main/schnappschuss/wiederherstellen.ts`,
+// aber ohne dessen Projekt-/`Kontext`-Kapselung: `undo()` bekommt nur ein offenes `db`-Handle,
+// keinen Electron-`Kontext`). `undo()` entscheidet DESHALB VOR dem Öffnen der eigenen Transaktion
+// (ein Datei-`close()`/`rename()`/`copyFileSync()` ist innerhalb einer offenen SQLite-Transaktion
+// ohnehin nicht sinnvoll), welchen der beiden Wege sie nimmt.
 import type Database from 'better-sqlite3'
+import { copyFileSync, renameSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
 import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
+import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from '../schnappschuss/dateiname'
 import { journalAn, journalAus } from './kontext'
 
 // `UndoErgebnis` stand bis AP-0.10 PR-A1 als rein interner Typ hier (kein Renderer-Aufrufer
@@ -33,31 +45,86 @@ function zeileAusJson(json: string | null, aufrufer: 'undo' | 'redo', transaktio
 
 /**
  * Wirft, wenn `ziel` eine Import-Transaktion mit eigenem Schnappschuss ist (55_Architektur.md
- * §6.4): deren Rücknahme läuft über einen Datei-Wiederherstellungspfad, nicht über das
- * zeilenweise Zurückschreiben hier.
+ * §6.4): deren Rücknahme läuft über `importZuruecknehmen()` (Datei-Wiederherstellung), nicht über
+ * das zeilenweise Zurückschreiben hier. Rein defensiv in `redo()` (s. dort) — ein solches Ziel
+ * hätte `undo()` bereits VOR dem Öffnen der Transaktion abgefangen (s. `undo()` unten), und nach
+ * einer Datei-Wiederherstellung existiert die zurückgenommene Transaktionszeile in der
+ * wiederhergestellten Datenbank gar nicht mehr (sie stammt aus der Zeit VOR dem Import) — ein
+ * `redo()`-Ziel dieser Art ist darum unerreichbar, dieser Wurf bleibt als Beweis dafür stehen.
  */
 function importRuecknahmeSperren(ziel: JournalTransaktionZiel): void {
   if (ziel.art === 'import' && ziel.snapshotPfad !== null) {
-    // SEAM AP-1.5 importZuruecknehmen
     throw new WurzelFehler(
       'INTERN_UNERWARTET',
-      'Rücknahme einer Import-Transaktion mit Schnappschuss ist erst mit AP-1.5 (Großimport) umgesetzt.',
+      'redo(): eine Großimport-Transaktion mit Schnappschuss kann nicht wiederholt werden (55_Architektur.md §6.4, AP-1.5) — sollte unerreichbar sein.',
     )
   }
 }
 
 /**
- * Nimmt die neueste rücknehmbare Transaktion zurück (55_Architektur.md §4.9). Eigene
- * `IMMEDIATE`-Transaktion (s. Kopfkommentar); `db` wird injiziert wie bei `fuehreAusDef` (D-DB-
- * Injektion).
+ * Rücknahme einer Großimport-Transaktion (ADR-019, AP-1.5): Journal war beim Schreiben aus, es
+ * gibt keine `aenderung`-Zeilen zum Invertieren — statt der Zeilen wird die GESAMTE Datenbankdatei
+ * auf den Schnappschuss VOR dem Import zurückgesetzt. Muster aus
+ * `src/main/schnappschuss/wiederherstellen.ts` (aktuelle Datei nach `snapshots/ersetzt-<Zeit>
+ * .sqlite` verschieben, NIE löschen, §6.2/§6.4 — dann den Schnappschuss zurückkopieren), hier ohne
+ * dessen `projektOeffnen()`/`Kontext`-Kapselung nachgebaut: `undo()` hat nur ein offenes
+ * `db`-Handle, keinen Electron-`Kontext`, und schließt/öffnet darum die reine SQLite-Verbindung
+ * selbst, statt eine ganze Projektöffnung zu orchestrieren. `db` ist NACH diesem Aufruf
+ * GESCHLOSSEN — der Aufrufer öffnet bei Bedarf eine neue Verbindung auf denselben Pfad (analog zu
+ * `schnappschussWiederherstellen()`, das seinerseits `projektOeffnen()` aufruft).
+ *
+ * Nur erreichbar über `undo()`, wenn `ziel` eine Import-Transaktion mit `snapshot_pfad != null`
+ * ist — und laut ADR-019 nur solange sie die NEUESTE Transaktion ist, was `undoZiel()`s
+ * `ORDER BY lfd DESC LIMIT 1` bereits garantiert.
+ */
+function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel, jetzt: () => number = Date.now): UndoErgebnis {
+  if (ziel.snapshotPfad === null) {
+    // Defensiv (CLAUDE.md §4) — der Aufrufer (undo() unten) prüft dies bereits.
+    throw new WurzelFehler('INTERN_UNERWARTET', 'importZuruecknehmen(): snapshotPfad fehlt unerwartet.')
+  }
+  const dbPfad = db.name
+  const snapshotsPfad = join(dirname(dbPfad), 'snapshots')
+  const ersetztPfad = join(snapshotsPfad, `${ERSETZT_PRAEFIX}${kolonfreieZeit(jetzt())}${SCHNAPPSCHUSS_ENDUNG}`)
+
+  db.close()
+
+  try {
+    renameSync(dbPfad, ersetztPfad) // NIE löschen (55_Architektur.md §6.2/§6.4)
+  } catch (u) {
+    throw new WurzelFehler('DATEI_KEIN_PLATZ', u instanceof Error ? u.message : String(u))
+  }
+  try {
+    copyFileSync(ziel.snapshotPfad, dbPfad)
+  } catch (u) {
+    // Rückroll (analog schnappschussWiederherstellen() C2-Auflage) — statt das Projekt ohne
+    // `dbPfad` steckenzulassen.
+    renameSync(ersetztPfad, dbPfad)
+    throw new WurzelFehler('DATEI_KEIN_PLATZ', u instanceof Error ? u.message : String(u))
+  }
+
+  return { transaktionId: ziel.id, beschreibung: ziel.beschreibung }
+}
+
+/**
+ * Nimmt die neueste rücknehmbare Transaktion zurück (55_Architektur.md §4.9). `undoZiel()` läuft
+ * bewusst VOR jeder Transaktionsöffnung (ein Datei-`close()`/`rename()` unten geht innerhalb einer
+ * offenen SQLite-Transaktion ohnehin nicht) — bei einer Großimport-Transaktion mit Schnappschuss
+ * (ADR-019, AP-1.5) übernimmt `importZuruecknehmen()` komplett anstelle der zeilenweisen
+ * Rückschreibung; sonst läuft die übliche EIGENE `IMMEDIATE`-Transaktion (s. Kopfkommentar). `db`
+ * wird injiziert wie bei `fuehreAusDef` (D-DB-Injektion).
  */
 export function undo(db: Database.Database): UndoErgebnis {
+  const ziel = undoZiel(db)
+  if (ziel === undefined) {
+    throw new WurzelFehler('JOURNAL_NICHTS_ZURUECKZUNEHMEN')
+  }
+
+  if (ziel.art === 'import' && ziel.snapshotPfad !== null) {
+    return importZuruecknehmen(db, ziel)
+  }
+
   return db
     .transaction((): UndoErgebnis => {
-      const ziel = undoZiel(db)
-      if (ziel === undefined) {
-        throw new WurzelFehler('JOURNAL_NICHTS_ZURUECKZUNEHMEN')
-      }
       // Guard (AP-0.11, 55_Architektur.md §4.6): `journalAufraeumen()` setzt `rueckgaengig_moeglich
       // = 0` für begrenzte Transaktionen und schließt sie damit aus `undoZiel()` aus — dieser Zweig
       // ist trotzdem defensiv, falls ein Undo-Ziel (`rueckgaengig_moeglich = 1`) seine
@@ -68,7 +135,6 @@ export function undo(db: Database.Database): UndoErgebnis {
       if (betroffene(db, ziel.id) === 0) {
         throw new WurzelFehler('JOURNAL_NICHT_RUECKNEHMBAR')
       }
-      importRuecknahmeSperren(ziel)
 
       db.pragma('defer_foreign_keys = ON') // Stolperstelle 1 (55_Architektur.md §4.9): wechselseitige Fremdschlüssel (z. B. ort.nachfolger_ort_id) innerhalb derselben Transaktion
       journalAus(db, 'undo: Rücknahme über den Undo-Algorithmus (55_Architektur.md §4.9) - das Undo protokolliert sich nicht selbst (Stolperstelle 2)')
