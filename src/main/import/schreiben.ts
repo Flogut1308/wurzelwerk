@@ -12,7 +12,7 @@
 //    §2.1) — für keines der sieben Arrays wird darum bei einer `db:`-Kennung die eigene Zeile
 //    (oder ihre unmittelbar zugehörigen Kindzeilen: `name` bei Person, `ortsname` bei Ort)
 //    geschrieben; andere Objekte referenzieren die aufgelöste UUID trotzdem ganz normal.
-//  Pass 2 (Insert in FK-Reihenfolge): medium → ort(+ortsname) → person(+name) → quelle →
+//  Pass 2 (Insert in FK-Reihenfolge): ort(+ortsname) → medium → person(+name) → quelle →
 //    interview_sitzung → ereignis(+beteiligung) → elternschaft/partnerschaft(+partnerschaft_person)
 //    → diagnose/risikofaktor → aussage+aussage_zitat (ZULETZT). Die Existenz-Aussagen (ADR-026)
 //    und die abgeleiteten geburtsdatum/todesdatum/geburtsort-Aussagen werden darum NICHT sofort
@@ -151,24 +151,9 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
   // Pass 2 — Insert in FK-Reihenfolge (Objektzeilen zuerst, Aussagen ganz am Ende, s. Moduldoku)
   // ---------------------------------------------------------------------------------------------
 
-  // 1. medium
-  datei.medien?.forEach((m) => {
-    const id = aufloesen(m.id)
-    if (istDbKennung(m.id)) return
-    mediumRepo.einfuegen(tx, {
-      id,
-      relativerPfad: m.relativer_pfad,
-      titel: m.titel ?? null,
-      beschreibung: m.beschreibung ?? null,
-      datum: datumSpalten(m.datum),
-      ortId: m.ort !== undefined ? aufloesen(m.ort) : null,
-      erstelltAm,
-      geaendertAm: erstelltAm,
-    })
-    zaehle('medium')
-  })
-
-  // 2. ort + ortsname
+  // 1. ort + ortsname — VOR medium (medium.ort_id REFERENCES ort(id), docs/schema/0002_kern.sql:409;
+  //    ein `medien[]`-Eintrag mit `ort`-Feld bräche sonst unter foreign_keys=ON ab, hueter-Auflage
+  //    aus PR #60).
   datei.orte?.forEach((o) => {
     const id = aufloesen(o.id)
     if (istDbKennung(o.id)) return
@@ -199,6 +184,24 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       })
       zaehle('ortsname')
     })
+  })
+
+  // 2. medium — NACH ort (s. o.), VOR quelle/interview_sitzung (deren audio_medium_id → medium
+  //    referenziert).
+  datei.medien?.forEach((m) => {
+    const id = aufloesen(m.id)
+    if (istDbKennung(m.id)) return
+    mediumRepo.einfuegen(tx, {
+      id,
+      relativerPfad: m.relativer_pfad,
+      titel: m.titel ?? null,
+      beschreibung: m.beschreibung ?? null,
+      datum: datumSpalten(m.datum),
+      ortId: m.ort !== undefined ? aufloesen(m.ort) : null,
+      erstelltAm,
+      geaendertAm: erstelltAm,
+    })
+    zaehle('medium')
   })
 
   // 3. person(+name) — Zeile selbst nur für tmp:-Kennungen (s. Moduldoku Pass 1); Existenz-Aussage
