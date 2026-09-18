@@ -39,6 +39,23 @@
 // dasselbe — 200 ist deutlich schneller (weniger Personen zu schreiben UND zu kopieren) und
 // zusätzlich per Assertion unten (`ruecknahmeArt === 'schnappschuss'`) gegen ein stilles
 // Abrutschen unter die Schwelle abgesichert.
+//
+// GELTUNGSBEREICH (adversariales Review-Nachtrag, wichtig gegen Missverständnis als
+// Write-Gate): diese Invariante belegt AUSSCHLIESSLICH Berichtsgleichheit — "Trockenlauf-Bericht
+// == Bericht des echten Imports" (CLAUDE.md §5) — und ist KONSTRUKTIONSBEDINGT BLIND für die
+// Korrektheit des Schreibpfads selbst. Grund: `importAusfuehren()` gibt exakt den VOR dem
+// Schreiben erzeugten Sondierungsbericht verbatim zurück (s. oben, "KEIN zweiter
+// `baueBericht()`-Aufruf im Echtpfad"), und der Trockenlauf schreibt `import_lauf`/
+// `import_herkunft` gar nicht — das sind reine Schreibpfad-Tabellen, die im verglichenen
+// `Trockenlaufbericht` gar nicht vorkommen. Eine Divergenz, die NUR im echten Schreibpfad
+// entsteht (z. B. eine doppelte `import_lauf`-Zeile oder eine fehlende `import_herkunft`-Zeile),
+// würde diese Invariante darum NICHT fangen — der Bericht selbst wüsste nichts davon, ein
+// `toEqual`/`alsText`-Vergleich zweier identischer Berichte bliebe trotzdem grün. Schreib-
+// korrektheit wird an anderer Stelle geprüft: `test/einheit/import-undo-klein.test.ts`
+// ("Undo(Aktion) stellt den Datenbestand bitgleich wieder her", AP-1.5 PR-A) und die künftige
+// Idempotenz-Invariante ("Import → Export → Import ist idempotent", D-01, CLAUDE.md §5 Tabelle,
+// bis dahin `test.todo`) — NICHT diese Datei hier. Diese Datei ist ein Berichts-Gate, kein
+// Write-Gate.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
