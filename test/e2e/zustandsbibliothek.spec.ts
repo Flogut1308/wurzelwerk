@@ -38,6 +38,10 @@ test.describe('Zustandsbibliothek — Bildstrecke (S-19, AP-1.11)', () => {
     mkdirSync(BILDER_ORDNER, { recursive: true })
     app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG] })
     fenster = await app.firstWindow()
+    // Erst laden lassen — sonst hat `useZustandsbibliothekOeffnenAbo()` (befehl-hooks.ts) ihr
+    // `ereignis:`-Abonnement noch nicht gesetzt und der gleich gesendete Push ginge ins Leere
+    // (ein `ereignis:`-Push wird nicht nachgeholt, anders als ein `befehl:`/`abfrage:`-Aufruf).
+    await fenster.waitForLoadState('load')
 
     // Entspricht dem Klick auf „Entwicklung → Zustandsbibliothek" (s. Kopfkommentar).
     await app.evaluate(({ BrowserWindow }) => {
