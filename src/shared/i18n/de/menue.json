@@ -20,6 +20,8 @@
   "wartung_datenbestandPruefen_zyklus": "Zyklus in der Abstammung gefunden",
   "wartung_datenbestandPruefen_wegweiserNeuaufbau": "Empfehlung: „Wartung → Abgeleitete Daten neu aufbauen“ ausführen.",
   "wartung_datenbestandPruefen_wegweiserSchnappschuss": "Empfehlung: einen Schnappschuss sichern und die Datei fachkundig prüfen lassen.",
+  "entwicklung": "Entwicklung",
+  "entwicklung_zustandsbibliothek": "Zustandsbibliothek",
   "journal": {
     "rueckgaengig": "Rückgängig",
     "rueckgaengig_mit_ziel": "Rückgängig: {{beschreibung}}",

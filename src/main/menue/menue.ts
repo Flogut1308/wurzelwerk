@@ -1,4 +1,4 @@
-import { Menu, type MenuItemConstructorOptions } from 'electron'
+import { Menu, app, type MenuItemConstructorOptions } from 'electron'
 import i18next from 'i18next'
 import journal from '../../shared/i18n/de/journal.json'
 import menue from '../../shared/i18n/de/menue.json'
@@ -178,12 +178,29 @@ function schnappschussWiederherstellenEintraege(t: MenueUebersetzer): MenuItemCo
 }
 
 /**
+ * Baut den Menüpunkt „Entwicklung → Zustandsbibliothek" (AP-1.11, 72_Screens_und_Flows.md S-19) —
+ * `null`, wenn `gepackt` (die ausgelieferte App kennt weder Menü noch Ansicht), dasselbe Kennzeichen
+ * wie in `src/main/ipc/huelle.ts` (`!app.isPackaged`) und `src/main/protokoll/logger.ts`. Reine
+ * Entscheidungsfunktion (`gepackt`/`aufOeffnen` als Parameter statt `app.isPackaged`/
+ * `sendeEreignis` direkt) — testbar ohne Electron, analog zu `journalMenueBeschriftung` oben
+ * (`test/einheit/menue-entwicklung.test.ts`).
+ */
+export function entwicklungMenueEintrag(t: MenueUebersetzer, gepackt: boolean, aufOeffnen: () => void): MenuItemConstructorOptions | null {
+  if (gepackt) return null
+  return {
+    label: t('entwicklung'),
+    submenu: [{ label: t('entwicklung_zustandsbibliothek'), click: aufOeffnen }],
+  }
+}
+
+/**
  * Baut das Menü für den übergebenen Journalstatus. `status: undefined` heißt „kein Projekt
  * offen“ - beide Journal-Menüpunkte sind dann ausgegraut (s. `journalMenueBeschriftung`).
  */
 export function menueErzeugen(status: JournalStatusNutzlast | undefined): Menu {
   const t = menueUebersetzen
   const journalEintraege = journalMenueBeschriftung(t, status)
+  const entwicklungEintrag = entwicklungMenueEintrag(t, app.isPackaged, () => sendeEreignis('ereignis:zustandsbibliothekOeffnen', null))
   const vorlage: MenuItemConstructorOptions[] = [
     {
       label: t('wurzelwerk'),
@@ -235,6 +252,7 @@ export function menueErzeugen(status: JournalStatusNutzlast | undefined): Menu {
         },
       ],
     },
+    ...(entwicklungEintrag === null ? [] : [entwicklungEintrag]),
   ]
 
   return Menu.buildFromTemplate(vorlage)
