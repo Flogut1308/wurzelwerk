@@ -1,0 +1,86 @@
+/*
+ * Baustein `Schaltflaeche` — Atom (docs/71_Designsystem.md §2.1). Zustände `hover`/`aktiv`/`fokus`
+ * sind reine Pseudoklassen, `gesperrt`/`ladend` steuert `:disabled`/`[aria-busy]`. Bewusst KEIN
+ * `transition` (§1.5: nur fünf benannte Fälle dürfen sich bewegen — Baum ein-/ausklappen, Zoom,
+ * Zeitregler, Überlagerung, Seitenschublade; ein Knopf-Hover gehört nicht dazu, Zustände wechseln
+ * hart). Trefferfläche ≥ 32×32 px in beiden Dichten (§1.6/§5).
+ */
+
+.wz-schaltflaeche {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wz-abstand-8);
+  min-height: var(--wz-trefferflaeche-min);
+  min-width: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-16);
+  border-radius: var(--wz-radius-standard);
+  border: 1px solid transparent;
+  font: var(--wz-schrift-koerper);
+  cursor: pointer;
+}
+
+.wz-schaltflaeche:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.wz-schaltflaeche[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* ---- primär: Akzentfläche, gedeckt ---- */
+.wz-schaltflaeche--primaer {
+  background: var(--wz-akzent-basis);
+  color: var(--wz-akzent-auf-akzent);
+  border-color: var(--wz-akzent-basis);
+}
+.wz-schaltflaeche--primaer:hover:not(:disabled) {
+  background: var(--wz-akzent-hover);
+  border-color: var(--wz-akzent-hover);
+}
+.wz-schaltflaeche--primaer:active:not(:disabled) {
+  background: var(--wz-akzent-aktiv);
+  border-color: var(--wz-akzent-aktiv);
+}
+
+/* ---- sekundär: Umrandet, auf Basisfläche ---- */
+.wz-schaltflaeche--sekundaer {
+  background: var(--wz-flaeche-basis);
+  color: var(--wz-text-primaer);
+  border-color: var(--wz-rahmen-standard);
+}
+.wz-schaltflaeche--sekundaer:hover:not(:disabled) {
+  background: var(--wz-flaeche-hover);
+}
+.wz-schaltflaeche--sekundaer:active:not(:disabled) {
+  background: var(--wz-flaeche-aktiv);
+}
+
+/* ---- unauffällig: ohne Rahmen, zurückhaltend ---- */
+.wz-schaltflaeche--unauffaellig {
+  background: transparent;
+  color: var(--wz-text-sekundaer);
+}
+.wz-schaltflaeche--unauffaellig:hover:not(:disabled) {
+  background: var(--wz-flaeche-hover);
+}
+.wz-schaltflaeche--unauffaellig:active:not(:disabled) {
+  background: var(--wz-flaeche-aktiv);
+}
+
+/* ---- gefährlich: über die vorgesehene Status-Rollenkombination (-flaeche/-rahmen/-text),
+   nicht über -basis als Vollfläche — nur dieses Tripel ist als AA-taugliches Zusammenspiel
+   vorgesehen (§1.1 „je in -basis, -flaeche, -rahmen, -text"). ---- */
+.wz-schaltflaeche--gefaehrlich {
+  background: var(--wz-flaeche-basis);
+  color: var(--wz-status-fehler-text);
+  border-color: var(--wz-status-fehler-rahmen);
+}
+.wz-schaltflaeche--gefaehrlich:hover:not(:disabled) {
+  background: var(--wz-status-fehler-flaeche);
+}
+.wz-schaltflaeche--gefaehrlich:active:not(:disabled) {
+  background: var(--wz-status-fehler-flaeche);
+  border-color: var(--wz-status-fehler-basis);
+}

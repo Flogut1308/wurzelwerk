@@ -1,0 +1,27 @@
+/*
+ * Baustein `KonfidenzPunkt` — Atom (docs/71_Designsystem.md §2.1/§1.2). Ein einzelner Punkt für
+ * EINE Konfidenzstufe (1–4); die Gruppe aus vier Punkten ist das Molekül `Konfidenzwaehler`
+ * (§2.2/§3.4), nicht dieses Atom. Farbe kommt ausschließlich aus der ordinalen Datenpalette
+ * `--wz-daten-konfidenz-*`; die zweite, farbunabhängige Kodierung ist die Beschriftung
+ * (`aria-label`/`title`), wie §1.2 Regel 4 sie ausdrücklich als gültige zweite Kodierung nennt.
+ */
+
+.wz-konfidenzpunkt {
+  display: inline-block;
+  width: var(--wz-abstand-12);
+  height: var(--wz-abstand-12);
+  border-radius: var(--wz-radius-voll);
+}
+
+.wz-konfidenzpunkt--1 {
+  background: var(--wz-daten-konfidenz-1);
+}
+.wz-konfidenzpunkt--2 {
+  background: var(--wz-daten-konfidenz-2);
+}
+.wz-konfidenzpunkt--3 {
+  background: var(--wz-daten-konfidenz-3);
+}
+.wz-konfidenzpunkt--4 {
+  background: var(--wz-daten-konfidenz-4);
+}

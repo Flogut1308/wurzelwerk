@@ -1,0 +1,33 @@
+/*
+ * Baustein `Ladeschimmer` — Atom (docs/71_Designsystem.md §2.1), Formen Zeile·Block·Kreis.
+ *
+ * ABWEICHUNG VOM NAMEN, Grund festgehalten (CLAUDE.md §14 Fall 2): ein "Schimmer" impliziert eine
+ * über die Fläche laufende Animation, aber §1.5 erlaubt ausdrücklich nur fünf bewegte Fälle
+ * (Baum ein-/ausklappen, Zoom, Zeitregler, Überlagerung, Seitenschublade) und verbietet wörtlich
+ * „einen Ladebalken, der sich bewegt, ohne Fortschritt zu kennen" — ein Lade-Skelett kennt seinen
+ * Fortschritt nie. Diese Umsetzung ist darum eine STATISCHE Platzhalterfläche, keine laufende
+ * Animation. Siehe docs/80_Offene_Fragen.md (AP-1.6-Nachtrag).
+ */
+
+.wz-ladeschimmer {
+  display: block;
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-ladeschimmer--zeile {
+  width: 100%;
+  height: 1em;
+  border-radius: var(--wz-radius-klein);
+}
+
+.wz-ladeschimmer--block {
+  width: 100%;
+  height: var(--wz-abstand-64);
+  border-radius: var(--wz-radius-gross);
+}
+
+.wz-ladeschimmer--kreis {
+  width: var(--wz-abstand-32);
+  height: var(--wz-abstand-32);
+  border-radius: var(--wz-radius-voll);
+}

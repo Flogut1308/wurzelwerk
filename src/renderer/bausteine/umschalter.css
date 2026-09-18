@@ -1,0 +1,52 @@
+/*
+ * Baustein `Umschalter` — Atom (docs/71_Designsystem.md §2.1), Zustände ein·aus·unbestimmt·
+ * gesperrt. Kein `transition` beim Wechsel des Schiebers (§1.5 — nur fünf benannte Fälle dürfen
+ * sich bewegen, ein Umschalter-Klick gehört nicht dazu).
+ */
+
+.wz-umschalter {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--wz-trefferflaeche-min);
+  min-width: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-2);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-vertieft);
+  cursor: pointer;
+}
+
+.wz-umschalter__schieber {
+  display: block;
+  width: var(--wz-abstand-16);
+  height: var(--wz-abstand-16);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-ueberlagert);
+  border: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-umschalter--aus {
+  justify-content: flex-start;
+  background: var(--wz-flaeche-vertieft);
+  border-color: var(--wz-rahmen-standard);
+}
+
+.wz-umschalter--unbestimmt {
+  justify-content: center;
+  background: var(--wz-akzent-schwach);
+  border-color: var(--wz-rahmen-akzent);
+}
+
+.wz-umschalter--ein {
+  justify-content: flex-end;
+  background: var(--wz-akzent-basis);
+  border-color: var(--wz-akzent-basis);
+}
+.wz-umschalter--ein .wz-umschalter__schieber {
+  border-color: var(--wz-akzent-basis);
+}
+
+.wz-umschalter:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
