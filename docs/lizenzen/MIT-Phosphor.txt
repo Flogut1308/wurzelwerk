@@ -1,0 +1,35 @@
+Phosphor Icons (phosphor-icons/core)
+Bezogener Tag: v2.0.8 (Commit d42782b2abe747d904b971ccab48b182a1455f86)
+Quelle: https://github.com/phosphor-icons/core
+Abzug: skripte/symbole-holen.ts (AP-1.11, ADR-027) — nur die tatsächlich benutzten SVG-Dateien,
+kopiert und normiert nach src/renderer/gestaltung/symbole/{regular,fill}/.
+
+-----------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2023 Phosphor Icons
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-----------------------------------------------------------------------------
+
+Zwei Symbole (Trauung, Beerdigung) sind KEIN Phosphor-Bestandteil, sondern Eigenzeichnungen
+(gleiches 256er-Raster, Regular-Gewicht) — geführt unter
+src/renderer/gestaltung/symbole/eigen/{trauung,beerdigung}.svg, nicht Teil dieser Lizenz.

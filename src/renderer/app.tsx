@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ProjektInfo } from '../shared/ipc/vertrag'
-import { useDatenGeaendertAbo, useProjektGeschlossenAbo } from './brücke/befehl-hooks'
+import { useDatenGeaendertAbo, useProjektGeschlossenAbo, useZustandsbibliothekOeffnenAbo } from './brücke/befehl-hooks'
 import { ListenAnsicht } from './ansichten/liste/listen-ansicht'
 import { StartAnsicht } from './ansichten/start/start-ansicht'
+import { Zustandsbibliothek } from './ansichten/zustandsbibliothek/zustandsbibliothek'
 import { Fehlergrenze } from './fehler/fehlergrenze'
 
 /**
@@ -39,18 +40,31 @@ function DatenGeaendertBruecke(): null {
 }
 
 /**
- * Start ↔ Liste (AP-1.6 Stufe 4): kein Router, ein einfacher Zustand — „ist ein Projekt offen?"
- * entscheidet, welche der beiden Ansichten rendert. `App` ist der einzige Ort, der beide Ansichten
- * kennt; die `ereignis:projektGeschlossen`-Abo läuft hier statt in `StartAnsicht`, damit ein
- * Schließen hinter dem Rücken der aktuell sichtbaren Ansicht (egal welcher) auf den Startzustand
- * zurückfällt (vormals ein Sonderfall nur der Start-Ansicht, AP-0.20-Kommentar dort).
+ * Start ↔ Liste ↔ Zustandsbibliothek (AP-1.6 Stufe 4, AP-1.11): kein Router, ein einfacher
+ * Zustand — „ist ein Projekt offen?" entscheidet zwischen Start und Liste, ein zweiter,
+ * unabhängiger Zustand schaltet die Zustandsbibliothek darüber (S-19: „ein eigenes Artboard").
+ * `App` ist der einzige Ort, der alle drei Ansichten kennt; die `ereignis:projektGeschlossen`-Abo
+ * läuft hier statt in `StartAnsicht`, damit ein Schließen hinter dem Rücken der aktuell
+ * sichtbaren Ansicht (egal welcher) auf den Startzustand zurückfällt (vormals ein Sonderfall nur
+ * der Start-Ansicht, AP-0.20-Kommentar dort).
+ *
+ * Die Zustandsbibliothek ersetzt Start/Liste vollständig, statt sich darüberzulegen (kein Modal,
+ * kein zweiter Layer) — sie ist ein reines Entwicklungswerkzeug (nur `!app.isPackaged`-Menüpunkt,
+ * `src/main/menue/menue.ts::entwicklungMenueEintrag`) und braucht keinen Kontext der darunterliegenden
+ * Ansicht, anders als z. B. `ProfilAnsicht` (T-Vollseite über der Liste, AP-1.7).
  */
 export function App() {
   const [projekt, setProjekt] = useState<ProjektInfo | null>(null)
+  const [zustandsbibliothekOffen, setZustandsbibliothekOffen] = useState(false)
 
   useProjektGeschlossenAbo(
     useCallback(() => {
       setProjekt(null)
+    }, []),
+  )
+  useZustandsbibliothekOeffnenAbo(
+    useCallback(() => {
+      setZustandsbibliothekOffen(true)
     }, []),
   )
 
@@ -58,7 +72,9 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <DatenGeaendertBruecke />
       <Fehlergrenze>
-        {projekt === null ? (
+        {zustandsbibliothekOffen ? (
+          <Zustandsbibliothek aufSchliessen={() => setZustandsbibliothekOffen(false)} />
+        ) : projekt === null ? (
           <StartAnsicht aufProjektGeoeffnet={setProjekt} />
         ) : (
           <ListenAnsicht projekt={projekt} aufProjektGeschlossen={() => setProjekt(null)} />

@@ -3,9 +3,10 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonListeZeile } from '../../shared/schemata/person-liste'
 import { ALLE_DATENTABELLE_SPALTEN, spaltenRasterVorlage, type DatentabelleSpalte } from './datentabelle-spalten'
-import { ariaSortWert, sortierungUmschalten, type PersonListeRichtungWert, type PersonListeSortierungWert } from './datentabelle-sortierung'
+import { ariaSortWert, sortierCaretSymbol, sortierungUmschalten, type PersonListeRichtungWert, type PersonListeSortierungWert } from './datentabelle-sortierung'
 import { Ladeschimmer } from './ladeschimmer'
 import { LeerzustandBlock } from './leerzustand-block'
+import { Symbol } from './symbol'
 import { Tabellenzeile } from './tabellenzeile'
 import { Text } from './text'
 import './datentabelle.css'
@@ -133,8 +134,10 @@ export function Datentabelle({
                   </span>
                 )
               }
+              const ariaSort = ariaSortWert({ sortierung, richtung }, sortierschluessel)
+              const caret = sortierCaretSymbol(ariaSort)
               return (
-                <span key={spalte} role="columnheader" aria-sort={ariaSortWert({ sortierung, richtung }, sortierschluessel)}>
+                <span key={spalte} role="columnheader" aria-sort={ariaSort}>
                   <button
                     type="button"
                     className="wz-datentabelle__kopfzelle wz-datentabelle__kopfzelle--sortierbar"
@@ -145,6 +148,7 @@ export function Datentabelle({
                     <Text rolle="beschriftung" als="span">
                       {t(spaltenSchluessel(spalte))}
                     </Text>
+                    {caret !== null ? <Symbol name={caret} groesse={16} /> : null}
                   </button>
                 </span>
               )

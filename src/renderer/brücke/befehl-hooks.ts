@@ -17,7 +17,12 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
 import type { Aus, Ein, JournalStatusNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
-import { datenGeaendertNutzlastSchema, journalStatusNutzlastSchema, projektGeschlossenNutzlastSchema } from '../../shared/schemata/ereignisse'
+import {
+  datenGeaendertNutzlastSchema,
+  journalStatusNutzlastSchema,
+  projektGeschlossenNutzlastSchema,
+  zustandsbibliothekOeffnenNutzlastSchema,
+} from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
 
 /**
@@ -97,6 +102,22 @@ export function useProjektGeschlossenAbo(bei: (nutzlast: ProjektGeschlossenNutzl
   useEffect(() => {
     return window.wurzelwerk.abonnieren('ereignis:projektGeschlossen', (nutzlast) => {
       bei(projektGeschlossenNutzlastSchema.parse(nutzlast))
+    })
+  }, [bei])
+}
+
+/**
+ * Reicht jeden `ereignis:zustandsbibliothekOeffnen`-Push an `bei` weiter (AP-1.11) — der
+ * Menüpunkt „Entwicklung → Zustandsbibliothek" (nur `!app.isPackaged`) schaltet damit die Ansicht
+ * im Renderer um, analog zu `useProjektGeschlossenAbo` oben. `nutzlast` ist immer `null`
+ * (`ZustandsbibliothekOeffnenNutzlast`); `zustandsbibliothekOeffnenNutzlastSchema.parse` prüft das
+ * trotzdem, aus derselben Begründung wie bei den anderen `ereignis:`-Hooks (kein `as`, CLAUDE.md §4).
+ */
+export function useZustandsbibliothekOeffnenAbo(bei: () => void): void {
+  useEffect(() => {
+    return window.wurzelwerk.abonnieren('ereignis:zustandsbibliothekOeffnen', (nutzlast) => {
+      zustandsbibliothekOeffnenNutzlastSchema.parse(nutzlast)
+      bei()
     })
   }, [bei])
 }

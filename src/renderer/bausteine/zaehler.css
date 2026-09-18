@@ -1,0 +1,17 @@
+/*
+ * Baustein `Zaehler` — Atom (docs/71_Designsystem.md §2.1). Kleine, abgerundete Fläche für eine
+ * Anzahl, dieselbe Formsprache wie `KonfidenzPunkt`/`BelegAbzeichen`.
+ */
+
+.wz-zaehler {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--wz-abstand-20);
+  height: var(--wz-abstand-20);
+  padding: 0 var(--wz-abstand-4);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-vertieft);
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-beschriftung);
+}

@@ -7,6 +7,7 @@ import journal from '../../shared/i18n/de/journal.json'
 import liste from '../../shared/i18n/de/liste.json'
 import menue from '../../shared/i18n/de/menue.json'
 import profil from '../../shared/i18n/de/profil.json'
+import zustandsbibliothek from '../../shared/i18n/de/zustandsbibliothek.json'
 
 /**
  * Renderer-i18n (ADR-011, G-08). Ressourcen liegen in `src/shared/i18n/de/`, damit dieselben
@@ -28,10 +29,10 @@ export const i18n = i18next.createInstance()
 void i18n.use(initReactI18next).init({
   lng: 'de',
   fallbackLng: false,
-  ns: ['allgemein', 'fehler', 'import', 'journal', 'liste', 'menue', 'profil'],
+  ns: ['allgemein', 'fehler', 'import', 'journal', 'liste', 'menue', 'profil', 'zustandsbibliothek'],
   defaultNS: 'allgemein',
   resources: {
-    de: { allgemein, fehler, import: importNs, journal, liste, menue, profil },
+    de: { allgemein, fehler, import: importNs, journal, liste, menue, profil, zustandsbibliothek },
   },
   interpolation: {
     escapeValue: false,

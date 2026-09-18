@@ -110,6 +110,15 @@ export interface ProjektGeschlossenNutzlast {
 }
 
 /**
+ * Nutzlast von `ereignis:zustandsbibliothekOeffnen` (AP-1.11, 72_Screens_und_Flows.md S-19): der
+ * Menüpunkt „Entwicklung → Zustandsbibliothek" (nur `!app.isPackaged`,
+ * `src/main/menue/menue.ts::entwicklungMenueEintrag`) trägt keine zusätzlichen Daten — er schaltet
+ * die Ansicht im Renderer nur um, analog zu `ereignis:projektGeschlossen`. `null` statt eines
+ * leeren `{}`-Objekts, weil es fachlich nichts zu übertragen gibt.
+ */
+export type ZustandsbibliothekOeffnenNutzlast = null
+
+/**
  * Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab
  * (AP-0.9). Steht in `src/shared`, nicht in `src/main/repositories/journal-repo.ts`, weil
  * `VerlaufEintrag` (AP-0.10, unten) diese Union ebenfalls braucht und `src/shared` nichts aus
@@ -263,6 +272,7 @@ export interface EreignisVertrag {
   'ereignis:datenGeaendert': DatenGeaendertNutzlast
   'ereignis:journalStatus': JournalStatusNutzlast
   'ereignis:projektGeschlossen': ProjektGeschlossenNutzlast
+  'ereignis:zustandsbibliothekOeffnen': ZustandsbibliothekOeffnenNutzlast
 }
 
 export type EreignisKanal = keyof EreignisVertrag

@@ -38,5 +38,10 @@ export const ALLE_KANAELE: readonly string[] = kanaele
  * Der EXPORT bleibt `readonly string[]`: der Preload prüft rohe, ungeprüfte Strings dagegen
  * (Abnahme, nicht ändern). `ereignis:speicherStatus` folgt später (§7.5).
  */
-const ereignisKanaele: readonly EreignisKanal[] = ['ereignis:datenGeaendert', 'ereignis:journalStatus', 'ereignis:projektGeschlossen']
+const ereignisKanaele: readonly EreignisKanal[] = [
+  'ereignis:datenGeaendert',
+  'ereignis:journalStatus',
+  'ereignis:projektGeschlossen',
+  'ereignis:zustandsbibliothekOeffnen',
+]
 export const EREIGNIS_KANAELE: readonly string[] = ereignisKanaele

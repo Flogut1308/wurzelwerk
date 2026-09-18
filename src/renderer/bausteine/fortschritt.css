@@ -1,0 +1,31 @@
+/*
+ * Baustein `Fortschritt` — Atom (docs/71_Designsystem.md §2.1), Varianten bestimmt·unbestimmt.
+ *
+ * „unbestimmt" ist wie `Ladeschimmer` (ladeschimmer.css) STATISCH, keine laufende Animation: §1.5
+ * erlaubt nur fünf benannte bewegte Fälle und verbietet wörtlich „einen Ladebalken, der sich
+ * bewegt, ohne Fortschritt zu kennen" — ein unbestimmter Fortschritt kennt seinen Fortschritt per
+ * Definition nicht. Siehe docs/80_Offene_Fragen.md (AP-1.11-Nachtrag).
+ */
+
+.wz-fortschritt {
+  width: 100%;
+  height: var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-vertieft);
+  overflow: hidden;
+}
+
+.wz-fortschritt__fuellung {
+  height: 100%;
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-akzent-basis);
+}
+
+.wz-fortschritt--bestimmt .wz-fortschritt__fuellung {
+  min-width: var(--wz-abstand-4);
+}
+
+/* Statische Teilfüllung statt eines beweglichen Balkens (s. Kopfkommentar). */
+.wz-fortschritt--unbestimmt .wz-fortschritt__fuellung {
+  width: 40%;
+}

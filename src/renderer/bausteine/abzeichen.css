@@ -1,0 +1,42 @@
+/*
+ * Baustein `Abzeichen` — Atom (docs/71_Designsystem.md §2.1/§1.1). Fünf Varianten, jede über das
+ * vorgesehene Status-Rollentripel (`-flaeche`/`-rahmen`/`-text`) — dasselbe AA-taugliche Zusammenspiel
+ * wie `.wz-schaltflaeche--gefaehrlich` (schaltflaeche.css).
+ */
+
+.wz-abzeichen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+  padding: 0 var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+  border: 1px solid transparent;
+  font: var(--wz-schrift-beschriftung);
+  white-space: nowrap;
+}
+
+.wz-abzeichen--neutral {
+  background: var(--wz-status-neutral-flaeche);
+  border-color: var(--wz-status-neutral-rahmen);
+  color: var(--wz-status-neutral-text);
+}
+.wz-abzeichen--info {
+  background: var(--wz-status-info-flaeche);
+  border-color: var(--wz-status-info-rahmen);
+  color: var(--wz-status-info-text);
+}
+.wz-abzeichen--erfolg {
+  background: var(--wz-status-erfolg-flaeche);
+  border-color: var(--wz-status-erfolg-rahmen);
+  color: var(--wz-status-erfolg-text);
+}
+.wz-abzeichen--warnung {
+  background: var(--wz-status-warnung-flaeche);
+  border-color: var(--wz-status-warnung-rahmen);
+  color: var(--wz-status-warnung-text);
+}
+.wz-abzeichen--fehler {
+  background: var(--wz-status-fehler-flaeche);
+  border-color: var(--wz-status-fehler-rahmen);
+  color: var(--wz-status-fehler-text);
+}

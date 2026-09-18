@@ -566,6 +566,17 @@ Die Druckfassung ist der Punkt, an dem sich rächt, wenn die Datenpaletten nur a
 geprüft wurden. Genealogen drucken (`40_Anforderungen.md` Lückenanalyse Punkt 3) — ein Poster
 über dem Sofa ist ein erklärtes Produktziel.
 
+**Nachzug (AP-1.11, 18.09.2026): Symbolsatz beschafft.** Die Zeile „Symbolsatz | Phase 0" oben war
+bis AP-1.11 ein reiner Rückstand — beschafft wurde nie einer (`docs/80_Offene_Fragen.md`
+U-1.6-atome-scope, U-1.6-leerzustand-ohne-symbol). Entschieden: **Phosphor Icons** (MIT,
+ADR-027), gepinnt auf Tag `v2.0.8`. Kuratiert unter `src/renderer/gestaltung/symbole/` (nur die
+tatsächlich benutzten Namen, Regular- und Fill-Gewicht), Lizenztext unter
+`docs/lizenzen/MIT-Phosphor.txt`, Abzugsskript `skripte/symbole-holen.ts` (`pnpm symbole`,
+reproduzierbar). Zwei Fachsymbole ohne Phosphor-Entsprechung — **Trauung** und **Beerdigung** —
+sind Eigenzeichnungen im selben 256er-Raster, erkennbar getrennt unter `symbole/eigen/`. Damit ist
+§2.1 Atomwelle 1 (`Symbol`, `SchaltflaecheSymbol`, `Abzeichen`, `Trennlinie`, `TastenKappe`,
+`Zaehler`, `Kontrollkaestchen`, `Optionsfeld`, `Fortschritt`, `Fokusring`) vollständig gebaut.
+
 ---
 
 ## 7. Wie das Designsystem in den Code kommt

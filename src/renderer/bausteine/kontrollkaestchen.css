@@ -1,0 +1,69 @@
+/*
+ * Baustein `Kontrollkaestchen` — Atom (docs/71_Designsystem.md §2.1), Zustände ein·aus·unbestimmt·
+ * gesperrt. Eckige Fläche (anders als der runde `Umschalter`) — dieselbe Formunterscheidung wie
+ * zwischen einem Kontrollkästchen und einem Umschalter in jedem verbreiteten Designsystem.
+ */
+
+.wz-kontrollkaestchen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--wz-trefferflaeche-min);
+  min-width: var(--wz-trefferflaeche-min);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wz-kontrollkaestchen__haken {
+  display: block;
+  box-sizing: border-box;
+  width: var(--wz-abstand-16);
+  height: var(--wz-abstand-16);
+  border-radius: var(--wz-radius-klein);
+  border: 1px solid var(--wz-rahmen-standard);
+  background: var(--wz-flaeche-basis);
+  position: relative;
+}
+
+.wz-kontrollkaestchen--aus .wz-kontrollkaestchen__haken {
+  border-color: var(--wz-rahmen-standard);
+  background: var(--wz-flaeche-basis);
+}
+
+.wz-kontrollkaestchen--ein .wz-kontrollkaestchen__haken,
+.wz-kontrollkaestchen--unbestimmt .wz-kontrollkaestchen__haken {
+  border-color: var(--wz-akzent-basis);
+  background: var(--wz-akzent-basis);
+}
+
+/* Haken: zwei Rahmenkanten, um 45° gedreht — kein Icon nötig für ein so kleines, rein
+ * dekoratives Zeichen innerhalb der Fläche. */
+.wz-kontrollkaestchen--ein .wz-kontrollkaestchen__haken::after {
+  content: '';
+  position: absolute;
+  left: 30%;
+  top: 12%;
+  width: 30%;
+  height: 55%;
+  border-right: 2px solid var(--wz-akzent-auf-akzent);
+  border-bottom: 2px solid var(--wz-akzent-auf-akzent);
+  transform: rotate(45deg);
+}
+
+/* unbestimmt: ein waagerechter Strich statt des Hakens. */
+.wz-kontrollkaestchen--unbestimmt .wz-kontrollkaestchen__haken::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  top: 45%;
+  width: 60%;
+  height: 2px;
+  background: var(--wz-akzent-auf-akzent);
+}
+
+.wz-kontrollkaestchen:disabled .wz-kontrollkaestchen__haken {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

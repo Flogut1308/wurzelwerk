@@ -19,6 +19,12 @@ describe('ereignis:-Kanäle als geschlossener Vertrag (AP-0.20)', () => {
     expect(EREIGNIS_KANAELE).toContain('ereignis:projektGeschlossen')
   })
 
+  /** AP-1.11: Menüeintrag „Zustandsbibliothek" im Entwicklungsmenü (nur `!app.isPackaged`) navigiert
+   * über genau diesen zusätzlichen Kanal — additiv nach dem Muster von `ereignis:projektGeschlossen`. */
+  it('EREIGNIS_KANAELE enthält ereignis:zustandsbibliothekOeffnen', () => {
+    expect(EREIGNIS_KANAELE).toContain('ereignis:zustandsbibliothekOeffnen')
+  })
+
   it('sendeEreignis() lehnt einen erfundenen Kanalnamen und eine unvollständige Nutzlast zur Compile-Zeit ab', () => {
     // @ts-expect-error erfundener Kanalname ist kein EreignisKanal (AP-0.20)
     sendeEreignis('ereignis:tippfehler', { transaktionId: 'x', ursache: 'y' })

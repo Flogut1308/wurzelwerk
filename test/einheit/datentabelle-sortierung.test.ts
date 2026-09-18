@@ -1,6 +1,6 @@
 // AP-1.6 Stufe 3 (C-16), CLAUDE.md §5 eiserne Regel: erst der Test.
 import { describe, expect, it } from 'vitest'
-import { ariaSortWert, sortierungUmschalten } from '../../src/renderer/bausteine/datentabelle-sortierung'
+import { ariaSortWert, sortierCaretSymbol, sortierungUmschalten } from '../../src/renderer/bausteine/datentabelle-sortierung'
 
 describe('sortierungUmschalten (src/renderer/bausteine/datentabelle-sortierung.ts, AP-1.6)', () => {
   it('Klick auf dieselbe Spalte dreht die Richtung um: auf -> ab', () => {
@@ -30,5 +30,24 @@ describe('ariaSortWert (src/renderer/bausteine/datentabelle-sortierung.ts, AP-1.
 
   it('meldet "descending" für die aktive Spalte bei Richtung "ab"', () => {
     expect(ariaSortWert({ sortierung: 'nachname', richtung: 'ab' }, 'nachname')).toBe('descending')
+  })
+})
+
+/**
+ * AP-1.11 (§14-Ergänzung, docs/80_Offene_Fragen.md): ein sichtbares Sortier-Caret für die aktive
+ * Spalte über `Symbol` — vorher gab es außer `aria-sort` keinen visuellen Unicode-Platzhalter zu
+ * "ersetzen", das Caret ist eine reine Ergänzung.
+ */
+describe('sortierCaretSymbol (src/renderer/bausteine/datentabelle-sortierung.ts, AP-1.11)', () => {
+  it('liefert "caret-up" bei "ascending"', () => {
+    expect(sortierCaretSymbol('ascending')).toBe('caret-up')
+  })
+
+  it('liefert "caret-down" bei "descending"', () => {
+    expect(sortierCaretSymbol('descending')).toBe('caret-down')
+  })
+
+  it('liefert null bei "none" (keine Kopfzelle zeigt ein Caret für eine inaktive Spalte)', () => {
+    expect(sortierCaretSymbol('none')).toBeNull()
   })
 })

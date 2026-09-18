@@ -1,0 +1,33 @@
+/*
+ * Baustein `Symbol` — Atom (docs/71_Designsystem.md §2.1, AP-1.11, ADR-027). Größe über Klassen an
+ * `--wz-abstand-*` gebunden (kein Festwert), Farbe ausschließlich über `currentColor` — das
+ * eingebettete SVG trägt keine eigene Farbe, es übernimmt die Textfarbe des umgebenden Elements.
+ */
+
+.wz-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wz-symbol svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wz-symbol--16 {
+  width: var(--wz-abstand-16);
+  height: var(--wz-abstand-16);
+}
+
+.wz-symbol--20 {
+  width: var(--wz-abstand-20);
+  height: var(--wz-abstand-20);
+}
+
+.wz-symbol--24 {
+  width: var(--wz-abstand-24);
+  height: var(--wz-abstand-24);
+}

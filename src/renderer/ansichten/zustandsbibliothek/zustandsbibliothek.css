@@ -1,0 +1,87 @@
+/*
+ * `Zustandsbibliothek` — Entwicklerseite (72_Screens_und_Flows.md S-19, AP-1.11). Rein additive
+ * Werkzeugseite: einfaches, gescrolltes Layout, keine neue visuelle Sprache.
+ */
+
+.wz-zb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--wz-abstand-24);
+  background: var(--wz-flaeche-grund);
+  color: var(--wz-text-primaer);
+}
+
+.wz-zb__kopf {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--wz-abstand-8);
+  padding-bottom: var(--wz-abstand-16);
+  border-bottom: 1px solid var(--wz-rahmen-standard);
+}
+
+.wz-zb__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-16);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-basis);
+}
+
+.wz-zb__reihe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-zb__reihe--spalte {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.wz-zb__symbolProbe {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-8);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-klein);
+}
+
+.wz-zb__senkrecht {
+  display: inline-flex;
+  height: var(--wz-abstand-24);
+}
+
+.wz-zb__seitenschubladeProbe {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 240px;
+  overflow: hidden;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+/* Innerhalb der Probe ersetzt `width: 100%` das echte `min(480px, 100vw)` (seitenschublade.css) —
+ * sonst ragt die Schublade über die Probenbox hinaus und der Schließen-Knopf wird abgeschnitten. */
+.wz-zb__seitenschubladeProbe .wz-seitenschublade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.wz-zb__datentabelleProbe {
+  width: 100%;
+  max-width: 640px;
+  height: 220px;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  overflow: hidden;
+}

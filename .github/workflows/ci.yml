@@ -164,5 +164,16 @@ jobs:
       - name: E2E-Tests
         run: pnpm test:e2e
 
+      - name: Zustandsbibliothek-Bilder als Artefakt
+        # AP-1.11 (72_Screens_und_Flows.md S-19): `test/e2e/zustandsbibliothek.spec.ts` schreibt die
+        # vier Aufnahmen (hell/dunkel × Standarddichte/kompakt) nach `artefakte/bilder/` — hier als
+        # eigenes Artefakt, damit ein Blick auch ohne lokalen `pnpm bilder`-Lauf möglich ist.
+        uses: actions/upload-artifact@v4
+        with:
+          name: zustandsbibliothek-bilder
+          path: artefakte/bilder/**
+          if-no-files-found: error
+          retention-days: 5
+
       - name: Leistungsbudgets
         run: pnpm test:budget
