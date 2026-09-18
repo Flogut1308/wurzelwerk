@@ -62,16 +62,19 @@
 .wz-zb__seitenschubladeProbe {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   height: 240px;
   overflow: hidden;
   border: 1px solid var(--wz-rahmen-fein);
   border-radius: var(--wz-radius-standard);
 }
 
+/* Innerhalb der Probe ersetzt `width: 100%` das echte `min(480px, 100vw)` (seitenschublade.css) —
+ * sonst ragt die Schublade über die Probenbox hinaus und der Schließen-Knopf wird abgeschnitten. */
 .wz-zb__seitenschubladeProbe .wz-seitenschublade {
   position: absolute;
   inset: 0;
+  width: 100%;
 }
 
 .wz-zb__datentabelleProbe {

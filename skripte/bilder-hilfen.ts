@@ -36,4 +36,9 @@ export function kombinationImDomSetzen(kombination: BilderKombination): void {
   } else {
     document.documentElement.removeAttribute('data-dichte')
   }
+  // Zurück zum Seitenanfang: die eingebettete `Seitenschublade`-Probe fokussiert sich selbst (ihr
+  // echtes Verhalten, seitenschublade.tsx) und lässt den Browser sonst mitten in die lange Seite
+  // scrollen — ohne diesen Reset zeigte jede Aufnahme zufällig einen mittleren Ausschnitt statt
+  // des Bibliothekskopfs.
+  window.scrollTo(0, 0)
 }

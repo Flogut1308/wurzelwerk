@@ -56,6 +56,7 @@ test.describe('Zustandsbibliothek — Bildstrecke (S-19, AP-1.11)', () => {
     test(`Aufnahme ${kombination.theme}/${kombination.dichte}`, async () => {
       await fenster.evaluate(kombinationImDomSetzen, kombination)
       const zielpfad = join(BILDER_ORDNER, bilderDateiname(kombination))
+      // KEIN `fullPage: true` — s. Begründung in skripte/bilder.ts (dieselbe Aufnahme, geteilte Logik).
       await fenster.screenshot({ path: zielpfad })
       expect(statSync(zielpfad).size).toBeGreaterThan(0)
     })

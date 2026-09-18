@@ -64,6 +64,10 @@ async function hauptlauf(): Promise<void> {
     for (const kombination of VIER_KOMBINATIONEN) {
       await fenster.evaluate(kombinationImDomSetzen, kombination)
       const zielpfad = join(BILDER_ORDNER, bilderDateiname(kombination))
+      // KEIN `fullPage: true`: die Seite ist deutlich länger als 16384px (Chromiums Limit für die
+      // Bitmap-Größe einer Aufnahme) — darüber wiederholt sich der untere Teil der Aufnahme
+      // (empirisch geprüft, 18.09.2026). Ein Viewport-Ausschnitt vom zurückgesetzten Seitenanfang
+      // (`kombinationImDomSetzen`) reicht als Checkpoint „ansehen, nicht klicken" (72 §S-19).
       await fenster.screenshot({ path: zielpfad })
       console.log(`Bild gespeichert: ${zielpfad}`)
     }
@@ -76,4 +80,9 @@ async function hauptlauf(): Promise<void> {
   console.log(`Kontaktabzug geschrieben: ${kontaktabzugPfad}`)
 }
 
-await hauptlauf()
+// Kein Top-Level-`await` (esbuild/tsx transformiert dieses Skript beim Direktaufruf als CJS —
+// "Top-level await is currently not supported with the 'cjs' output format", geprüft 18.09.2026).
+hauptlauf().catch((fehler: unknown) => {
+  console.error(fehler)
+  process.exitCode = 1
+})
