@@ -2,9 +2,13 @@
 // einen deterministischen 2000-Personen-Bestand (test/hilfsmittel/grossbestand.ts). Median über
 // mehrere Läufe statt eines Einzelmaßes — ein einzelner Ausreißer (GC-Pause, kalter Cache) soll das
 // Budget nicht nichtdeterministisch rot werden lassen (CLAUDE.md §13), eine echte Regression aber
-// schon. Lokal ein Fehler bei Überschreitung, in der CI-Job „langsame Gates" nur eine Warnung
-// (90_Arbeitsweise §9/CLAUDE.md-Auftrag) — dieser Test selbst kennt diesen Unterschied nicht, er
-// meldet immer hart rot/grün.
+// schon.
+//
+// Läuft nur über das langsame Gate `pnpm test:budget` (vitest.budget.config.ts); das schnelle Gate
+// `pnpm test` schließt `test/budget/**` aus (CLAUDE.md §13, gestufte Gates). Überschreitungen sind
+// lokal ein harter Fehler, in der CI nur eine Warnung im Job-Log (CLAUDE.md §3): ein
+// maschinenabhängiges Timing darf das Gate nicht nichtdeterministisch rot machen — der Schutz vor
+// echten Regressionen liegt im lokalen Lauf. Diese Unterscheidung trifft `budgetErfuellen`.
 import { describe, expect, it } from 'vitest'
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
 import { personListe } from '../../src/main/abfragen/person-liste'
@@ -13,6 +17,21 @@ import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
 const DURCHLAEUFE = 21
 const FILTER_ALLE: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
+
+// CLAUDE.md §3: lokal harter Fehler bei Überschreitung, in der CI nur eine Warnung, die ein Mensch
+// im Job-Log sieht. In der CI ist `CI` gesetzt (GitHub Actions); lokal nicht.
+function budgetErfuellen(medianMs: number, grenzeMs: number, name: string): void {
+  if (process.env['CI'] !== undefined) {
+    if (medianMs >= grenzeMs) {
+      // Bewusste, für Menschen sichtbare CI-Budgetwarnung (§3).
+      console.warn(
+        `[Budget-Warnung] ${name}: Median ${medianMs.toFixed(2)} ms ≥ Budget ${grenzeMs} ms (CI: Warnung, kein Fehler).`,
+      )
+    }
+    return
+  }
+  expect(medianMs, name).toBeLessThan(grenzeMs)
+}
 
 function median(werte: readonly number[]): number {
   const sortiert = [...werte].sort((a, b) => a - b)
@@ -42,7 +61,7 @@ describe('Leistungsbudget: abfrage:person.liste / abfrage:suche bei 2000 Persone
         personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE })
         laufzeitenMs.push(performance.now() - start)
       }
-      expect(median(laufzeitenMs)).toBeLessThan(20)
+      budgetErfuellen(median(laufzeitenMs), 20, 'abfrage:person.liste')
     } finally {
       db.close()
     }
@@ -57,7 +76,7 @@ describe('Leistungsbudget: abfrage:person.liste / abfrage:suche bei 2000 Persone
         suche(db, { text: 'Meyer', grenze: 100 })
         laufzeitenMs.push(performance.now() - start)
       }
-      expect(median(laufzeitenMs)).toBeLessThan(50)
+      budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:suche')
     } finally {
       db.close()
     }
