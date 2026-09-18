@@ -1,9 +1,9 @@
 /*
  * Baustein `Tabellenzeile` — Molekül (docs/71_Designsystem.md §2.2). Ein `role="row"`/
- * `role="gridcell"`-Raster statt einer nativen `<tr>`/`<td>`-Zeile: die `Datentabelle` positioniert
+ * `role="cell"`-Raster statt einer nativen `<tr>`/`<td>`-Zeile: die `Datentabelle` positioniert
  * Zeilen absolut (virtualisiertes Scrollen, `@tanstack/react-virtual`), was eine native
- * Tabellenzeilen-Layoutberechnung durchbricht — das ARIA-Grid-Muster ist der dokumentierte
- * Ausweg dafür. `grid-template-columns` kommt zur Laufzeit aus `spaltenRasterVorlage()`
+ * Tabellenzeilen-Layoutberechnung durchbricht — das ARIA-Tabellen-Muster (`role="table"`/
+ * `row`/`cell`) ist der dokumentierte Ausweg dafür. `grid-template-columns` kommt zur Laufzeit aus `spaltenRasterVorlage()`
  * (`datentabelle-spalten.ts`), damit Kopf- und Körperzeilen immer exakt dieselben Spaltenbreiten
  * benutzen.
  */
