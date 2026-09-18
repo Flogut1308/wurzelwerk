@@ -1,0 +1,10 @@
+/*
+ * Baustein `FeldKonfidenz` — Molekül (docs/71_Designsystem.md §2.2, AP-1.7 PR-B). Reine Anordnung,
+ * keine eigene Farbe — die drei Kindzeichen tragen ihre Farbe selbst.
+ */
+
+.wz-feld-konfidenz {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
