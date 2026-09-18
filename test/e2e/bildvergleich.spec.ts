@@ -36,9 +36,15 @@ const FIXTURE_ERNA_WALTER = join(__dirname, 'fixtures/import-erna-und-walter-wru
 
 /** Feste Fenster-Inhaltsgröße — unabhängig von der plattformübergreifend persistierten
  * Fenstergeometrie (`geometrie-speicher.ts`), sonst wäre die Bildgröße vom letzten `pnpm dev`/
- * `pnpm build`-Lauf auf dieser Maschine abhängig. */
-const FENSTER_BREITE = 1280
-const FENSTER_HOEHE = 900
+ * `pnpm build`-Lauf auf dieser Maschine abhängig. Belegt (CI-Log, PR #71): dev-Fenster 1280×857,
+ * CI-Fenster 1024×643 — beides Reste der persistierten Geometrie, nicht dieses Tests. 1000×600 ist
+ * bewusst **kleiner** als beide beobachteten Größen, also reines Verkleinern statt eines
+ * Bildschirm-Clampings (kein CI-Runner mit weniger als 1000×600 sichtbarer Fläche beobachtet).
+ * Nur `setContentSize` zu rufen reicht NICHT — der Aufruf kehrt zurück, bevor der Renderer die
+ * neue Größe tatsächlich übernommen hat; deshalb wird unten zusätzlich auf `window.innerWidth`
+ * gewartet, bevor irgendetwas aufgenommen wird. */
+const FENSTER_BREITE = 1000
+const FENSTER_HOEHE = 600
 
 const AUFNAHME_OPTIONEN = { animations: 'disabled', caret: 'hide' } as const
 
@@ -74,6 +80,13 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           fensterHandle.setContentSize(groesse.breite, groesse.hoehe)
         }
       },
+      { breite: FENSTER_BREITE, hoehe: FENSTER_HOEHE },
+    )
+
+    // `setContentSize` kehrt zurück, bevor der Renderer die neue Größe übernommen hat — ohne
+    // diese Wartung entstünden die Aufnahmen weiter in der vorherigen (persistierten) Größe.
+    await fenster.waitForFunction(
+      (groesse) => window.innerWidth === groesse.breite && window.innerHeight === groesse.hoehe,
       { breite: FENSTER_BREITE, hoehe: FENSTER_HOEHE },
     )
   })
