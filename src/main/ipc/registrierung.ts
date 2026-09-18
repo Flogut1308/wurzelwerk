@@ -5,6 +5,7 @@ import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
+import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
@@ -14,6 +15,7 @@ import { suche } from '../abfragen/suche'
 import { fuehreAus } from '../befehle/bus'
 import { importAusfuehren } from '../befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
+import { berichtSpeichern, importDateiWaehlen } from '../import/dialog'
 import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
@@ -157,6 +159,12 @@ export function ipcRegistrierung(): void {
     }
     return bericht
   })
+
+  // AP-1.4b, S-10/S-11/S-13: die nativen Dialoge des Import-Assistenten. `befehl:`, nicht
+  // `abfrage:` — ein nativer Dialog ist eine Nebenwirkung im Hauptprozess (analog zum Trockenlauf).
+  // Kein offenes Projekt nötig: Datei wählen und Bericht speichern hängen an keiner Datenbank.
+  registriere('befehl:import.dateiWaehlen', importDateiWaehlenEinSchema, () => importDateiWaehlen())
+  registriere('befehl:import.berichtSpeichern', importBerichtSpeichernEinSchema, (ein) => berichtSpeichern(ein))
 
   // AP-1.6 PR1: reine Lesevorgänge (Personenliste, Suche) — `abfrage:`, nicht `befehl:` (§11,
   // ADR-016), kein Journal-/Ereignis-Bezug.
