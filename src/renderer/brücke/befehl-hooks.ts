@@ -22,10 +22,12 @@ import { aufrufen } from './aufrufen'
 
 /**
  * Entpackt ein `Ergebnis<T>` zu `T` oder wirft den enthaltenen `AppFehler` — TanStack Query fängt
- * einen geworfenen Fehler in einer `mutationFn` selbst und reicht ihn als `error` durch, das ist
- * hier der gewünschte Weg, ohne ein zweites Ergebnis-Protokoll im Renderer nachzubilden.
+ * einen geworfenen Fehler sowohl in einer `mutationFn` (hier) als auch in einer `queryFn`
+ * (`../brücke/abfrage-hooks.ts`) selbst und reicht ihn als `error` durch, das ist hier der
+ * gewünschte Weg, ohne ein zweites Ergebnis-Protokoll im Renderer nachzubilden. Benannt exportiert,
+ * damit `abfrage-hooks.ts` (AP-1.6) dieselbe Entpackung verwendet statt sie zu verdoppeln.
  */
-async function ergebnisEntpacken<T>(versprechen: Promise<Ergebnis<T>>): Promise<T> {
+export async function ergebnisEntpacken<T>(versprechen: Promise<Ergebnis<T>>): Promise<T> {
   const ergebnis = await versprechen
   if (!ergebnis.ok) {
     throw ergebnis.fehler
