@@ -11,6 +11,33 @@ const css = readFileSync(tokensPfad, 'utf8')
 // Kommentare entfernen, damit eine auskommentierte Rolle nicht fälschlich als vorhanden zählt.
 const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, '')
 
+// Die Diagnose-Kategorien sind KEINE frei wählbare Handliste: der bindende Vertrag ist die
+// ausgelieferte CHECK-Bedingung in docs/schema/0002_kern.sql (Schema v1, seit AP-0.6 auf main,
+// in jeder migrierten Projektdatenbank aktiv). Die Tokens folgen dem Schema, nicht umgekehrt.
+// Aus dem Schema abgeleitet (statt abgetippt), damit eine künftige Divergenz rot wird statt
+// eingefroren zu bleiben (ADR-025: die Prüfung ist der Maßstab, nicht das Werkstück).
+const schemaPfad = fileURLToPath(new URL('../../docs/schema/0002_kern.sql', import.meta.url))
+const schemaSql = readFileSync(schemaPfad, 'utf8')
+
+/** Die IN(...)-Werte des `kategorie`-CHECK aus der `diagnose`-Tabelle, `_` → `-` für Tokennamen. */
+function diagnoseKategorienAusSchema(): readonly string[] {
+  const anfang = schemaSql.indexOf('CREATE TABLE diagnose')
+  if (anfang === -1) throw new Error('Tabelle diagnose fehlt in 0002_kern.sql')
+  const treffer = schemaSql
+    .slice(anfang)
+    .match(/kategorie\s+TEXT\s+CHECK\s*\(\s*kategorie\s+IN\s*\(([^)]*)\)/i)
+  if (treffer === null || treffer[1] === undefined) {
+    throw new Error('Diagnose-kategorie-CHECK nicht in 0002_kern.sql gefunden')
+  }
+  const werte = [...treffer[1].matchAll(/'([^']+)'/g)]
+    .map((m) => m[1])
+    .filter((w): w is string => w !== undefined)
+    .map((w) => w.replace(/_/g, '-'))
+  if (werte.length === 0) throw new Error('Leere Diagnose-Kategorienliste aus 0002_kern.sql')
+  return werte
+}
+const diagnoseKategorien = diagnoseKategorienAusSchema()
+
 /** Inhalt des ausgeglichenen `{…}`-Blocks direkt hinter `selektor`. */
 function blockInhalt(quelle: string, selektor: string): string {
   const start = quelle.indexOf(selektor)
@@ -43,6 +70,10 @@ const rootDekl = deklarationen(blockInhalt(ohneKommentare, ':root {'))
 const dunkelDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-theme="dunkel"] {'))
 const hellDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-theme="hell"] {'))
 const kompaktDekl = deklarationen(blockInhalt(ohneKommentare, ':root[data-dichte="kompakt"] {'))
+// Der Systemvorgabe-Dunkelblock: die Überschreibungen im @media(prefers-color-scheme: dark).
+// Er treibt die STANDARDEINSTELLUNG (§1.7 Regel 3, kein data-theme gestempelt) und wird sonst
+// von keinem Test erfasst — eine nur hier vergessene Rolle träfe genau die Vorgabe.
+const mediaDunkelDekl = deklarationen(blockInhalt(ohneKommentare, '@media (prefers-color-scheme: dark) {'))
 
 // Alle irgendwo deklarierten Rollen (auch im Systemvorgabe-@media-Block).
 const alleDekl = new Set<string>()
@@ -74,10 +105,8 @@ const paragraf1Rollen: readonly string[] = [
   ...Array.from({ length: 12 }, (_, i) => `--wz-daten-generation-${i + 1}`),
   ...Array.from({ length: 8 }, (_, i) => `--wz-daten-strang-${i + 1}`),
   ...bereich('daten-geschlecht', ['m', 'f', 'u', 'x']),
-  ...bereich('daten-diagnose', [
-    'atemwege', 'herz-kreislauf', 'stoffwechsel', 'krebs', 'nerven-psyche', 'bewegung',
-    'verdauung', 'sinne', 'infektion', 'unfall', 'sonstiges',
-  ]),
+  // §1.2: „Kategorien aus 50_Datenmodell.md §2.12" — bindend ist der Schema-CHECK, siehe oben.
+  ...diagnoseKategorien.map((k) => `--wz-daten-diagnose-${k}`),
   ...bereich('daten-beziehung', [
     'biologisch', 'adoptiv', 'stief', 'pflege', 'ehe', 'partnerschaft', 'geschieden', 'ungesichert',
   ]),
@@ -96,6 +125,8 @@ const paragraf1Rollen: readonly string[] = [
   ...bereich('kurve', ['standard', 'hinein', 'hinaus']),
   // §1.6 Dichte
   '--wz-zeilenhoehe-tabelle', '--wz-abstand-feld', '--wz-innenabstand-zelle',
+  // §1.1 Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) — Leitprinzip 1, 10_Vision_Scope §4
+  ...['selbst-erlebt', 'hoerensagen'].flatMap((u) => bereich(`beleg-${u}`, ['flaeche', 'rahmen', 'text'])),
 ]
 
 describe('tokens.css — Vollständigkeit des Token-Vertrags (docs/71 §1)', () => {
@@ -123,6 +154,21 @@ describe('tokens.css — Vollständigkeit des Token-Vertrags (docs/71 §1)', () 
     const nurHell = [...hellDekl.keys()].filter((r) => !dunkelDekl.has(r))
     expect(nurDunkel, `nur im Dunkelthema: ${nurDunkel.join(', ')}`).toEqual([])
     expect(nurHell, `nur im Hellthema: ${nurHell.join(', ')}`).toEqual([])
+  })
+
+  it('hält @media(prefers-color-scheme: dark) deckungsgleich mit [data-theme="dunkel"] — Namen UND Werte', () => {
+    // §1.7 Regel 1/3: Die Systemvorgabe (dunkel) muss dieselben Rollen mit denselben Werten
+    // tragen wie das ausdrücklich gewählte Dunkelthema, sonst driftet die Standardeinstellung
+    // still ab. Heute deckungsgleich — hier festgezurrt, bevor es das nicht mehr ist.
+    expect(mediaDunkelDekl.size).toBeGreaterThan(80) // Schutz gegen versehentlich leere Erkennung
+    const nurMedia = [...mediaDunkelDekl.keys()].filter((r) => !dunkelDekl.has(r))
+    const nurDunkel = [...dunkelDekl.keys()].filter((r) => !mediaDunkelDekl.has(r))
+    expect(nurMedia, `nur im @media(dark)-Block: ${nurMedia.join(', ')}`).toEqual([])
+    expect(nurDunkel, `nur im [data-theme="dunkel"]-Block: ${nurDunkel.join(', ')}`).toEqual([])
+    const wertAbweichung = [...dunkelDekl]
+      .filter(([name, wert]) => mediaDunkelDekl.get(name) !== wert)
+      .map(([name]) => name)
+    expect(wertAbweichung, `Wertabweichung @media(dark) ↔ dunkel: ${wertAbweichung.join(', ')}`).toEqual([])
   })
 
   it('überschreibt in der kompakten Dichte genau die vier Dichtetokens (§1.6)', () => {

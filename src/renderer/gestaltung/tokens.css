@@ -101,6 +101,16 @@
   --wz-status-neutral-rahmen: #DAD5CA;
   --wz-status-neutral-text: #57534B;
 
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) — Leitprinzip 1, 10_Vision_Scope §4.
+     Vertrauens-Achse: Grün = verankert, Ocker = vorläufig. Bedeutung nie über Farbe allein
+     (§1.2 Regel 4) — das Abzeichen-Label trägt sie. Werte aus der Konfidenz-/status-Palette. ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #E9F0E4;
+  --wz-beleg-selbst-erlebt-rahmen: #BFD3B4;
+  --wz-beleg-selbst-erlebt-text: #2F5227;
+  --wz-beleg-hoerensagen-flaeche: #F3EDDD;
+  --wz-beleg-hoerensagen-rahmen: #DAC79A;
+  --wz-beleg-hoerensagen-text: #6E5316;
+
   /* ---- §1.2 Konfidenz (ordinal, Helligkeit monoton) ---- */
   --wz-daten-konfidenz-1: #A5664A;
   --wz-daten-konfidenz-2: #745E2B;
@@ -122,9 +132,9 @@
   --wz-daten-generation-3: #5B7A5E;
   --wz-daten-generation-4: #8A5F55;
   --wz-daten-generation-5: #5D5A7A;
-  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-6: #757549;
   --wz-daten-generation-7: #456A66;
-  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-8: #876F42;
   --wz-daten-generation-9: #6B5273;
   --wz-daten-generation-10: #3F6355;
   --wz-daten-generation-11: #7C5B6B;
@@ -143,21 +153,21 @@
   /* ---- §1.2 Geschlecht ---- */
   --wz-daten-geschlecht-m: #4C6B7A;
   --wz-daten-geschlecht-f: #7A6A4C;
-  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-u: #8E8779;
   --wz-daten-geschlecht-x: #5D5A7A;
 
-  /* ---- §1.2 Diagnosekategorien (Namen aus 50_Datenmodell.md §2.12) ---- */
+  /* ---- §1.2 Diagnosekategorien (bindend: CHECK in docs/schema/0002_kern.sql, diagnose.kategorie) ---- */
   --wz-daten-diagnose-atemwege: #46707F;
   --wz-daten-diagnose-herz-kreislauf: #8A4A55;
   --wz-daten-diagnose-stoffwechsel: #7A6A45;
   --wz-daten-diagnose-krebs: #6B5273;
-  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
-  --wz-daten-diagnose-bewegung: #5B7A5E;
-  --wz-daten-diagnose-verdauung: #8B7346;
-  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-neuro-psych: #5D5A7A;
+  --wz-daten-diagnose-nieren: #5B7A5E;
+  --wz-daten-diagnose-autoimmun: #876F42;
+  --wz-daten-diagnose-angeboren-genetisch: #427C73;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
-  --wz-daten-diagnose-sonstiges: #8A8375;
+  --wz-daten-diagnose-sonstiges: #8E8779;
 
   /* ---- §1.2 Beziehungstypen (Kantenfarbe; die Form trägt die Hauptinformation) ---- */
   --wz-daten-beziehung-biologisch: #5C564B;
@@ -268,6 +278,14 @@
     --wz-status-neutral-rahmen: #3E423F;
     --wz-status-neutral-text: #B4B0A6;
 
+    /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+    --wz-beleg-selbst-erlebt-flaeche: #1D2A1E;
+    --wz-beleg-selbst-erlebt-rahmen: #35492F;
+    --wz-beleg-selbst-erlebt-text: #A8CE9A;
+    --wz-beleg-hoerensagen-flaeche: #272216;
+    --wz-beleg-hoerensagen-rahmen: #4A3F27;
+    --wz-beleg-hoerensagen-text: #D9BE84;
+
     --wz-daten-konfidenz-1: #A66447;
     --wz-daten-konfidenz-2: #A6873F;
     --wz-daten-konfidenz-3: #80AF4B;
@@ -312,10 +330,10 @@
     --wz-daten-diagnose-herz-kreislauf: #C08A92;
     --wz-daten-diagnose-stoffwechsel: #B3A279;
     --wz-daten-diagnose-krebs: #A288AB;
-    --wz-daten-diagnose-nerven-psyche: #9490B4;
-    --wz-daten-diagnose-bewegung: #8FB393;
-    --wz-daten-diagnose-verdauung: #C4A87A;
-    --wz-daten-diagnose-sinne: #79B4A9;
+    --wz-daten-diagnose-neuro-psych: #9490B4;
+    --wz-daten-diagnose-nieren: #8FB393;
+    --wz-daten-diagnose-autoimmun: #C4A87A;
+    --wz-daten-diagnose-angeboren-genetisch: #79B4A9;
     --wz-daten-diagnose-infektion: #B48FA0;
     --wz-daten-diagnose-unfall: #A9A69E;
     --wz-daten-diagnose-sonstiges: #BFBBB1;
@@ -389,6 +407,14 @@
   --wz-status-neutral-rahmen: #3E423F;
   --wz-status-neutral-text: #B4B0A6;
 
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #1D2A1E;
+  --wz-beleg-selbst-erlebt-rahmen: #35492F;
+  --wz-beleg-selbst-erlebt-text: #A8CE9A;
+  --wz-beleg-hoerensagen-flaeche: #272216;
+  --wz-beleg-hoerensagen-rahmen: #4A3F27;
+  --wz-beleg-hoerensagen-text: #D9BE84;
+
   --wz-daten-konfidenz-1: #A66447;
   --wz-daten-konfidenz-2: #A6873F;
   --wz-daten-konfidenz-3: #80AF4B;
@@ -433,10 +459,10 @@
   --wz-daten-diagnose-herz-kreislauf: #C08A92;
   --wz-daten-diagnose-stoffwechsel: #B3A279;
   --wz-daten-diagnose-krebs: #A288AB;
-  --wz-daten-diagnose-nerven-psyche: #9490B4;
-  --wz-daten-diagnose-bewegung: #8FB393;
-  --wz-daten-diagnose-verdauung: #C4A87A;
-  --wz-daten-diagnose-sinne: #79B4A9;
+  --wz-daten-diagnose-neuro-psych: #9490B4;
+  --wz-daten-diagnose-nieren: #8FB393;
+  --wz-daten-diagnose-autoimmun: #C4A87A;
+  --wz-daten-diagnose-angeboren-genetisch: #79B4A9;
   --wz-daten-diagnose-infektion: #B48FA0;
   --wz-daten-diagnose-unfall: #A9A69E;
   --wz-daten-diagnose-sonstiges: #BFBBB1;
@@ -509,6 +535,14 @@
   --wz-status-neutral-rahmen: #DAD5CA;
   --wz-status-neutral-text: #57534B;
 
+  /* ---- Beleg-Unmittelbarkeit (selbst erlebt / Hörensagen) ---- */
+  --wz-beleg-selbst-erlebt-flaeche: #E9F0E4;
+  --wz-beleg-selbst-erlebt-rahmen: #BFD3B4;
+  --wz-beleg-selbst-erlebt-text: #2F5227;
+  --wz-beleg-hoerensagen-flaeche: #F3EDDD;
+  --wz-beleg-hoerensagen-rahmen: #DAC79A;
+  --wz-beleg-hoerensagen-text: #6E5316;
+
   --wz-daten-konfidenz-1: #A5664A;
   --wz-daten-konfidenz-2: #745E2B;
   --wz-daten-konfidenz-3: #3C5322;
@@ -527,9 +561,9 @@
   --wz-daten-generation-3: #5B7A5E;
   --wz-daten-generation-4: #8A5F55;
   --wz-daten-generation-5: #5D5A7A;
-  --wz-daten-generation-6: #7A7A4E;
+  --wz-daten-generation-6: #757549;
   --wz-daten-generation-7: #456A66;
-  --wz-daten-generation-8: #8B7346;
+  --wz-daten-generation-8: #876F42;
   --wz-daten-generation-9: #6B5273;
   --wz-daten-generation-10: #3F6355;
   --wz-daten-generation-11: #7C5B6B;
@@ -546,20 +580,20 @@
 
   --wz-daten-geschlecht-m: #4C6B7A;
   --wz-daten-geschlecht-f: #7A6A4C;
-  --wz-daten-geschlecht-u: #8A8375;
+  --wz-daten-geschlecht-u: #8E8779;
   --wz-daten-geschlecht-x: #5D5A7A;
 
   --wz-daten-diagnose-atemwege: #46707F;
   --wz-daten-diagnose-herz-kreislauf: #8A4A55;
   --wz-daten-diagnose-stoffwechsel: #7A6A45;
   --wz-daten-diagnose-krebs: #6B5273;
-  --wz-daten-diagnose-nerven-psyche: #5D5A7A;
-  --wz-daten-diagnose-bewegung: #5B7A5E;
-  --wz-daten-diagnose-verdauung: #8B7346;
-  --wz-daten-diagnose-sinne: #457F76;
+  --wz-daten-diagnose-neuro-psych: #5D5A7A;
+  --wz-daten-diagnose-nieren: #5B7A5E;
+  --wz-daten-diagnose-autoimmun: #876F42;
+  --wz-daten-diagnose-angeboren-genetisch: #427C73;
   --wz-daten-diagnose-infektion: #7C5B6B;
   --wz-daten-diagnose-unfall: #6E6A61;
-  --wz-daten-diagnose-sonstiges: #8A8375;
+  --wz-daten-diagnose-sonstiges: #8E8779;
 
   --wz-daten-beziehung-biologisch: #5C564B;
   --wz-daten-beziehung-adoptiv: #7A6A4C;
