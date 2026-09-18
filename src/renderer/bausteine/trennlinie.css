@@ -1,0 +1,16 @@
+/*
+ * Baustein `Trennlinie` — Atom (docs/71_Designsystem.md §2.1). Farbe ausschließlich über
+ * `--wz-rahmen-standard`.
+ */
+
+.wz-trennlinie--waagerecht {
+  width: 100%;
+  height: 1px;
+  background: var(--wz-rahmen-standard);
+}
+
+.wz-trennlinie--senkrecht {
+  width: 1px;
+  align-self: stretch;
+  background: var(--wz-rahmen-standard);
+}

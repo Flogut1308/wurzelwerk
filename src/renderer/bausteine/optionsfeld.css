@@ -1,0 +1,54 @@
+/*
+ * Baustein `Optionsfeld` — Atom (docs/71_Designsystem.md §2.1). Runde Fläche mit Innenpunkt —
+ * dieselbe Formsprache wie ein natives Optionsfeld, aber mit demselben Zustandssatz wie
+ * `Kontrollkaestchen`.
+ */
+
+.wz-optionsfeld {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--wz-trefferflaeche-min);
+  min-width: var(--wz-trefferflaeche-min);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wz-optionsfeld__punkt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--wz-abstand-16);
+  height: var(--wz-abstand-16);
+  border-radius: var(--wz-radius-voll);
+  border: 1px solid var(--wz-rahmen-standard);
+  background: var(--wz-flaeche-basis);
+}
+
+.wz-optionsfeld--ein .wz-optionsfeld__punkt,
+.wz-optionsfeld--unbestimmt .wz-optionsfeld__punkt {
+  border-color: var(--wz-akzent-basis);
+}
+
+.wz-optionsfeld--ein .wz-optionsfeld__punkt::after {
+  content: '';
+  width: var(--wz-abstand-8);
+  height: var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-akzent-basis);
+}
+
+.wz-optionsfeld--unbestimmt .wz-optionsfeld__punkt::after {
+  content: '';
+  width: var(--wz-abstand-8);
+  height: 2px;
+  background: var(--wz-akzent-basis);
+}
+
+.wz-optionsfeld:disabled .wz-optionsfeld__punkt {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

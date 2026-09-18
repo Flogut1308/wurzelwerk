@@ -1,0 +1,15 @@
+/*
+ * Baustein `Fokusring` — Atom (docs/71_Designsystem.md §2.1). Dieselben Tokens wie der globale
+ * `:focus-visible`-Ring in `basis.css` — kein zweiter Fokus-Mechanismus, nur dieselbe Optik als
+ * Anschauungsstück.
+ */
+
+.wz-fokusring {
+  display: inline-block;
+  width: var(--wz-abstand-24);
+  height: var(--wz-abstand-24);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-basis);
+  outline: var(--wz-rahmen-fokus-breite) solid var(--wz-rahmen-fokus);
+  outline-offset: var(--wz-rahmen-fokus-versatz);
+}

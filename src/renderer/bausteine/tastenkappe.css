@@ -1,0 +1,24 @@
+/*
+ * Baustein `TastenKappe` — Atom (docs/71_Designsystem.md §2.1). Jede Taste eine kleine, umrandete
+ * Fläche im technischen Schriftschnitt (dieselbe Rolle wie `Text.rolle="technisch"`).
+ */
+
+.wz-tastenkappe {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-tastenkappe__taste {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--wz-abstand-20);
+  padding: 0 var(--wz-abstand-4);
+  border-radius: var(--wz-radius-klein);
+  border: 1px solid var(--wz-rahmen-standard);
+  background: var(--wz-flaeche-erhoben);
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-technisch);
+  font-style: normal;
+}
