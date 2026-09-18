@@ -14,6 +14,7 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Suchfeld } from '../../bausteine/suchfeld'
 import { Text } from '../../bausteine/text'
 import { Umschalter } from '../../bausteine/umschalter'
+import { ImportAssistent } from '../import/import-assistent'
 import { ProfilAnsicht } from '../profil/profil-ansicht'
 import './listen-ansicht.css'
 
@@ -55,6 +56,7 @@ export interface ListenAnsichtProps {
 export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtProps) {
   const { t } = useTranslation('liste')
   const { t: tAllgemein } = useTranslation('allgemein')
+  const { t: tImport } = useTranslation('import')
 
   const [suchtext, setSuchtext] = useState('')
   const [filter, setFilter] = useState<PersonListeFilter>(FILTER_STANDARD)
@@ -66,6 +68,9 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   // beim Schließen (`70_UX_Konzept.md` §2) stellt `ProfilAnsicht` selbst über ihren eigenen
   // Fokusfang wieder her (s. Kommentar dort) — hier reicht ein einfacher Auswahlzustand.
   const [geoeffnetePersonId, setGeoeffnetePersonId] = useState<string | null>(null)
+  // AP-1.4b (S-10…S-13): der Import-Assistent als überlagerte Vollseite, Einstieg über den Knopf
+  // im Kopf. `false` = geschlossen. Design-Review: §S-10 nennt die Einstiegs-Affordanz nicht.
+  const [importOffen, setImportOffen] = useState(false)
 
   const sucheAktiv = suchtext.trim() !== ''
 
@@ -120,6 +125,9 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
         <Text rolle="hilfe" als="span">
           {tAllgemein('start_projekt_geoeffnet', { name: projekt.name })}
         </Text>
+        <Schaltflaeche variante="sekundaer" aufKlick={() => setImportOffen(true)}>
+          {tImport('einstieg_knopf')}
+        </Schaltflaeche>
         <Schaltflaeche variante="unauffaellig" aufKlick={projektSchliessen}>
           {tAllgemein('start_projekt_schliessen_button')}
         </Schaltflaeche>
@@ -170,6 +178,8 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
       {sucheAktiv ? null : <Blaetterleiste seite={seite} proSeite={PRO_SEITE} gesamt={gesamt} aufSeiteGeaendert={setSeite} />}
 
       {geoeffnetePersonId === null ? null : <ProfilAnsicht personId={geoeffnetePersonId} aufSchliessen={() => setGeoeffnetePersonId(null)} />}
+
+      {importOffen ? <ImportAssistent aufSchliessen={() => setImportOffen(false)} /> : null}
     </div>
   )
 }
