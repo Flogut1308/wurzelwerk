@@ -1,0 +1,42 @@
+/*
+ * Baustein `TrockenlaufBericht` — Organismus (72 §S-11). Lange, aber übersichtliche Blockfolge:
+ * klare Blockgrenzen, Zähler am Kopf jedes Blocks, Sprungmarken (`id`). Der Bericht darf lang sein.
+ */
+
+.wz-tlb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-32);
+}
+
+.wz-tlb__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  padding-top: var(--wz-abstand-16);
+  border-top: var(--wz-rahmen-fein);
+}
+
+.wz-tlb__block:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.wz-tlb__kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-tlb__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  margin: 0;
+  padding-left: var(--wz-abstand-20);
+}
+
+.wz-tlb__ergaenzt--konflikt {
+  color: var(--wz-status-warnung-text);
+}
