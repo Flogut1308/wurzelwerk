@@ -12,7 +12,12 @@ export interface TabellenzeileProps {
   readonly zeile: PersonListeZeile
   readonly spalten: readonly DatentabelleSpalte[]
   readonly ausgewaehlt?: boolean
-  readonly aufAusgewaehlt?: (personId: string) => void
+  /** Explizit `| undefined` (`exactOptionalPropertyTypes`): `Datentabelle` reicht ihren eigenen
+   * optionalen `aufZeileAusgewaehlt`-Prop unverändert durch. */
+  readonly aufAusgewaehlt?: ((personId: string) => void) | undefined
+  /** 1-basiert, Kopfzeile mitgezählt (ARIA-Tabellenmuster) — wichtig bei Virtualisierung, weil nie
+   * alle Zeilen gleichzeitig im DOM stehen und ein Screenreader sonst nicht weiß, wo er ist. */
+  readonly ariaRowIndex?: number
 }
 
 /** `konfidenz_min` kommt aus der Datenbank als `number | null` — hier auf die geschlossene
@@ -34,7 +39,7 @@ function konfidenzStufe(wert: number | null): KonfidenzStufe | null {
  * Platzhalter (gestrichelt). Platzhalterzeilen zeigen **nie** `anzeigename` (A-17) — unabhängig
  * davon, was der Abfragevertrag dort liefert, ist die Anzeige hier bewusst generisch.
  */
-export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewaehlt }: TabellenzeileProps) {
+export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewaehlt, ariaRowIndex }: TabellenzeileProps) {
   const { t } = useTranslation('liste')
   const anklickbar = aufAusgewaehlt !== undefined
   const stufe = konfidenzStufe(zeile.konfidenz_min)
@@ -54,6 +59,7 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
     <div
       role="row"
       aria-selected={ausgewaehlt}
+      aria-rowindex={ariaRowIndex}
       className={`wz-tabellenzeile${zeile.ist_platzhalter ? ' wz-tabellenzeile--platzhalter' : ''}${ausgewaehlt ? ' wz-tabellenzeile--ausgewaehlt' : ''}`}
       style={{ gridTemplateColumns: spaltenRasterVorlage(spalten) }}
       tabIndex={anklickbar ? 0 : undefined}

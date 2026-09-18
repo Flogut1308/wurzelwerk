@@ -12,8 +12,10 @@ export interface LeerzustandBlockProps {
   readonly titel: string
   /** Erklärender Satz, optional. */
   readonly text?: string
-  /** Z. B. „Filter zurücksetzen" (S-05: „leer (Filter ohne Treffer) mit ‚Filter zurücksetzen'"). */
-  readonly aktion?: LeerzustandBlockAktion
+  /** Z. B. „Filter zurücksetzen" (S-05: „leer (Filter ohne Treffer) mit ‚Filter zurücksetzen'").
+   * Explizit `| undefined`, weil Aufrufer den Wert oft bedingt zusammensetzen
+   * (`exactOptionalPropertyTypes`, wie `PersonListeFilter.konfidenzMin`). */
+  readonly aktion?: LeerzustandBlockAktion | undefined
 }
 
 /**
