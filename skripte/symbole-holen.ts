@@ -113,7 +113,7 @@ function symbolBeschaffen(name: SymbolName): SymbolQuellen {
     return { regular: inhalt, fill: inhalt }
   }
 
-  const quellname = PHOSPHOR_QUELLNAME[name as Exclude<SymbolName, 'trauung' | 'beerdigung'>]
+  const quellname = PHOSPHOR_QUELLNAME[name as Exclude<SymbolName, 'trauung' | 'beerdigung'>] // as: eigene Symbole sind oben per EIGENE_SYMBOLE.has(name) ausgeschlossen; Set.has verengt den Typ nicht
   const regularRoh = curlText(`${PHOSPHOR_ROH_BASIS}/regular/${quellname}.svg`)
   const fillRoh = curlText(`${PHOSPHOR_ROH_BASIS}/fill/${quellname}-fill.svg`)
   return { regular: svgNormieren(regularRoh), fill: svgNormieren(fillRoh) }
