@@ -67,7 +67,7 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
       onKeyDown={anklickbar ? tastendruck : undefined}
     >
       {spalten.includes('name') ? (
-        <span role="gridcell" className="wz-tabellenzeile__zelle">
+        <span role="cell" className="wz-tabellenzeile__zelle">
           <Text rolle="koerper" farbe={zeile.ist_platzhalter ? 'tertiaer' : 'primaer'}>
             {zeile.ist_platzhalter ? t('platzhalter_bezeichnung') : zeile.anzeigename}
           </Text>
@@ -75,19 +75,19 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
       ) : null}
 
       {spalten.includes('lebensdaten') ? (
-        <span role="gridcell" className="wz-tabellenzeile__zelle">
+        <span role="cell" className="wz-tabellenzeile__zelle">
           <Text rolle="zahl-tabelle">{lebensdatenAnzeige(zeile.geburt_jahr, zeile.tod_jahr)}</Text>
         </span>
       ) : null}
 
       {spalten.includes('geburtsort') ? (
-        <span role="gridcell" className="wz-tabellenzeile__zelle">
+        <span role="cell" className="wz-tabellenzeile__zelle">
           <Text rolle="koerper-klein">{zeile.geburt_ort_name ?? ''}</Text>
         </span>
       ) : null}
 
       {spalten.includes('konfidenz') ? (
-        <span role="gridcell" className="wz-tabellenzeile__zelle wz-tabellenzeile__zelle--konfidenz">
+        <span role="cell" className="wz-tabellenzeile__zelle wz-tabellenzeile__zelle--konfidenz">
           {stufe !== null ? <KonfidenzPunkt stufe={stufe} /> : null}
           {zeile.hat_widerspruch ? <WiderspruchZeichen /> : null}
         </span>

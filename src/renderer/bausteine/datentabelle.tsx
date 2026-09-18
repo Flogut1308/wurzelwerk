@@ -58,9 +58,11 @@ export interface DatentabelleProps {
  * Spalten, virtualisiertes Scrollen (`@tanstack/react-virtual`), Zustände lädt·leer·Fehler·gefüllt.
  * Rein präsentations-/prop-getrieben — holt keine Daten selbst (verdrahtet in Stufe 4).
  *
- * ARIA-Grid-Muster (`role="table"`/`"rowgroup"`/`"row"`/`"columnheader"`/`"gridcell"`) statt einer
+ * ARIA-Tabellenmuster (`role="table"`/`"rowgroup"`/`"row"`/`"columnheader"`/`"cell"`) statt einer
  * nativen `<table>`: der Virtualizer positioniert Zeilen absolut, was eine native
- * Tabellenzeilen-Layoutberechnung durchbricht (siehe `tabellenzeile.css`).
+ * Tabellenzeilen-Layoutberechnung durchbricht (siehe `tabellenzeile.css`). `"cell"` statt
+ * `"gridcell"` (Review Stufe 3): die Zeilen sind kein pfeilnavigierbares Grid, also bleibt die Rolle
+ * konsistent zu `role="table"` (nicht `role="grid"`).
  *
  * Hueter-Auflage aus dem Stufe-2-Review: `Ladeschimmer` ist selbst `aria-hidden` — die zugängliche
  * Ladeansage lebt hier, in einem eigenen `role="status"`/`aria-live="polite"`-Container, der nur im
@@ -140,7 +142,7 @@ export function Datentabelle({
         <div role="rowgroup" className="wz-datentabelle__koerper" ref={scrollElementRef}>
           {ladezustand === 'fehler' ? (
             <div role="row">
-              <span role="gridcell" className="wz-datentabelle__leerzelle">
+              <span role="cell" className="wz-datentabelle__leerzelle">
                 <LeerzustandBlock titel={t('fehler_titel')} text={t('fehler_text')} />
               </span>
             </div>
@@ -150,7 +152,7 @@ export function Datentabelle({
             ? Array.from({ length: ANZAHL_LADE_ZEILEN }, (_wert, index) => (
                 <div role="row" key={index} className="wz-datentabelle__ladezeile" style={{ gridTemplateColumns: rasterVorlage }}>
                   {sichtbareSpalten.map((spalte) => (
-                    <span role="gridcell" key={spalte}>
+                    <span role="cell" key={spalte}>
                       <Ladeschimmer form="zeile" />
                     </span>
                   ))}
@@ -160,7 +162,7 @@ export function Datentabelle({
 
           {ladezustand === 'bereit' && zeilen.length === 0 ? (
             <div role="row">
-              <span role="gridcell" className="wz-datentabelle__leerzelle">
+              <span role="cell" className="wz-datentabelle__leerzelle">
                 {hatAktivenFilter ? (
                   <LeerzustandBlock
                     titel={t('leer_gefiltert_titel')}
@@ -175,13 +177,14 @@ export function Datentabelle({
           ) : null}
 
           {zeigeInhalt ? (
-            <div className="wz-datentabelle__virtualisierer" style={{ height: virtualizer.getTotalSize() }}>
+            <div role="presentation" className="wz-datentabelle__virtualisierer" style={{ height: virtualizer.getTotalSize() }}>
               {virtualizer.getVirtualItems().map((virtuelleZeile) => {
                 const zeile = zeilen[virtuelleZeile.index]
                 if (zeile === undefined) return null
                 return (
                   <div
                     key={zeile.person_id}
+                    role="presentation"
                     data-index={virtuelleZeile.index}
                     ref={virtualizer.measureElement}
                     className="wz-datentabelle__zeilenposition"
