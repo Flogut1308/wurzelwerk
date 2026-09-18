@@ -1,0 +1,123 @@
+/*
+ * `ProfilAnsicht` — S-07, Template `T-Vollseite` (docs/71_Designsystem.md §2.4: „zentrierte Spalte
+ * über dem abgedunkelten Shell"). `position: fixed` statt eines Portals — der einzige Elternbaum
+ * (`ListenAnsicht`) setzt kein `transform`, das einen neuen Containing Block erzeugen würde
+ * (geprüft beim Bau, AP-1.7 PR-B, analog `seitenschublade.css`).
+ */
+
+.wz-profil-ansicht {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wz-flaeche-ueberlagert);
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.wz-profil-ansicht:focus-visible {
+  outline: none;
+}
+
+.wz-profil-ansicht__kopfzeile {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wz-abstand-16);
+  padding: var(--wz-abstand-16) var(--wz-abstand-24);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-profil-ansicht__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-32);
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--wz-abstand-24);
+}
+
+.wz-profil-ansicht__laedt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+}
+
+/* Zugängliche Ladeansage, analog `datentabelle.css` — visuell verborgen, weil `Ladeschimmer`
+ * selbst `aria-hidden` ist. */
+.wz-profil-ansicht__statusregion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wz-profil-ansicht__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-profil-ansicht__profilkopf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-profil-ansicht__profilkopf-zeichen {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-profil-ansicht__grunddaten {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  column-gap: var(--wz-abstand-16);
+  row-gap: var(--wz-abstand-12);
+  margin: 0;
+}
+
+.wz-profil-ansicht__grunddaten-zeile {
+  display: contents;
+}
+
+.wz-profil-ansicht__grunddaten-zeichen {
+  align-self: center;
+}
+
+.wz-profil-ansicht__zeitstrahl,
+.wz-profil-ansicht__beziehungen,
+.wz-profil-ansicht__gesundheit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-profil-ansicht__zeitstrahl-eintrag,
+.wz-profil-ansicht__beziehung,
+.wz-profil-ansicht__gesundheit-eintrag {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-8) 0;
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-profil-ansicht__zeitstrahl-eintrag:last-child,
+.wz-profil-ansicht__beziehung:last-child,
+.wz-profil-ansicht__gesundheit-eintrag:last-child {
+  border-bottom: none;
+}
