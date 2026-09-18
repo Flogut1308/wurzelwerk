@@ -13,6 +13,15 @@ import type { Aus, Ein } from '../../shared/ipc/vertrag'
 import { aufrufen } from './aufrufen'
 import { ergebnisEntpacken } from './befehl-hooks'
 
+/** Gemeinsame Zusatzoptionen der beiden Abfrage-Hooks unten — bisher nur `enabled`, das
+ * TanStack Query direkt durchreicht (AP-1.6 Stufe 4, erster echter Konsument: die Listenansicht
+ * ruft immer genau eine der beiden Abfragen ab, `usePersonListe` bei leerem Suchtext, `useSuche`
+ * sonst — die jeweils andere bleibt über `enabled: false` inaktiv, statt einen Kanal unnötig gegen
+ * den Hauptprozess zu rufen). */
+export interface AbfrageOptionen {
+  readonly enabled?: boolean
+}
+
 /**
  * `abfrage:person.liste` (55_Architektur.md §5, AP-1.6). Der Query-Key trägt `ein` vollständig —
  * TanStack Query hasht Objekte in Query-Keys strukturell (Schlüsselreihenfolge-unabhängig), ein
@@ -21,10 +30,11 @@ import { ergebnisEntpacken } from './befehl-hooks'
  * läuft ausschließlich über `useDatenGeaendertAbo()` (`befehl-hooks.ts`), das nach jedem
  * `ereignis:datenGeaendert` pauschal den gesamten Cache invalidiert — diese Abfrage eingeschlossen.
  */
-export function usePersonListe(ein: Ein<'abfrage:person.liste'>): UseQueryResult<Aus<'abfrage:person.liste'>, AppFehler> {
+export function usePersonListe(ein: Ein<'abfrage:person.liste'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:person.liste'>, AppFehler> {
   return useQuery({
     queryKey: ['abfrage:person.liste', ein] as const,
     queryFn: () => ergebnisEntpacken(aufrufen('abfrage:person.liste', ein)),
+    enabled: optionen?.enabled ?? true,
   })
 }
 
@@ -33,9 +43,10 @@ export function usePersonListe(ein: Ein<'abfrage:person.liste'>): UseQueryResult
  * gleichzeitig sowie Kölner Phonetik als zweite Quelle (`src/main/abfragen/suche.ts`). Dieselbe
  * Key-Strategie und Invalidierung wie `usePersonListe`.
  */
-export function useSuche(ein: Ein<'abfrage:suche'>): UseQueryResult<Aus<'abfrage:suche'>, AppFehler> {
+export function useSuche(ein: Ein<'abfrage:suche'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:suche'>, AppFehler> {
   return useQuery({
     queryKey: ['abfrage:suche', ein] as const,
     queryFn: () => ergebnisEntpacken(aufrufen('abfrage:suche', ein)),
+    enabled: optionen?.enabled ?? true,
   })
 }

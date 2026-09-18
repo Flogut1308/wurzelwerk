@@ -21,8 +21,10 @@ const SPALTE_SORTIERSCHLUESSEL: Readonly<Partial<Record<DatentabelleSpalte, Pers
 }
 
 /** i18n-Schlüssel je Spalte — ein `switch` mit vollständiger Abdeckung statt einer dynamisch
- * zusammengesetzten Zeichenkette, damit eine künftige fünfte Spalte hier einen Typfehler erzeugt. */
-function spaltenSchluessel(spalte: DatentabelleSpalte): string {
+ * zusammengesetzten Zeichenkette, damit eine künftige fünfte Spalte hier einen Typfehler erzeugt.
+ * Benannt exportiert (AP-1.6 Stufe 4): `listen-ansicht.tsx` braucht dieselbe Zuordnung für die
+ * Spaltenwahl-Zeile, keine zweite Kopie dieses Schalters. */
+export function spaltenSchluessel(spalte: DatentabelleSpalte): string {
   switch (spalte) {
     case 'name':
       return 'spalte_name'
