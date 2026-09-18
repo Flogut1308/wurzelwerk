@@ -9,12 +9,14 @@
 //   `praedikat`s (nicht je einzelner Aussage).
 // - Konfidenz-Kopf = `person_flach.konfidenz_min`, hier gelesen statt neu berechnet.
 // - Beziehungen: nur direkte Kanten (Eltern/Kinder/Partner), KEINE Geschwister.
-// - Widerspruch je Feld wird NICHT in SQL nachgebaut, sondern über die Kern-Funktion
-//   `hatWiderspruch()` (src/core/aussage/widerspruch.ts, spiegelt den generierten Trigger
-//   `abl_aussage_ai`, docs/schema/0003_abgeleitet.sql Z.66-75) auf den bereits geladenen Aussagen
-//   berechnet.
+// - Widerspruch je Feld wird NICHT in SQL nachgebaut, sondern über die Kern-Funktionen
+//   `hatWiderspruch()`/`anzahlUnterscheidbareWerte()` (src/core/aussage/widerspruch.ts, spiegelt
+//   den generierten Trigger `abl_aussage_ai`, docs/schema/0003_abgeleitet.sql Z.66-75) auf den
+//   bereits geladenen Aussagen berechnet. `hatKonkurrierende` (hueter-Auflage 1, PR #65) ist das
+//   von `hat_widerspruch` UNABHÄNGIGE E21-Signal "es gibt konkurrierende Angaben" — bleibt `true`,
+//   auch wenn eine Bevorzugung den Widerspruch bereits aufgelöst hat.
 import type Database from 'better-sqlite3'
-import { hatWiderspruch, type AussageFuerWiderspruch } from '../../core/aussage/widerspruch'
+import { anzahlUnterscheidbareWerte, hatWiderspruch, type AussageFuerWiderspruch } from '../../core/aussage/widerspruch'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
@@ -192,6 +194,7 @@ function grunddatenBauen(
       konfidenz: bevorzugte?.konfidenz ?? null,
       belegzahl: belegzahlKarte.get(praedikat) ?? 0,
       hat_widerspruch: hatWiderspruch(wertTupel),
+      hatKonkurrierende: anzahlUnterscheidbareWerte(wertTupel) >= 2,
       aussagen: gruppe.map((aussage) => ({
         aussage_id: aussage.id,
         wert: aussageWertAnzeige(aussage),

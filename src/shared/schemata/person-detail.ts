@@ -64,15 +64,24 @@ export interface PersonDetailAussage {
 }
 
 /** Ein Grunddaten-Feld — alle `aussage`-Zeilen EINES `praedikat`s für diese Person, plus die daraus
- * abgeleitete Belegzahl (Entscheidung: Summe über ALLE Aussagen dieses Prädikats) und der
- * Widerspruchs-Zustand (`src/core/aussage/widerspruch.ts`, spiegelt den Trigger aus
- * `docs/schema/0003_abgeleitet.sql`). */
+ * abgeleitete Belegzahl (Entscheidung: Summe über ALLE Aussagen dieses Prädikats) und ZWEI
+ * getrennte E21-Zeichen (hueter-Auflage 1, PR #65):
+ * - `hat_widerspruch` — UNAUFGELÖSTER Konflikt (mind. zwei unterscheidbare Werte UND keiner
+ *   bevorzugt). Spiegelt den Trigger `abl_aussage_ai` (`docs/schema/0003_abgeleitet.sql`,
+ *   `src/core/aussage/widerspruch.ts`).
+ * - `hatKonkurrierende` — es EXISTIEREN mindestens zwei unterscheidbare Werte, UNABHÄNGIG davon,
+ *   ob einer bevorzugt ist. Bleibt also `true`, auch wenn `hat_widerspruch` durch eine
+ *   Bevorzugung bereits auf `false` gefallen ist (der `wert`/`konfidenz`-Anzeigewert oben kollabiert
+ *   das Wert-Tupel auf die bevorzugte bzw. erste Aussage — dieses Feld macht die dahinterliegende
+ *   Konkurrenz trotzdem sichtbar).
+ */
 export interface PersonDetailGrunddatenFeld {
   readonly praedikat: string
   readonly wert: string | null
   readonly konfidenz: number | null
   readonly belegzahl: number
   readonly hat_widerspruch: boolean
+  readonly hatKonkurrierende: boolean
   readonly aussagen: readonly PersonDetailAussage[]
 }
 
