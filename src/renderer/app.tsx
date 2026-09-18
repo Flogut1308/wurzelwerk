@@ -1,5 +1,8 @@
+import { useCallback, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useDatenGeaendertAbo } from './brücke/befehl-hooks'
+import type { ProjektInfo } from '../shared/ipc/vertrag'
+import { useDatenGeaendertAbo, useProjektGeschlossenAbo } from './brücke/befehl-hooks'
+import { ListenAnsicht } from './ansichten/liste/listen-ansicht'
 import { StartAnsicht } from './ansichten/start/start-ansicht'
 import { Fehlergrenze } from './fehler/fehlergrenze'
 
@@ -35,12 +38,31 @@ function DatenGeaendertBruecke(): null {
   return null
 }
 
+/**
+ * Start ↔ Liste (AP-1.6 Stufe 4): kein Router, ein einfacher Zustand — „ist ein Projekt offen?"
+ * entscheidet, welche der beiden Ansichten rendert. `App` ist der einzige Ort, der beide Ansichten
+ * kennt; die `ereignis:projektGeschlossen`-Abo läuft hier statt in `StartAnsicht`, damit ein
+ * Schließen hinter dem Rücken der aktuell sichtbaren Ansicht (egal welcher) auf den Startzustand
+ * zurückfällt (vormals ein Sonderfall nur der Start-Ansicht, AP-0.20-Kommentar dort).
+ */
 export function App() {
+  const [projekt, setProjekt] = useState<ProjektInfo | null>(null)
+
+  useProjektGeschlossenAbo(
+    useCallback(() => {
+      setProjekt(null)
+    }, []),
+  )
+
   return (
     <QueryClientProvider client={queryClient}>
       <DatenGeaendertBruecke />
       <Fehlergrenze>
-        <StartAnsicht />
+        {projekt === null ? (
+          <StartAnsicht aufProjektGeoeffnet={setProjekt} />
+        ) : (
+          <ListenAnsicht projekt={projekt} aufProjektGeschlossen={() => setProjekt(null)} />
+        )}
       </Fehlergrenze>
     </QueryClientProvider>
   )
