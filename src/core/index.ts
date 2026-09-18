@@ -6,4 +6,7 @@ export type { UmschriftAutoNorm, UmschriftBestandteileErgebnis } from './name/um
 export type { Anzeigename, AnzeigenameVorname, NameTyp, Namensbestandteile, Schrift, UmschriftNorm } from './name/typen'
 export { gueltigerOrtsname, zugehoerigkeitsketteZuDatum } from './ort/zeitbezug'
 export type { OrtsnameEintrag, OrtszugehoerigkeitArt, ZugehoerigkeitEintrag } from './ort/zeitbezug'
+export { sortierschluessel, vergleicheNamen } from './liste/sortierung'
+export { sucheAnfrageBauen } from './suche/anfrage'
+export type { SucheAnfrage } from './suche/typen'
 
