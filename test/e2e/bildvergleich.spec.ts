@@ -57,6 +57,22 @@ const FENSTER_HOEHE = 600
 
 const AUFNAHME_OPTIONEN = { animations: 'disabled', caret: 'hide' } as const
 
+/**
+ * Chromium-Startflags NUR für dieses Gate (eigener `electron.launch`-Aufruf, s. `beforeAll` unten
+ * — jede e2e-Spec-Datei startet ihre eigene Electron-Instanz, keine gemeinsame Launch-Hilfsfunktion
+ * betroffen). Ohne diese Flags unterschieden sich auf CI (PR #71) 94–99 % der Pixel zwischen
+ * dev-Lauf und CI-Lauf, trotz gepinnter 1000×600-Fenstergröße — eine klassische
+ * Farbmanagement-/Subpixel-Differenz, die `threshold: 0` nie tolerieren würde:
+ * - `--force-color-profile=srgb`: entfernt die Display-Farbprofil-Differenz (wahrscheinliche
+ *   Hauptursache der ~99 %).
+ * - `--disable-lcd-text` / `--font-render-hinting=none`: entfernt Subpixel-Text-Rasterisierung,
+ *   die je nach Font-Backend der Maschine leicht abweicht.
+ * - `--hide-scrollbars`: entfernt die (plattformabhängige) Scrollbalken-Darstellung aus der Aufnahme.
+ * Reine Chromium-Kommandozeilenschalter, von Electron direkt durchgereicht — kein `src/main`-Code
+ * nötig, um sie zu setzen.
+ */
+const DETERMINISTISCHES_RENDERING_FLAGS = ['--force-color-profile=srgb', '--disable-lcd-text', '--font-render-hinting=none', '--hide-scrollbars']
+
 test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
   test.skip(process.platform !== 'darwin', 'nur macOS vergleicht pixelgenau (ADR-012)')
 
@@ -77,7 +93,7 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
 
   test.beforeAll(async () => {
     elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-bildvergleich-'))
-    app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG] })
+    app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG, ...DETERMINISTISCHES_RENDERING_FLAGS] })
     fenster = await app.firstWindow()
     await fenster.waitForLoadState('load')
 
