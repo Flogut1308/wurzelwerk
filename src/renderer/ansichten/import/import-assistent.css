@@ -1,0 +1,69 @@
+/*
+ * Import-Assistent — überlagerte Vollseite (Template `T-Vollseite`/`T-Assistent`, docs/71 §2.4),
+ * dasselbe Muster wie `profil-ansicht.css`: `position: fixed` über dem abgedunkelten Shell, keine
+ * `transform`-Kette im Elternbaum (ListenAnsicht), die einen Containing Block erzeugen würde.
+ */
+
+.wz-import-assistent {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wz-flaeche-ueberlagert);
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.wz-import-assistent__rahmen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--wz-abstand-24);
+}
+
+.wz-import-assistent__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-import-datei,
+.wz-import-bericht,
+.wz-import-ergebnis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-import-datei__wahl {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-import-datei__letzte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-import-datei__fuss,
+.wz-import-bericht__fuss,
+.wz-import-ergebnis__fuss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+  padding-top: var(--wz-abstand-16);
+  border-top: var(--wz-rahmen-fein);
+}
+
+.wz-import-bericht__importieren {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}

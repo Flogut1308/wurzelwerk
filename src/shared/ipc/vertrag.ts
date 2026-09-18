@@ -185,6 +185,30 @@ export interface ImportAusfuehrenEin {
   readonly pfad: string
 }
 
+/**
+ * Ergebnis von `befehl:import.dateiWaehlen` (AP-1.4b, S-10): der vom Nutzer im nativen
+ * Datei-Öffnen-Dialog gewählte Pfad, oder `null`, wenn der Dialog abgebrochen wurde. Ein Abbruch
+ * ist KEIN Fehler (kein `ok:false`) — der Assistent bleibt einfach im Schritt „Datei wählen".
+ */
+export interface ImportDateiWaehlenAus {
+  readonly pfad: string | null
+}
+
+/**
+ * Nutzlast von `befehl:import.berichtSpeichern` (AP-1.4b, S-11/S-13, F-03): der vollständige
+ * Bericht, den der Renderer bereits hält (aus Trockenlauf oder Ausführung). Der Hauptprozess
+ * formatiert ihn mit `src/main/import/bericht.ts::alsText()` und schreibt ihn nach einem nativen
+ * Speicherdialog — die Textbildung bleibt in `main` (§2, der Renderer sieht `alsText` nie).
+ */
+export interface ImportBerichtSpeichernEin {
+  readonly bericht: Trockenlaufbericht
+}
+
+/** Ergebnis von `befehl:import.berichtSpeichern`: der Zielpfad, oder `null` bei Abbruch (wie oben). */
+export interface ImportBerichtSpeichernAus {
+  readonly gespeichertNach: string | null
+}
+
 /** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
 export interface VerlaufEintrag {
   readonly id: string
@@ -219,6 +243,8 @@ export interface Vertrag {
   'abfrage:import.pruefen': { ein: ImportPruefenEin; aus: PruefBericht }
   'befehl:import.trockenlauf': { ein: ImportTrockenlaufEin; aus: Trockenlaufbericht }
   'befehl:import.ausfuehren': { ein: ImportAusfuehrenEin; aus: Trockenlaufbericht }
+  'befehl:import.dateiWaehlen': { ein: null; aus: ImportDateiWaehlenAus }
+  'befehl:import.berichtSpeichern': { ein: ImportBerichtSpeichernEin; aus: ImportBerichtSpeichernAus }
   'abfrage:person.liste': { ein: PersonListeEin; aus: PersonListeAus }
   'abfrage:suche': { ein: SucheEin; aus: SucheAus }
   'abfrage:person.detail': { ein: PersonDetailEin; aus: PersonDetailAus }

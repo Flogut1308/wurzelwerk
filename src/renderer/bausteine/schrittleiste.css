@@ -1,0 +1,35 @@
+/*
+ * Baustein `Schrittleiste` — Molekül (Kopf des Import-Assistenten, T-Assistent). Textliche
+ * Schrittfolge mit einer feinen Trennung, ohne erfundenes Icon (CLAUDE.md §14).
+ */
+
+.wz-schrittleiste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-16);
+  align-items: baseline;
+  margin: 0;
+  padding: 0 0 var(--wz-abstand-12) 0;
+  list-style: none;
+  border-bottom: var(--wz-rahmen-fein);
+}
+
+.wz-schrittleiste__schritt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-schrittleiste__schritt:not(:last-child)::after {
+  content: "›";
+  margin-left: var(--wz-abstand-16);
+  color: var(--wz-text-tertiaer);
+}
+
+.wz-schrittleiste__schritt--aktiv {
+  font-weight: 600;
+}
+
+.wz-schrittleiste__schritt--offen {
+  opacity: 0.7;
+}
