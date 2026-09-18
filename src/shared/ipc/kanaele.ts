@@ -24,6 +24,8 @@ const kanaele: readonly Kanal[] = [
   'abfrage:import.pruefen',
   'befehl:import.trockenlauf',
   'befehl:import.ausfuehren',
+  'befehl:import.dateiWaehlen',
+  'befehl:import.berichtSpeichern',
   'abfrage:person.liste',
   'abfrage:suche',
   'abfrage:person.detail',
