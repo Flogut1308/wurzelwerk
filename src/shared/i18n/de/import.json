@@ -150,5 +150,76 @@
       "beschreibung": "Eine neu angelegte Quelle trägt denselben Titel wie eine bereits im Projekt vorhandene Quelle.",
       "was_tun": "Prüfen, ob es sich um dieselbe Quelle handelt (z. B. dasselbe Gespräch zweimal importiert). Falls ja, die bestehende Quelle referenzieren (db:-Kennung) statt eine neue anzulegen."
     }
-  }
+  },
+
+  "assistent_titel": "Import",
+  "schritt_datei": "Datei wählen",
+  "schritt_bericht": "Prüfen",
+  "schritt_ergebnis": "Ergebnis",
+
+  "datei_titel": "Importdatei wählen",
+  "datei_erklaerung": "Wurzelwerk importiert Dateien nach dem Vertrag „wurzelwerk-import/v1“. Die Datei wird zuerst nur geprüft — geschrieben wird erst nach deiner Bestätigung.",
+  "datei_skill_hinweis": "Solche Dateien erzeugt der Import-Skill aus einem Gespräch oder einer Quelle.",
+  "datei_waehlen_knopf": "Datei wählen …",
+  "datei_gewaehlt": "Gewählt: {{pfad}}",
+  "datei_pruefen_knopf": "Prüfen",
+  "datei_letzte_titel": "Zuletzt importiert",
+  "datei_letzte_leer": "Noch keine Importe in diesem Projekt.",
+
+  "bericht_titel": "Trockenlauf-Bericht",
+  "ergebnis_titel": "Import abgeschlossen",
+  "block_zusammenfassung": "Zusammenfassung",
+  "block_wird_angelegt": "Wird angelegt",
+  "block_wird_ergaenzt": "Wird ergänzt",
+  "block_moegliche_dubletten": "Mögliche Dubletten",
+  "block_fehler": "Fehler",
+  "block_hinweise": "Hinweise",
+  "block_nicht_verarbeitet": "Nicht verarbeitetes Material",
+  "block_gesundheitsdaten": "Gesundheitsdaten",
+
+  "zaehler": "{{anzahl}}",
+  "zus_ruecknahme_undo": "Rücknahme: ein einzelner Undo-Schritt",
+  "zus_ruecknahme_schnappschuss": "Rücknahme: über einen Schnappschuss",
+  "zus_datei": "Datei: {{datei}}",
+  "zus_werkzeug": "Erzeugt mit: {{werkzeug}}",
+  "zus_pruefsumme": "Prüfsumme: {{pruefsumme}}",
+  "zus_bereits_importiert": "Achtung: eine Datei mit gleicher Prüfsumme wurde bereits am {{datum}} importiert.",
+  "zus_geaenderte_zeilen": "{{anzahl}} geänderte Zeilen",
+  "zus_fehler_anzahl": "{{anzahl}} Fehler",
+  "zus_hinweis_anzahl": "{{anzahl}} Hinweise",
+
+  "angelegt_zeile": "{{tabelle}}: {{anzahl}}",
+  "ergaenzt_kein_ersatz": "Keine bestehenden bevorzugten Werte werden ersetzt.",
+  "ergaenzt_konflikt": "widerspricht einem bestehenden bevorzugten Wert",
+  "dublette_zeile": "{{neu}} ↔ {{bestehend}}",
+  "dublette_punktwert": "Ähnlichkeit: {{punktwert}}",
+  "dublette_getrennt_hinweis": "Wird getrennt angelegt — ein Zusammenführen erfolgt bewusst und bestätigt, nie automatisch.",
+
+  "nicht_verarbeitet_leer": "Nichts blieb unverarbeitet.",
+  "nicht_verarbeitet_warnung": "Ein leerer Block bei einem langen Gespräch kann ein Zeichen dafür sein, dass Material übersehen wurde.",
+
+  "gesundheit_diagnosen": "{{anzahl}} Diagnosen",
+  "gesundheit_risikofaktoren": "{{anzahl}} Risikofaktoren",
+  "gesundheit_sperrvermerk": "Gesundheitsdaten werden nie exportiert (M-08).",
+
+  "sperre_grund": "{{anzahl}} Fehler verhindern den Import — bitte zuerst beheben.",
+
+  "fehlerliste_titel": "Fehler in der Importdatei",
+  "fehlerliste_gruppierung_code": "Nach Code gruppieren",
+  "fehlerliste_gruppierung_ort": "Nach Ort gruppieren",
+  "fehler_pfad": "Pfad: {{pfad}}",
+  "fehler_kennung": "Kennung: {{kennung}}",
+  "fehler_datei_zeile": "{{datei}}, Zeile {{zeile}}",
+  "fehler_datei_ohne_zeile": "{{datei}}",
+  "fehler_was_tun_titel": "Was tun",
+  "schweregrad_fehler": "Fehler",
+  "schweregrad_hinweis": "Hinweis",
+
+  "knopf_importieren": "Importieren",
+  "knopf_bericht_speichern": "Bericht als Text speichern",
+  "knopf_abbrechen": "Abbrechen",
+  "knopf_zur_liste": "Zur Liste",
+  "knopf_rueckgaengig": "Rückgängig",
+  "knopf_schnappschuss_wiederherstellen": "Schnappschuss wiederherstellen",
+  "gespeichert": "Bericht gespeichert: {{pfad}}"
 }
