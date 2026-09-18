@@ -1,0 +1,32 @@
+/*
+ * Baustein `Auswahlfeld` — Molekül (docs/71_Designsystem.md §2.2). Teilt Rahmen/Radius/Innenabstand
+ * mit `eingabekoerper.css`, damit ein `Textfeld` und ein `Auswahlfeld` nebeneinander (Filterleiste)
+ * wie ein Feldsystem wirken, nicht wie zwei verschiedene Bibliotheken. Kein `transition` (§1.5).
+ */
+
+.wz-auswahlfeld {
+  display: block;
+  width: 100%;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  background: var(--wz-flaeche-vertieft);
+  color: var(--wz-text-primaer);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-standard);
+  font: var(--wz-schrift-koerper);
+  cursor: pointer;
+}
+
+.wz-auswahlfeld:hover:not(:disabled) {
+  border-color: var(--wz-rahmen-stark);
+}
+
+.wz-auswahlfeld:focus-visible {
+  border-color: var(--wz-rahmen-fokus);
+}
+
+.wz-auswahlfeld:disabled {
+  background: var(--wz-flaeche-gesperrt);
+  color: var(--wz-text-gesperrt);
+  cursor: not-allowed;
+}

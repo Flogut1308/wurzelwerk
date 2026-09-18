@@ -1,0 +1,16 @@
+/*
+ * Baustein `Filterleiste` — Molekül (docs/71_Designsystem.md §2.2, S-05 „Filterleiste links").
+ */
+
+.wz-filterleiste {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-filterleiste__gruppe {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}

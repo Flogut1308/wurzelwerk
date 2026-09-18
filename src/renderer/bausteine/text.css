@@ -1,0 +1,67 @@
+/*
+ * Baustein `Text` — Atom (docs/71_Designsystem.md §2.1, §1.3). Trägt ausschließlich Rollen aus
+ * tokens.css; kein Farbliteral (test/gestaltung/keine-literale.test.ts).
+ */
+
+.wz-text {
+  margin: 0;
+}
+
+/* ---- §1.3 Rollen ---- */
+.wz-text--titel-gross {
+  font: var(--wz-schrift-titel-gross);
+  letter-spacing: var(--wz-laufweite-titel-gross);
+}
+.wz-text--titel {
+  font: var(--wz-schrift-titel);
+}
+.wz-text--titel-klein {
+  font: var(--wz-schrift-titel-klein);
+}
+.wz-text--koerper {
+  font: var(--wz-schrift-koerper);
+}
+.wz-text--koerper-klein {
+  font: var(--wz-schrift-koerper-klein);
+}
+.wz-text--beschriftung {
+  font: var(--wz-schrift-beschriftung);
+  letter-spacing: var(--wz-laufweite-beschriftung);
+  text-transform: uppercase;
+}
+.wz-text--hilfe {
+  font: var(--wz-schrift-hilfe);
+}
+.wz-text--original {
+  font: var(--wz-schrift-original);
+}
+.wz-text--technisch {
+  font: var(--wz-schrift-technisch);
+}
+.wz-text--zahl-tabelle {
+  font: var(--wz-schrift-zahl-tabelle);
+  font-variant-numeric: var(--wz-ziffern-tabelle);
+}
+
+/* ---- §1.1 Textfarben ---- */
+.wz-text--farbe-primaer {
+  color: var(--wz-text-primaer);
+}
+.wz-text--farbe-sekundaer {
+  color: var(--wz-text-sekundaer);
+}
+.wz-text--farbe-tertiaer {
+  color: var(--wz-text-tertiaer);
+}
+.wz-text--farbe-invers {
+  color: var(--wz-text-invers);
+}
+.wz-text--farbe-gesperrt {
+  color: var(--wz-text-gesperrt);
+}
+.wz-text--farbe-akzent {
+  color: var(--wz-text-akzent);
+}
+.wz-text--farbe-original {
+  color: var(--wz-text-original);
+}

@@ -1,0 +1,104 @@
+/*
+ * Baustein `Datentabelle` — Organismus (docs/71_Designsystem.md §2.3, C-16). ARIA-Grid-Muster statt
+ * einer nativen <table> (Begründung: `tabellenzeile.css`). `grid-template-columns` kommt aus
+ * `spaltenRasterVorlage()`, damit Kopf- und Körperzeilen exakt dieselben Spaltenbreiten benutzen.
+ */
+
+.wz-datentabelle {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/*
+ * Zugängliche Ladeansage (Hueter-Auflage, Stufe-2-Review): visuell verborgen, weil die Ladeschimmer-
+ * Zeilen den Ladezustand bereits sichtbar zeigen — dieser Container ist ausschließlich für
+ * Screenreader da. Klassisches „nur hörbar"-Muster (Rand statt `display:none`, damit er weiter
+ * fokussierbar/ansagbar bleibt).
+ */
+.wz-datentabelle__statusregion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wz-datentabelle__tabelle {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wz-datentabelle__kopfzeile {
+  display: grid;
+  column-gap: var(--wz-abstand-16);
+  padding: var(--wz-innenabstand-zelle);
+  border-bottom: 1px solid var(--wz-rahmen-standard);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-datentabelle__kopfzelle {
+  display: flex;
+  align-items: center;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.wz-datentabelle__kopfzelle--sortierbar {
+  width: 100%;
+  cursor: pointer;
+}
+
+.wz-datentabelle__kopfzelle--sortierbar:hover:not(:disabled) {
+  color: var(--wz-text-akzent);
+}
+
+/* Während einer aktiven Suche kennt `abfrage:suche` keine Sortierung (`docs/80_Offene_Fragen.md`
+ * §17) — der Spaltenkopf wird sichtbar deaktiviert statt klickbar-aber-wirkungslos zu bleiben. */
+.wz-datentabelle__kopfzelle--sortierbar:disabled {
+  color: var(--wz-text-gesperrt);
+  cursor: not-allowed;
+}
+
+.wz-datentabelle__koerper {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.wz-datentabelle__ladezeile {
+  display: grid;
+  column-gap: var(--wz-abstand-16);
+  align-items: center;
+  padding: var(--wz-innenabstand-zelle);
+  min-height: var(--wz-zeilenhoehe-tabelle);
+}
+
+.wz-datentabelle__leerzelle {
+  display: block;
+  width: 100%;
+  padding: var(--wz-abstand-24);
+}
+
+.wz-datentabelle__virtualisierer {
+  position: relative;
+  width: 100%;
+}
+
+.wz-datentabelle__zeilenposition {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}

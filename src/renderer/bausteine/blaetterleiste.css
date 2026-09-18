@@ -1,0 +1,9 @@
+/*
+ * Baustein `Blaetterleiste` — Molekül (docs/71_Designsystem.md §2.2).
+ */
+
+.wz-blaetterleiste {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-16);
+}

@@ -1,0 +1,51 @@
+/*
+ * `ListenAnsicht` (S-05, AP-1.6 Stufe 4). Füllt die Fensterhöhe über `height: 100vh` (statt
+ * `height: 100%`, das eine durchgängige Höhenkette bis `html`/`body` bräuchte, s.
+ * `src/renderer/gestaltung/basis.css`) und reicht die restliche Höhe an den Tabellenbereich
+ * weiter, damit `Datentabelle` (`height: 100%`, virtualisiertes Scrollen) eine echte, von Null
+ * verschiedene Höhe zum Messen bekommt.
+ */
+
+.wz-listen-ansicht {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: var(--wz-abstand-24);
+  gap: var(--wz-abstand-16);
+}
+
+.wz-listen-ansicht__kopf {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-listen-ansicht__werkzeuge {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-listen-ansicht__spalten {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-listen-ansicht__spalte-eintrag {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-listen-ansicht__tabelle-bereich {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}

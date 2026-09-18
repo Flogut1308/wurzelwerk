@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { aufrufen } from '../../brücke/aufrufen'
-import { useProjektGeschlossenAbo } from '../../brücke/befehl-hooks'
 import type { FehlerCode } from '../../../shared/fehler/codes'
 import type { ProjektInfo, SyncAnbieter, ZuletztEintrag } from '../../../shared/ipc/vertrag'
 
@@ -26,14 +25,24 @@ function anbieterSchluessel(anbieter: SyncAnbieter): string {
   }
 }
 
+export interface StartAnsichtProps {
+  /** Aufgerufen, sobald ein Projekt erfolgreich angelegt oder geöffnet wurde (AP-1.6 Stufe 4:
+   * `App` wechselt daraufhin auf die Listenansicht — diese Ansicht kennt die Listenansicht nicht,
+   * sie meldet nur „ein Projekt ist jetzt offen" nach oben). */
+  readonly aufProjektGeoeffnet: (projekt: ProjektInfo) => void
+}
+
 /**
  * Start-Ansicht (AP-0.4): Neues Projekt anlegen, ein bestehendes öffnen, zuletzt geöffnete
  * Projekte erneut öffnen. Nur über `aufrufen('befehl:projekt.*' | 'abfrage:projekt.zuletzt', …)`
  * — kein `fs`/`path`/DB im Renderer (§2). Pragmatische Vereinfachung: Pfade werden als Text
  * eingegeben statt über einen nativen Dateidialog, um AP-0.4 nicht um einen zusätzlichen
  * IPC-Kanal zu erweitern, der außerhalb des vereinbarten Umfangs liegt.
+ *
+ * AP-1.6 Stufe 4: Diese Ansicht zeigt nur noch den Startzustand — der „Projekt offen"-Zustand lebt
+ * jetzt in `App` (Start ↔ Liste), das dann `ListenAnsicht` statt dieser Komponente rendert.
  */
-export function StartAnsicht() {
+export function StartAnsicht({ aufProjektGeoeffnet }: StartAnsichtProps) {
   const { t } = useTranslation('allgemein')
   const { t: tFehler } = useTranslation('fehler')
 
@@ -42,7 +51,6 @@ export function StartAnsicht() {
   const [neuName, setNeuName] = useState('')
   const [oeffnenPfad, setOeffnenPfad] = useState('')
   const [syncWarnung, setSyncWarnung] = useState<SyncWarnung | null>(null)
-  const [aktuellesProjekt, setAktuellesProjekt] = useState<ProjektInfo | null>(null)
   const [fehlerCode, setFehlerCode] = useState<FehlerCode | null>(null)
 
   const zuletztLaden = useCallback(() => {
@@ -56,20 +64,6 @@ export function StartAnsicht() {
   useEffect(() => {
     zuletztLaden()
   }, [zuletztLaden])
-
-  // AP-0.20: `projektSchliessen()` kann auch hinter dem Rücken dieser Ansicht laufen (z. B. eine
-  // spätere Wiederherstellung, die das offene Projekt schließt, ohne dass der Renderer den
-  // "Schließen"-Button gedrückt hätte) — die Ansicht zeigt danach den Startzustand, statt weiter
-  // ein bereits geschlossenes Projekt anzuzeigen. Eine volle Spiegelung des Wiederherstellungs-
-  // Ablaufs (eigene Meldung, Neuladen der Ansicht) folgt mit der Wiederherstellungs-UI späterer
-  // Phasen (§14) — hier reicht der Rückfall auf den Startzustand.
-  useProjektGeschlossenAbo(
-    useCallback(() => {
-      setAktuellesProjekt(null)
-      setSyncWarnung(null)
-      setFehlerCode(null)
-    }, []),
-  )
 
   const projektOeffnenAufrufen = useCallback(
     (pfad: string, syncBestaetigt?: boolean) => {
@@ -85,12 +79,12 @@ export function StartAnsicht() {
             return
           }
           setSyncWarnung(null)
-          setAktuellesProjekt(ergebnis.daten.projekt)
           zuletztLaden()
+          aufProjektGeoeffnet(ergebnis.daten.projekt)
         },
       )
     },
-    [zuletztLaden],
+    [aufProjektGeoeffnet, zuletztLaden],
   )
 
   const neuesProjektAnlegen = useCallback(() => {
@@ -100,27 +94,10 @@ export function StartAnsicht() {
         setFehlerCode(ergebnis.fehler.code)
         return
       }
-      setAktuellesProjekt(ergebnis.daten)
       zuletztLaden()
+      aufProjektGeoeffnet(ergebnis.daten)
     })
-  }, [neuElternordner, neuName, zuletztLaden])
-
-  const projektSchliessen = useCallback(() => {
-    void aufrufen('befehl:projekt.schliessen', null).then(() => {
-      setAktuellesProjekt(null)
-    })
-  }, [])
-
-  if (aktuellesProjekt !== null) {
-    return (
-      <div>
-        <p>{t('start_projekt_geoeffnet', { name: aktuellesProjekt.name })}</p>
-        <button type="button" onClick={projektSchliessen}>
-          {t('start_projekt_schliessen_button')}
-        </button>
-      </div>
-    )
-  }
+  }, [aufProjektGeoeffnet, neuElternordner, neuName, zuletztLaden])
 
   return (
     <div>

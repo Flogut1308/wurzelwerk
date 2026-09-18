@@ -1,0 +1,46 @@
+{
+  "listen_titel": "Personen",
+  "spaltenwahl_titel": "Spalten",
+
+  "konfidenz_1": "Konfidenz: Vermutung",
+  "konfidenz_2": "Konfidenz: unsicher",
+  "konfidenz_3": "Konfidenz: wahrscheinlich",
+  "konfidenz_4": "Konfidenz: gesichert",
+  "widerspruch": "Widerspruch: konkurrierende Angaben",
+
+  "suchfeld_beschriftung": "Personen durchsuchen",
+  "suchfeld_platzhalter": "Suchen…",
+  "suchfeld_loeschen": "Suche löschen",
+  "suchfeld_treffer": "{{anzahl}} Treffer",
+
+  "filter_platzhalter": "Platzhalter",
+  "filter_privat": "Privat",
+  "filter_konfidenzMin_beschriftung": "Konfidenz mindestens",
+  "filter_konfidenz_alle": "Alle",
+  "filter_konfidenz_ab_1": "ab Vermutung",
+  "filter_konfidenz_ab_2": "ab unsicher",
+  "filter_konfidenz_ab_3": "ab wahrscheinlich",
+  "filter_konfidenz_ab_4": "gesichert",
+  "filter_nurWiderspruch": "Hat Widerspruch",
+  "filter_zuruecksetzen": "Filter zurücksetzen",
+
+  "blaettern_zurueck": "Vorherige Seite",
+  "blaettern_vor": "Nächste Seite",
+  "blaettern_bereich": "{{von}}–{{bis}} von {{gesamt}}",
+  "blaettern_seite": "Seite {{seite}} von {{gesamtSeiten}}",
+
+  "spalte_name": "Name",
+  "spalte_lebensdaten": "Lebensdaten",
+  "spalte_geburtsort": "Geburtsort",
+  "spalte_konfidenz": "Konfidenz",
+
+  "platzhalter_bezeichnung": "Platzhalter",
+
+  "laedt": "Lädt",
+  "leer_keinInhalt_titel": "Noch keine Personen",
+  "leer_keinInhalt_text": "Personen erscheinen hier, sobald sie angelegt oder importiert wurden.",
+  "leer_gefiltert_titel": "Keine Treffer",
+  "leer_gefiltert_text": "Kein Eintrag erfüllt die aktuellen Filter.",
+  "fehler_titel": "Liste konnte nicht geladen werden",
+  "fehler_text": "Beim Laden der Personenliste ist ein Fehler aufgetreten."
+}

@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 import allgemein from '../../shared/i18n/de/allgemein.json'
 import fehler from '../../shared/i18n/de/fehler.json'
 import journal from '../../shared/i18n/de/journal.json'
+import liste from '../../shared/i18n/de/liste.json'
 import menue from '../../shared/i18n/de/menue.json'
 
 /**
@@ -25,10 +26,10 @@ export const i18n = i18next.createInstance()
 void i18n.use(initReactI18next).init({
   lng: 'de',
   fallbackLng: false,
-  ns: ['allgemein', 'fehler', 'journal', 'menue'],
+  ns: ['allgemein', 'fehler', 'journal', 'liste', 'menue'],
   defaultNS: 'allgemein',
   resources: {
-    de: { allgemein, fehler, journal, menue },
+    de: { allgemein, fehler, journal, liste, menue },
   },
   interpolation: {
     escapeValue: false,

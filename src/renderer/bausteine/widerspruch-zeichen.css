@@ -1,0 +1,16 @@
+/*
+ * Baustein `WiderspruchZeichen` — Atom (docs/71_Designsystem.md §2.1). Getrennt von
+ * `KonfidenzPunkt`: Konfidenz ist eine Eigenschaft der einzelnen Aussage, „widersprüchlich" ist
+ * ein abgeleiteter Zustand der Menge (`docs/datenmodell.md` §2.16). Reines CSS-Dreieck statt
+ * eines Symbols aus einem Icon-Satz — der Symbolsatz aus §6 ist noch nicht ausgeliefert
+ * (Phase-0-Asset, siehe PR-Notiz).
+ */
+
+.wz-widerspruchzeichen {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: var(--wz-abstand-4) solid transparent;
+  border-right: var(--wz-abstand-4) solid transparent;
+  border-bottom: var(--wz-abstand-8) solid var(--wz-status-warnung-basis);
+}

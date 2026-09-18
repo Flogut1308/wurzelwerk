@@ -1,0 +1,53 @@
+/*
+ * Baustein `Tabellenzeile` — Molekül (docs/71_Designsystem.md §2.2). Ein `role="row"`/
+ * `role="cell"`-Raster statt einer nativen `<tr>`/`<td>`-Zeile: die `Datentabelle` positioniert
+ * Zeilen absolut (virtualisiertes Scrollen, `@tanstack/react-virtual`), was eine native
+ * Tabellenzeilen-Layoutberechnung durchbricht — das ARIA-Tabellen-Muster (`role="table"`/
+ * `row`/`cell`) ist der dokumentierte Ausweg dafür. `grid-template-columns` kommt zur Laufzeit aus `spaltenRasterVorlage()`
+ * (`datentabelle-spalten.ts`), damit Kopf- und Körperzeilen immer exakt dieselben Spaltenbreiten
+ * benutzen.
+ */
+
+.wz-tabellenzeile {
+  display: grid;
+  align-items: center;
+  column-gap: var(--wz-abstand-16);
+  padding: var(--wz-innenabstand-zelle);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+  min-height: var(--wz-zeilenhoehe-tabelle);
+}
+
+.wz-tabellenzeile[tabindex] {
+  cursor: pointer;
+}
+
+.wz-tabellenzeile[tabindex]:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-tabellenzeile--ausgewaehlt {
+  background: var(--wz-flaeche-auswahl);
+}
+
+/*
+ * Platzhalterpersonen (A-17): gestrichelt umrandet. `--wz-rahmen-gestrichelt-muster` (4px 2px) ist
+ * für SVG-`stroke-dasharray` (Baumkanten/-knoten, spätere Phase) bemessen — eine DOM-Zeile kennt
+ * kein `stroke-dasharray`. `border-style: dashed` ist die nächstliegende CSS-Entsprechung
+ * desselben Tokens in diesem Kontext (CLAUDE.md §14 Fall 2), kein neu erfundenes Muster.
+ */
+.wz-tabellenzeile--platzhalter {
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+  border-bottom-style: dashed;
+}
+
+.wz-tabellenzeile__zelle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wz-tabellenzeile__zelle--konfidenz {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}

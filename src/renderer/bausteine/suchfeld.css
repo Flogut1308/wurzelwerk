@@ -1,0 +1,62 @@
+/*
+ * Baustein `Suchfeld` — Molekül (docs/71_Designsystem.md §2.2). Der Löschknopf ist ein reines
+ * CSS-Kreuz aus zwei gedrehten Balken (wie `widerspruch-zeichen.css` ein reines CSS-Dreieck) statt
+ * eines Symbols aus einem Icon-Satz — der Symbolsatz aus §6 ist noch nicht ausgeliefert.
+ */
+
+.wz-suchfeld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-suchfeld__feld {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wz-suchfeld__feld .wz-eingabekoerper {
+  padding-right: var(--wz-abstand-32);
+}
+
+.wz-suchfeld__loeschen {
+  position: absolute;
+  right: var(--wz-abstand-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wz-abstand-24);
+  height: var(--wz-abstand-24);
+  padding: 0;
+  border: none;
+  border-radius: var(--wz-radius-voll);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wz-suchfeld__loeschen:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-suchfeld__loeschen::before,
+.wz-suchfeld__loeschen::after {
+  content: '';
+  position: absolute;
+  width: var(--wz-abstand-12);
+  height: 1px;
+  background: var(--wz-text-sekundaer);
+}
+
+.wz-suchfeld__loeschen::before {
+  transform: rotate(45deg);
+}
+
+.wz-suchfeld__loeschen::after {
+  transform: rotate(-45deg);
+}
+
+.wz-suchfeld__treffer {
+  font: var(--wz-schrift-hilfe);
+  color: var(--wz-text-tertiaer);
+}

@@ -1,0 +1,45 @@
+/*
+ * Baustein `Eingabekoerper` — Atom (docs/71_Designsystem.md §2.1): „der Rahmen, den alle
+ * Feldtypen benutzen". Zustände `ruhe`/`hover`/`fokus`/`ungültig`/`gesperrt`/`nur-lesen` als reine
+ * Pseudoklassen/Attributselektoren, kein `transition` (§1.5, Begründung wie `schaltflaeche.css`).
+ */
+
+.wz-eingabekoerper {
+  display: block;
+  width: 100%;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  background: var(--wz-flaeche-vertieft);
+  color: var(--wz-text-primaer);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-standard);
+  font: var(--wz-schrift-koerper);
+}
+
+.wz-eingabekoerper::placeholder {
+  color: var(--wz-text-tertiaer);
+}
+
+.wz-eingabekoerper:hover:not(:disabled):not(:read-only) {
+  border-color: var(--wz-rahmen-stark);
+}
+
+.wz-eingabekoerper:focus-visible {
+  border-color: var(--wz-rahmen-fokus);
+}
+
+.wz-eingabekoerper:disabled {
+  background: var(--wz-flaeche-gesperrt);
+  color: var(--wz-text-gesperrt);
+  cursor: not-allowed;
+}
+
+.wz-eingabekoerper:read-only {
+  background: var(--wz-flaeche-basis);
+  border-color: var(--wz-rahmen-fein);
+}
+
+.wz-eingabekoerper[aria-invalid='true'] {
+  border-color: var(--wz-status-fehler-rahmen);
+  background: var(--wz-status-fehler-flaeche);
+}
