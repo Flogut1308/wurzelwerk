@@ -142,8 +142,12 @@ export function gesundheitArtSchluessel(art: z.infer<typeof PersonDetailGesundhe
  * Schalter-Funktion wie oben, sondern eine Nachschlagetabelle mit den in `56_Import_Vertrag.md`
  * §3.1 genannten „bekannten" Prädikaten. `'existenz'` (ADR-026) bewusst NICHT hier: die
  * Existenz-Aussage ist eine importinterne Modellierung des Belegapparats selbst, kein Feld, das
- * ein Mensch als Fakt lesen will — `profil-ansicht.tsx` filtert sie vor der Anzeige heraus. */
-const PRAEDIKAT_SCHLUESSEL: Readonly<Record<string, string>> = {
+ * ein Mensch als Fakt lesen will — `profil-ansicht.tsx` filtert sie vor der Anzeige heraus.
+ *
+ * Benannt exportiert (hueter-Auflage 2, PR #66): `test/einheit/i18n-vollstaendig.test.ts` iteriert
+ * über `Object.values(...)`, um jeden hier vergebenen Schlüssel gegen `profil.json` zu prüfen,
+ * ohne die Tabelle in der Testdatei zu verdoppeln. */
+export const PRAEDIKAT_SCHLUESSEL: Readonly<Record<string, string>> = {
   geburtsdatum: 'praedikat_geburtsdatum',
   geburtsort: 'praedikat_geburtsort',
   todesdatum: 'praedikat_todesdatum',
