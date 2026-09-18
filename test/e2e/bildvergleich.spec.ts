@@ -30,6 +30,15 @@ import { kombinationImDomSetzen, VIER_KOMBINATIONEN } from '../../skripte/bilder
  * nichts nach `import_lauf`, `src/main/import/trockenlauf.ts`) aufgenommen, BEVOR dieselbe
  * Fixture-Datei tatsächlich importiert wird (für die Liste) — sonst zeigte der Bericht beim
  * zweiten Anlauf „bereits importiert" statt des sauberen Erstberichts.
+ *
+ * **Der echte Import läuft über den Assistenten selbst** (Knopf „Importieren" NACH „Prüfen",
+ * genau wie ein echter Nutzer es täte), NICHT über einen separaten, rohen
+ * `window.wurzelwerk.aufrufen('befehl:import.ausfuehren', …)`-Aufruf in einem eigenen Test. Beobachtet
+ * auf CI (PR #71): der rohe IPC-Aufruf lieferte dort gelegentlich `{ ok: false }` — vermutlich, weil
+ * er der Sondierungs-Transaktion des vorherigen „Prüfen" keinen UI-vermittelten Abschluss abwartete.
+ * Der Assistent wartet selbst auf die `useImportAusfuehren`-Mutation (React Query) und wechselt erst
+ * danach zur „Ergebnis"-Ansicht — `expect(...).toBeVisible()` auf deren Überschrift ist damit eine
+ * echte, deterministische Wartung auf den fertigen Import, keine feste Pause.
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 const FIXTURE_ERNA_WALTER = join(__dirname, 'fixtures/import-erna-und-walter-wruck.json')
@@ -163,7 +172,7 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
     }, pfad)
   }
 
-  test('Importansicht — Bericht (Trockenlauf, vor dem echten Import)', async () => {
+  test('Importansicht — Bericht (Trockenlauf), dann echter Import über denselben Assistenten', async () => {
     await dialogLiefert(FIXTURE_ERNA_WALTER)
     await fenster.getByRole('button', { name: 'Importieren …' }).click()
     await fenster.getByRole('button', { name: 'Datei wählen …' }).click()
@@ -174,12 +183,18 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
     await aufnahme('importansicht-hell', 'hell')
     await aufnahme('importansicht-dunkel', 'dunkel')
 
-    await fenster.getByRole('button', { name: 'Abbrechen' }).click()
+    // Echter Import über den Assistenten selbst (Knopf „Importieren" NACH „Prüfen", wie ein echter
+    // Nutzer) statt eines rohen, separaten IPC-Aufrufs — s. Kopfkommentar zur Begründung (CI-Flake,
+    // PR #71). Der Assistent wartet selbst auf `befehl:import.ausfuehren`; die Wartung auf die
+    // „Ergebnis"-Überschrift ist die deterministische Zusicherung, dass der Import abgeschlossen ist.
+    await fenster.getByRole('button', { name: 'Importieren', exact: true }).click()
+    await expect(fenster.getByRole('heading', { name: 'Import abgeschlossen' })).toBeVisible()
+
+    await fenster.getByRole('button', { name: 'Zur Liste' }).click()
+    await expect(fenster.getByRole('table')).toBeVisible()
   })
 
   test('Liste — nach dem echten Import', async () => {
-    const importErgebnis = await fenster.evaluate(async (pfad) => window.wurzelwerk.aufrufen('befehl:import.ausfuehren', { pfad }), FIXTURE_ERNA_WALTER)
-    expect(importErgebnis).toMatchObject({ ok: true, daten: { zusammenfassung: { fehlerAnzahl: 0 } } })
     await expect(fenster.getByText('Erna Wruck')).toBeVisible()
     await expect(fenster.getByText('Walter Wruck')).toBeVisible()
 
