@@ -18,6 +18,10 @@
 // Kern-Funktion vom Trigger abweichen lassen (Auftrag: "Regel exakt wie Trigger") und wäre
 // inkonsistent mit dem bereits bestehenden Listen-Filter geworden. Der Widerspruchsfall selbst
 // (KEINE Aussage bevorzugt) ist unten als eigener Testfall abgedeckt.
+//
+// hueter-Auflage 1 (PR #65, E21): das kanonische "es gibt konkurrierende Angaben"-Signal ist NICHT
+// `hat_widerspruch` (das nur unaufgelöste Konflikte markiert), sondern das neue `hatKonkurrierende`
+// — es bleibt `true`, auch wenn eine Aussage bevorzugt ist (genau der beispiel-2-Fall unten).
 
 import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
@@ -130,6 +134,10 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       // "hat_widerspruch" markiert NUR unaufgelöste Konflikte (keine Aussage bevorzugt), nicht
       // jede Abweichung. Die widersprechenden Rohwerte bleiben trotzdem beide sichtbar (s. u.).
       expect(feld?.hat_widerspruch).toBe(false)
+      // ABER: es gibt weiterhin konkurrierende Angaben (zwei unterscheidbare Werte) — das
+      // kanonische E21-Signal `hatKonkurrierende` bleibt true, unabhängig von der Bevorzugung
+      // (hueter-Auflage 1, PR #65).
+      expect(feld?.hatKonkurrierende).toBe(true)
       expect(feld?.belegzahl).toBe(2)
       expect(feld?.aussagen).toHaveLength(2)
 
@@ -177,13 +185,14 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       const berufFeld = ergebnis.grunddaten.find((feld) => feld.praedikat === 'beruf')
 
       expect(berufFeld?.hat_widerspruch).toBe(false)
+      expect(berufFeld?.hatKonkurrierende).toBe(false)
       expect(berufFeld?.belegzahl).toBe(0)
     } finally {
       db.close()
     }
   })
 
-  it('markiert hat_widerspruch===true, wenn zwei abweichende Aussagen KEINE davon bevorzugt ist (unaufgelöster Konflikt)', () => {
+  it('markiert hat_widerspruch===true UND hatKonkurrierende===true, wenn zwei abweichende Aussagen KEINE davon bevorzugt ist (unaufgelöster Konflikt)', () => {
     const db = frischeDatenbankMitAbgeleitetemSchema()
     try {
       const personId = personAnlegen(db, { nachname: 'Widerspruch', vornamen: 'Test' })
@@ -194,6 +203,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       const berufFeld = ergebnis.grunddaten.find((feld) => feld.praedikat === 'beruf')
 
       expect(berufFeld?.hat_widerspruch).toBe(true)
+      expect(berufFeld?.hatKonkurrierende).toBe(true)
     } finally {
       db.close()
     }
