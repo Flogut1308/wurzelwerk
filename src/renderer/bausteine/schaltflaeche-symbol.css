@@ -1,0 +1,10 @@
+/*
+ * Baustein `SchaltflaecheSymbol` — Atom (docs/71_Designsystem.md §2.1). Übernimmt Fläche/Rahmen/
+ * Zustände von `.wz-schaltflaeche` (schaltflaeche.css) unverändert — nur der Innenabstand wird
+ * quadratisch, weil kein Text neben dem Symbol steht.
+ */
+
+.wz-schaltflaeche-symbol {
+  padding: var(--wz-abstand-8);
+  gap: 0;
+}

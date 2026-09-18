@@ -25,7 +25,10 @@ export const basisTest = {
 export default defineConfig({
   test: {
     ...basisTest,
-    include: ['test/**/*.test.ts'],
+    // `.test.tsx` zusätzlich zu `.test.ts` (AP-1.11): Atom-Tests rendern über `renderToStaticMarkup`
+    // (react-dom/server) echtes JSX — das braucht die `tsx`-Lade-Regel von esbuild, die `.ts`-Dateien
+    // nicht bekommen (dort würde `<Symbol .../>` als TS-Typ-Assertion fehlschlagen).
+    include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
     exclude: ['test/e2e/**', 'test/budget/**', 'node_modules/**'],
   },
 })
