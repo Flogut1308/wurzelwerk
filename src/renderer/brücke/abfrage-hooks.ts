@@ -50,3 +50,16 @@ export function useSuche(ein: Ein<'abfrage:suche'>, optionen?: AbfrageOptionen):
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:person.detail` (55_Architektur.md §5, AP-1.7 PR-B) — die Profilseite. Dieselbe Key-
+ * Strategie und Invalidierung wie `usePersonListe`/`useSuche` oben (ein neues `ereignis:
+ * datenGeaendert` invalidiert pauschal auch diese Abfrage, `useDatenGeaendertAbo()`).
+ */
+export function usePersonDetail(ein: Ein<'abfrage:person.detail'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:person.detail'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:person.detail', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:person.detail', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}

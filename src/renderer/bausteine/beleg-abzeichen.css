@@ -1,0 +1,29 @@
+/*
+ * Baustein `BelegAbzeichen` — Atom (docs/71_Designsystem.md §2.2, AP-1.7 PR-B). Kein Symbolsatz
+ * ausgeliefert (§6 Phase-0-Asset, wie `WiderspruchZeichen`/`LeerzustandBlock`) — die Belegzahl
+ * selbst trägt die Bedeutung, in einer runden Fläche wie `KonfidenzPunkt`, aber mit Zifferninhalt.
+ */
+
+.wz-beleg-abzeichen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--wz-abstand-20);
+  height: var(--wz-abstand-20);
+  padding: 0 var(--wz-abstand-4);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-erhoben);
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-beschriftung);
+  font-variant-numeric: tabular-nums;
+}
+
+.wz-beleg-abzeichen--klickbar {
+  cursor: pointer;
+}
+
+.wz-beleg-abzeichen--klickbar:hover {
+  border-color: var(--wz-rahmen-akzent);
+  color: var(--wz-text-akzent);
+}

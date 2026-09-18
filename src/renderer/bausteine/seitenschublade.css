@@ -1,0 +1,36 @@
+/*
+ * Baustein `Seitenschublade` — Organismus (docs/71_Designsystem.md §2.3), von rechts. `position:
+ * fixed` statt eines Portals: der einzige Elternbaum (`ProfilAnsicht`) setzt kein `transform`, das
+ * einen neuen Containing Block erzeugen würde (geprüft beim Bau, AP-1.7 PR-B).
+ */
+
+.wz-seitenschublade {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100vw);
+  padding: var(--wz-abstand-24);
+  gap: var(--wz-abstand-16);
+  overflow-y: auto;
+  background: var(--wz-flaeche-erhoben);
+  border-left: 1px solid var(--wz-rahmen-standard);
+  box-shadow: var(--wz-schatten-popover);
+  z-index: 200;
+}
+
+.wz-seitenschublade__kopf {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-seitenschublade__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+}

@@ -14,6 +14,7 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Suchfeld } from '../../bausteine/suchfeld'
 import { Text } from '../../bausteine/text'
 import { Umschalter } from '../../bausteine/umschalter'
+import { ProfilAnsicht } from '../profil/profil-ansicht'
 import './listen-ansicht.css'
 
 /** Entscheidung D (`docs/arbeitspakete.md` AP-1.6): der Renderer setzt `proSeite` fest auf 100,
@@ -61,6 +62,10 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   const [richtung, setRichtung] = useState<PersonListeRichtungWert>('auf')
   const [seite, setSeite] = useState(1)
   const [spalten, setSpalten] = useState<readonly DatentabelleSpalte[]>(ALLE_DATENTABELLE_SPALTEN)
+  // AP-1.7 PR-B (S-07): welches Profil geöffnet ist, `null` = keins. Die „exakte Ausgangsstelle"
+  // beim Schließen (`70_UX_Konzept.md` §2) stellt `ProfilAnsicht` selbst über ihren eigenen
+  // Fokusfang wieder her (s. Kommentar dort) — hier reicht ein einfacher Auswahlzustand.
+  const [geoeffnetePersonId, setGeoeffnetePersonId] = useState<string | null>(null)
 
   const sucheAktiv = suchtext.trim() !== ''
 
@@ -155,12 +160,16 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
           ladezustand={ladezustand}
           hatAktivenFilter={hatAktivenFilter(filter)}
           aufFilterZuruecksetzen={filterZuruecksetzen}
+          ausgewaehltePersonId={geoeffnetePersonId}
+          aufZeileAusgewaehlt={setGeoeffnetePersonId}
         />
       </div>
 
       {/* `abfrage:suche` kennt kein `seite`/`proSeite` (nur `grenze`) — während einer aktiven Suche
           gibt es keine Seiten zu blättern. */}
       {sucheAktiv ? null : <Blaetterleiste seite={seite} proSeite={PRO_SEITE} gesamt={gesamt} aufSeiteGeaendert={setSeite} />}
+
+      {geoeffnetePersonId === null ? null : <ProfilAnsicht personId={geoeffnetePersonId} aufSchliessen={() => setGeoeffnetePersonId(null)} />}
     </div>
   )
 }

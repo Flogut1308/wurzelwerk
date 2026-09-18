@@ -3,6 +3,7 @@ import type { PruefBericht } from '../import/imp-codes'
 import type { Trockenlaufbericht } from '../import/trockenlauf-bericht'
 import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
+import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -220,6 +221,7 @@ export interface Vertrag {
   'befehl:import.ausfuehren': { ein: ImportAusfuehrenEin; aus: Trockenlaufbericht }
   'abfrage:person.liste': { ein: PersonListeEin; aus: PersonListeAus }
   'abfrage:suche': { ein: SucheEin; aus: SucheAus }
+  'abfrage:person.detail': { ein: PersonDetailEin; aus: PersonDetailAus }
 }
 
 export type Kanal = keyof Vertrag

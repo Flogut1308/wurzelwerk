@@ -14,3 +14,26 @@
   border-right: var(--wz-abstand-4) solid transparent;
   border-bottom: var(--wz-abstand-8) solid var(--wz-status-warnung-basis);
 }
+
+/* AP-1.7 PR-B (E21): unaufgelöster Widerspruch (`hat_widerspruch`) — größer und in der Fehlerfarbe
+ * statt der Warnungsfarbe, damit er sich von „nur konkurrierend, aber entschieden" abhebt. */
+.wz-widerspruchzeichen--ungeloest {
+  border-left-width: var(--wz-abstand-8);
+  border-right-width: var(--wz-abstand-8);
+  border-bottom-width: var(--wz-abstand-12);
+  border-bottom-color: var(--wz-status-fehler-basis);
+}
+
+/* Als `<button>` gerendert (AP-1.7 PR-B, S-09-Auslöser) — Button-Grundstil zurücksetzen, die Form
+ * bleibt allein durch die Rahmen oben sichtbar. */
+.wz-widerspruchzeichen--klickbar {
+  padding: 0;
+  border-top: none;
+  border-image: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wz-widerspruchzeichen--klickbar:hover {
+  opacity: 0.75;
+}

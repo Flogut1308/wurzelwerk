@@ -1,0 +1,37 @@
+/*
+ * `Widerspruchsblock` — Organismus (AP-1.7 PR-B, B-04, E21, S-09).
+ */
+
+.wz-widerspruchsblock,
+.wz-widerspruchsblock__belege {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-widerspruchsblock__aussage {
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+/* Die bevorzugte Aussage ist hervorgehoben (S-09: „die bevorzugte ist hervorgehoben") — Rahmen und
+ * Fläche aus der Akzentrolle, keine Farbe, die mit den Konfidenz-/Statusfarben kollidiert. */
+.wz-widerspruchsblock__aussage--bevorzugt {
+  border-color: var(--wz-rahmen-akzent);
+  background: var(--wz-akzent-schwach);
+}
+
+.wz-widerspruchsblock__kopf {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-widerspruchsblock__belege {
+  padding-left: var(--wz-abstand-16);
+  border-left: 2px solid var(--wz-rahmen-fein);
+}
