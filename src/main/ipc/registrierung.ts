@@ -3,9 +3,12 @@ import { z } from 'zod'
 import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
 import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
+import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
+import { personListe } from '../abfragen/person-liste'
+import { suche } from '../abfragen/suche'
 import { fuehreAus } from '../befehle/bus'
 import { importAusfuehren } from '../befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
@@ -152,4 +155,9 @@ export function ipcRegistrierung(): void {
     }
     return bericht
   })
+
+  // AP-1.6 PR1: reine Lesevorgänge (Personenliste, Suche) — `abfrage:`, nicht `befehl:` (§11,
+  // ADR-016), kein Journal-/Ereignis-Bezug.
+  registriere('abfrage:person.liste', personListeEinSchema, (ein) => personListe(offenesProjektDatenbank(), ein))
+  registriere('abfrage:suche', sucheEinSchema, (ein) => suche(offenesProjektDatenbank(), ein))
 }
