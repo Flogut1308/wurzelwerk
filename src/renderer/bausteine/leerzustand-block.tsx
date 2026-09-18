@@ -1,4 +1,6 @@
 import { Schaltflaeche } from './schaltflaeche'
+import { Symbol } from './symbol'
+import type { SymbolName } from '../gestaltung/symbole/namen'
 import { Text } from './text'
 import './leerzustand-block.css'
 
@@ -16,19 +18,22 @@ export interface LeerzustandBlockProps {
    * Explizit `| undefined`, weil Aufrufer den Wert oft bedingt zusammensetzen
    * (`exactOptionalPropertyTypes`, wie `PersonListeFilter.konfidenzMin`). */
   readonly aktion?: LeerzustandBlockAktion | undefined
+  /** Symbol über dem Titel (S-19 „Symbol + Satz + Aktion", AP-1.11-Nachzug zur AP-1.6-Abweichung
+   * U-1.6-leerzustand-ohne-symbol) — dekorativ, der Titel trägt die Bedeutung bereits als Text. */
+  readonly symbol?: SymbolName
 }
 
 /**
- * `LeerzustandBlock` — Molekül (docs/71_Designsystem.md §2.2: „Symbol + Satz + Aktion").
- *
- * ABWEICHUNG (CLAUDE.md §14 Fall 1): ohne Symbol. Der Symbolsatz aus §6 ist ein Phase-0-Asset, das
- * noch nicht ausgeliefert ist (siehe Kopfkommentar `widerspruch-zeichen.css`/`suchfeld.css`) — ein
- * erfundenes Icon wäre eine neue visuelle Sprache, die §14 ausdrücklich verbietet. Satz und Aktion
- * tragen die Bedeutung allein, bis ein Symbolsatz existiert.
+ * `LeerzustandBlock` — Molekül (docs/71_Designsystem.md §2.2: „Symbol + Satz + Aktion"). Das
+ * Symbol ist seit AP-1.11 optional (Nachzug zu `docs/80_Offene_Fragen.md` U-1.6-leerzustand-ohne-
+ * symbol, das die frühere Abweichung „ohne Symbol" begründet — der Symbolsatz aus §6 war zu diesem
+ * Zeitpunkt noch nicht ausgeliefert). Ohne `symbol` bleibt der Block wie bisher: Satz und Aktion
+ * tragen die Bedeutung allein.
  */
-export function LeerzustandBlock({ titel, text, aktion }: LeerzustandBlockProps) {
+export function LeerzustandBlock({ titel, text, aktion, symbol }: LeerzustandBlockProps) {
   return (
     <div className="wz-leerzustand-block">
+      {symbol !== undefined ? <Symbol name={symbol} groesse={24} /> : null}
       <Text rolle="titel-klein" als="h2">
         {titel}
       </Text>
