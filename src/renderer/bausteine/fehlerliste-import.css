@@ -1,0 +1,42 @@
+/*
+ * Baustein `FehlerlisteImport` — Organismus (72 §S-12). Je Befund ein Block mit farblich
+ * abgesetztem linken Rand nach Schweregrad (Statusrollen aus tokens.css §1.1).
+ */
+
+.wz-fehlerliste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-fehlerliste__gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-fehlerliste__eintraege {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-fehlerliste__eintrag {
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border-left: var(--wz-abstand-2) solid var(--wz-status-neutral-rahmen);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-fehlerliste__eintrag--fehler {
+  border-left-color: var(--wz-status-fehler-rahmen);
+  background: var(--wz-status-fehler-flaeche);
+}
+
+.wz-fehlerliste__eintrag--hinweis {
+  border-left-color: var(--wz-status-warnung-rahmen);
+  background: var(--wz-status-warnung-flaeche);
+}
