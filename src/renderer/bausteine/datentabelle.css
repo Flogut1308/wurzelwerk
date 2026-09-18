@@ -59,8 +59,15 @@
   cursor: pointer;
 }
 
-.wz-datentabelle__kopfzelle--sortierbar:hover {
+.wz-datentabelle__kopfzelle--sortierbar:hover:not(:disabled) {
   color: var(--wz-text-akzent);
+}
+
+/* Während einer aktiven Suche kennt `abfrage:suche` keine Sortierung (`docs/80_Offene_Fragen.md`
+ * §17) — der Spaltenkopf wird sichtbar deaktiviert statt klickbar-aber-wirkungslos zu bleiben. */
+.wz-datentabelle__kopfzelle--sortierbar:disabled {
+  color: var(--wz-text-gesperrt);
+  cursor: not-allowed;
 }
 
 .wz-datentabelle__koerper {

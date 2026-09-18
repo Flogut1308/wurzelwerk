@@ -19,6 +19,10 @@ export interface FilterleisteProps {
   readonly filter: PersonListeFilter
   readonly aufFilterGeaendert: (filter: PersonListeFilter) => void
   readonly aufZuruecksetzen: () => void
+  /** `true` während einer aktiven Suche (`docs/80_Offene_Fragen.md` §17): `abfrage:suche` kennt
+   * keine Filter — die vier Filter-Kontrollen werden dann sichtbar deaktiviert dargestellt, statt
+   * klickbar-aber-wirkungslos zu bleiben. */
+  readonly gesperrt?: boolean
 }
 
 /**
@@ -28,7 +32,7 @@ export interface FilterleisteProps {
  * Zeitraum/Ort/Strang aus der S-05-Beschreibung fehlen bewusst: Der Filtervertrag trägt sie noch
  * nicht (CLAUDE.md §10 „nicht vorgreifen").
  */
-export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen }: FilterleisteProps) {
+export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen, gesperrt = false }: FilterleisteProps) {
   const { t } = useTranslation('liste')
 
   const konfidenzOptionen: readonly AuswahlfeldOption<KonfidenzFilterWert>[] = [
@@ -45,6 +49,7 @@ export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen }: F
         <Umschalter
           zustand={tristateFilterZuZustand(filter.platzhalter)}
           bezeichnung={t('filter_platzhalter')}
+          gesperrt={gesperrt}
           aufZustandGeaendert={(naechsterZustand) =>
             aufFilterGeaendert({ ...filter, platzhalter: zustandZuTristateFilter(naechsterZustand) })
           }
@@ -58,6 +63,7 @@ export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen }: F
         <Umschalter
           zustand={tristateFilterZuZustand(filter.privat)}
           bezeichnung={t('filter_privat')}
+          gesperrt={gesperrt}
           aufZustandGeaendert={(naechsterZustand) => aufFilterGeaendert({ ...filter, privat: zustandZuTristateFilter(naechsterZustand) })}
         />
         <Text rolle="beschriftung" als="span">
@@ -72,6 +78,7 @@ export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen }: F
         <Auswahlfeld
           wert={konfidenzMinZuFilterWert(filter.konfidenzMin)}
           optionen={konfidenzOptionen}
+          gesperrt={gesperrt}
           aufAenderung={(wert) => aufFilterGeaendert({ ...filter, konfidenzMin: filterWertZuKonfidenzMin(wert) })}
         />
       </label>
@@ -80,6 +87,7 @@ export function Filterleiste({ filter, aufFilterGeaendert, aufZuruecksetzen }: F
         <Umschalter
           zustand={boolZuUmschalterZustand(filter.nurWiderspruch)}
           bezeichnung={t('filter_nurWiderspruch')}
+          gesperrt={gesperrt}
           aufZustandGeaendert={(naechsterZustand) =>
             aufFilterGeaendert({ ...filter, nurWiderspruch: umschalterZustandZuBool(naechsterZustand) })
           }

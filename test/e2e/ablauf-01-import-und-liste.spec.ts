@@ -89,5 +89,19 @@ test.describe('Ablauf 01 — Import und Liste', () => {
     await expect(fenster.getByText('2 Treffer')).toBeVisible()
     await expect(fenster.getByText('Erna Wruck')).toBeVisible()
     await expect(fenster.getByText('Walter Wruck')).toBeVisible()
+
+    // Filter/Sortierung wirken auf `abfrage:suche` nicht (kennt weder Filter noch Sortierung,
+    // `docs/80_Offene_Fragen.md` §17) — während der aktiven Suche werden sie sichtbar deaktiviert
+    // dargestellt statt klickbar-aber-wirkungslos zu bleiben.
+    await expect(fenster.getByRole('checkbox', { name: 'Platzhalter' })).toBeDisabled()
+    await expect(fenster.getByRole('checkbox', { name: 'Privat' })).toBeDisabled()
+    await expect(fenster.getByRole('checkbox', { name: 'Hat Widerspruch' })).toBeDisabled()
+    await expect(fenster.getByRole('combobox', { name: 'Konfidenz mindestens' })).toBeDisabled()
+    await expect(fenster.getByRole('button', { name: 'Name', exact: true })).toBeDisabled()
+
+    // Suchfeld leeren: Filter/Sortierung wirken wieder, die Kontrollen sind wieder bedienbar.
+    await fenster.getByPlaceholder('Suchen…').fill('')
+    await expect(fenster.getByRole('checkbox', { name: 'Platzhalter' })).toBeEnabled()
+    await expect(fenster.getByRole('button', { name: 'Name', exact: true })).toBeEnabled()
   })
 })

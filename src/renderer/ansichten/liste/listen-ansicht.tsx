@@ -122,7 +122,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
 
       <div className="wz-listen-ansicht__werkzeuge">
         <Suchfeld wert={suchtext} aufAenderung={suchtextGeaendert} treffer={sucheAktiv && ladezustand === 'bereit' ? gesamt : null} />
-        <Filterleiste filter={filter} aufFilterGeaendert={filterGeaendert} aufZuruecksetzen={filterZuruecksetzen} />
+        <Filterleiste filter={filter} aufFilterGeaendert={filterGeaendert} aufZuruecksetzen={filterZuruecksetzen} gesperrt={sucheAktiv} />
       </div>
 
       <div className="wz-listen-ansicht__spalten" role="group" aria-label={t('spaltenwahl_titel')}>
@@ -151,6 +151,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
           sortierung={sortierung}
           richtung={richtung}
           aufSortierungGeaendert={sortierungGeaendert}
+          sortierungGesperrt={sucheAktiv}
           ladezustand={ladezustand}
           hatAktivenFilter={hatAktivenFilter(filter)}
           aufFilterZuruecksetzen={filterZuruecksetzen}

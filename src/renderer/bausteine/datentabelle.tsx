@@ -46,6 +46,10 @@ export interface DatentabelleProps {
   readonly sortierung: PersonListeSortierungWert
   readonly richtung: PersonListeRichtungWert
   readonly aufSortierungGeaendert: (sortierung: PersonListeSortierungWert, richtung: PersonListeRichtungWert) => void
+  /** `true` während einer aktiven Suche (`docs/80_Offene_Fragen.md` §17): `abfrage:suche` kennt
+   * keine Sortierung — die sortierbaren Spaltenköpfe werden dann sichtbar deaktiviert dargestellt,
+   * statt klickbar-aber-wirkungslos zu bleiben. */
+  readonly sortierungGesperrt?: boolean
   readonly ladezustand: DatentabelleLadezustand
   /** Ob mindestens ein Filter von der Vorgabe abweicht — entscheidet zwischen „kein Projekt-Inhalt"
    * und „Filter ohne Treffer" im leeren Zustand (S-05). */
@@ -77,6 +81,7 @@ export function Datentabelle({
   sortierung,
   richtung,
   aufSortierungGeaendert,
+  sortierungGesperrt = false,
   ladezustand,
   hatAktivenFilter,
   aufFilterZuruecksetzen,
@@ -130,7 +135,13 @@ export function Datentabelle({
               }
               return (
                 <span key={spalte} role="columnheader" aria-sort={ariaSortWert({ sortierung, richtung }, sortierschluessel)}>
-                  <button type="button" className="wz-datentabelle__kopfzelle wz-datentabelle__kopfzelle--sortierbar" onClick={() => kopfzelleKlick(spalte)}>
+                  <button
+                    type="button"
+                    className="wz-datentabelle__kopfzelle wz-datentabelle__kopfzelle--sortierbar"
+                    disabled={sortierungGesperrt}
+                    aria-disabled={sortierungGesperrt}
+                    onClick={() => kopfzelleKlick(spalte)}
+                  >
                     <Text rolle="beschriftung" als="span">
                       {t(spaltenSchluessel(spalte))}
                     </Text>
