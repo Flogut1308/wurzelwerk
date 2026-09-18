@@ -2,6 +2,7 @@ import type { FehlerCode } from '../fehler/codes'
 import type { PruefBericht } from '../import/imp-codes'
 import type { Trockenlaufbericht } from '../import/trockenlauf-bericht'
 import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
+import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -217,6 +218,8 @@ export interface Vertrag {
   'abfrage:import.pruefen': { ein: ImportPruefenEin; aus: PruefBericht }
   'befehl:import.trockenlauf': { ein: ImportTrockenlaufEin; aus: Trockenlaufbericht }
   'befehl:import.ausfuehren': { ein: ImportAusfuehrenEin; aus: Trockenlaufbericht }
+  'abfrage:person.liste': { ein: PersonListeEin; aus: PersonListeAus }
+  'abfrage:suche': { ein: SucheEin; aus: SucheAus }
 }
 
 export type Kanal = keyof Vertrag
