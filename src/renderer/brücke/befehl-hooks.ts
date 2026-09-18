@@ -16,7 +16,7 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
-import type { Ein, JournalStatusNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
+import type { Aus, Ein, JournalStatusNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
 import { datenGeaendertNutzlastSchema, journalStatusNutzlastSchema, projektGeschlossenNutzlastSchema } from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
 
@@ -112,5 +112,33 @@ export function useJournalUndo(): UseMutationResult<UndoErgebnis, AppFehler, voi
 export function useJournalRedo(): UseMutationResult<UndoErgebnis, AppFehler, void> {
   return useMutation({
     mutationFn: () => ergebnisEntpacken(aufrufen('befehl:journal.redo', null)),
+  })
+}
+
+/** `befehl:import.dateiWaehlen` (AP-1.4b, S-10) — öffnet den nativen Datei-Öffnen-Dialog, liefert den Pfad oder `null`. */
+export function useImportDateiWaehlen(): UseMutationResult<Aus<'befehl:import.dateiWaehlen'>, AppFehler, void> {
+  return useMutation({
+    mutationFn: () => ergebnisEntpacken(aufrufen('befehl:import.dateiWaehlen', null)),
+  })
+}
+
+/** `befehl:import.trockenlauf` (AP-1.4a/1.4b, S-11) — echter Import in einer zurückgerollten Transaktion, liefert den Bericht. */
+export function useImportTrockenlauf(): UseMutationResult<Aus<'befehl:import.trockenlauf'>, AppFehler, Ein<'befehl:import.trockenlauf'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:import.trockenlauf'>) => ergebnisEntpacken(aufrufen('befehl:import.trockenlauf', ein)),
+  })
+}
+
+/** `befehl:import.ausfuehren` (AP-1.5/1.4b, S-13) — schreibt den Import wirklich, liefert denselben Berichtstyp wie der Trockenlauf. */
+export function useImportAusfuehren(): UseMutationResult<Aus<'befehl:import.ausfuehren'>, AppFehler, Ein<'befehl:import.ausfuehren'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:import.ausfuehren'>) => ergebnisEntpacken(aufrufen('befehl:import.ausfuehren', ein)),
+  })
+}
+
+/** `befehl:import.berichtSpeichern` (AP-1.4b, S-11/S-13, F-03) — schreibt den gehaltenen Bericht als Text, liefert den Zielpfad oder `null`. */
+export function useImportBerichtSpeichern(): UseMutationResult<Aus<'befehl:import.berichtSpeichern'>, AppFehler, Ein<'befehl:import.berichtSpeichern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:import.berichtSpeichern'>) => ergebnisEntpacken(aufrufen('befehl:import.berichtSpeichern', ein)),
   })
 }
