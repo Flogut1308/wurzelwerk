@@ -23,6 +23,13 @@
   "filter_konfidenz_ab_3": "ab wahrscheinlich",
   "filter_konfidenz_ab_4": "gesichert",
   "filter_nurWiderspruch": "Hat Widerspruch",
+  "filter_zeitraum_beschriftung": "Geburtsjahr zwischen",
+  "filter_zeitraum_von_aria": "Geburtsjahr von",
+  "filter_zeitraum_von_platzhalter": "von",
+  "filter_zeitraum_bis_aria": "Geburtsjahr bis",
+  "filter_zeitraum_bis_platzhalter": "bis",
+  "filter_ort_beschriftung": "Geburtsort enthält",
+  "filter_ort_platzhalter": "Ort…",
   "filter_zuruecksetzen": "Filter zurücksetzen",
 
   "blaettern_zurueck": "Vorherige Seite",
@@ -33,7 +40,10 @@
   "spalte_name": "Name",
   "spalte_lebensdaten": "Lebensdaten",
   "spalte_geburtsort": "Geburtsort",
+  "spalte_beruf": "Beruf",
   "spalte_konfidenz": "Konfidenz",
+  "spalte_belege": "Belege",
+  "spalte_kinderzahl": "Kinderzahl",
 
   "platzhalter_bezeichnung": "Platzhalter",
 

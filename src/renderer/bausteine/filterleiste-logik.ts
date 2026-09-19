@@ -84,3 +84,36 @@ export function filterWertZuKonfidenzMin(wert: KonfidenzFilterWert): 1 | 2 | 3 |
       return 4
   }
 }
+
+/**
+ * AP-1.10 PR-A (U-1.6-filterleiste-vier-filter): Zeitraum-Von/-Bis als `Eingabekoerper` (`typ=
+ * 'number'`, liefert immer eine Zeichenkette, CLAUDE.md §2 Renderer-Vertrag). Ein leeres Feld ist
+ * „kein Wert" (`undefined`), keine `0` — `PersonListeFilter.zeitraumVon`/`zeitraumBis` filtern sonst
+ * fälschlich auf das Jahr 0. Ein nicht-ganzzahliger oder nicht-numerischer Zwischenzustand beim
+ * Tippen (z. B. ein alleinstehendes "-") wird ebenfalls als „kein Wert" behandelt, statt eine
+ * `NaN` in den Filter zu schreiben — der native `type="number"`-Eingabekörper lässt solche
+ * Zwischenzustände über `value` durchaus zu.
+ */
+export function zeitraumWertZuString(wert: number | undefined): string {
+  return wert === undefined ? '' : String(wert)
+}
+
+export function stringZuZeitraumWert(text: string): number | undefined {
+  const getrimmt = text.trim()
+  if (getrimmt === '') return undefined
+  const zahl = Number(getrimmt)
+  return Number.isInteger(zahl) ? zahl : undefined
+}
+
+/** Ort-Filter: leerer/nur-Leerzeichen-Text ist „kein Filter" (`undefined`), sonst der getrimmte
+ * Text — `PersonListeFilter.ort` selbst trimmt defensiv noch einmal (src/main/abfragen/
+ * person-liste.ts), diese Funktion vermeidet nur, dass ein reiner Leerraum-Text den Filter
+ * überhaupt erst aktiviert. */
+export function ortWertZuString(wert: string | undefined): string {
+  return wert ?? ''
+}
+
+export function stringZuOrtWert(text: string): string | undefined {
+  const getrimmt = text.trim()
+  return getrimmt === '' ? undefined : getrimmt
+}

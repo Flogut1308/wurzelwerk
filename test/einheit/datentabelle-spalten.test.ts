@@ -9,11 +9,15 @@ import {
 describe('spalteUmschalten (src/renderer/bausteine/datentabelle-spalten.ts, AP-1.6)', () => {
   it('blendet eine sichtbare Spalte aus', () => {
     const ergebnis = spalteUmschalten(ALLE_DATENTABELLE_SPALTEN, 'geburtsort')
-    expect(ergebnis).toEqual(['name', 'lebensdaten', 'konfidenz'])
+    expect(ergebnis).toEqual(['name', 'lebensdaten', 'beruf', 'konfidenz', 'belege', 'kinderzahl'])
   })
 
   it('blendet eine ausgeblendete Spalte wieder ein — an ihrer Standardposition, nicht ans Ende', () => {
-    const ohneLebensdaten: readonly ('name' | 'lebensdaten' | 'geburtsort' | 'konfidenz')[] = ['name', 'geburtsort', 'konfidenz']
+    const ohneLebensdaten: readonly ('name' | 'lebensdaten' | 'geburtsort' | 'beruf' | 'konfidenz' | 'belege' | 'kinderzahl')[] = [
+      'name',
+      'geburtsort',
+      'konfidenz',
+    ]
     const ergebnis = spalteUmschalten(ohneLebensdaten, 'lebensdaten')
     expect(ergebnis).toEqual(['name', 'lebensdaten', 'geburtsort', 'konfidenz'])
   })

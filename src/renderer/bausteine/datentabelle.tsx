@@ -14,8 +14,9 @@ import './datentabelle.css'
 export type DatentabelleLadezustand = 'laedt' | 'bereit' | 'fehler'
 
 /** Nur Spalten mit einem Eintrag sind über die Kopfzelle sortierbar (S-05 „Sortierung über
- * Suchnormalform"). `geburtsort`/`konfidenz` haben keine eigene Spalte in `PersonListeSortierungEnum`
- * (src/shared/schemata/person-liste.ts) — nicht vorgreifen (CLAUDE.md §10). */
+ * Suchnormalform"). `geburtsort`/`beruf`/`konfidenz`/`belege`/`kinderzahl` haben keine eigene
+ * Spalte in `PersonListeSortierungEnum` (src/shared/schemata/person-liste.ts) — nicht vorgreifen
+ * (CLAUDE.md §10). */
 const SPALTE_SORTIERSCHLUESSEL: Readonly<Partial<Record<DatentabelleSpalte, PersonListeSortierungWert>>> = {
   name: 'nachname',
   lebensdaten: 'geburt',
@@ -33,8 +34,14 @@ export function spaltenSchluessel(spalte: DatentabelleSpalte): string {
       return 'spalte_lebensdaten'
     case 'geburtsort':
       return 'spalte_geburtsort'
+    case 'beruf':
+      return 'spalte_beruf'
     case 'konfidenz':
       return 'spalte_konfidenz'
+    case 'belege':
+      return 'spalte_belege'
+    case 'kinderzahl':
+      return 'spalte_kinderzahl'
   }
 }
 
@@ -47,10 +54,6 @@ export interface DatentabelleProps {
   readonly sortierung: PersonListeSortierungWert
   readonly richtung: PersonListeRichtungWert
   readonly aufSortierungGeaendert: (sortierung: PersonListeSortierungWert, richtung: PersonListeRichtungWert) => void
-  /** `true` während einer aktiven Suche (`docs/80_Offene_Fragen.md` §17): `abfrage:suche` kennt
-   * keine Sortierung — die sortierbaren Spaltenköpfe werden dann sichtbar deaktiviert dargestellt,
-   * statt klickbar-aber-wirkungslos zu bleiben. */
-  readonly sortierungGesperrt?: boolean
   readonly ladezustand: DatentabelleLadezustand
   /** Ob mindestens ein Filter von der Vorgabe abweicht — entscheidet zwischen „kein Projekt-Inhalt"
    * und „Filter ohne Treffer" im leeren Zustand (S-05). */
@@ -82,7 +85,6 @@ export function Datentabelle({
   sortierung,
   richtung,
   aufSortierungGeaendert,
-  sortierungGesperrt = false,
   ladezustand,
   hatAktivenFilter,
   aufFilterZuruecksetzen,
@@ -141,8 +143,6 @@ export function Datentabelle({
                   <button
                     type="button"
                     className="wz-datentabelle__kopfzelle wz-datentabelle__kopfzelle--sortierbar"
-                    disabled={sortierungGesperrt}
-                    aria-disabled={sortierungGesperrt}
                     onClick={() => kopfzelleKlick(spalte)}
                   >
                     <Text rolle="beschriftung" als="span">
