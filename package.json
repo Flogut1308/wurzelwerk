@@ -21,6 +21,7 @@
     "trigger": "tsx skripte/trigger-generieren.ts",
     "symbole": "tsx skripte/symbole-holen.ts",
     "bilder": "electron-vite build && tsx skripte/bilder.ts",
+    "bilder:erneuern": "electron-vite build && BILDER_ERNEUERN=1 playwright test bildvergleich --update-snapshots",
     "schema:dump": "tsx skripte/schema-dump.ts",
     "fixture:db": "tsx skripte/fixture-datenbank-bauen.ts",
     "pruefe": "pnpm typen && pnpm lint && pnpm grenzen && pnpm test",
