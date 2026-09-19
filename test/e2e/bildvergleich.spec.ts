@@ -167,7 +167,7 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       }, pfad)
     }
 
-    test('Startansicht', async () => {
+    test.describe('Startansicht', () => {
       // Der Abschnitt „Zuletzt geöffnet" (`start-ansicht.tsx`) liest `abfrage:projekt.zuletzt" aus
       // einem echten, plattformweiten `electron-store` (kein Test-Fixture, keine isolierte
       // `userData`) — jeder frühere lokale Testlauf UND jeder andere e2e-Spec in derselben CI-Sitzung
@@ -178,34 +178,55 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       // GANZ innerhalb dieses Tests: ein `clip` auf den oberen, vollständig statischen Teil der
       // Ansicht (Titel + „Neues Projekt" + „Projekt öffnen"), exakt bis zur Überschrift „Zuletzt
       // geöffnet" — deren eigene Y-Position hängt nur von den FESTEN Abschnitten darüber ab, nicht
-      // von der (wechselnden) Listenlänge darunter.
-      const zuletztUeberschrift = fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })
-      const box = await zuletztUeberschrift.boundingBox()
-      if (box === null) {
-        throw new Error('Überschrift „Zuletzt geöffnet" nicht gefunden — Startansicht-Struktur hat sich geändert.')
-      }
-      const clip = { x: 0, y: 0, width: FENSTER_BREITE, height: Math.floor(box.y) }
+      // von der (wechselnden) Listenlänge darunter. Zwei Einzeltests (hell/dunkel) teilen sich den
+      // einmal berechneten `clip` über `beforeAll` — je genau eine Aufnahme pro Test (PR #71,
+      // Nachzug: Playwright bricht bei einer fehlgeschlagenen `toHaveScreenshot` ab, ein Test mit
+      // mehreren Aufnahmen verliert damit alle weiteren).
+      let clip: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
-      await aufnahme(fenster, 'startansicht-hell', 'hell', 'standard', clip)
-      await aufnahme(fenster, 'startansicht-dunkel', 'dunkel', 'standard', clip)
+      test.beforeAll(async () => {
+        const zuletztUeberschrift = fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })
+        const box = await zuletztUeberschrift.boundingBox()
+        if (box === null) {
+          throw new Error('Überschrift „Zuletzt geöffnet" nicht gefunden — Startansicht-Struktur hat sich geändert.')
+        }
+        clip = { x: 0, y: 0, width: FENSTER_BREITE, height: Math.floor(box.y) }
+      })
+
+      test('startansicht-hell', async () => {
+        await aufnahme(fenster, 'startansicht-hell', 'hell', 'standard', clip)
+      })
+
+      test('startansicht-dunkel', async () => {
+        await aufnahme(fenster, 'startansicht-dunkel', 'dunkel', 'standard', clip)
+      })
     })
 
-    test('Zustandsbibliothek — vier Kombinationen', async () => {
-      await app.evaluate(({ BrowserWindow }) => {
-        for (const fensterHandle of BrowserWindow.getAllWindows()) {
-          fensterHandle.webContents.send('ereignis:zustandsbibliothekOeffnen', null)
-        }
+    test.describe('Zustandsbibliothek — vier Kombinationen', () => {
+      // Je ein Einzeltest pro Kombination (PR #71, Nachzug) statt einer Schleife in einem
+      // gemeinsamen Test — Öffnen/Schließen der Bibliothek bleiben gemeinsames `beforeAll`/`afterAll`,
+      // damit weiterhin nur EIN `evaluate`/Klick-Paar je Instanz nötig ist.
+      test.beforeAll(async () => {
+        await app.evaluate(({ BrowserWindow }) => {
+          for (const fensterHandle of BrowserWindow.getAllWindows()) {
+            fensterHandle.webContents.send('ereignis:zustandsbibliothekOeffnen', null)
+          }
+        })
+        await fenster.locator('[data-testid="wz-zustandsbibliothek"]').waitFor({ state: 'visible' })
       })
-      await fenster.locator('[data-testid="wz-zustandsbibliothek"]').waitFor({ state: 'visible' })
+
+      test.afterAll(async () => {
+        // Die Bibliothek zeigt auch eine Beispiel-Beleg-Schublade mit eigenem „Schließen"-Knopf —
+        // gezielt der Kopfzeilen-Knopf (`role="banner"`) schließt die ganze Ansicht.
+        await fenster.getByRole('banner').getByRole('button', { name: 'Schließen', exact: true }).click()
+        await fenster.locator('[data-testid="wz-zustandsbibliothek"]').waitFor({ state: 'detached' })
+      })
 
       for (const kombination of VIER_KOMBINATIONEN) {
-        await aufnahme(fenster, `zustandsbibliothek-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+        test(`zustandsbibliothek-${kombination.theme}-${kombination.dichte}`, async () => {
+          await aufnahme(fenster, `zustandsbibliothek-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+        })
       }
-
-      // Die Bibliothek zeigt auch eine Beispiel-Beleg-Schublade mit eigenem „Schließen"-Knopf —
-      // gezielt der Kopfzeilen-Knopf (`role="banner"`) schließt die ganze Ansicht.
-      await fenster.getByRole('banner').getByRole('button', { name: 'Schließen', exact: true }).click()
-      await fenster.locator('[data-testid="wz-zustandsbibliothek"]').waitFor({ state: 'detached' })
     })
 
     test('Projekt anlegen', async () => {
@@ -215,20 +236,30 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       await expect(fenster.getByRole('table')).toBeVisible()
     })
 
-    test('Importansicht — Bericht (Trockenlauf)', async () => {
-      // Nur der Bericht wird hier aufgenommen — kein echter Import mehr in dieser Instanz (s.
-      // Kopfkommentar): Liste/Profil brauchen den echten, geladenen Import und laufen in einer
-      // eigenen, isolierten Instanz weiter unten, damit dieses Trockenlauf-Motiv (Sondierung mit
-      // `ROLLBACK`) den dortigen echten Import nicht mehr stören kann (PR #71).
-      await dialogLiefert(FIXTURE_ERNA_WALTER)
-      await fenster.getByRole('button', { name: 'Importieren …' }).click()
-      await fenster.getByRole('button', { name: 'Datei wählen …' }).click()
-      await expect(fenster.getByText(FIXTURE_ERNA_WALTER)).toBeVisible()
-      await fenster.getByRole('button', { name: 'Prüfen' }).click()
-      await expect(fenster.getByRole('heading', { name: 'Zusammenfassung' })).toBeVisible()
+    test.describe('Importansicht — Bericht (Trockenlauf)', () => {
+      // Aufbau (Dialog-Stub, Klicks bis zum Bericht) einmalig im `beforeAll` — je ein Einzeltest
+      // pro Theme nimmt anschließend genau eine Aufnahme vom bereits stehenden Bericht (PR #71,
+      // Nachzug).
+      test.beforeAll(async () => {
+        // Nur der Bericht wird hier aufgenommen — kein echter Import mehr in dieser Instanz (s.
+        // Kopfkommentar): Liste/Profil brauchen den echten, geladenen Import und laufen in einer
+        // eigenen, isolierten Instanz weiter unten, damit dieses Trockenlauf-Motiv (Sondierung mit
+        // `ROLLBACK`) den dortigen echten Import nicht mehr stören kann (PR #71).
+        await dialogLiefert(FIXTURE_ERNA_WALTER)
+        await fenster.getByRole('button', { name: 'Importieren …' }).click()
+        await fenster.getByRole('button', { name: 'Datei wählen …' }).click()
+        await expect(fenster.getByText(FIXTURE_ERNA_WALTER)).toBeVisible()
+        await fenster.getByRole('button', { name: 'Prüfen' }).click()
+        await expect(fenster.getByRole('heading', { name: 'Zusammenfassung' })).toBeVisible()
+      })
 
-      await aufnahme(fenster, 'importansicht-hell', 'hell')
-      await aufnahme(fenster, 'importansicht-dunkel', 'dunkel')
+      test('importansicht-hell', async () => {
+        await aufnahme(fenster, 'importansicht-hell', 'hell')
+      })
+
+      test('importansicht-dunkel', async () => {
+        await aufnahme(fenster, 'importansicht-dunkel', 'dunkel')
+      })
     })
   })
 
@@ -274,12 +305,15 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       rmSync(elternordner, { recursive: true, force: true })
     })
 
-    test('Liste — nach dem echten Import', async () => {
+    test('liste-hell', async () => {
       await aufnahme(fenster, 'liste-hell', 'hell')
+    })
+
+    test('liste-dunkel', async () => {
       await aufnahme(fenster, 'liste-dunkel', 'dunkel')
     })
 
-    test('Profil', async () => {
+    test.describe('Profil', () => {
       // Walter Wruck (bereits importiert, s. „Liste" oben) statt August Wruck
       // (`beispiel-2-widersprueche.json`, wie in `ablauf-02-profil.spec.ts`): Augusts
       // „Grunddaten"-Geburtsort trägt in der Aussage nur `wert_ref_id` (Verweis auf die `ort`-Zeile),
@@ -288,17 +322,30 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       // unabhängig von AP-1.25, aber sichtbar als **nichtdeterministischer Inhalt** (UUID v7, ändert
       // sich mit jedem Import) — nicht über eine Fixture stillstellbar, ohne `src/` anzufassen
       // (`docs/80_Offene_Fragen.md` §22). Walters einzige Aussage (`beruf: Bergmann`) trägt
-      // `wert_text` und ist frei davon.
-      const walterZeile = fenster.locator('[role="row"]:has-text("Walter Wruck")')
-      await walterZeile.click()
-      const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
-      await expect(profil).toBeVisible()
-      await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
+      // `wert_text` und ist frei davon. Öffnen/Schließen des Profils bleiben gemeinsames
+      // `beforeAll`/`afterAll` (PR #71, Nachzug) — je ein Einzeltest pro Theme nimmt anschließend
+      // genau eine Aufnahme vom bereits offenen Profil.
+      let profil: ReturnType<typeof fenster.getByRole>
 
-      await aufnahme(fenster, 'profil-hell', 'hell')
-      await aufnahme(fenster, 'profil-dunkel', 'dunkel')
+      test.beforeAll(async () => {
+        const walterZeile = fenster.locator('[role="row"]:has-text("Walter Wruck")')
+        await walterZeile.click()
+        profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+        await expect(profil).toBeVisible()
+        await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
+      })
 
-      await profil.getByRole('button', { name: 'Schließen', exact: true }).click()
+      test.afterAll(async () => {
+        await profil.getByRole('button', { name: 'Schließen', exact: true }).click()
+      })
+
+      test('profil-hell', async () => {
+        await aufnahme(fenster, 'profil-hell', 'hell')
+      })
+
+      test('profil-dunkel', async () => {
+        await aufnahme(fenster, 'profil-dunkel', 'dunkel')
+      })
     })
   })
 })
