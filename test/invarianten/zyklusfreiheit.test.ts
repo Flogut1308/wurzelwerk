@@ -12,6 +12,8 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { hatZyklus, wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
+import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
+import { baueFixture } from '../hilfsmittel/fixture-bauen'
 
 /**
  * Arbitrary für einen per Konstruktion azyklischen Elternschaftsgraphen: `knotenAnzahl` Knoten,
@@ -155,5 +157,112 @@ describe('Invariante: Zyklusfreiheit im Elternschaftsgraphen (ADR-009 Punkt 2, �
   it('wuerdeZyklusErzeugen: eine neue Kante ohne Bezug zum bestehenden Graphen erzeugt keinen Zyklus', () => {
     const kanten: readonly Elternkante[] = [{ elternteilId: 'A', kindId: 'B' }]
     expect(wuerdeZyklusErzeugen(kanten, { elternteilId: 'X', kindId: 'Y' })).toBe(false)
+  })
+})
+
+/**
+ * AP-1.8 (57_Phase0_Arbeitspakete.md Z.1316): dieselbe Invariante, jetzt über den echten Bestand -
+ * nicht nur `hatZyklus`/`wuerdeZyklusErzeugen` isoliert (oben), sondern der volle Pfad einer echten,
+ * migrierten SQLite-Datenbank -> `abfrage:pruefhinweise` (`src/main/abfragen/pruefhinweise.ts`) ->
+ * `pruefeBestand()` (`src/core/plausibilitaet/regeln.ts`). `test/einheit/plausibilitaet-bestand.test.ts`
+ * prüft die `zyklus`-Regel bereits gegen von Hand gebaute `BestandEingabe`-Objekte - hier kommt die
+ * Eingabe stattdessen aus echten `person`/`elternschaft`-Zeilen, inklusive der SQL-Ladefunktionen.
+ *
+ * DB-Aufbau: `test/hilfsmittel/fixture-bauen.ts::baueFixture()` - dieselbe In-Memory-SQLite-Fixture-
+ * Infrastruktur wie `test/einheit/integritaet.test.ts`/`test/budget/leistung.test.ts`: frische
+ * `:memory:`-Datenbank, alle Migrationen angewendet (`migrieren()`), Journal aus (Testdaten, kein
+ * Undo-Schritt). Deterministisch über einen festen `seed` (CLAUDE.md §4/§13 - keine `Date.now`/
+ * `Math.random` in den Fixtures).
+ */
+describe('Invariante: Zyklusfreiheit über den echten Bestand (AP-1.8, abfrage:pruefhinweise gegen eine echte Datenbank)', () => {
+  it('gesunder, mehrgenerationaler Bestand mit Ahnenimplex/Diamant (legitime Cousinenheirat) liefert keinen zyklus-Hinweis', () => {
+    // Vier Generationen: g1/g2 (Urgroßeltern) sind beide Eltern von p1 UND p2 (Geschwister). p1 ist
+    // Elternteil von c1, p2 von c2 (Cousin/Cousine). c1 und c2 heiraten und bekommen gemeinsam
+    // "kind" - der klassische Ahnenimplex: g1/g2 sind über ZWEI Pfade Vorfahren von "kind", ein
+    // ungerichteter Kreis im Familienbild, aber KEIN Zyklus im gerichteten "ist Kind von"-Graphen
+    // (Modul-Kommentar `src/core/graph/zyklus.ts`) - derselbe Fall wie der reine Diamant-Test oben
+    // ("Diamant/Ahnenimplex ... ist zyklenfrei"), hier aber über den vollständigen Bestand-Pfad.
+    const db = baueFixture(
+      {
+        personen: [
+          { schluessel: 'g1', privat: 0, ist_platzhalter: 0, geschlecht: 'M' },
+          { schluessel: 'g2', privat: 0, ist_platzhalter: 0, geschlecht: 'F' },
+          { schluessel: 'p1', privat: 0, ist_platzhalter: 0, geschlecht: 'M' },
+          { schluessel: 'p2', privat: 0, ist_platzhalter: 0, geschlecht: 'F' },
+          { schluessel: 'c1', privat: 0, ist_platzhalter: 0, geschlecht: 'M' },
+          { schluessel: 'c2', privat: 0, ist_platzhalter: 0, geschlecht: 'F' },
+          { schluessel: 'kind', privat: 0, ist_platzhalter: 0 },
+          // Eine Platzhalterperson (A-17) mit unklarer Elternschaft daneben - muss von der
+          // Zyklusregel unbeteiligt bleiben (`pruefeBestandZyklus` filtert Platzhalter-Kanten vor
+          // der Suche heraus, `src/core/plausibilitaet/regeln.ts`).
+          { schluessel: 'unbekannt', privat: 0, ist_platzhalter: 1, platzhalter_grund: 'unbekannt' },
+        ],
+        elternschaften: [
+          { schluessel: 'e1', elternteilSchluessel: 'g1', kindSchluessel: 'p1', typ: 'biologisch' },
+          { schluessel: 'e2', elternteilSchluessel: 'g2', kindSchluessel: 'p1', typ: 'biologisch' },
+          { schluessel: 'e3', elternteilSchluessel: 'g1', kindSchluessel: 'p2', typ: 'biologisch' },
+          { schluessel: 'e4', elternteilSchluessel: 'g2', kindSchluessel: 'p2', typ: 'biologisch' },
+          { schluessel: 'e5', elternteilSchluessel: 'p1', kindSchluessel: 'c1', typ: 'biologisch' },
+          { schluessel: 'e6', elternteilSchluessel: 'p2', kindSchluessel: 'c2', typ: 'biologisch' },
+          { schluessel: 'e7', elternteilSchluessel: 'c1', kindSchluessel: 'kind', typ: 'biologisch' },
+          { schluessel: 'e8', elternteilSchluessel: 'c2', kindSchluessel: 'kind', typ: 'biologisch' },
+          { schluessel: 'e9', elternteilSchluessel: 'unbekannt', kindSchluessel: 'kind', typ: 'unbekannt' },
+        ],
+      },
+      424242,
+    )
+    try {
+      const ergebnis = pruefhinweise(db)
+      expect(ergebnis.eintraege.map((eintrag) => eintrag.code)).not.toContain('zyklus')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Bestand mit einer direkt auf Datenebene eingefügten Rückkante meldet zyklus-Hinweise für genau die beteiligten Personen', () => {
+    // Der Schreib-Befehl, der eine neue Elternkante gegen `wuerdeZyklusErzeugen` prüft (AP-0.9-
+    // Zyklusschutz), existiert für `elternschaft` noch nicht (kommt erst mit dem Elternschafts-
+    // Befehl, s. Kopfkommentar `src/core/graph/zyklus.ts`: "der kommt erst ab AP-0.10") - ein Zyklus
+    // lässt sich also gar nicht über einen Befehl erzeugen, den es noch nicht gibt. `baueFixture()`
+    // fügt Zeilen ohnehin direkt per rohem `INSERT` ein, ohne einen Befehl/Guard zu durchlaufen (s.
+    // Kopfkommentar `fixture-bauen.ts`) - das ist hier bewusst genutzt, um den Zyklus überhaupt erst
+    // auf Datenebene erzeugen zu können. Geprüft wird die ERKENNUNG (`pruefeBestandZyklus` /
+    // `findeZyklusKnoten`), nicht der (hier noch nicht existierende) Guard.
+    const db = baueFixture(
+      {
+        personen: [
+          { schluessel: 'a', privat: 0, ist_platzhalter: 0 },
+          { schluessel: 'b', privat: 0, ist_platzhalter: 0 },
+        ],
+        elternschaften: [
+          { schluessel: 'e1', elternteilSchluessel: 'a', kindSchluessel: 'b', typ: 'biologisch' },
+          // Rückkante: b (bisher Kind von a) wird zusätzlich zum Elternteil von a - a wäre damit
+          // sein eigener (Ur-)Vorfahre. Exakt der Fall "Rückkante erzeugt immer einen Zyklus" oben.
+          { schluessel: 'e2', elternteilSchluessel: 'b', kindSchluessel: 'a', typ: 'biologisch' },
+        ],
+      },
+      525252,
+    )
+    try {
+      interface IdZeile {
+        readonly id: string
+      }
+      const alleIds = new Set(db.prepare<[], IdZeile>('SELECT id AS id FROM person').all().map((zeile) => zeile.id))
+      expect(alleIds.size).toBe(2)
+
+      const ergebnis = pruefhinweise(db)
+      const zyklusHinweise = ergebnis.eintraege.filter((eintrag) => eintrag.code === 'zyklus')
+
+      // `pruefeBestandZyklus` erzeugt EIN Hinweis JE Person auf dem gefundenen Zyklus (Modul-
+      // Kommentar `src/core/plausibilitaet/regeln.ts`) - bei einem Zweierzyklus also zwei Einträge,
+      // die zusammen genau die beiden beteiligten Personen nennen (nicht bloß irgendeine Teilmenge
+      // aller Personen im Bestand - hier gibt es ohnehin nur diese zwei). Eine Mutation, die
+      // `hatZyklus`/die Zyklusregel immer `false` liefern ließe, würde diese Liste leer machen -
+      // genau die Mutationsprobe, die diese Zusicherung absichern soll.
+      expect(zyklusHinweise).toHaveLength(2)
+      expect(new Set(zyklusHinweise.map((eintrag) => eintrag.personId))).toEqual(alleIds)
+    } finally {
+      db.close()
+    }
   })
 })
