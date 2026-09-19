@@ -18,6 +18,17 @@ import { kombinationImDomSetzen, VIER_KOMBINATIONEN } from '../../skripte/bilder
  * `.github/workflows/ci.yml` Job „pruefen") bleibt unverändert ein reines Artefakt, ohne
  * Vergleich — bewusste MVP-/CI-Kosten-Entscheidung, s. `docs/80_Offene_Fragen.md` §22.
  *
+ * **Nur der CI-macOS-Referenzrunner vergleicht pixelgenau, dev nicht** (PR #71, Nachzug):
+ * selbst mit den deterministischen Rendering-Flags unten bleibt zwischen einem lokal (dev-)
+ * erzeugten Screenshot und einem CI-erzeugten Screenshot eine Restrasterung von ~1–3 % — bei
+ * `threshold: 0` (playwright.config.ts, nötig um einen Ein-Token-Regress zu fangen) reicht das,
+ * um jeden dev-Lauf gegen eine CI-Baseline nichtdeterministisch rot zu machen. Die Baselines
+ * unter `test/golden/bilder/` sind darum als **CI-Referenzrunner-erzeugt** deklariert
+ * (`docs/80_Offene_Fragen.md` §22), und der Vergleich selbst läuft nur dort:
+ * `test.skip(process.platform !== 'darwin' || !(process.env.CI || process.env.BILDER_ERNEUERN), …)`
+ * überspringt lokal (weder `CI` noch `BILDER_ERNEUERN` gesetzt), lässt aber `pnpm bilder:erneuern`
+ * (setzt `BILDER_ERNEUERN=1`) und jeden echten CI-Lauf (setzt `CI=true`) durch — auf macOS.
+ *
  * **Determinismus:** feste Fenster-Inhaltsgröße (`setContentSize`, unabhängig von der
  * persistierten Fenstergeometrie aus `geometrie-speicher.ts`), `animations: 'disabled'`,
  * `caret: 'hide'`, `scrollTo(0, 0)` vor jeder Aufnahme (über `kombinationImDomSetzen`, dieselbe
@@ -75,6 +86,10 @@ const DETERMINISTISCHES_RENDERING_FLAGS = ['--force-color-profile=srgb', '--disa
 
 test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
   test.skip(process.platform !== 'darwin', 'nur macOS vergleicht pixelgenau (ADR-012)')
+  test.skip(
+    !(process.env['CI'] !== undefined || process.env['BILDER_ERNEUERN'] !== undefined),
+    'Bildvergleich läuft nur auf dem CI-macOS-Referenzrunner (Rasterung dev↔CI nicht bitgleich, ADR-012)',
+  )
 
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
   // Analog den übrigen ablauf-*-Specs: in der CI baut `test:e2e` selbst (`electron-vite build`) —
