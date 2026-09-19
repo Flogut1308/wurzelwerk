@@ -355,6 +355,7 @@ interface ElternKindZeile {
   readonly person_id: string
   readonly anzeigename: string
   readonly kantentyp: string
+  readonly ist_platzhalter: number
 }
 
 function elternLaden(db: Database.Database, personId: string): readonly ElternKindZeile[] {
@@ -362,9 +363,10 @@ function elternLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp
+    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.elternteil_id
+       JOIN person p ON p.id = el.elternteil_id
        WHERE el.kind_id = @personId`,
     )
     .all({ personId })
@@ -375,9 +377,10 @@ function kinderLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.kind_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp
+    >(`SELECT el.kind_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.kind_id
+       JOIN person p ON p.id = el.kind_id
        WHERE el.elternteil_id = @personId`,
     )
     .all({ personId })
@@ -388,11 +391,12 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT pp2.person_id AS person_id, pf.anzeigename AS anzeigename, part.typ AS kantentyp
+    >(`SELECT pp2.person_id AS person_id, pf.anzeigename AS anzeigename, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM partnerschaft_person pp1
        JOIN partnerschaft_person pp2 ON pp2.partnerschaft_id = pp1.partnerschaft_id AND pp2.person_id <> pp1.person_id
        JOIN partnerschaft part ON part.id = pp1.partnerschaft_id
        JOIN person_flach pf ON pf.person_id = pp2.person_id
+       JOIN person p ON p.id = pp2.person_id
        WHERE pp1.person_id = @personId`,
     )
     .all({ personId })
@@ -401,13 +405,13 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
 function beziehungenLaden(db: Database.Database, personId: string): readonly PersonDetailBeziehung[] {
   const beziehungen: PersonDetailBeziehung[] = []
   for (const zeile of elternLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of kinderLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of partnerLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   return beziehungen
 }

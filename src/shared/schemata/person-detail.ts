@@ -102,12 +102,20 @@ export const PersonDetailBeziehungRichtungEnum = z.enum(['elternteil', 'kind', '
 
 /** Ein direkter Beziehungs-Eintrag (nur Eltern/Kinder/Partner, KEINE Geschwister, s. Kopfkommentar).
  * `kantentyp` ist `elternschaft.typ` (biologisch/adoptiv/stief/…) bei `richtung`
- * `'elternteil'`/`'kind'`, `partnerschaft.typ` bei `'partner'`. */
+ * `'elternteil'`/`'kind'`, `partnerschaft.typ` bei `'partner'`.
+ *
+ * `ist_platzhalter` (U-1.7-beziehung-platzhalter, A-17, AP-1.10 PR-B): das ECHTE
+ * `person.ist_platzhalter`-Flag der VERWANDTEN Person (JOIN, `docs/80_Offene_Fragen.md` §19) —
+ * NICHT über einen leeren `anzeigename` erraten. Ein leerer `anzeigename` allein sagt nur „kein
+ * bevorzugter Name gepflegt" (`abl_person_ai`, `docs/schema/0003_abgeleitet.sql`) und trifft auch
+ * auf echte, noch namenlose Personen zu — die zweite, praktisch häufigere Fehlrichtung, die dieses
+ * Feld behebt. */
 export interface PersonDetailBeziehung {
   readonly person_id: string
   readonly anzeigename: string
   readonly richtung: z.infer<typeof PersonDetailBeziehungRichtungEnum>
   readonly kantentyp: z.infer<typeof ElternschaftTypEnum> | z.infer<typeof PartnerschaftTypEnum>
+  readonly ist_platzhalter: boolean
 }
 
 export const PersonDetailGesundheitArtEnum = z.enum(['diagnose', 'risikofaktor'])

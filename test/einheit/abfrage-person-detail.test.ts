@@ -30,14 +30,34 @@ import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import type { PersonDetailGrunddatenFeld } from '../../src/shared/schemata/person-detail'
 
-function personAnlegen(db: Database.Database, optionen: { readonly nachname: string; readonly vornamen: string }): string {
+function personAnlegen(
+  db: Database.Database,
+  optionen: { readonly nachname: string; readonly vornamen: string; readonly istPlatzhalter?: 0 | 1 },
+): string {
   const personId = uuidv7()
-  db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
+  db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, @istPlatzhalter)').run({
+    id: personId,
+    istPlatzhalter: optionen.istPlatzhalter ?? 0,
+  })
   db.prepare(
     `INSERT INTO name (id, person_id, typ, nachname, vornamen, ist_bevorzugt)
      VALUES (@id, @personId, 'geburtsname', @nachname, @vornamen, 1)`,
   ).run({ id: uuidv7(), personId, nachname: optionen.nachname, vornamen: optionen.vornamen })
   return personId
+}
+
+function platzhalterAnlegen(db: Database.Database): string {
+  const personId = uuidv7()
+  db.prepare(
+    `INSERT INTO person (id, privat, ist_platzhalter, platzhalter_grund) VALUES (@id, 0, 1, 'unbekannt')`,
+  ).run({ id: personId })
+  return personId
+}
+
+function elternschaftAnlegen(db: Database.Database, elternteilId: string, kindId: string, typ = 'biologisch'): void {
+  db.prepare(
+    `INSERT INTO elternschaft (id, elternteil_id, kind_id, typ) VALUES (@id, @elternteilId, @kindId, @typ)`,
+  ).run({ id: uuidv7(), elternteilId, kindId, typ })
 }
 
 function ortAnlegen(db: Database.Database, name: string): string {
@@ -215,6 +235,35 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
 
       expect(berufFeld?.hat_widerspruch).toBe(true)
       expect(berufFeld?.hatKonkurrierende).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  // U-1.7-beziehung-platzhalter (AP-1.10 PR-B, A-17): `PersonDetailBeziehung` trägt jetzt das
+  // ECHTE `ist_platzhalter`-Flag der verwandten Person (JOIN auf `person.ist_platzhalter`), statt
+  // der vorherigen Leername-Heuristik (`anzeigename.trim() === ''`). Deckt BEIDE in
+  // `docs/80_Offene_Fragen.md` §19 benannten Fehlrichtungen ab: ein Platzhalter OHNE Namen ist
+  // jetzt korrekt `ist_platzhalter: true`, UND eine echte, noch namenlose Person ist korrekt
+  // `ist_platzhalter: false` (nicht mehr fälschlich als Platzhalter beschriftet).
+  it('PersonDetailBeziehung trägt das echte ist_platzhalter-Flag der verwandten Person (nicht über den Namen erraten)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const kindId = personAnlegen(db, { nachname: 'Wruck', vornamen: 'August' })
+      const platzhalterVaterId = platzhalterAnlegen(db)
+      const echteNamenloseMutterId = personAnlegen(db, { nachname: '', vornamen: '' })
+      elternschaftAnlegen(db, platzhalterVaterId, kindId)
+      elternschaftAnlegen(db, echteNamenloseMutterId, kindId)
+
+      const ergebnis = personDetail(db, { personId: kindId })
+
+      const vaterBeziehung = ergebnis.beziehungen.find((beziehung) => beziehung.person_id === platzhalterVaterId)
+      expect(vaterBeziehung?.ist_platzhalter).toBe(true)
+
+      // Zweite Fehlrichtung (hueter-Review PR #66): eine ECHTE Person ohne erfassten Namen hat
+      // ebenfalls `anzeigename === ''` — darf aber NICHT als Platzhalter erscheinen.
+      const mutterBeziehung = ergebnis.beziehungen.find((beziehung) => beziehung.person_id === echteNamenloseMutterId)
+      expect(mutterBeziehung?.ist_platzhalter).toBe(false)
     } finally {
       db.close()
     }
