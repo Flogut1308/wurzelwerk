@@ -193,11 +193,16 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         clip = { x: 0, y: 0, width: FENSTER_BREITE, height: Math.floor(box.y) }
       })
 
+      // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist die statische Überschrift,
+      // auf der `clip` beruht, selbst nach — unabhängig davon, ob das jeweilige Geschwister zuvor
+      // gelaufen ist oder fehlgeschlagen ist. `aufnahme()` setzt Theme/Dichte ohnehin selbst.
       test('startansicht-hell', async () => {
+        await expect(fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })).toBeVisible()
         await aufnahme(fenster, 'startansicht-hell', 'hell', 'standard', clip)
       })
 
       test('startansicht-dunkel', async () => {
+        await expect(fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })).toBeVisible()
         await aufnahme(fenster, 'startansicht-dunkel', 'dunkel', 'standard', clip)
       })
     })
@@ -224,6 +229,10 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
 
       for (const kombination of VIER_KOMBINATIONEN) {
         test(`zustandsbibliothek-${kombination.theme}-${kombination.dichte}`, async () => {
+          // Order-Unabhängigkeit (PR #71, Nachzug): weist die geöffnete Bibliothek selbst nach,
+          // statt sich blind auf die (einmalige) `beforeAll` und ein zuvor erfolgreiches
+          // Geschwister zu verlassen. `aufnahme()` setzt Theme/Dichte für diesen Test ohnehin selbst.
+          await expect(fenster.locator('[data-testid="wz-zustandsbibliothek"]')).toBeVisible()
           await aufnahme(fenster, `zustandsbibliothek-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
         })
       }
@@ -245,6 +254,14 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         // Kopfkommentar): Liste/Profil brauchen den echten, geladenen Import und laufen in einer
         // eigenen, isolierten Instanz weiter unten, damit dieses Trockenlauf-Motiv (Sondierung mit
         // `ROLLBACK`) den dortigen echten Import nicht mehr stören kann (PR #71).
+        //
+        // `test.setTimeout(...)` (PR #71, Nachzug): beobachtet auf CI ein
+        // `"beforeAll" hook timeout of 30000ms exceeded` — der Standard-Hook-Timeout (30 s, aus
+        // `test.timeout`, da `playwright.config.ts` keinen eigenen setzt) reicht auf dem
+        // langsameren CI-Runner nicht für Dialog-Stub + drei Klicks + Bericht-Rendering. Erhöht
+        // NUR den Timeout dieses einen Hooks (Playwright-API, s. `test.d.ts` „Changing timeout for
+        // a beforeAll or afterAll hook"), nicht den globalen Test-Timeout.
+        test.setTimeout(90_000)
         await dialogLiefert(FIXTURE_ERNA_WALTER)
         await fenster.getByRole('button', { name: 'Importieren …' }).click()
         await fenster.getByRole('button', { name: 'Datei wählen …' }).click()
@@ -253,11 +270,16 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         await expect(fenster.getByRole('heading', { name: 'Zusammenfassung' })).toBeVisible()
       })
 
+      // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist den bereits stehenden
+      // Bericht selbst nach, unabhängig vom Ausgang seines Geschwisters. `aufnahme()` setzt
+      // Theme/Dichte für diesen Test ohnehin selbst.
       test('importansicht-hell', async () => {
+        await expect(fenster.getByRole('heading', { name: 'Zusammenfassung' })).toBeVisible()
         await aufnahme(fenster, 'importansicht-hell', 'hell')
       })
 
       test('importansicht-dunkel', async () => {
+        await expect(fenster.getByRole('heading', { name: 'Zusammenfassung' })).toBeVisible()
         await aufnahme(fenster, 'importansicht-dunkel', 'dunkel')
       })
     })
@@ -269,6 +291,12 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
     let elternordner: string
 
     test.beforeAll(async () => {
+      // `test.setTimeout(...)` (PR #71, Nachzug): diese datentragende Gruppe startet eine eigene
+      // Electron-Instanz, legt ein Projekt an UND führt einen echten Import aus — auf dem
+      // langsameren CI-Runner zusammen deutlich näher am 30-s-Standard-Hook-Timeout als lokal.
+      // Gleiche Begründung wie beim Importansicht-Hook oben, hier zusätzlich mit dem
+      // Instanzstart selbst.
+      test.setTimeout(90_000)
       elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-bildvergleich-liste-'))
       app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG, ...DETERMINISTISCHES_RENDERING_FLAGS] })
       fenster = await app.firstWindow()
@@ -305,11 +333,16 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       rmSync(elternordner, { recursive: true, force: true })
     })
 
+    // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist die geladenen Daten selbst
+    // nach, unabhängig vom Ausgang seines Geschwisters. `aufnahme()` setzt Theme/Dichte für
+    // diesen Test ohnehin selbst.
     test('liste-hell', async () => {
+      await expect(fenster.getByText('Walter Wruck')).toBeVisible()
       await aufnahme(fenster, 'liste-hell', 'hell')
     })
 
     test('liste-dunkel', async () => {
+      await expect(fenster.getByText('Walter Wruck')).toBeVisible()
       await aufnahme(fenster, 'liste-dunkel', 'dunkel')
     })
 
@@ -328,6 +361,9 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       let profil: ReturnType<typeof fenster.getByRole>
 
       test.beforeAll(async () => {
+        // Gleiche Begründung wie die beiden Hooks oben (CI-Runner langsamer als lokal) — auch
+        // dieser Hook gehört zur datentragenden Gruppe.
+        test.setTimeout(60_000)
         const walterZeile = fenster.locator('[role="row"]:has-text("Walter Wruck")')
         await walterZeile.click()
         profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
@@ -339,11 +375,16 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         await profil.getByRole('button', { name: 'Schließen', exact: true }).click()
       })
 
+      // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist das bereits offene Profil
+      // selbst nach, unabhängig vom Ausgang seines Geschwisters. `aufnahme()` setzt Theme/Dichte
+      // für diesen Test ohnehin selbst.
       test('profil-hell', async () => {
+        await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
         await aufnahme(fenster, 'profil-hell', 'hell')
       })
 
       test('profil-dunkel', async () => {
+        await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
         await aufnahme(fenster, 'profil-dunkel', 'dunkel')
       })
     })
