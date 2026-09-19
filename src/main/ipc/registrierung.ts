@@ -11,6 +11,7 @@ import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
+import { pruefhinweise } from '../abfragen/pruefhinweise'
 import { suche } from '../abfragen/suche'
 import { fuehreAus } from '../befehle/bus'
 import { importAusfuehren } from '../befehle/import-ausfuehren'
@@ -173,4 +174,8 @@ export function ipcRegistrierung(): void {
 
   // AP-1.7 PR-A: Profilseite (lesend) — `abfrage:`, kein Journal-/Ereignis-Bezug.
   registriere('abfrage:person.detail', personDetailEinSchema, (ein) => personDetail(offenesProjektDatenbank(), ein))
+
+  // AP-1.8 PR-A (F-07): Bestandsprüfung (Fußzeile + Liste) — `abfrage:`, schreibt nichts (§11,
+  // ADR-016). Kein `ein`, analog `abfrage:version`.
+  registriere('abfrage:pruefhinweise', z.null(), () => pruefhinweise(offenesProjektDatenbank()))
 }

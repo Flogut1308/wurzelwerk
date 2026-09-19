@@ -29,6 +29,7 @@ const kanaele: readonly Kanal[] = [
   'abfrage:person.liste',
   'abfrage:suche',
   'abfrage:person.detail',
+  'abfrage:pruefhinweise',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
