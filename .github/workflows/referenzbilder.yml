@@ -1,0 +1,38 @@
+# Erzeugt die verbindlichen Bildvergleich-Referenzbilder auf dem macOS-CI-Runner.
+# Rasterung ist auf dev↔CI nicht bitgleich; diese Baselines sind der Maßstab (AP-1.25, 80_Arbeitsweise §22).
+# Von Hand auszulösen über GitHub UI oder `gh workflow run referenzbilder.yml`.
+
+name: Referenzbilder erneuern
+
+on:
+  workflow_dispatch
+
+jobs:
+  erneuern:
+    name: erneuern
+    runs-on: macos-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: pnpm einrichten
+        uses: pnpm/action-setup@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Abhängigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Referenzbilder erzeugen
+        run: pnpm bilder:erneuern
+
+      - name: Referenzbilder als Artefakt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: referenzbilder
+          path: test/golden/bilder/**
