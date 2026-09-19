@@ -22,6 +22,7 @@ import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
+import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
 import type {
   PersonDetailAus,
   PersonDetailBeleg,
@@ -84,6 +85,17 @@ function aussagenLaden(db: Database.Database, personId: string): readonly Aussag
     .all({ personId })
 }
 
+/** Baut die `IN (@id0, @id1, …)`-Platzhalterliste + das dazugehörige Parameterobjekt für eine
+ * variable Anzahl von IDs — wiederverwendet von `belegeJeAussageLaden`/`ortsnamenLaden`/
+ * `personennamenLaden` (benannte Parameter, CLAUDE.md §6, kein zusammengesetztes SQL). */
+function inKlausel(ids: readonly string[]): { readonly platzhalter: string; readonly parameter: Record<string, string> } {
+  const parameter: Record<string, string> = {}
+  ids.forEach((id, index) => {
+    parameter[`id${index}`] = id
+  })
+  return { platzhalter: ids.map((_, index) => `@id${index}`).join(', '), parameter }
+}
+
 interface BelegzahlZeile {
   readonly praedikat: string
   readonly belegzahl: number
@@ -111,37 +123,61 @@ function belegzahlJePraedikatLaden(db: Database.Database, personId: string): Rea
 interface BelegZeile {
   readonly aussage_id: string
   readonly transkript: string | null
-  readonly quelle_titel: string | null
   readonly quelle_typ: string
+  readonly quelle_titel: string | null
+  readonly quelle_signatur: string | null
+  readonly quelle_unmittelbarkeit: string | null
+  readonly archiv_name: string | null
+  readonly zitat_seite: string | null
+  readonly zitat_eintragsnummer: string | null
+  readonly zitat_zugriffsdatum_wert1: string | null
+  readonly zitat_digitalisat_url: string | null
 }
 
-/** Belege (Quelle + Zitat) je Aussage-ID — ein Beleg ist eine `aussage_zitat`-Zeile, aufgelöst über
- * `zitat`/`quelle`. `quelle` fällt auf `quelle.typ` zurück, wenn kein `titel` gepflegt ist. */
+/** Belege je Aussage-ID — ein Beleg ist eine `aussage_zitat`-Zeile, aufgelöst über
+ * `zitat`/`quelle`/`archiv` (LEFT JOIN, ein Archiv ist optional). DREISTUFIG (S-08,
+ * U-1.7-belegliste-zweistufig, AP-1.10 PR-B): Quelle → Zitat → Transkript. */
 function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string[]): ReadonlyMap<string, readonly PersonDetailBeleg[]> {
   const karte = new Map<string, PersonDetailBeleg[]>()
   if (aussageIds.length === 0) return karte
 
-  const platzhalter = aussageIds.map((_, index) => `@id${index}`).join(', ')
-  const parameter: Record<string, string> = {}
-  aussageIds.forEach((id, index) => {
-    parameter[`id${index}`] = id
-  })
+  const { platzhalter, parameter } = inKlausel(aussageIds)
 
   const zeilen = db
     .prepare<
       Record<string, string>,
       BelegZeile
-    >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript, q.titel AS quelle_titel, q.typ AS quelle_typ
+    >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript,
+              q.typ AS quelle_typ, q.titel AS quelle_titel, q.signatur AS quelle_signatur,
+              q.unmittelbarkeit AS quelle_unmittelbarkeit, a.name AS archiv_name,
+              z.seite AS zitat_seite, z.eintragsnummer AS zitat_eintragsnummer,
+              z.zugriffsdatum_wert1 AS zitat_zugriffsdatum_wert1, z.digitalisat_url AS zitat_digitalisat_url
        FROM aussage_zitat az
        JOIN zitat z ON z.id = az.zitat_id
        JOIN quelle q ON q.id = z.quelle_id
+       LEFT JOIN archiv a ON a.id = q.archiv_id
        WHERE az.aussage_id IN (${platzhalter})
        ORDER BY az.aussage_id, z.id`,
     )
     .all(parameter)
 
   for (const zeile of zeilen) {
-    const beleg: PersonDetailBeleg = { quelle: zeile.quelle_titel ?? zeile.quelle_typ, zitat: zeile.transkript }
+    const beleg: PersonDetailBeleg = {
+      quelle: {
+        typ: QuelleTypEnum.parse(zeile.quelle_typ),
+        titel: zeile.quelle_titel,
+        archiv_name: zeile.archiv_name,
+        signatur: zeile.quelle_signatur,
+        unmittelbarkeit: zeile.quelle_unmittelbarkeit === null ? null : UnmittelbarkeitEnum.parse(zeile.quelle_unmittelbarkeit),
+      },
+      zitat: {
+        seite: zeile.zitat_seite,
+        eintragsnummer: zeile.zitat_eintragsnummer,
+        zugriffsdatum_wert1: zeile.zitat_zugriffsdatum_wert1,
+        digitalisat_url: zeile.zitat_digitalisat_url,
+      },
+      transkript: zeile.transkript,
+    }
     const liste = karte.get(zeile.aussage_id) ?? []
     liste.push(beleg)
     karte.set(zeile.aussage_id, liste)
@@ -149,20 +185,94 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
   return karte
 }
 
+/** `aussage.praedikat`-Werte, deren `wert_ref_id` auf `ort` zeigt (`docs/import-vertrag.md` §3:
+ * „wert_ref zeigt auf einen Ort oder eine Person" — E-7, polymorph, bewusst KEIN `wert_ref_typ`,
+ * `docs/schema/0002_kern.sql` Z.323, darum PRÄDIKATGESTEUERT statt spaltengesteuert aufgelöst).
+ * Bugfix (vorbestehend, `docs/80_Offene_Fragen.md` §22 U-1.25-profil-fixture): jedes andere
+ * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst gegen `person_flach` auf —
+ * die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
+const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'wohnort'])
+
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`
- * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id`. */
-function aussageWertAnzeige(zeile: AussageZeile): string | null {
+ * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id` — Letzteres
+ * NICHT mehr die rohe UUID (vorbestehender Bugfix), sondern der aufgelöste Orts- oder Personenname
+ * aus `ortsnamenKarte`/`personennamenKarte` (s. `PRAEDIKATE_MIT_ORT_REFERENZ`), analog wie
+ * `ereignisseLaden()` bereits `ereignis.ort_id` auf `ortsname` joint. Fehlt der aufgelöste Name
+ * (z. B. verwaister Verweis), liefert die Funktion `null` statt einer rohen ID — konsistent mit
+ * jedem anderen unbekannten Wert in dieser Abfrage. */
+function aussageWertAnzeige(
+  zeile: AussageZeile,
+  ortsnamenKarte: ReadonlyMap<string, string>,
+  personennamenKarte: ReadonlyMap<string, string>,
+): string | null {
   if (zeile.wert_text !== null) return zeile.wert_text
   if (zeile.datum_wert1 !== null) return zeile.datum_wert1
   if (zeile.wert_zahl !== null) return String(zeile.wert_zahl)
-  if (zeile.wert_ref_id !== null) return zeile.wert_ref_id
+  if (zeile.wert_ref_id !== null) {
+    const karte = PRAEDIKATE_MIT_ORT_REFERENZ.has(zeile.praedikat) ? ortsnamenKarte : personennamenKarte
+    return karte.get(zeile.wert_ref_id) ?? null
+  }
   return null
+}
+
+/** Bevorzugter Ortsname je `ort.id` (analog der Rang-Subquery in `ereignisseLaden`). */
+function ortsnamenLaden(db: Database.Database, ortIds: readonly string[]): ReadonlyMap<string, string> {
+  const karte = new Map<string, string>()
+  if (ortIds.length === 0) return karte
+  const { platzhalter, parameter } = inKlausel(ortIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      { readonly ort_id: string; readonly name: string | null }
+    >(`SELECT o.id AS ort_id, go.name AS name
+       FROM ort o
+       LEFT JOIN (
+         SELECT ort_id, name,
+           ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
+         FROM ortsname
+       ) go ON go.ort_id = o.id AND go.rang = 1
+       WHERE o.id IN (${platzhalter})`,
+    )
+    .all(parameter)
+  for (const zeile of zeilen) {
+    if (zeile.name !== null) karte.set(zeile.ort_id, zeile.name)
+  }
+  return karte
+}
+
+/** Anzeigename je `person.id` — `person_flach.anzeigename` (dieselbe abgeleitete Spalte wie
+ * überall sonst in dieser Abfrage, kein Neuaufbau des bevorzugten Namens hier). */
+function personennamenLaden(db: Database.Database, personIds: readonly string[]): ReadonlyMap<string, string> {
+  const karte = new Map<string, string>()
+  if (personIds.length === 0) return karte
+  const { platzhalter, parameter } = inKlausel(personIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      { readonly person_id: string; readonly anzeigename: string }
+    >(`SELECT person_id AS person_id, anzeigename AS anzeigename FROM person_flach WHERE person_id IN (${platzhalter})`)
+    .all(parameter)
+  for (const zeile of zeilen) karte.set(zeile.person_id, zeile.anzeigename)
+  return karte
+}
+
+/** Alle `wert_ref_id`-Werte der Aussagen, deren Prädikat auf die gewünschte Zielart zeigt
+ * (`ortBezogen`) — Vorstufe für die zwei IN-Abfragen `ortsnamenLaden`/`personennamenLaden`. */
+function wertRefIdsFuer(aussagen: readonly AussageZeile[], ortBezogen: boolean): readonly string[] {
+  const ids: string[] = []
+  for (const aussage of aussagen) {
+    if (aussage.wert_ref_id === null) continue
+    if (PRAEDIKATE_MIT_ORT_REFERENZ.has(aussage.praedikat) === ortBezogen) ids.push(aussage.wert_ref_id)
+  }
+  return ids
 }
 
 function grunddatenBauen(
   aussagen: readonly AussageZeile[],
   belegzahlKarte: ReadonlyMap<string, number>,
   belegeKarte: ReadonlyMap<string, readonly PersonDetailBeleg[]>,
+  ortsnamenKarte: ReadonlyMap<string, string>,
+  personennamenKarte: ReadonlyMap<string, string>,
 ): readonly PersonDetailGrunddatenFeld[] {
   const gruppenNachPraedikat = new Map<string, AussageZeile[]>()
   for (const aussage of aussagen) {
@@ -190,14 +300,14 @@ function grunddatenBauen(
 
     felder.push({
       praedikat,
-      wert: bevorzugte !== undefined ? aussageWertAnzeige(bevorzugte) : null,
+      wert: bevorzugte !== undefined ? aussageWertAnzeige(bevorzugte, ortsnamenKarte, personennamenKarte) : null,
       konfidenz: bevorzugte?.konfidenz ?? null,
       belegzahl: belegzahlKarte.get(praedikat) ?? 0,
       hat_widerspruch: hatWiderspruch(wertTupel),
       hatKonkurrierende: anzahlUnterscheidbareWerte(wertTupel) >= 2,
       aussagen: gruppe.map((aussage) => ({
         aussage_id: aussage.id,
-        wert: aussageWertAnzeige(aussage),
+        wert: aussageWertAnzeige(aussage, ortsnamenKarte, personennamenKarte),
         konfidenz: aussage.konfidenz,
         ist_bevorzugt: aussage.ist_bevorzugt === 1,
         begruendung: aussage.begruendung,
@@ -270,6 +380,7 @@ interface ElternKindZeile {
   readonly person_id: string
   readonly anzeigename: string
   readonly kantentyp: string
+  readonly ist_platzhalter: number
 }
 
 function elternLaden(db: Database.Database, personId: string): readonly ElternKindZeile[] {
@@ -277,9 +388,10 @@ function elternLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp
+    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.elternteil_id
+       JOIN person p ON p.id = el.elternteil_id
        WHERE el.kind_id = @personId`,
     )
     .all({ personId })
@@ -290,9 +402,10 @@ function kinderLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.kind_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp
+    >(`SELECT el.kind_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.kind_id
+       JOIN person p ON p.id = el.kind_id
        WHERE el.elternteil_id = @personId`,
     )
     .all({ personId })
@@ -303,11 +416,12 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT pp2.person_id AS person_id, pf.anzeigename AS anzeigename, part.typ AS kantentyp
+    >(`SELECT pp2.person_id AS person_id, pf.anzeigename AS anzeigename, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM partnerschaft_person pp1
        JOIN partnerschaft_person pp2 ON pp2.partnerschaft_id = pp1.partnerschaft_id AND pp2.person_id <> pp1.person_id
        JOIN partnerschaft part ON part.id = pp1.partnerschaft_id
        JOIN person_flach pf ON pf.person_id = pp2.person_id
+       JOIN person p ON p.id = pp2.person_id
        WHERE pp1.person_id = @personId`,
     )
     .all({ personId })
@@ -316,13 +430,13 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
 function beziehungenLaden(db: Database.Database, personId: string): readonly PersonDetailBeziehung[] {
   const beziehungen: PersonDetailBeziehung[] = []
   for (const zeile of elternLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of kinderLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of partnerLaden(db, personId)) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp) })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   return beziehungen
 }
@@ -394,6 +508,11 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const belegzahlKarte = belegzahlJePraedikatLaden(db, ein.personId)
   const belegeKarte = belegeJeAussageLaden(db, aussagen.map((aussage) => aussage.id))
 
+  // Bugfix `aussageWertAnzeige` (s. Kommentar dort): `wert_ref_id` prädikatgesteuert in zwei
+  // getrennten IN-Abfragen auflösen, statt je Aussage einzeln nachzuschlagen.
+  const ortsnamenKarte = ortsnamenLaden(db, wertRefIdsFuer(aussagen, true))
+  const personennamenKarte = personennamenLaden(db, wertRefIdsFuer(aussagen, false))
+
   return {
     kopf: {
       person_id: kopfZeile.person_id,
@@ -402,7 +521,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       ist_platzhalter: kopfZeile.ist_platzhalter === 1,
       privat: kopfZeile.privat === 1,
     },
-    grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte),
+    grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
     beziehungen: beziehungenLaden(db, ein.personId),
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],

@@ -5,12 +5,22 @@ import { describe, expect, it } from 'vitest'
 import { ALLE_FEHLERCODES } from '../../src/shared/fehler/codes'
 import fehlerRessourcen from '../../src/shared/i18n/de/fehler.json'
 import profilRessourcen from '../../src/shared/i18n/de/profil.json'
-import { PRAEDIKAT_SCHLUESSEL, beteiligungRolleSchluessel, ereignisTypSchluessel, gesundheitArtSchluessel, kantentypSchluessel, richtungSchluessel } from '../../src/renderer/ansichten/profil/profil-schluessel'
+import {
+  PRAEDIKAT_SCHLUESSEL,
+  beteiligungRolleSchluessel,
+  ereignisTypSchluessel,
+  gesundheitArtSchluessel,
+  kantentypSchluessel,
+  quelleTypSchluessel,
+  richtungSchluessel,
+  unmittelbarkeitSchluessel,
+} from '../../src/renderer/ansichten/profil/profil-schluessel'
 import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../src/shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../src/shared/schemata/ereignis'
 import { PartnerschaftTypEnum } from '../../src/shared/schemata/partnerschaft'
 import { PersonDetailBeziehungRichtungEnum, PersonDetailGesundheitArtEnum } from '../../src/shared/schemata/person-detail'
+import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../src/shared/schemata/quelle'
 
 /**
  * Erzwingt §7: jeder Fehlercode braucht einen i18n-Schlüssel `.titel` und `.was_tun`, und
@@ -87,6 +97,8 @@ describe('i18n-Ressourcen für den profil-Namespace (AP-1.7 PR-B)', () => {
     for (const typ of PartnerschaftTypEnum.options) schluessel.add(kantentypSchluessel(typ))
     for (const richtung of PersonDetailBeziehungRichtungEnum.options) schluessel.add(richtungSchluessel(richtung))
     for (const art of PersonDetailGesundheitArtEnum.options) schluessel.add(gesundheitArtSchluessel(art))
+    for (const typ of QuelleTypEnum.options) schluessel.add(quelleTypSchluessel(typ))
+    for (const unmittelbarkeit of UnmittelbarkeitEnum.options) schluessel.add(unmittelbarkeitSchluessel(unmittelbarkeit))
     for (const wert of Object.values(PRAEDIKAT_SCHLUESSEL)) schluessel.add(wert)
     return schluessel
   }

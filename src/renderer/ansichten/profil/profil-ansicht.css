@@ -121,3 +121,12 @@
 .wz-profil-ansicht__gesundheit-eintrag:last-child {
   border-bottom: none;
 }
+
+/* U-1.7-beziehung-platzhalter (AP-1.10 PR-B, A-17): farbunabhängige Platzhalter-Kennzeichnung
+ * über einen gestrichelten Rahmen, analog `.wz-tabellenzeile--platzhalter`
+ * (`src/renderer/bausteine/tabellenzeile.css`) — dieselbe Regel, zwei Konsumenten. */
+.wz-profil-ansicht__beziehung--platzhalter {
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+  border-radius: var(--wz-radius-klein);
+  padding-inline: var(--wz-abstand-8);
+}

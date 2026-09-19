@@ -22,6 +22,28 @@
   "beleg_schublade_titel": "Belege: {{feld}}",
   "beleg_schublade_keine_belege": "Keine Belege hinterlegt.",
 
+  "beleg_archiv_label": "Archiv: {{archiv}}",
+  "beleg_signatur_label": "Signatur: {{signatur}}",
+  "beleg_seite_label": "Seite {{seite}}",
+  "beleg_eintragsnummer_label": "Eintrag Nr. {{eintragsnummer}}",
+  "beleg_zugriffsdatum_label": "Zugriff am {{datum}}",
+  "beleg_digitalisat_link": "Digitalisat öffnen",
+
+  "quelle_typ_kirchenbuch": "Kirchenbuch",
+  "quelle_typ_standesamt": "Standesamt",
+  "quelle_typ_volkszaehlung": "Volkszählung",
+  "quelle_typ_zeitung": "Zeitung",
+  "quelle_typ_grabstein": "Grabstein",
+  "quelle_typ_familienbesitz": "Familienbesitz",
+  "quelle_typ_literatur": "Literatur",
+  "quelle_typ_website": "Website",
+  "quelle_typ_muendlich": "mündliche Quelle",
+  "quelle_typ_sonstiges": "Sonstiges",
+
+  "unmittelbarkeit_selbst_erlebt": "selbst erlebt",
+  "unmittelbarkeit_vom_hoerensagen": "vom Hörensagen",
+  "unmittelbarkeit_unbekannt": "Unmittelbarkeit unbekannt",
+
   "widerspruch_schublade_titel": "Widerspruch: {{feld}}",
   "widerspruch_bevorzugt": "Bevorzugt",
   "widerspruch_keine_begruendung": "Keine Begründung hinterlegt.",

@@ -314,13 +314,15 @@ function EreignisAbschnitt({ ereignisse }: { readonly ereignisse: readonly Perso
  * KEIN „hinzufügen" (S-07 nennt das, aber AP-1.7 PR-B ist lesend — Bearbeiten kommt im zweiten
  * Teil der Phase 1, s. Auftrag).
  *
- * ABWEICHUNG (CLAUDE.md §14 Fall 1, `docs/80_Offene_Fragen.md`): der PR-A-Vertrag
- * (`PersonDetailBeziehung`) trägt kein `ist_platzhalter` für die VERWANDTE Person — nur für die
- * angezeigte Person selbst (`PersonDetailKopf.ist_platzhalter`). Ein namenloser Platzhalter hat
- * aber laut `abl_person_ai` (`docs/schema/0003_abgeleitet.sql`) einen leeren `anzeigename` (kein
- * bevorzugter Name vorhanden) — genau dieser Fall wird hier als Platzhalter behandelt, damit A-17
- * („Platzhalterzeilen zeigen nie `anzeigename`") auch hier gilt, ohne den gesperrten PR-A-Vertrag
- * zu ändern. */
+ * U-1.7-beziehung-platzhalter (AP-1.10 PR-B, A-17, `docs/80_Offene_Fragen.md` §19 — behebt BEIDE
+ * dort benannten Fehlrichtungen): Platzhalter werden über das ECHTE `beziehung.ist_platzhalter`-
+ * Flag erkannt (der jetzt erweiterte `PersonDetailBeziehung`-Vertrag), NICHT mehr über einen
+ * leeren `anzeigename` erraten — ein leerer Name allein hätte auch eine echte, noch namenlose
+ * Person fälschlich als Platzhalter beschriftet. Die Kennzeichnung ist außerdem FARBUNABHÄNGIG
+ * (A-17/`docs/datenmodell.md` §2.14 „gestrichelte Umrandung, kein Name"): Text
+ * `platzhalter_bezeichnung` + gestrichelter Rahmen (`.wz-profil-ansicht__beziehung--platzhalter`,
+ * analog `.wz-tabellenzeile--platzhalter`) — die gedämpfte Farbe ist eine dritte, zusätzliche
+ * Zusicherung, nie die einzige. */
 function BeziehungenAbschnitt({ beziehungen }: { readonly beziehungen: readonly PersonDetailBeziehung[] }) {
   const { t } = useTranslation('profil')
   if (beziehungen.length === 0) return null
@@ -332,12 +334,15 @@ function BeziehungenAbschnitt({ beziehungen }: { readonly beziehungen: readonly 
       </Text>
       <ul className="wz-profil-ansicht__beziehungen">
         {beziehungen.map((beziehung, index) => (
-          <li key={`${beziehung.richtung}-${beziehung.person_id}-${index}`} className="wz-profil-ansicht__beziehung">
+          <li
+            key={`${beziehung.richtung}-${beziehung.person_id}-${index}`}
+            className={`wz-profil-ansicht__beziehung${beziehung.ist_platzhalter ? ' wz-profil-ansicht__beziehung--platzhalter' : ''}`}
+          >
             <Text rolle="beschriftung" als="span">
               {t(richtungSchluessel(beziehung.richtung))}
             </Text>
-            <Text rolle="koerper" farbe={beziehung.anzeigename.trim() === '' ? 'tertiaer' : 'primaer'} als="span">
-              {beziehung.anzeigename.trim() === '' ? t('platzhalter_bezeichnung') : beziehung.anzeigename}
+            <Text rolle="koerper" farbe={beziehung.ist_platzhalter ? 'tertiaer' : 'primaer'} als="span">
+              {beziehung.ist_platzhalter ? t('platzhalter_bezeichnung') : beziehung.anzeigename}
             </Text>
             <Text rolle="koerper-klein" als="span">
               {t(kantentypSchluessel(beziehung.kantentyp))}

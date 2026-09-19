@@ -25,6 +25,7 @@ import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
 import { PartnerschaftTypEnum } from './partnerschaft'
+import { QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 
 /** Nutzlast von `abfrage:person.detail`. */
 export interface PersonDetailEin {
@@ -45,12 +46,35 @@ export interface PersonDetailKopf {
   readonly privat: boolean
 }
 
-/** Ein einzelner Beleg (Quelle + Zitat) einer Aussage — eine `aussage_zitat`-Zeile, aufgelöst über
- * `zitat`/`quelle`. `quelle` ist die Anzeigebezeichnung der Quelle (Titel, sonst Typ als Fallback,
- * s. `src/main/abfragen/person-detail.ts`), `zitat` ist `zitat.transkript`. */
+/** Stufe 1 eines Belegs (S-08): die Quelle selbst — `docs/schema/0002_kern.sql` §2.7/§2.15.
+ * `archiv_name` kommt über `quelle.archiv_id` → `archiv.name` (LEFT JOIN, kann fehlen).
+ * `unmittelbarkeit` ist nur bei `typ === 'muendlich'` sinnvoll befüllt (§2.15), bei jedem anderen
+ * Typ `null` — die Anzeige entscheidet selbst, ob sie das Feld zeigt. */
+export interface PersonDetailBelegQuelle {
+  readonly typ: z.infer<typeof QuelleTypEnum>
+  readonly titel: string | null
+  readonly archiv_name: string | null
+  readonly signatur: string | null
+  readonly unmittelbarkeit: z.infer<typeof UnmittelbarkeitEnum> | null
+}
+
+/** Stufe 2 eines Belegs (S-08): das konkrete Zitat innerhalb der Quelle — `docs/schema/
+ * 0002_kern.sql` §2.7 (`zitat`). */
+export interface PersonDetailBelegZitat {
+  readonly seite: string | null
+  readonly eintragsnummer: string | null
+  readonly zugriffsdatum_wert1: string | null
+  readonly digitalisat_url: string | null
+}
+
+/** Ein einzelner Beleg einer Aussage — eine `aussage_zitat`-Zeile, aufgelöst über
+ * `zitat`/`quelle`/`archiv`. DREISTUFIG (S-08, U-1.7-belegliste-zweistufig, AP-1.10 PR-B):
+ * Quelle → Zitat → Transkript (Stufe 3, `zitat.transkript`, hier auf oberster Ebene, weil er der
+ * am häufigsten gezeigte Teil ist, nicht in `zitat` verschachtelt). */
 export interface PersonDetailBeleg {
-  readonly quelle: string
-  readonly zitat: string | null
+  readonly quelle: PersonDetailBelegQuelle
+  readonly zitat: PersonDetailBelegZitat
+  readonly transkript: string | null
 }
 
 /** Eine einzelne `aussage`-Zeile eines Grunddaten-Felds, mit ihren Belegen. */
@@ -102,12 +126,20 @@ export const PersonDetailBeziehungRichtungEnum = z.enum(['elternteil', 'kind', '
 
 /** Ein direkter Beziehungs-Eintrag (nur Eltern/Kinder/Partner, KEINE Geschwister, s. Kopfkommentar).
  * `kantentyp` ist `elternschaft.typ` (biologisch/adoptiv/stief/…) bei `richtung`
- * `'elternteil'`/`'kind'`, `partnerschaft.typ` bei `'partner'`. */
+ * `'elternteil'`/`'kind'`, `partnerschaft.typ` bei `'partner'`.
+ *
+ * `ist_platzhalter` (U-1.7-beziehung-platzhalter, A-17, AP-1.10 PR-B): das ECHTE
+ * `person.ist_platzhalter`-Flag der VERWANDTEN Person (JOIN, `docs/80_Offene_Fragen.md` §19) —
+ * NICHT über einen leeren `anzeigename` erraten. Ein leerer `anzeigename` allein sagt nur „kein
+ * bevorzugter Name gepflegt" (`abl_person_ai`, `docs/schema/0003_abgeleitet.sql`) und trifft auch
+ * auf echte, noch namenlose Personen zu — die zweite, praktisch häufigere Fehlrichtung, die dieses
+ * Feld behebt. */
 export interface PersonDetailBeziehung {
   readonly person_id: string
   readonly anzeigename: string
   readonly richtung: z.infer<typeof PersonDetailBeziehungRichtungEnum>
   readonly kantentyp: z.infer<typeof ElternschaftTypEnum> | z.infer<typeof PartnerschaftTypEnum>
+  readonly ist_platzhalter: boolean
 }
 
 export const PersonDetailGesundheitArtEnum = z.enum(['diagnose', 'risikofaktor'])
