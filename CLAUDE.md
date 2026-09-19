@@ -202,7 +202,7 @@ damit ein Test grün wird — dann ist der Code falsch oder die Regel muss per A
 
   Beide Wege prüfen dieselben drei Jobs; ein Skript übersieht keinen. Was **kein** Weg ersetzt: das `hueter`-Review vor jedem Merge.
   **Besser als beide wäre der dritte Weg:** die drei Jobs als `required_status_checks` ins Ruleset „Standard" aufnehmen. Dann verhindert der Server den Rot-Merge, statt dass ein Mensch oder ein Skript ihn verhindern soll. Offen, weil Ruleset-Änderungen dem Eigentümer gehören — Entscheidung steht in `80_Offene_Fragen.md`.
-- **Der PR ist das Gate für den geschützten Prüfpfad (ADR-025):** Änderungen an `test/invarianten/`, `test/golden/`, `test/schema/` oder den Migrations-Prüfsummen werden im Review gesondert begründet und abgesegnet, nicht mit dem Produktivcode durchgewinkt.
+- **Der PR ist das Gate für den geschützten Prüfpfad (ADR-025):** Änderungen an `test/invarianten/`, `test/golden/`, `test/schema/` oder den Migrations-Prüfsummen werden im Review gesondert begründet und abgesegnet, nicht mit dem Produktivcode durchgewinkt. **Ausnahme (ADR-028):** `test/golden/bilder/**` (Bildvergleich-Referenzbilder) darf zusammen mit `src/` im selben PR wandern — Sichtbaselines ziehen legitim mit der UI mit; die Kontrolle leistet dort das hueter-Review je PR statt das Gate. Alle anderen `test/golden/`-Pfade bleiben ausnahmslos geschützt.
 - **Kleine Commits im Branch, jeder mit grünem `pnpm pruefe`.** Ein Commit, der zwei Dinge tut, ist zwei Commits.
 - Commit-Betreff: `<bereich>: <was>`, deutsch, Imperativ. Bereiche: `core`, `main`, `renderer`, `shared`, `schema`, `test`, `ci`, `docs`.
   ```
