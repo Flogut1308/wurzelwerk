@@ -63,3 +63,17 @@ export function usePersonDetail(ein: Ein<'abfrage:person.detail'>, optionen?: Ab
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:pruefhinweise` (AP-1.8, F-07, 70_UX_Konzept.md §2 Fußzeile). Kein `ein` (der Kanal
+ * prüft immer den gesamten Bestand) — der Query-Key ist darum eine feste Zeichenkette statt eines
+ * `ein`-Objekts, analog wie es ein Kanal ohne Nutzlast nahelegt. Dieselbe Invalidierung wie die
+ * übrigen Abfrage-Hooks (`useDatenGeaendertAbo()`, `befehl-hooks.ts`).
+ */
+export function usePruefhinweise(optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:pruefhinweise'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:pruefhinweise'] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:pruefhinweise', null)),
+    enabled: optionen?.enabled ?? true,
+  })
+}

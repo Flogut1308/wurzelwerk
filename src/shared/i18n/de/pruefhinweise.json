@@ -1,0 +1,20 @@
+{
+  "fusszeile_anzahl_one": "{{count}} Prüfhinweis",
+  "fusszeile_anzahl_other": "{{count}} Prüfhinweise",
+
+  "liste_titel": "Prüfhinweise",
+  "sprung_knopf": "Zur Person",
+
+  "leer_titel": "Keine Prüfhinweise",
+  "leer_text": "Der Bestand enthält aktuell keine auffälligen Daten.",
+  "fehler_text": "Prüfhinweise konnten nicht geladen werden.",
+
+  "code_tod_vor_geburt": "Tod vor Geburt",
+  "code_bestattung_vor_tod": "Bestattung vor Tod",
+  "code_mutter_alter": "Mutter unter 12 oder über 55 Jahre bei der Geburt des Kindes",
+  "code_vater_alter": "Vater unter 12 oder über 80 Jahre bei der Geburt des Kindes",
+  "code_kind_vor_ehe": "Kind vor der Eheschließung der Eltern geboren",
+  "code_alter_ueber_110": "Alter über 110 Jahre",
+  "code_zyklus": "Zyklus im Stammbaum — Person wäre ihr eigener Vorfahre",
+  "code_ereignis_vor_ortsexistenz": "Ereignis liegt außerhalb der Existenz des Ortes"
+}

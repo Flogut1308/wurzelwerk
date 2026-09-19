@@ -3,19 +3,22 @@ import { useTranslation } from 'react-i18next'
 import type { ProjektInfo } from '../../../shared/ipc/vertrag'
 import type { PersonListeFilter, PersonListeZeile } from '../../../shared/schemata/person-liste'
 import { aufrufen } from '../../brücke/aufrufen'
-import { usePersonListe, useSuche } from '../../brücke/abfrage-hooks'
+import { usePersonListe, usePruefhinweise, useSuche } from '../../brücke/abfrage-hooks'
 import { Blaetterleiste } from '../../bausteine/blaetterleiste'
 import { Datentabelle, spaltenSchluessel, type DatentabelleLadezustand } from '../../bausteine/datentabelle'
 import { ALLE_DATENTABELLE_SPALTEN, spalteUmschalten, type DatentabelleSpalte } from '../../bausteine/datentabelle-spalten'
 import type { PersonListeRichtungWert, PersonListeSortierungWert } from '../../bausteine/datentabelle-sortierung'
 import { Filterleiste } from '../../bausteine/filterleiste'
 import { boolZuUmschalterZustand } from '../../bausteine/filterleiste-logik'
+import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
+import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Suchfeld } from '../../bausteine/suchfeld'
 import { Text } from '../../bausteine/text'
 import { Umschalter } from '../../bausteine/umschalter'
 import { ImportAssistent } from '../import/import-assistent'
 import { ProfilAnsicht } from '../profil/profil-ansicht'
+import { pruefhinweisCodeSchluessel } from './pruefhinweis-schluessel'
 import './listen-ansicht.css'
 
 /** Entscheidung D (`docs/arbeitspakete.md` AP-1.6): der Renderer setzt `proSeite` fest auf 100,
@@ -57,6 +60,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   const { t } = useTranslation('liste')
   const { t: tAllgemein } = useTranslation('allgemein')
   const { t: tImport } = useTranslation('import')
+  const { t: tPruef } = useTranslation('pruefhinweise')
 
   const [suchtext, setSuchtext] = useState('')
   const [filter, setFilter] = useState<PersonListeFilter>(FILTER_STANDARD)
@@ -71,11 +75,19 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   // AP-1.4b (S-10…S-13): der Import-Assistent als überlagerte Vollseite, Einstieg über den Knopf
   // im Kopf. `false` = geschlossen. Design-Review: §S-10 nennt die Einstiegs-Affordanz nicht.
   const [importOffen, setImportOffen] = useState(false)
+  // AP-1.8 PR-A (F-07): die Prüfhinweis-Liste als Seitenschublade, Einstieg über die Fußzeile
+  // (70_UX_Konzept.md §2: „Fußzeile: Speicherstatus, Personenzahl, Prüfhinweise" — Speicherstatus
+  // und Personenzahl sind eigene, noch nicht fällige Arbeitspakete; diese Fußzeile trägt vorerst
+  // nur die Prüfhinweise, spätere Pakete ergänzen die übrigen Felder in derselben Fußzeile).
+  // `false` = geschlossen.
+  const [pruefhinweiseOffen, setPruefhinweiseOffen] = useState(false)
 
   const sucheAktiv = suchtext.trim() !== ''
 
   const listeAbfrage = usePersonListe({ sortierung, richtung, seite, proSeite: PRO_SEITE, filter }, { enabled: !sucheAktiv })
   const sucheAbfrage = useSuche({ text: suchtext, grenze: PRO_SEITE }, { enabled: sucheAktiv })
+  const pruefhinweiseAbfrage = usePruefhinweise()
+  const pruefhinweiseAnzahl = pruefhinweiseAbfrage.data?.anzahl ?? 0
 
   const aktuelleAbfrage = sucheAktiv ? sucheAbfrage : listeAbfrage
   const ladezustand: DatentabelleLadezustand = aktuelleAbfrage.isError ? 'fehler' : aktuelleAbfrage.isPending ? 'laedt' : 'bereit'
@@ -177,9 +189,61 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
           gibt es keine Seiten zu blättern. */}
       {sucheAktiv ? null : <Blaetterleiste seite={seite} proSeite={PRO_SEITE} gesamt={gesamt} aufSeiteGeaendert={setSeite} />}
 
+      {/* AP-1.8 PR-A (F-07), 70_UX_Konzept.md §2: Fußzeile mit den Prüfhinweisen — Klick öffnet die
+          Liste (Seitenschublade) mit Sprung zur betroffenen Person. Reine Anzeige: kein Abhaken in
+          diesem Paket (Persistenz-Entscheidung offen, docs/80_Offene_Fragen.md). */}
+      <footer className="wz-listen-ansicht__fusszeile">
+        <Schaltflaeche variante="unauffaellig" aufKlick={() => setPruefhinweiseOffen(true)}>
+          {tPruef('fusszeile_anzahl', { count: pruefhinweiseAnzahl })}
+        </Schaltflaeche>
+      </footer>
+
       {geoeffnetePersonId === null ? null : <ProfilAnsicht personId={geoeffnetePersonId} aufSchliessen={() => setGeoeffnetePersonId(null)} />}
 
       {importOffen ? <ImportAssistent aufSchliessen={() => setImportOffen(false)} /> : null}
+
+      {pruefhinweiseOffen ? (
+        <Seitenschublade titel={tPruef('liste_titel')} aufSchliessen={() => setPruefhinweiseOffen(false)}>
+          {pruefhinweiseAbfrage.isError ? (
+            <Text rolle="hilfe" als="p">
+              {tPruef('fehler_text')}
+            </Text>
+          ) : null}
+          {pruefhinweiseAbfrage.isPending ? (
+            <Text rolle="hilfe" als="p">
+              {t('laedt')}
+            </Text>
+          ) : null}
+          {pruefhinweiseAbfrage.isSuccess && pruefhinweiseAbfrage.data.eintraege.length === 0 ? (
+            <LeerzustandBlock titel={tPruef('leer_titel')} text={tPruef('leer_text')} />
+          ) : null}
+          {pruefhinweiseAbfrage.isSuccess && pruefhinweiseAbfrage.data.eintraege.length > 0 ? (
+            <ul className="wz-pruefhinweis-liste">
+              {pruefhinweiseAbfrage.data.eintraege.map((eintrag, index) => (
+                <li key={`${eintrag.personId}-${eintrag.code}-${index}`} className="wz-pruefhinweis-liste__eintrag">
+                  <div className="wz-pruefhinweis-liste__text">
+                    <Text rolle="koerper" als="span">
+                      {eintrag.anzeigename}
+                    </Text>
+                    <Text rolle="hilfe" als="span">
+                      {tPruef(pruefhinweisCodeSchluessel(eintrag.code))}
+                    </Text>
+                  </div>
+                  <Schaltflaeche
+                    variante="sekundaer"
+                    aufKlick={() => {
+                      setGeoeffnetePersonId(eintrag.personId)
+                      setPruefhinweiseOffen(false)
+                    }}
+                  >
+                    {tPruef('sprung_knopf')}
+                  </Schaltflaeche>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Seitenschublade>
+      ) : null}
     </div>
   )
 }

@@ -49,3 +49,40 @@
   border: 1px solid var(--wz-rahmen-fein);
   border-radius: var(--wz-radius-standard);
 }
+
+/* AP-1.8 PR-A (F-07): Fußzeile mit den Prüfhinweisen (70_UX_Konzept.md §2). Nur ein Feld bislang
+   (s. Kommentar in listen-ansicht.tsx) — `justify-content: flex-end`, weil ein einzelnes Feld
+   sonst links verwaist wirkt; ein späteres Speicherstatus-/Personenzahl-Feld setzt links davon an. */
+.wz-listen-ansicht__fusszeile {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  border-top: 1px solid var(--wz-rahmen-fein);
+  padding-top: var(--wz-abstand-8);
+}
+
+.wz-pruefhinweis-liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-pruefhinweis-liste__eintrag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-abstand-16);
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+.wz-pruefhinweis-liste__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  min-width: 0;
+}
