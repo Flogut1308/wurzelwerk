@@ -8,6 +8,7 @@ import type { ElternschaftTypEnum } from '../../../shared/schemata/elternschaft'
 import type { EreignisTypEnum } from '../../../shared/schemata/ereignis'
 import type { PartnerschaftTypEnum } from '../../../shared/schemata/partnerschaft'
 import type { PersonDetailBeziehungRichtungEnum, PersonDetailGesundheitArtEnum } from '../../../shared/schemata/person-detail'
+import type { QuelleTypEnum, UnmittelbarkeitEnum } from '../../../shared/schemata/quelle'
 
 export function ereignisTypSchluessel(typ: z.infer<typeof EreignisTypEnum>): string {
   switch (typ) {
@@ -134,6 +135,46 @@ export function gesundheitArtSchluessel(art: z.infer<typeof PersonDetailGesundhe
       return 'gesundheit_diagnose'
     case 'risikofaktor':
       return 'gesundheit_risikofaktor'
+  }
+}
+
+/** AP-1.10 PR-B (U-1.7-belegliste-zweistufig, S-08): Stufe-1-Beschriftung einer Quelle, wenn kein
+ * `titel` gepflegt ist (`PersonDetailBelegQuelle.titel === null`) — dann trägt der Quellentyp
+ * allein die Bedeutung. */
+export function quelleTypSchluessel(typ: z.infer<typeof QuelleTypEnum>): string {
+  switch (typ) {
+    case 'kirchenbuch':
+      return 'quelle_typ_kirchenbuch'
+    case 'standesamt':
+      return 'quelle_typ_standesamt'
+    case 'volkszaehlung':
+      return 'quelle_typ_volkszaehlung'
+    case 'zeitung':
+      return 'quelle_typ_zeitung'
+    case 'grabstein':
+      return 'quelle_typ_grabstein'
+    case 'familienbesitz':
+      return 'quelle_typ_familienbesitz'
+    case 'literatur':
+      return 'quelle_typ_literatur'
+    case 'website':
+      return 'quelle_typ_website'
+    case 'muendlich':
+      return 'quelle_typ_muendlich'
+    case 'sonstiges':
+      return 'quelle_typ_sonstiges'
+  }
+}
+
+/** `quelle.unmittelbarkeit` (§2.15) — nur bei `typ === 'muendlich'` angezeigt, s. `BelegEintrag`. */
+export function unmittelbarkeitSchluessel(unmittelbarkeit: z.infer<typeof UnmittelbarkeitEnum>): string {
+  switch (unmittelbarkeit) {
+    case 'selbst_erlebt':
+      return 'unmittelbarkeit_selbst_erlebt'
+    case 'vom_hoerensagen':
+      return 'unmittelbarkeit_vom_hoerensagen'
+    case 'unbekannt':
+      return 'unmittelbarkeit_unbekannt'
   }
 }
 

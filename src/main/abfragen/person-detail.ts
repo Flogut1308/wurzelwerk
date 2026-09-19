@@ -22,6 +22,7 @@ import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
+import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
 import type {
   PersonDetailAus,
   PersonDetailBeleg,
@@ -122,37 +123,61 @@ function belegzahlJePraedikatLaden(db: Database.Database, personId: string): Rea
 interface BelegZeile {
   readonly aussage_id: string
   readonly transkript: string | null
-  readonly quelle_titel: string | null
   readonly quelle_typ: string
+  readonly quelle_titel: string | null
+  readonly quelle_signatur: string | null
+  readonly quelle_unmittelbarkeit: string | null
+  readonly archiv_name: string | null
+  readonly zitat_seite: string | null
+  readonly zitat_eintragsnummer: string | null
+  readonly zitat_zugriffsdatum_wert1: string | null
+  readonly zitat_digitalisat_url: string | null
 }
 
-/** Belege (Quelle + Zitat) je Aussage-ID — ein Beleg ist eine `aussage_zitat`-Zeile, aufgelöst über
- * `zitat`/`quelle`. `quelle` fällt auf `quelle.typ` zurück, wenn kein `titel` gepflegt ist. */
+/** Belege je Aussage-ID — ein Beleg ist eine `aussage_zitat`-Zeile, aufgelöst über
+ * `zitat`/`quelle`/`archiv` (LEFT JOIN, ein Archiv ist optional). DREISTUFIG (S-08,
+ * U-1.7-belegliste-zweistufig, AP-1.10 PR-B): Quelle → Zitat → Transkript. */
 function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string[]): ReadonlyMap<string, readonly PersonDetailBeleg[]> {
   const karte = new Map<string, PersonDetailBeleg[]>()
   if (aussageIds.length === 0) return karte
 
-  const platzhalter = aussageIds.map((_, index) => `@id${index}`).join(', ')
-  const parameter: Record<string, string> = {}
-  aussageIds.forEach((id, index) => {
-    parameter[`id${index}`] = id
-  })
+  const { platzhalter, parameter } = inKlausel(aussageIds)
 
   const zeilen = db
     .prepare<
       Record<string, string>,
       BelegZeile
-    >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript, q.titel AS quelle_titel, q.typ AS quelle_typ
+    >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript,
+              q.typ AS quelle_typ, q.titel AS quelle_titel, q.signatur AS quelle_signatur,
+              q.unmittelbarkeit AS quelle_unmittelbarkeit, a.name AS archiv_name,
+              z.seite AS zitat_seite, z.eintragsnummer AS zitat_eintragsnummer,
+              z.zugriffsdatum_wert1 AS zitat_zugriffsdatum_wert1, z.digitalisat_url AS zitat_digitalisat_url
        FROM aussage_zitat az
        JOIN zitat z ON z.id = az.zitat_id
        JOIN quelle q ON q.id = z.quelle_id
+       LEFT JOIN archiv a ON a.id = q.archiv_id
        WHERE az.aussage_id IN (${platzhalter})
        ORDER BY az.aussage_id, z.id`,
     )
     .all(parameter)
 
   for (const zeile of zeilen) {
-    const beleg: PersonDetailBeleg = { quelle: zeile.quelle_titel ?? zeile.quelle_typ, zitat: zeile.transkript }
+    const beleg: PersonDetailBeleg = {
+      quelle: {
+        typ: QuelleTypEnum.parse(zeile.quelle_typ),
+        titel: zeile.quelle_titel,
+        archiv_name: zeile.archiv_name,
+        signatur: zeile.quelle_signatur,
+        unmittelbarkeit: zeile.quelle_unmittelbarkeit === null ? null : UnmittelbarkeitEnum.parse(zeile.quelle_unmittelbarkeit),
+      },
+      zitat: {
+        seite: zeile.zitat_seite,
+        eintragsnummer: zeile.zitat_eintragsnummer,
+        zugriffsdatum_wert1: zeile.zitat_zugriffsdatum_wert1,
+        digitalisat_url: zeile.zitat_digitalisat_url,
+      },
+      transkript: zeile.transkript,
+    }
     const liste = karte.get(zeile.aussage_id) ?? []
     liste.push(beleg)
     karte.set(zeile.aussage_id, liste)

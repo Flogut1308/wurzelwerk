@@ -69,19 +69,50 @@ function ortAnlegen(db: Database.Database, name: string): string {
   return ortId
 }
 
-function quelleAnlegen(db: Database.Database, optionen: { readonly typ: string; readonly titel?: string }): string {
+function quelleAnlegen(
+  db: Database.Database,
+  optionen: { readonly typ: string; readonly titel?: string; readonly archivId?: string; readonly signatur?: string; readonly unmittelbarkeit?: string },
+): string {
   const quelleId = uuidv7()
-  db.prepare('INSERT INTO quelle (id, typ, titel) VALUES (@id, @typ, @titel)').run({
+  db.prepare(
+    `INSERT INTO quelle (id, typ, titel, archiv_id, signatur, unmittelbarkeit)
+     VALUES (@id, @typ, @titel, @archivId, @signatur, @unmittelbarkeit)`,
+  ).run({
     id: quelleId,
     typ: optionen.typ,
     titel: optionen.titel ?? null,
+    archivId: optionen.archivId ?? null,
+    signatur: optionen.signatur ?? null,
+    unmittelbarkeit: optionen.unmittelbarkeit ?? null,
   })
   return quelleId
 }
 
-function zitatAnlegen(db: Database.Database, quelleId: string, transkript: string): string {
+function archivAnlegen(db: Database.Database, name: string): string {
+  const archivId = uuidv7()
+  db.prepare(`INSERT INTO archiv (id, name) VALUES (@id, @name)`).run({ id: archivId, name })
+  return archivId
+}
+
+function zitatAnlegen(
+  db: Database.Database,
+  quelleId: string,
+  transkript: string,
+  optionen?: { readonly seite?: string; readonly eintragsnummer?: string; readonly zugriffsdatumWert1?: string; readonly digitalisatUrl?: string },
+): string {
   const zitatId = uuidv7()
-  db.prepare('INSERT INTO zitat (id, quelle_id, transkript) VALUES (@id, @quelleId, @transkript)').run({ id: zitatId, quelleId, transkript })
+  db.prepare(
+    `INSERT INTO zitat (id, quelle_id, transkript, seite, eintragsnummer, zugriffsdatum_wert1, digitalisat_url)
+     VALUES (@id, @quelleId, @transkript, @seite, @eintragsnummer, @zugriffsdatumWert1, @digitalisatUrl)`,
+  ).run({
+    id: zitatId,
+    quelleId,
+    transkript,
+    seite: optionen?.seite ?? null,
+    eintragsnummer: optionen?.eintragsnummer ?? null,
+    zugriffsdatumWert1: optionen?.zugriffsdatumWert1 ?? null,
+    digitalisatUrl: optionen?.digitalisatUrl ?? null,
+  })
   return zitatId
 }
 
@@ -130,8 +161,18 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
     try {
       const augustId = personAnlegen(db, { nachname: 'Wruck', vornamen: 'August' })
 
-      const quelleGrabstein = quelleAnlegen(db, { typ: 'grabstein', titel: 'Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11' })
-      const quelleErna = quelleAnlegen(db, { typ: 'muendlich', titel: 'Gespraech mit Erna Wruck, 12.09.2026' })
+      const archivFriedhof = archivAnlegen(db, 'Friedhofsamt Kwidzyn')
+      const quelleGrabstein = quelleAnlegen(db, {
+        typ: 'grabstein',
+        titel: 'Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11',
+        archivId: archivFriedhof,
+        signatur: 'Feld 4 / Reihe 11',
+      })
+      const quelleErna = quelleAnlegen(db, {
+        typ: 'muendlich',
+        titel: 'Gespraech mit Erna Wruck, 12.09.2026',
+        unmittelbarkeit: 'vom_hoerensagen',
+      })
 
       const aussage1961 = aussageAnlegen(db, augustId, {
         praedikat: 'todesdatum',
@@ -140,7 +181,12 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
         istBevorzugt: 1,
         begruendung: 'Der Grabstein ist die staerkere Quelle. Bevorzugt gegenueber Ernas Erinnerung.',
       })
-      const zitatGrabstein = zitatAnlegen(db, quelleGrabstein, 'AUGUST WRUCK 1890 - 1961')
+      const zitatGrabstein = zitatAnlegen(db, quelleGrabstein, 'AUGUST WRUCK 1890 - 1961', {
+        seite: 'Feld 4',
+        eintragsnummer: '11',
+        zugriffsdatumWert1: '2019-06-01',
+        digitalisatUrl: 'https://beispiel.invalid/grabstein.jpg',
+      })
       aussageZitatVerknuepfen(db, aussage1961, zitatGrabstein)
 
       const aussage1958 = aussageAnlegen(db, augustId, {
@@ -176,16 +222,51 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(werte).toContain('1961')
       expect(werte).toContain('1958')
 
+      // U-1.7-belegliste-zweistufig (AP-1.10 PR-B): das Belegdetail ist jetzt DREISTUFIG —
+      // Quelle (Typ/Titel/Archiv/Signatur/Unmittelbarkeit) → Zitat (Seite/Eintragsnummer/
+      // Zugriffsdatum/Digitalisat) → Transkript, statt der vorherigen flachen `{ quelle, zitat }`.
       const bevorzugteAussage = feld?.aussagen.find((aussage) => aussage.wert === '1961')
       expect(bevorzugteAussage?.ist_bevorzugt).toBe(true)
       expect(bevorzugteAussage?.begruendung).toBe('Der Grabstein ist die staerkere Quelle. Bevorzugt gegenueber Ernas Erinnerung.')
-      expect(bevorzugteAussage?.belege).toEqual([{ quelle: 'Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11', zitat: 'AUGUST WRUCK 1890 - 1961' }])
+      expect(bevorzugteAussage?.belege).toEqual([
+        {
+          quelle: {
+            typ: 'grabstein',
+            titel: 'Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11',
+            archiv_name: 'Friedhofsamt Kwidzyn',
+            signatur: 'Feld 4 / Reihe 11',
+            unmittelbarkeit: null,
+          },
+          zitat: {
+            seite: 'Feld 4',
+            eintragsnummer: '11',
+            zugriffsdatum_wert1: '2019-06-01',
+            digitalisat_url: 'https://beispiel.invalid/grabstein.jpg',
+          },
+          transkript: 'AUGUST WRUCK 1890 - 1961',
+        },
+      ])
 
       const nichtBevorzugteAussage = feld?.aussagen.find((aussage) => aussage.wert === '1958')
       expect(nichtBevorzugteAussage?.ist_bevorzugt).toBe(false)
       expect(nichtBevorzugteAussage?.begruendung).toBeNull()
       expect(nichtBevorzugteAussage?.belege).toEqual([
-        { quelle: 'Gespraech mit Erna Wruck, 12.09.2026', zitat: 'der ist gestorben, als ich in die Schule kam, das war 58 oder 59' },
+        {
+          quelle: {
+            typ: 'muendlich',
+            titel: 'Gespraech mit Erna Wruck, 12.09.2026',
+            archiv_name: null,
+            signatur: null,
+            unmittelbarkeit: 'vom_hoerensagen',
+          },
+          zitat: {
+            seite: null,
+            eintragsnummer: null,
+            zugriffsdatum_wert1: null,
+            digitalisat_url: null,
+          },
+          transkript: 'der ist gestorben, als ich in die Schule kam, das war 58 oder 59',
+        },
       ])
 
       expect(ergebnis.beziehungen).toEqual([])

@@ -3,6 +3,7 @@ import type { PersonDetailGrunddatenFeld } from '../../../shared/schemata/person
 import { konfidenzStufe } from '../../bausteine/feld-konfidenz'
 import { KonfidenzPunkt } from '../../bausteine/konfidenz-punkt'
 import { Text } from '../../bausteine/text'
+import { BelegEintrag } from './beleg-liste'
 import './widerspruchsblock.css'
 
 export interface WiderspruchsblockProps {
@@ -53,14 +54,7 @@ export function Widerspruchsblock({ feld }: WiderspruchsblockProps) {
               <ul className="wz-widerspruchsblock__belege">
                 {aussage.belege.map((beleg, index) => (
                   <li key={index}>
-                    <Text rolle="beschriftung" als="span">
-                      {beleg.quelle}
-                    </Text>
-                    {beleg.zitat !== null ? (
-                      <Text rolle="original" als="p">
-                        {beleg.zitat}
-                      </Text>
-                    ) : null}
+                    <BelegEintrag beleg={beleg} />
                   </li>
                 ))}
               </ul>

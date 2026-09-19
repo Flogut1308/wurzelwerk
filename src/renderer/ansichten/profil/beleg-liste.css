@@ -27,3 +27,22 @@
   padding-left: var(--wz-abstand-16);
   border-left: 2px solid var(--wz-rahmen-fein);
 }
+
+/*
+ * `BelegEintrag` — die dreistufige Beleg-Anzeige (S-08, AP-1.10 PR-B): Quelle-Zeile(n), eine
+ * optionale Zitatdetail-Zeile, das Transkript. Jede Stufe eine Zeile aus umbrechenden Häppchen
+ * (`flex-wrap`), damit ein fehlendes Feld (Archiv/Signatur/Seite/…) keine Lücke hinterlässt.
+ */
+.wz-beleg-eintrag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-beleg-eintrag__quelle,
+.wz-beleg-eintrag__zitatdetail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+}
