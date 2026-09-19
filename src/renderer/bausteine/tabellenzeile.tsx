@@ -1,9 +1,9 @@
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonListeZeile } from '../../shared/schemata/person-liste'
-import { lebensdatenAnzeige } from './datentabelle-format'
 import { spaltenRasterVorlage, type DatentabelleSpalte } from './datentabelle-spalten'
 import { KonfidenzPunkt, type KonfidenzStufe } from './konfidenz-punkt'
+import { lebensdatenAnzeige, lebensdatenFormatergebnis } from './lebensdaten-anzeige'
 import { Text } from './text'
 import { WiderspruchZeichen } from './widerspruch-zeichen'
 import './tabellenzeile.css'
@@ -38,11 +38,23 @@ function konfidenzStufe(wert: number | null): KonfidenzStufe | null {
  * `Tabellenzeile` — Molekül (docs/71_Designsystem.md §2.2), drei Zustände: normal · ausgewählt ·
  * Platzhalter (gestrichelt). Platzhalterzeilen zeigen **nie** `anzeigename` (A-17) — unabhängig
  * davon, was der Abfragevertrag dort liefert, ist die Anzeige hier bewusst generisch.
+ *
+ * AP-1.10 PR-A (U-1.6-lebensdaten-unschaerfe): die Lebensdaten-Zelle übersetzt `Formatergebnis`e
+ * aus `lebensdatenFormatergebnis()` (`src/renderer/bausteine/lebensdaten-anzeige.ts`, wiederum aus
+ * `src/core/datum/formatierer.ts`) über `t(schluessel, werte)` — der Namensraum `datum`
+ * (src/shared/i18n/de/datum.json) ist in `src/renderer/i18n/einrichten.ts` registriert. Keine
+ * eigene Formatierlogik hier (CLAUDE.md §14 Fall 1, jetzt geschlossen).
  */
 export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewaehlt, ariaRowIndex }: TabellenzeileProps) {
   const { t } = useTranslation('liste')
+  const { t: tDatum } = useTranslation('datum')
   const anklickbar = aufAusgewaehlt !== undefined
   const stufe = konfidenzStufe(zeile.konfidenz_min)
+
+  const geburtErgebnis = lebensdatenFormatergebnis(zeile.geburt_datum)
+  const todErgebnis = lebensdatenFormatergebnis(zeile.tod_datum)
+  const geburtText = geburtErgebnis === null ? null : tDatum(geburtErgebnis.schluessel, geburtErgebnis.werte)
+  const todText = todErgebnis === null ? null : tDatum(todErgebnis.schluessel, todErgebnis.werte)
 
   function klick() {
     aufAusgewaehlt?.(zeile.person_id)
@@ -76,7 +88,7 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
 
       {spalten.includes('lebensdaten') ? (
         <span role="cell" className="wz-tabellenzeile__zelle">
-          <Text rolle="zahl-tabelle">{lebensdatenAnzeige(zeile.geburt_jahr, zeile.tod_jahr)}</Text>
+          <Text rolle="zahl-tabelle">{lebensdatenAnzeige(geburtText, todText)}</Text>
         </span>
       ) : null}
 
@@ -86,10 +98,28 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
         </span>
       ) : null}
 
+      {spalten.includes('beruf') ? (
+        <span role="cell" className="wz-tabellenzeile__zelle">
+          <Text rolle="koerper-klein">{zeile.beruf ?? ''}</Text>
+        </span>
+      ) : null}
+
       {spalten.includes('konfidenz') ? (
         <span role="cell" className="wz-tabellenzeile__zelle wz-tabellenzeile__zelle--konfidenz">
           {stufe !== null ? <KonfidenzPunkt stufe={stufe} /> : null}
           {zeile.hat_widerspruch ? <WiderspruchZeichen /> : null}
+        </span>
+      ) : null}
+
+      {spalten.includes('belege') ? (
+        <span role="cell" className="wz-tabellenzeile__zelle">
+          <Text rolle="zahl-tabelle">{String(zeile.belegzahl)}</Text>
+        </span>
+      ) : null}
+
+      {spalten.includes('kinderzahl') ? (
+        <span role="cell" className="wz-tabellenzeile__zelle">
+          <Text rolle="zahl-tabelle">{String(zeile.kinderzahl)}</Text>
         </span>
       ) : null}
     </div>

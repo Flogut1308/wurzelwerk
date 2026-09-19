@@ -1,6 +1,7 @@
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import allgemein from '../../shared/i18n/de/allgemein.json'
+import datum from '../../shared/i18n/de/datum.json'
 import fehler from '../../shared/i18n/de/fehler.json'
 import importNs from '../../shared/i18n/de/import.json'
 import journal from '../../shared/i18n/de/journal.json'
@@ -30,10 +31,10 @@ export const i18n = i18next.createInstance()
 void i18n.use(initReactI18next).init({
   lng: 'de',
   fallbackLng: false,
-  ns: ['allgemein', 'fehler', 'import', 'journal', 'liste', 'menue', 'profil', 'pruefhinweise', 'zustandsbibliothek'],
+  ns: ['allgemein', 'datum', 'fehler', 'import', 'journal', 'liste', 'menue', 'profil', 'pruefhinweise', 'zustandsbibliothek'],
   defaultNS: 'allgemein',
   resources: {
-    de: { allgemein, fehler, import: importNs, journal, liste, menue, profil, pruefhinweise, zustandsbibliothek },
+    de: { allgemein, datum, fehler, import: importNs, journal, liste, menue, profil, pruefhinweise, zustandsbibliothek },
   },
   interpolation: {
     escapeValue: false,

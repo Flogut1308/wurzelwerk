@@ -12,49 +12,17 @@
 //    Quellenart ist für DIESE personenzentrierte Abfrage nicht relevant).
 // 2. Kölner Phonetik (`name_phonetik`, `verfahren = 'koelner'`) als schwächere zweite Quelle — nur
 //    für Personen, die die Volltextsuche NICHT bereits gefunden hat (Dedupe).
+//
+// AP-1.10 PR-A (U-1.6-suche-ohne-filter-sortierung-seite): `ein.grenze` bleibt das Kandidatenfenster
+// über Volltext+Phonetik (wie bisher), aber Filter/Sortierung/Seite wirken jetzt DARAUF — mit genau
+// den Funktionen aus `src/main/abfragen/person-liste.ts` (`filterBedingungen`, `whereSql`,
+// `zeilenLaden`, `vergleicheZeilen`, `zeileZuAusgabe`), keine zweite Implementierung. Die
+// Bedienelemente der Listenansicht bleiben darum während einer aktiven Suche wirksam, statt
+// sichtbar gesperrt zu werden (`src/renderer/ansichten/liste/listen-ansicht.tsx`).
 import type Database from 'better-sqlite3'
 import { sucheAnfrageBauen } from '../../core/suche/anfrage'
 import type { SucheAus, SucheEin, SucheTreffer } from '../../shared/schemata/person-liste'
-
-interface AnzeigeZeile {
-  readonly person_id: string
-  readonly anzeigename: string
-  readonly geburt_jahr: number | null
-  readonly tod_jahr: number | null
-  readonly geburt_ort_name: string | null
-  readonly konfidenz_min: number | null
-  readonly hat_widerspruch: number
-  readonly ist_platzhalter: number
-}
-
-/** Lädt die Anzeigefelder aus `person_flach`/`person` für genau die übergebenen `person_id`s, in
- * derselben Reihenfolge irrelevant — Aufrufer liest über die zurückgegebene `Map`. */
-function anzeigeZeilenLaden(db: Database.Database, personIds: readonly string[]): ReadonlyMap<string, AnzeigeZeile> {
-  const karte = new Map<string, AnzeigeZeile>()
-  if (personIds.length === 0) return karte
-
-  const platzhalter = personIds.map((_, index) => `@id${index}`).join(', ')
-  const parameter: Record<string, string> = {}
-  personIds.forEach((id, index) => {
-    parameter[`id${index}`] = id
-  })
-
-  const zeilen = db
-    .prepare<
-      Record<string, string>,
-      AnzeigeZeile
-    >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.geburt_jahr AS geburt_jahr,
-              pf.tod_jahr AS tod_jahr, pf.geburt_ort_name AS geburt_ort_name, pf.konfidenz_min AS konfidenz_min,
-              pf.hat_widerspruch AS hat_widerspruch, p.ist_platzhalter AS ist_platzhalter
-       FROM person_flach pf
-       JOIN person p ON p.id = pf.person_id
-       WHERE pf.person_id IN (${platzhalter})`,
-    )
-    .all(parameter)
-
-  for (const zeile of zeilen) karte.set(zeile.person_id, zeile)
-  return karte
-}
+import { filterBedingungen, vergleicheZeilen, whereSql, zeileZuAusgabe, zeilenLaden } from './person-liste'
 
 interface VolltextZeile {
   readonly person_id: string | null
@@ -124,31 +92,31 @@ function phonetikPersonenIds(db: Database.Database, koelnerCodes: readonly strin
   return zeilen.map((zeile) => zeile.person_id)
 }
 
-function treffer(personId: string, quelle: SucheTreffer['quelle'], anzeige: AnzeigeZeile): SucheTreffer {
-  return {
-    person_id: anzeige.person_id,
-    anzeigename: anzeige.anzeigename,
-    geburt_jahr: anzeige.geburt_jahr,
-    tod_jahr: anzeige.tod_jahr,
-    geburt_ort_name: anzeige.geburt_ort_name,
-    konfidenz_min: anzeige.konfidenz_min,
-    hat_widerspruch: anzeige.hat_widerspruch === 1,
-    ist_platzhalter: anzeige.ist_platzhalter === 1,
-    quelle,
-  }
+/** `pf.person_id IN (...)`-Bedingung für eine feste Liste von Kandidaten-IDs — eigener Helfer statt
+ * `filterBedingungen()`-Erweiterung: die ID-Liste kommt aus der Volltext-/Phonetiksuche, nicht aus
+ * `PersonListeFilter`, und ist damit kein Filter im Sinn dieses Typs. */
+function idsBedingung(ids: readonly string[]): { readonly bedingung: string; readonly parameter: Record<string, string> } {
+  const platzhalter = ids.map((_, index) => `@sid${index}`).join(', ')
+  const parameter: Record<string, string> = {}
+  ids.forEach((id, index) => {
+    parameter[`sid${index}`] = id
+  })
+  return { bedingung: `pf.person_id IN (${platzhalter})`, parameter }
 }
 
-/** `abfrage:suche` (55_Architektur.md §5.2, AP-1.6 PR1). */
+/** `abfrage:suche` (55_Architektur.md §5.2, AP-1.6 PR1, AP-1.10 PR-A). */
 export function suche(db: Database.Database, ein: SucheEin): SucheAus {
   const anfrage = sucheAnfrageBauen(ein.text)
 
   const gesehen = new Set<string>()
-  const eintraege: Array<{ readonly personId: string; readonly quelle: SucheTreffer['quelle'] }> = []
+  const quelleJePersonId = new Map<string, SucheTreffer['quelle']>()
+  const kandidatenIds: string[] = []
 
   for (const personId of volltextPersonenIds(db, anfrage.matchAusdruck)) {
-    if (eintraege.length >= ein.grenze) break
+    if (kandidatenIds.length >= ein.grenze) break
     gesehen.add(personId)
-    eintraege.push({ personId, quelle: 'volltext' })
+    quelleJePersonId.set(personId, 'volltext')
+    kandidatenIds.push(personId)
   }
 
   // Phonetik nur bei GENAU einem Suchwort: `name_phonetik` codiert ausschließlich `name.nachname`
@@ -156,29 +124,38 @@ export function suche(db: Database.Database, ein: SucheEin): SucheAus {
   // (z. B. "Anna Krause") ist unklar, welches Wort der Nachname wäre, und ein Code-Treffer auf nur
   // eines der Wörter würde ansonsten Personen liefern, die dem GESAMTEN Suchtext gar nicht ähneln
   // (die AND-Semantik der Volltextsuche über mehrere Phrasen hätte für die Phonetik kein Gegenstück).
-  if (eintraege.length < ein.grenze && anfrage.tokens.length === 1) {
+  if (kandidatenIds.length < ein.grenze && anfrage.tokens.length === 1) {
     for (const personId of phonetikPersonenIds(db, anfrage.koelnerCodes)) {
-      if (eintraege.length >= ein.grenze) break
+      if (kandidatenIds.length >= ein.grenze) break
       if (gesehen.has(personId)) continue
       gesehen.add(personId)
-      eintraege.push({ personId, quelle: 'phonetik' })
+      quelleJePersonId.set(personId, 'phonetik')
+      kandidatenIds.push(personId)
     }
   }
 
-  const anzeigeKarte = anzeigeZeilenLaden(
-    db,
-    eintraege.map((eintrag) => eintrag.personId),
-  )
-
-  const treffervoll: SucheTreffer[] = []
-  for (const eintrag of eintraege) {
-    const anzeige = anzeigeKarte.get(eintrag.personId)
-    // Defensiv: eine Person könnte zwischen Indexsuche und Anzeige-Join gelöscht worden sein
-    // (theoretisch möglich, da diese Abfrage ohne eigene Transaktion läuft) — dann einfach auslassen
-    // statt eine unvollständige Zeile zurückzugeben.
-    if (anzeige === undefined) continue
-    treffervoll.push(treffer(eintrag.personId, eintrag.quelle, anzeige))
+  if (kandidatenIds.length === 0) {
+    return { treffer: [], gesamt: 0 }
   }
 
-  return { treffer: treffervoll }
+  const { bedingungen, parameter } = filterBedingungen(ein.filter)
+  const { bedingung: idsBedingungText, parameter: idsParameter } = idsBedingung(kandidatenIds)
+  const whereKlausel = whereSql([...bedingungen, idsBedingungText])
+  const zeilen = zeilenLaden(db, whereKlausel, { ...parameter, ...idsParameter })
+
+  const sortiert = [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein))
+  const start = (ein.seite - 1) * ein.proSeite
+  const seite = sortiert.slice(start, start + ein.proSeite)
+
+  const treffervoll: SucheTreffer[] = []
+  for (const zeile of seite) {
+    const quelle = quelleJePersonId.get(zeile.person_id)
+    // Defensiv (CLAUDE.md §4: kein `!`): `zeile` kommt aus `kandidatenIds`, jede dieser IDs hat beim
+    // Einsammeln oben einen Eintrag in `quelleJePersonId` erhalten — dieser Zweig sollte unerreichbar
+    // sein, schützt aber vor einer stillen `undefined`-Weitergabe, falls sich das je ändert.
+    if (quelle === undefined) continue
+    treffervoll.push({ ...zeileZuAusgabe(zeile), quelle })
+  }
+
+  return { treffer: treffervoll, gesamt: zeilen.length }
 }

@@ -90,16 +90,17 @@ test.describe('Ablauf 01 — Import und Liste', () => {
     await expect(fenster.getByText('Erna Wruck')).toBeVisible()
     await expect(fenster.getByText('Walter Wruck')).toBeVisible()
 
-    // Filter/Sortierung wirken auf `abfrage:suche` nicht (kennt weder Filter noch Sortierung,
-    // `docs/80_Offene_Fragen.md` §17) — während der aktiven Suche werden sie sichtbar deaktiviert
-    // dargestellt statt klickbar-aber-wirkungslos zu bleiben.
-    await expect(fenster.getByRole('checkbox', { name: 'Platzhalter' })).toBeDisabled()
-    await expect(fenster.getByRole('checkbox', { name: 'Privat' })).toBeDisabled()
-    await expect(fenster.getByRole('checkbox', { name: 'Hat Widerspruch' })).toBeDisabled()
-    await expect(fenster.getByRole('combobox', { name: 'Konfidenz mindestens' })).toBeDisabled()
-    await expect(fenster.getByRole('button', { name: 'Name', exact: true })).toBeDisabled()
+    // Seit AP-1.10 PR-A (U-1.6-suche-ohne-filter-sortierung-seite) trägt `abfrage:suche` dieselben
+    // Filter-/Sortier-/Seitenfelder wie `abfrage:person.liste` — Filterleiste und Spaltenkopf-
+    // Sortierung bleiben darum auch während einer aktiven Suche bedienbar (kein sichtbares Sperren
+    // mehr, s. Kommentare in `filterleiste.tsx`/`datentabelle.tsx`).
+    await expect(fenster.getByRole('checkbox', { name: 'Platzhalter' })).toBeEnabled()
+    await expect(fenster.getByRole('checkbox', { name: 'Privat' })).toBeEnabled()
+    await expect(fenster.getByRole('checkbox', { name: 'Hat Widerspruch' })).toBeEnabled()
+    await expect(fenster.getByRole('combobox', { name: 'Konfidenz mindestens' })).toBeEnabled()
+    await expect(fenster.getByRole('button', { name: 'Name', exact: true })).toBeEnabled()
 
-    // Suchfeld leeren: Filter/Sortierung wirken wieder, die Kontrollen sind wieder bedienbar.
+    // Suchfeld leeren: zurück auf `abfrage:person.liste`, die Kontrollen bleiben bedienbar.
     await fenster.getByPlaceholder('Suchen…').fill('')
     await expect(fenster.getByRole('checkbox', { name: 'Platzhalter' })).toBeEnabled()
     await expect(fenster.getByRole('button', { name: 'Name', exact: true })).toBeEnabled()

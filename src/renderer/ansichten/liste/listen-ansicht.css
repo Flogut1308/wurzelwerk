@@ -4,6 +4,12 @@
  * `src/renderer/gestaltung/basis.css`) und reicht die restliche Höhe an den Tabellenbereich
  * weiter, damit `Datentabelle` (`height: 100%`, virtualisiertes Scrollen) eine echte, von Null
  * verschiedene Höhe zum Messen bekommt.
+ *
+ * AP-1.10 PR-A Regressionsfix (Zeitraum-/Ort-Filter zogen `.wz-listen-ansicht__werkzeuge` in die
+ * Höhe, wodurch der einzige schrumpfbare Flex-Posten — der Tabellenbereich, `min-height: 0` —
+ * bei knappem Fenster auf 0 kollabierte, s. `.wz-listen-ansicht__tabelle-bereich` unten):
+ * `overflow-y: auto`, damit ein zu voller Werkzeug-/Filterbereich die Seite scrollen lässt statt
+ * den Tabellenbereich zu verdrängen.
  */
 
 .wz-listen-ansicht {
@@ -12,6 +18,7 @@
   height: 100vh;
   padding: var(--wz-abstand-24);
   gap: var(--wz-abstand-16);
+  overflow-y: auto;
 }
 
 .wz-listen-ansicht__kopf {
@@ -43,9 +50,14 @@
   gap: var(--wz-abstand-8);
 }
 
+/* `min-height` statt `0`: der Bereich darf schrumpfen (die Kopfzeile-Filter/Spaltenwahl gehen vor),
+ * aber nie unter eine Höhe, in der Kopfzeile und Leer-/Fehlerzustand noch Platz haben — sonst
+ * verschwindet die (leere) Tabelle vollständig statt nur zu scrollen (Regressionsfix AP-1.10 PR-A,
+ * s. Kommentar am `.wz-listen-ansicht`-Wurzelelement oben). Aus `--wz-zeilenhoehe-tabelle`
+ * abgeleitet statt eines freistehenden Pixelwerts: Kopfzeile + vier Zeilen Platz. */
 .wz-listen-ansicht__tabelle-bereich {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: calc(var(--wz-zeilenhoehe-tabelle) * 5);
   border: 1px solid var(--wz-rahmen-fein);
   border-radius: var(--wz-radius-standard);
 }

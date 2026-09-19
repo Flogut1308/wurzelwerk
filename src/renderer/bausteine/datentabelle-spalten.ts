@@ -1,18 +1,17 @@
 // AP-1.6 Stufe 3 (C-16 „Spaltenwahl"): welche Spalten die `Datentabelle` überhaupt kennt, in
 // welcher Reihenfolge sie erscheinen, und die reine Umschaltlogik für die Sichtbarkeit.
 //
-// ABWEICHUNG vom vollen Spaltensatz aus docs/72_Screens_und_Flows.md S-05 ("Name · Lebensdaten ·
-// Geburtsort · Beruf · Konfidenz · Belege · Kinderzahl · benutzerdefinierte Felder"), CLAUDE.md §14
-// Fall 1: `PersonListeZeile` (src/shared/schemata/person-liste.ts, AP-1.6 Stufe 1) trägt bisher nur
-// `anzeigename`, `geburt_jahr`/`tod_jahr`, `geburt_ort_name` und die Konfidenz-/Widerspruchsfelder —
-// Beruf, Belegzahl, Kinderzahl und benutzerdefinierte Felder gibt es im Abfragevertrag noch nicht.
-// Die vier hier gebauten Spalten sind darum kein bewusster Scope-Schnitt am Design, sondern eine
-// Datenvertrags-Grenze: nicht vorgreifen (CLAUDE.md §10), bis der Vertrag die übrigen Felder liefert
-// (vermerkt in docs/80_Offene_Fragen.md, AP-1.6-Nachtrag Stufe 3).
-export type DatentabelleSpalte = 'name' | 'lebensdaten' | 'geburtsort' | 'konfidenz'
+// AP-1.10 PR-A (U-1.6-spalten-datenvertrag, jetzt geschlossen): `PersonListeZeile`
+// (src/shared/schemata/person-liste.ts) trägt seitdem Beruf, Belegzahl und Kinderzahl — die drei
+// fehlenden Spalten aus dem vollen S-05-Spaltensatz ("Name · Lebensdaten · Geburtsort · Beruf ·
+// Konfidenz · Belege · Kinderzahl · benutzerdefinierte Felder") ergänzen darum die vier Spalten der
+// Stufe-1-Fassung. Nur „benutzerdefinierte Felder" bleibt offen — das ist ein eigenständiges
+// Feldsystem (A-18, `feld_definition`/`feld_wert`), kein einzelnes zusätzliches `PersonListeZeile`-
+// Feld, und darum kein Fall für diese Stufe.
+export type DatentabelleSpalte = 'name' | 'lebensdaten' | 'geburtsort' | 'beruf' | 'konfidenz' | 'belege' | 'kinderzahl'
 
 /** Standardreihenfolge — auch die Reihenfolge, in die `spalteUmschalten` beim Wiedereinblenden zurückfällt. */
-export const ALLE_DATENTABELLE_SPALTEN: readonly DatentabelleSpalte[] = ['name', 'lebensdaten', 'geburtsort', 'konfidenz']
+export const ALLE_DATENTABELLE_SPALTEN: readonly DatentabelleSpalte[] = ['name', 'lebensdaten', 'geburtsort', 'beruf', 'konfidenz', 'belege', 'kinderzahl']
 
 /**
  * Schaltet eine Spalte sichtbar/unsichtbar. Zwei Regeln, beide Absicht:
@@ -35,7 +34,10 @@ const SPALTEN_BREITE: Readonly<Record<DatentabelleSpalte, string>> = {
   name: 'minmax(200px, 2fr)',
   lebensdaten: 'minmax(120px, 1fr)',
   geburtsort: 'minmax(160px, 1fr)',
+  beruf: 'minmax(140px, 1fr)',
   konfidenz: '96px',
+  belege: '88px',
+  kinderzahl: '96px',
 }
 
 /** CSS-`grid-template-columns`-Wert für die aktuell sichtbaren Spalten, in Standardreihenfolge. */
