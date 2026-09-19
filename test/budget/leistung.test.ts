@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
 import { personListe } from '../../src/main/abfragen/person-liste'
+import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
 import { suche } from '../../src/main/abfragen/suche'
 import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
@@ -77,6 +78,23 @@ describe('Leistungsbudget: abfrage:person.liste / abfrage:suche bei 2000 Persone
         laufzeitenMs.push(performance.now() - start)
       }
       budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:suche')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('Leistungsbudget: abfrage:pruefhinweise bei 2000 Personen (AP-1.8)', () => {
+  it('abfrage:pruefhinweise (vollständige Bestandsprüfung) liegt im Median unter 1000 ms', () => {
+    const db = grossbestandAufbauen()
+    try {
+      const laufzeitenMs: number[] = []
+      for (let i = 0; i < DURCHLAEUFE; i += 1) {
+        const start = performance.now()
+        pruefhinweise(db)
+        laufzeitenMs.push(performance.now() - start)
+      }
+      budgetErfuellen(median(laufzeitenMs), 1000, 'abfrage:pruefhinweise')
     } finally {
       db.close()
     }
