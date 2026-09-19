@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Befund } from '../../../shared/import/imp-codes'
 import type { Trockenlaufbericht } from '../../../shared/import/trockenlauf-bericht'
-import type { PersonListeFilter, PersonListeZeile } from '../../../shared/schemata/person-liste'
+import type { PersonListeDatumsgruppe, PersonListeFilter, PersonListeZeile } from '../../../shared/schemata/person-liste'
 import { Abzeichen, type AbzeichenVariante } from '../../bausteine/abzeichen'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
@@ -58,6 +58,17 @@ const TEXT_ROLLEN: readonly TextRolle[] = [
   'zahl-tabelle',
 ]
 
+/** AP-1.10 PR-A: Beispiel-Datumsgruppe „etwa {{jahr}}" (Modifikator `etwa`, S-05-Beispielzeile
+ * „etwa 1890 – 1961"). `sortVon`/`sortBis` sind für die Anzeige irrelevant (der Formatierer liest
+ * sie nicht) — hier plausible, aber nicht exakt berechnete Platzhalterwerte. */
+function beispielDatumEtwa(jahr: string): PersonListeDatumsgruppe {
+  return { kalender: 'gregorian', modifikator: 'etwa', praezision: 'jahr', wert1: jahr, wert2: null, originaltext: null, sortVon: 0, sortBis: 0 }
+}
+
+function beispielDatumExakt(jahr: string): PersonListeDatumsgruppe {
+  return { kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: jahr, wert2: null, originaltext: null, sortVon: 0, sortBis: 0 }
+}
+
 /** Feste Beispielperson (71 §2.5: „echte Daten, keine Blindtexte") — dieselben Personen aus dem
  * Design-Briefing, hier nur als Anzeigedaten für die Bibliothek, keine Fachlogik. */
 function beispielZeile(ueberschreibung: Partial<PersonListeZeile> = {}): PersonListeZeile {
@@ -70,14 +81,44 @@ function beispielZeile(ueberschreibung: Partial<PersonListeZeile> = {}): PersonL
     konfidenz_min: 3,
     hat_widerspruch: false,
     ist_platzhalter: false,
+    beruf: 'Schreinermeister',
+    belegzahl: 3,
+    kinderzahl: 2,
+    geburt_datum: beispielDatumEtwa('1890'),
+    tod_datum: beispielDatumExakt('1961'),
     ...ueberschreibung,
   }
 }
 
 const BEISPIEL_ZEILEN: readonly PersonListeZeile[] = [
   beispielZeile(),
-  beispielZeile({ person_id: 'tmp:emma-wruck', anzeigename: 'Emma Wruck', geburt_jahr: 1895, tod_jahr: 1970, konfidenz_min: 4, hat_widerspruch: true }),
-  beispielZeile({ person_id: 'tmp:vater-august', anzeigename: '', geburt_jahr: null, tod_jahr: null, geburt_ort_name: null, konfidenz_min: null, ist_platzhalter: true }),
+  beispielZeile({
+    person_id: 'tmp:emma-wruck',
+    anzeigename: 'Emma Wruck',
+    geburt_jahr: 1895,
+    tod_jahr: 1970,
+    konfidenz_min: 4,
+    hat_widerspruch: true,
+    beruf: 'Hebamme',
+    belegzahl: 1,
+    kinderzahl: 4,
+    geburt_datum: beispielDatumExakt('1895'),
+    tod_datum: beispielDatumExakt('1970'),
+  }),
+  beispielZeile({
+    person_id: 'tmp:vater-august',
+    anzeigename: '',
+    geburt_jahr: null,
+    tod_jahr: null,
+    geburt_ort_name: null,
+    konfidenz_min: null,
+    ist_platzhalter: true,
+    beruf: null,
+    belegzahl: 0,
+    kinderzahl: 0,
+    geburt_datum: null,
+    tod_datum: null,
+  }),
 ]
 
 const BEISPIEL_FILTER: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }

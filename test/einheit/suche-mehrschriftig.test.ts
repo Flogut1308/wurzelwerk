@@ -9,6 +9,23 @@ import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { suche } from '../../src/main/abfragen/suche'
+import type { PersonListeFilter, SucheEin } from '../../src/shared/schemata/person-liste'
+
+const FILTER_ALLE: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
+
+/** AP-1.10 PR-A: `abfrage:suche` trägt seitdem Filter/Sortierung/Seite — diese Tests prüfen nur die
+ * Trefferermittlung (Volltext/Phonetik/Dedupe), darum hier feste, neutrale Vorgabewerte. */
+function sucheEingabe(ueberschreibung: Partial<SucheEin> & Pick<SucheEin, 'text'>): SucheEin {
+  return {
+    grenze: 10,
+    filter: FILTER_ALLE,
+    sortierung: 'nachname',
+    richtung: 'auf',
+    seite: 1,
+    proSeite: 100,
+    ...ueberschreibung,
+  }
+}
 
 function personMitNamenAnlegen(
   db: Database.Database,
@@ -46,7 +63,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       personMitNamenAnlegen(db, { nachname: 'Schmidt' })
 
-      const ergebnis = suche(db, { text: 'Schmidt', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Schmidt' }))
 
       expect(ergebnis.treffer).toHaveLength(1)
       expect(ergebnis.treffer[0]?.anzeigename).toBe('Schmidt')
@@ -68,7 +85,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
       ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
       umschriftAnlegen(db, personId, kyrillischeId, 'Scerbakov')
 
-      const ergebnis = suche(db, { text: 'Scerbakov', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Scerbakov' }))
 
       expect(ergebnis.treffer.map((treffer) => treffer.person_id)).toContain(personId)
       const eigenerTreffer = ergebnis.treffer.find((treffer) => treffer.person_id === personId)
@@ -90,7 +107,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
       ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
       umschriftAnlegen(db, personId, kyrillischeId, 'Scerbakov')
 
-      const ergebnis = suche(db, { text: 'Щербаков', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Щербаков' }))
 
       expect(ergebnis.treffer.map((treffer) => treffer.person_id)).toContain(personId)
     } finally {
@@ -103,7 +120,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const personId = personMitNamenAnlegen(db, { nachname: 'Wróbel' })
 
-      const ergebnis = suche(db, { text: 'Wrobel', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Wrobel' }))
 
       expect(ergebnis.treffer.map((treffer) => treffer.person_id)).toContain(personId)
     } finally {
@@ -122,7 +139,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
       ).run({ id: uuidv7(), personId: passendeId })
       personMitNamenAnlegen(db, { nachname: 'Krause' })
 
-      const ergebnis = suche(db, { text: 'Anna Krause', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Anna Krause' }))
 
       expect(ergebnis.treffer.map((treffer) => treffer.person_id)).toEqual([passendeId])
     } finally {
@@ -136,7 +153,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
       const meyerId = personMitNamenAnlegen(db, { nachname: 'Meyer' })
       const maierId = personMitNamenAnlegen(db, { nachname: 'Maier' })
 
-      const ergebnis = suche(db, { text: 'Meyer', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Meyer' }))
 
       const meyerTreffer = ergebnis.treffer.find((treffer) => treffer.person_id === meyerId)
       const maierTreffer = ergebnis.treffer.find((treffer) => treffer.person_id === maierId)
@@ -152,7 +169,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const meyerId = personMitNamenAnlegen(db, { nachname: 'Meyer' })
 
-      const ergebnis = suche(db, { text: 'Meyer', grenze: 10 })
+      const ergebnis = suche(db, sucheEingabe({ text: 'Meyer' }))
 
       const treffer = ergebnis.treffer.filter((eintrag) => eintrag.person_id === meyerId)
       expect(treffer).toHaveLength(1)
@@ -167,8 +184,8 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const personId = personMitNamenAnlegen(db, { nachname: "O'Brien" })
 
-      expect(() => suche(db, { text: "O'Brien", grenze: 10 })).not.toThrow()
-      const ergebnis = suche(db, { text: "O'Brien", grenze: 10 })
+      expect(() => suche(db, sucheEingabe({ text: "O'Brien" }))).not.toThrow()
+      const ergebnis = suche(db, sucheEingabe({ text: "O'Brien" }))
       expect(ergebnis.treffer.map((treffer) => treffer.person_id)).toContain(personId)
     } finally {
       db.close()
@@ -180,8 +197,8 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       personMitNamenAnlegen(db, { nachname: 'Schmidt' })
 
-      expect(() => suche(db, { text: '   ', grenze: 10 })).not.toThrow()
-      expect(suche(db, { text: '   ', grenze: 10 }).treffer).toEqual([])
+      expect(() => suche(db, sucheEingabe({ text: '   ' }))).not.toThrow()
+      expect(suche(db, sucheEingabe({ text: '   ' })).treffer).toEqual([])
     } finally {
       db.close()
     }

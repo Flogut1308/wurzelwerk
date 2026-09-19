@@ -74,7 +74,7 @@ describe('Leistungsbudget: abfrage:person.liste / abfrage:suche bei 2000 Persone
       const laufzeitenMs: number[] = []
       for (let i = 0; i < DURCHLAEUFE; i += 1) {
         const start = performance.now()
-        suche(db, { text: 'Meyer', grenze: 100 })
+        suche(db, { text: 'Meyer', grenze: 100, filter: FILTER_ALLE, sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100 })
         laufzeitenMs.push(performance.now() - start)
       }
       budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:suche')

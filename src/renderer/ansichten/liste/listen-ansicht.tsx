@@ -35,7 +35,15 @@ const FILTER_STANDARD: PersonListeFilter = {
 }
 
 function hatAktivenFilter(filter: PersonListeFilter): boolean {
-  return filter.platzhalter !== 'alle' || filter.privat !== 'alle' || filter.nurWiderspruch || filter.konfidenzMin !== undefined
+  return (
+    filter.platzhalter !== 'alle' ||
+    filter.privat !== 'alle' ||
+    filter.nurWiderspruch ||
+    filter.konfidenzMin !== undefined ||
+    filter.zeitraumVon !== undefined ||
+    filter.zeitraumBis !== undefined ||
+    filter.ort !== undefined
+  )
 }
 
 export interface ListenAnsichtProps {
@@ -47,14 +55,14 @@ export interface ListenAnsichtProps {
 }
 
 /**
- * Listenansicht (C-16, C-17, A-19, AP-1.6 Stufe 4): verdrahtet Suchfeld, Filterleiste,
+ * Listenansicht (C-16, C-17, A-19, AP-1.6 Stufe 4, AP-1.10 PR-A): verdrahtet Suchfeld, Filterleiste,
  * Spaltenwahl, Datentabelle und Blätterleiste mit `usePersonListe`/`useSuche`
- * (`src/renderer/brücke/abfrage-hooks.ts`). Leerer Suchtext → `usePersonListe` (Filter, Sortierung,
- * Seite gelten); nicht leerer Suchtext → `useSuche` (ADR-014, `abfrage:suche` kennt weder Filter
- * noch Sortierung noch Seite — die drei bleiben während einer aktiven Suche unverändert im
- * Zustand, wirken aber erst wieder, sobald das Suchfeld geleert wird). Keine optimistischen
- * Aktualisierungen (CLAUDE.md §10): Neuladen läuft ausschließlich über `ereignis:datenGeaendert`
- * (`DatenGeaendertBruecke` in `app.tsx`).
+ * (`src/renderer/brücke/abfrage-hooks.ts`). Leerer Suchtext → `usePersonListe`; nicht leerer
+ * Suchtext → `useSuche` — seit AP-1.10 PR-A (U-1.6-suche-ohne-filter-sortierung-seite) trägt
+ * `abfrage:suche` dieselben Filter-/Sortier-/Seitenfelder wie `abfrage:person.liste`, Filterleiste,
+ * Spaltenkopf-Sortierung und Blätterleiste bleiben darum auch während einer aktiven Suche wirksam
+ * (kein sichtbares Sperren mehr). Keine optimistischen Aktualisierungen (CLAUDE.md §10): Neuladen
+ * läuft ausschließlich über `ereignis:datenGeaendert` (`DatenGeaendertBruecke` in `app.tsx`).
  */
 export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtProps) {
   const { t } = useTranslation('liste')
@@ -85,7 +93,10 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   const sucheAktiv = suchtext.trim() !== ''
 
   const listeAbfrage = usePersonListe({ sortierung, richtung, seite, proSeite: PRO_SEITE, filter }, { enabled: !sucheAktiv })
-  const sucheAbfrage = useSuche({ text: suchtext, grenze: PRO_SEITE }, { enabled: sucheAktiv })
+  // AP-1.10 PR-A (U-1.6-suche-ohne-filter-sortierung-seite): `abfrage:suche` kennt jetzt dieselben
+  // Filter-/Sortier-/Seitenfelder wie `abfrage:person.liste` — Filterleiste und Spaltenkopf-
+  // Sortierung bleiben darum auch während einer aktiven Suche wirksam (kein `gesperrt` mehr).
+  const sucheAbfrage = useSuche({ text: suchtext, grenze: 500, filter, sortierung, richtung, seite, proSeite: PRO_SEITE }, { enabled: sucheAktiv })
   const pruefhinweiseAbfrage = usePruefhinweise()
   const pruefhinweiseAnzahl = pruefhinweiseAbfrage.data?.anzahl ?? 0
 
@@ -93,7 +104,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
   const ladezustand: DatentabelleLadezustand = aktuelleAbfrage.isError ? 'fehler' : aktuelleAbfrage.isPending ? 'laedt' : 'bereit'
 
   const zeilen: readonly PersonListeZeile[] = sucheAktiv ? (sucheAbfrage.data?.treffer ?? []) : (listeAbfrage.data?.zeilen ?? [])
-  const gesamt = sucheAktiv ? zeilen.length : (listeAbfrage.data?.gesamt ?? 0)
+  const gesamt = sucheAktiv ? (sucheAbfrage.data?.gesamt ?? 0) : (listeAbfrage.data?.gesamt ?? 0)
 
   // Suchtext/Filter/Sortierung ändern die Trefferliste — ein Wechsel resettet `seite` direkt am
   // jeweiligen Setter (statt über einen Effekt: `setState` synchron im Effektkörper erzeugt
@@ -147,7 +158,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
 
       <div className="wz-listen-ansicht__werkzeuge">
         <Suchfeld wert={suchtext} aufAenderung={suchtextGeaendert} treffer={sucheAktiv && ladezustand === 'bereit' ? gesamt : null} />
-        <Filterleiste filter={filter} aufFilterGeaendert={filterGeaendert} aufZuruecksetzen={filterZuruecksetzen} gesperrt={sucheAktiv} />
+        <Filterleiste filter={filter} aufFilterGeaendert={filterGeaendert} aufZuruecksetzen={filterZuruecksetzen} />
       </div>
 
       <div className="wz-listen-ansicht__spalten" role="group" aria-label={t('spaltenwahl_titel')}>
@@ -176,7 +187,6 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
           sortierung={sortierung}
           richtung={richtung}
           aufSortierungGeaendert={sortierungGeaendert}
-          sortierungGesperrt={sucheAktiv}
           ladezustand={ladezustand}
           hatAktivenFilter={hatAktivenFilter(filter)}
           aufFilterZuruecksetzen={filterZuruecksetzen}
@@ -185,9 +195,9 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
         />
       </div>
 
-      {/* `abfrage:suche` kennt kein `seite`/`proSeite` (nur `grenze`) — während einer aktiven Suche
-          gibt es keine Seiten zu blättern. */}
-      {sucheAktiv ? null : <Blaetterleiste seite={seite} proSeite={PRO_SEITE} gesamt={gesamt} aufSeiteGeaendert={setSeite} />}
+      {/* AP-1.10 PR-A: `abfrage:suche` trägt jetzt `seite`/`proSeite`/`gesamt` wie `abfrage:person.
+          liste` — die Blätterleiste bleibt darum auch während einer aktiven Suche sichtbar. */}
+      <Blaetterleiste seite={seite} proSeite={PRO_SEITE} gesamt={gesamt} aufSeiteGeaendert={setSeite} />
 
       {/* AP-1.8 PR-A (F-07), 70_UX_Konzept.md §2: Fußzeile mit den Prüfhinweisen — Klick öffnet die
           Liste (Seitenschublade) mit Sprung zur betroffenen Person. Reine Anzeige: kein Abhaken in
