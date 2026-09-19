@@ -10,6 +10,11 @@
 //   (3) Von test/invarianten INDIREKT importierte Helfer außerhalb der drei Schutz-Wurzeln
 //       (test/hilfsmittel/fixture-laden.ts, test/hilfsmittel/fixture-bauen.ts,
 //       test/einheit/_hilfen-abgeleitet.ts) waren ungeschützt.
+//
+// ADR-028-Ergänzung: test/golden/bilder/** (Bildvergleich-Referenzbilder) ist vom harten
+// src-Mischverbot ausgenommen - Sichtbaselines wandern legitim mit der UI mit (kette-ui.md §3.3).
+// Alle anderen test/golden/-Pfade (Layout-/Logik-Goldens) und test/invarianten/ bleiben
+// ausnahmslos geschützt.
 import { describe, expect, it } from 'vitest'
 import { ermittleIndirektGeschuetzteHelfer, pruefpfadAuswerten } from '../../skripte/pruefpfad-pruefen'
 
@@ -117,6 +122,28 @@ describe('test/migration und registrierung.ts sind schema-artig geschützt (AP-0
       'test/invarianten/zyklusfreiheit.test.ts',
       'src/main/datenbank/verbindung.ts',
     ])
+    expect(ergebnis.unzulaessigeVermischung).toBe(true)
+  })
+})
+
+describe('ADR-028: test/golden/bilder (Bildvergleich-Baselines) ist vom harten src-Mischverbot ausgenommen', () => {
+  it('erlaubt ein Referenzbild unter test/golden/bilder zusammen mit src/ im selben Vergleich', () => {
+    const ergebnis = pruefpfadAuswerten(['test/golden/bilder/liste-hell-darwin.png', 'src/renderer/x.tsx'])
+    expect(ergebnis.unzulaessigeVermischung).toBe(false)
+  })
+
+  it('ein Referenzbild unter test/golden/bilder allein ist ohnehin keine Vermischung', () => {
+    const ergebnis = pruefpfadAuswerten(['test/golden/bilder/x.png'])
+    expect(ergebnis.unzulaessigeVermischung).toBe(false)
+  })
+
+  it('Regression: test/invarianten bleibt trotz ADR-028 ausnahmslos geschützt', () => {
+    const ergebnis = pruefpfadAuswerten(['test/invarianten/zyklusfreiheit.test.ts', 'src/main/repositories/basis.ts'])
+    expect(ergebnis.unzulaessigeVermischung).toBe(true)
+  })
+
+  it('Regression: ein Layout-Golden unter test/golden/ (außerhalb von bilder/) bleibt ausnahmslos geschützt', () => {
+    const ergebnis = pruefpfadAuswerten(['test/golden/layout/generationen.json', 'src/core/layout/vertrag.ts'])
     expect(ergebnis.unzulaessigeVermischung).toBe(true)
   })
 })
