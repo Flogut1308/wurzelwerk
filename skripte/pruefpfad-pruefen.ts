@@ -34,6 +34,13 @@
 //       ein Einheitstest gegen `pruefpfadAuswerten()` soll aber mit einer festen Dateiliste
 //       arbeiten und deterministisch bleiben, ohne von der Baumstruktur außerhalb des Tests
 //       abzuhängen.
+//
+// ADR-028-Nachtrag: test/golden/bilder/** (Bildvergleich-Referenzbilder, AP-1.25) ist vom harten
+// src-Mischverbot ausgenommen (BILDVERGLEICH_AUSNAHME unten). Screenshots sind Sichtbaselines, die
+// per Definition mit der UI mitwandern (kette-ui.md §3.3) - anders als Layout-/Logik-Goldens und
+// Invarianten, die Fachverhalten unabhängig vom geprüften Code festschreiben und deshalb weiterhin
+// ausnahmslos gesperrt bleiben. Kontrolle über die Ausnahme: hueter-Review je PR + Nutzerblick am
+// Checkpoint, nicht dieses Skript.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -44,6 +51,11 @@ const HIER = dirname(fileURLToPath(import.meta.url))
 const REPO_WURZEL = resolve(HIER, '..')
 
 const IMMER_GESCHUETZTE_PFADE = [/^test\/invarianten\//, /^test\/golden\//]
+// ADR-028: Bildvergleich-Referenzbilder sind Sichtbaselines, keine Logik-/Invarianten-Prüfung -
+// sie wandern legitim mit der UI mit (kette-ui.md §3.3). Diese Ausnahme reduziert NUR den
+// `test/golden/`-Treffer oben; Layout-/Logik-Goldens außerhalb von `bilder/` bleiben ausnahmslos
+// geschützt, ebenso `test/invarianten/` (unverändert).
+const BILDVERGLEICH_AUSNAHME = /^test\/golden\/bilder\//
 // Schema-bedingt geschützt: nur zulässig zusammen mit Produktivcode, wenn eine neue
 // docs/schema/00NN_*.sql-Migration im selben Vergleich steckt (AP-0.7-Nachtrag, erweitert um
 // test/migration/** und registrierung.ts, AP-0.25 PR-4).
@@ -97,7 +109,8 @@ export function pruefpfadAuswerten(
   )
 
   const istImmerGeschuetzt = (datei: string): boolean =>
-    IMMER_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) || immerZusaetzlich.has(datei)
+    (IMMER_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) && !BILDVERGLEICH_AUSNAHME.test(datei)) ||
+    immerZusaetzlich.has(datei)
   const istSchemaBedingtGeschuetzt = (datei: string): boolean =>
     SCHEMA_BEDINGT_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) || schemaBedingtZusaetzlich.has(datei)
 
