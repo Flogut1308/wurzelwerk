@@ -40,6 +40,15 @@ function personAnlegen(db: Database.Database, optionen: { readonly nachname: str
   return personId
 }
 
+function ortAnlegen(db: Database.Database, name: string): string {
+  const ortId = uuidv7()
+  db.prepare(`INSERT INTO ort (id, typ) VALUES (@id, 'dorf')`).run({ id: ortId })
+  db.prepare(
+    `INSERT INTO ortsname (id, ort_id, name, ist_bevorzugt) VALUES (@id, @ortId, @name, 1)`,
+  ).run({ id: uuidv7(), ortId, name })
+  return ortId
+}
+
 function quelleAnlegen(db: Database.Database, optionen: { readonly typ: string; readonly titel?: string }): string {
   const quelleId = uuidv7()
   db.prepare('INSERT INTO quelle (id, typ, titel) VALUES (@id, @typ, @titel)').run({
@@ -62,6 +71,7 @@ function aussageAnlegen(
   optionen: {
     readonly praedikat: string
     readonly wertText?: string
+    readonly wertRefId?: string
     readonly datumWert1?: string
     readonly konfidenz?: number
     readonly istBevorzugt?: 0 | 1
@@ -70,13 +80,14 @@ function aussageAnlegen(
 ): string {
   const aussageId = uuidv7()
   db.prepare(
-    `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, datum_wert1, konfidenz, ist_bevorzugt, begruendung)
-     VALUES (@id, 'person', @personId, @praedikat, @wertText, @datumWert1, @konfidenz, @istBevorzugt, @begruendung)`,
+    `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, wert_ref_id, datum_wert1, konfidenz, ist_bevorzugt, begruendung)
+     VALUES (@id, 'person', @personId, @praedikat, @wertText, @wertRefId, @datumWert1, @konfidenz, @istBevorzugt, @begruendung)`,
   ).run({
     id: aussageId,
     personId,
     praedikat: optionen.praedikat,
     wertText: optionen.wertText ?? null,
+    wertRefId: optionen.wertRefId ?? null,
     datumWert1: optionen.datumWert1 ?? null,
     konfidenz: optionen.konfidenz ?? null,
     istBevorzugt: optionen.istBevorzugt ?? null,
@@ -204,6 +215,47 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
 
       expect(berufFeld?.hat_widerspruch).toBe(true)
       expect(berufFeld?.hatKonkurrierende).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  // Bugfix `aussageWertAnzeige` (vorbestehend, docs/80_Offene_Fragen.md §22 U-1.25-profil-fixture):
+  // eine Aussage ohne `wert_text`/`datum_wert1`/`wert_zahl` fiel bisher auf die ROHE `wert_ref_id`
+  // (UUID) zurück. `wert_ref_id` ist polymorph (E-7, kein `wert_ref_typ`, docs/schema/0002_kern.sql
+  // Z.323) — die Auflösung ist darum PRÄDIKATGESTEUERT: `geburtsort`/`wohnort` (ortsbezogene
+  // Prädikate laut `docs/import-vertrag.md` §3 "wert_ref zeigt auf einen Ort oder eine Person")
+  // lösen gegen `ort`/`ortsname` auf (wie `ereignisseLaden()` es bereits für `ereignis.ort_id`
+  // tut); jedes andere Prädikat mit `wert_ref_id` löst gegen `person_flach.anzeigename` auf.
+  it('Bugfix: aussageWertAnzeige löst wert_ref_id bei geburtsort gegen den Ortsnamen auf, NICHT die rohe UUID', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const personId = personAnlegen(db, { nachname: 'Wruck', vornamen: 'August' })
+      const ortId = ortAnlegen(db, 'Kwidzyn')
+      aussageAnlegen(db, personId, { praedikat: 'geburtsort', wertRefId: ortId, konfidenz: 3 })
+
+      const ergebnis = personDetail(db, { personId })
+      const geburtsortFeld = ergebnis.grunddaten.find((feld) => feld.praedikat === 'geburtsort')
+
+      expect(geburtsortFeld?.wert).toBe('Kwidzyn')
+      expect(geburtsortFeld?.wert).not.toBe(ortId)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Bugfix: aussageWertAnzeige löst wert_ref_id bei einem NICHT-ortsbezogenen Prädikat gegen den Personennamen auf', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const personId = personAnlegen(db, { nachname: 'Wruck', vornamen: 'August' })
+      const pateId = personAnlegen(db, { nachname: 'Schmidt', vornamen: 'Otto' })
+      aussageAnlegen(db, personId, { praedikat: 'pate', wertRefId: pateId, konfidenz: 2 })
+
+      const ergebnis = personDetail(db, { personId })
+      const pateFeld = ergebnis.grunddaten.find((feld) => feld.praedikat === 'pate')
+
+      expect(pateFeld?.wert).toBe('Otto Schmidt')
+      expect(pateFeld?.wert).not.toBe(pateId)
     } finally {
       db.close()
     }

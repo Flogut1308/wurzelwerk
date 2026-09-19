@@ -84,6 +84,17 @@ function aussagenLaden(db: Database.Database, personId: string): readonly Aussag
     .all({ personId })
 }
 
+/** Baut die `IN (@id0, @id1, …)`-Platzhalterliste + das dazugehörige Parameterobjekt für eine
+ * variable Anzahl von IDs — wiederverwendet von `belegeJeAussageLaden`/`ortsnamenLaden`/
+ * `personennamenLaden` (benannte Parameter, CLAUDE.md §6, kein zusammengesetztes SQL). */
+function inKlausel(ids: readonly string[]): { readonly platzhalter: string; readonly parameter: Record<string, string> } {
+  const parameter: Record<string, string> = {}
+  ids.forEach((id, index) => {
+    parameter[`id${index}`] = id
+  })
+  return { platzhalter: ids.map((_, index) => `@id${index}`).join(', '), parameter }
+}
+
 interface BelegzahlZeile {
   readonly praedikat: string
   readonly belegzahl: number
@@ -149,20 +160,94 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
   return karte
 }
 
+/** `aussage.praedikat`-Werte, deren `wert_ref_id` auf `ort` zeigt (`docs/import-vertrag.md` §3:
+ * „wert_ref zeigt auf einen Ort oder eine Person" — E-7, polymorph, bewusst KEIN `wert_ref_typ`,
+ * `docs/schema/0002_kern.sql` Z.323, darum PRÄDIKATGESTEUERT statt spaltengesteuert aufgelöst).
+ * Bugfix (vorbestehend, `docs/80_Offene_Fragen.md` §22 U-1.25-profil-fixture): jedes andere
+ * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst gegen `person_flach` auf —
+ * die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
+const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'wohnort'])
+
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`
- * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id`. */
-function aussageWertAnzeige(zeile: AussageZeile): string | null {
+ * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id` — Letzteres
+ * NICHT mehr die rohe UUID (vorbestehender Bugfix), sondern der aufgelöste Orts- oder Personenname
+ * aus `ortsnamenKarte`/`personennamenKarte` (s. `PRAEDIKATE_MIT_ORT_REFERENZ`), analog wie
+ * `ereignisseLaden()` bereits `ereignis.ort_id` auf `ortsname` joint. Fehlt der aufgelöste Name
+ * (z. B. verwaister Verweis), liefert die Funktion `null` statt einer rohen ID — konsistent mit
+ * jedem anderen unbekannten Wert in dieser Abfrage. */
+function aussageWertAnzeige(
+  zeile: AussageZeile,
+  ortsnamenKarte: ReadonlyMap<string, string>,
+  personennamenKarte: ReadonlyMap<string, string>,
+): string | null {
   if (zeile.wert_text !== null) return zeile.wert_text
   if (zeile.datum_wert1 !== null) return zeile.datum_wert1
   if (zeile.wert_zahl !== null) return String(zeile.wert_zahl)
-  if (zeile.wert_ref_id !== null) return zeile.wert_ref_id
+  if (zeile.wert_ref_id !== null) {
+    const karte = PRAEDIKATE_MIT_ORT_REFERENZ.has(zeile.praedikat) ? ortsnamenKarte : personennamenKarte
+    return karte.get(zeile.wert_ref_id) ?? null
+  }
   return null
+}
+
+/** Bevorzugter Ortsname je `ort.id` (analog der Rang-Subquery in `ereignisseLaden`). */
+function ortsnamenLaden(db: Database.Database, ortIds: readonly string[]): ReadonlyMap<string, string> {
+  const karte = new Map<string, string>()
+  if (ortIds.length === 0) return karte
+  const { platzhalter, parameter } = inKlausel(ortIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      { readonly ort_id: string; readonly name: string | null }
+    >(`SELECT o.id AS ort_id, go.name AS name
+       FROM ort o
+       LEFT JOIN (
+         SELECT ort_id, name,
+           ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
+         FROM ortsname
+       ) go ON go.ort_id = o.id AND go.rang = 1
+       WHERE o.id IN (${platzhalter})`,
+    )
+    .all(parameter)
+  for (const zeile of zeilen) {
+    if (zeile.name !== null) karte.set(zeile.ort_id, zeile.name)
+  }
+  return karte
+}
+
+/** Anzeigename je `person.id` — `person_flach.anzeigename` (dieselbe abgeleitete Spalte wie
+ * überall sonst in dieser Abfrage, kein Neuaufbau des bevorzugten Namens hier). */
+function personennamenLaden(db: Database.Database, personIds: readonly string[]): ReadonlyMap<string, string> {
+  const karte = new Map<string, string>()
+  if (personIds.length === 0) return karte
+  const { platzhalter, parameter } = inKlausel(personIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      { readonly person_id: string; readonly anzeigename: string }
+    >(`SELECT person_id AS person_id, anzeigename AS anzeigename FROM person_flach WHERE person_id IN (${platzhalter})`)
+    .all(parameter)
+  for (const zeile of zeilen) karte.set(zeile.person_id, zeile.anzeigename)
+  return karte
+}
+
+/** Alle `wert_ref_id`-Werte der Aussagen, deren Prädikat auf die gewünschte Zielart zeigt
+ * (`ortBezogen`) — Vorstufe für die zwei IN-Abfragen `ortsnamenLaden`/`personennamenLaden`. */
+function wertRefIdsFuer(aussagen: readonly AussageZeile[], ortBezogen: boolean): readonly string[] {
+  const ids: string[] = []
+  for (const aussage of aussagen) {
+    if (aussage.wert_ref_id === null) continue
+    if (PRAEDIKATE_MIT_ORT_REFERENZ.has(aussage.praedikat) === ortBezogen) ids.push(aussage.wert_ref_id)
+  }
+  return ids
 }
 
 function grunddatenBauen(
   aussagen: readonly AussageZeile[],
   belegzahlKarte: ReadonlyMap<string, number>,
   belegeKarte: ReadonlyMap<string, readonly PersonDetailBeleg[]>,
+  ortsnamenKarte: ReadonlyMap<string, string>,
+  personennamenKarte: ReadonlyMap<string, string>,
 ): readonly PersonDetailGrunddatenFeld[] {
   const gruppenNachPraedikat = new Map<string, AussageZeile[]>()
   for (const aussage of aussagen) {
@@ -190,14 +275,14 @@ function grunddatenBauen(
 
     felder.push({
       praedikat,
-      wert: bevorzugte !== undefined ? aussageWertAnzeige(bevorzugte) : null,
+      wert: bevorzugte !== undefined ? aussageWertAnzeige(bevorzugte, ortsnamenKarte, personennamenKarte) : null,
       konfidenz: bevorzugte?.konfidenz ?? null,
       belegzahl: belegzahlKarte.get(praedikat) ?? 0,
       hat_widerspruch: hatWiderspruch(wertTupel),
       hatKonkurrierende: anzahlUnterscheidbareWerte(wertTupel) >= 2,
       aussagen: gruppe.map((aussage) => ({
         aussage_id: aussage.id,
-        wert: aussageWertAnzeige(aussage),
+        wert: aussageWertAnzeige(aussage, ortsnamenKarte, personennamenKarte),
         konfidenz: aussage.konfidenz,
         ist_bevorzugt: aussage.ist_bevorzugt === 1,
         begruendung: aussage.begruendung,
@@ -394,6 +479,11 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const belegzahlKarte = belegzahlJePraedikatLaden(db, ein.personId)
   const belegeKarte = belegeJeAussageLaden(db, aussagen.map((aussage) => aussage.id))
 
+  // Bugfix `aussageWertAnzeige` (s. Kommentar dort): `wert_ref_id` prädikatgesteuert in zwei
+  // getrennten IN-Abfragen auflösen, statt je Aussage einzeln nachzuschlagen.
+  const ortsnamenKarte = ortsnamenLaden(db, wertRefIdsFuer(aussagen, true))
+  const personennamenKarte = personennamenLaden(db, wertRefIdsFuer(aussagen, false))
+
   return {
     kopf: {
       person_id: kopfZeile.person_id,
@@ -402,7 +492,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       ist_platzhalter: kopfZeile.ist_platzhalter === 1,
       privat: kopfZeile.privat === 1,
     },
-    grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte),
+    grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
     beziehungen: beziehungenLaden(db, ein.personId),
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
