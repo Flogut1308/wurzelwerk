@@ -87,6 +87,70 @@ export function hatZyklus(kanten: readonly Elternkante[]): boolean {
 }
 
 /**
+ * Findet EINEN Zyklus im gerichteten Graphen "ist Kind von" (Kind -> Elternteil) und gibt seine
+ * Knoten zurück (in Traversierungsreihenfolge, beginnend bei der Person, die den Zyklus schließt).
+ * Leere Liste, wenn `kanten` zyklenfrei ist — dann gilt `findeZyklusKnoten(kanten).length === 0
+ * <=> !hatZyklus(kanten)`.
+ *
+ * AP-1.8 (F-07): Grundlage für den Prüfhinweis „Zyklus im Graphen" — die Liste ist die Menge der
+ * Personen, zu denen der Hinweis springen kann. Findet bewusst nur EINEN Zyklus: bestehen mehrere
+ * voneinander unabhängige Zyklen im Graphen, wird nur der erste gemeldet. Das reicht für den
+ * Prüfhinweis, weil ein einzelner gefundener Zyklus bereits ein Datenfehler ist, der behoben werden
+ * muss, bevor ein zweiter überhaupt in Ruhe untersucht werden könnte.
+ *
+ * Umsetzung: dieselbe Tiefensuche wie `hatZyklus`, zusätzlich mit einem `pfad`-Stapel der aktuell
+ * offenen Knoten — bei einem Wiedereintritt in einen "grauen" (AUF_PFAD) Knoten ist der Ausschnitt
+ * des Stapels ab dessen letztem Auftreten genau der gefundene Zyklus.
+ */
+export function findeZyklusKnoten(kanten: readonly Elternkante[]): readonly string[] {
+  const adjazenz = elternVonKindAdjazenz(kanten)
+
+  const AUF_PFAD = 1
+  const ABGESCHLOSSEN = 2
+  const zustand = new Map<string, typeof AUF_PFAD | typeof ABGESCHLOSSEN>()
+  const pfad: string[] = []
+
+  function besuchen(knoten: string): readonly string[] | undefined {
+    const bisherigerZustand = zustand.get(knoten)
+    if (bisherigerZustand === AUF_PFAD) {
+      const index = pfad.indexOf(knoten)
+      if (index === -1) {
+        // Unerreichbar: `bisherigerZustand === AUF_PFAD` wird nur gesetzt, während `knoten` auf
+        // `pfad` liegt (s. u.), ohne `!` formuliert (CLAUDE.md §4).
+        throw new RangeError(`findeZyklusKnoten: Knoten "${knoten}" als AUF_PFAD markiert, aber nicht im Pfad-Stapel.`)
+      }
+      return pfad.slice(index)
+    }
+    if (bisherigerZustand === ABGESCHLOSSEN) {
+      return undefined
+    }
+
+    zustand.set(knoten, AUF_PFAD)
+    pfad.push(knoten)
+    const elternteile = adjazenz.get(knoten) ?? []
+    for (const elternteil of elternteile) {
+      const gefunden = besuchen(elternteil)
+      if (gefunden !== undefined) {
+        return gefunden
+      }
+    }
+    pfad.pop()
+    zustand.set(knoten, ABGESCHLOSSEN)
+    return undefined
+  }
+
+  for (const kante of kanten) {
+    if (zustand.get(kante.kindId) !== ABGESCHLOSSEN) {
+      const gefunden = besuchen(kante.kindId)
+      if (gefunden !== undefined) {
+        return gefunden
+      }
+    }
+  }
+  return []
+}
+
+/**
  * true, wenn das Hinzufügen von `neu` zu den (als zyklenfrei angenommenen) `kanten` einen Zyklus
  * erzeugen würde. Das ist genau dann der Fall, wenn `neu.elternteilId` bereits (transitiv) ein
  * Nachkomme von `neu.kindId` ist, oder wenn `neu` eine Selbstkante ist
