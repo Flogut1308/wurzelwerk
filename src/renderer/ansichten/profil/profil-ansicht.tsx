@@ -18,6 +18,8 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Text } from '../../bausteine/text'
 import { BelegListe } from './beleg-liste'
+import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
+import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { beteiligungRolleSchluessel, ereignisTypSchluessel, gesundheitArtSchluessel, kantentypSchluessel, praedikatSchluessel, richtungSchluessel } from './profil-schluessel'
 import { Widerspruchsblock } from './widerspruchsblock'
 import './profil-ansicht.css'
@@ -62,10 +64,18 @@ function fokussierbareElemente(container: HTMLElement): readonly HTMLElement[] {
  * `src/main/menue/tastenkuerzel.ts`) — ein einzelner `key === 'Escape'`-Vergleich braucht keine
  * Zuordnung dort.
  */
+/** Ob die Profilseite liest oder bearbeitet (AP-1.14a) — ein Zustand DIESER Seite, keine zweite
+ * Ansicht mit eigener Wahrheit: derselbe `usePersonDetail`-Abruf speist beide Zweige, das
+ * Bearbeiten selbst schreibt ausschließlich über die AP-1.12-Befehle
+ * (`befehl:name.*`/`befehl:person.feldSetzen`), `ereignis:datenGeaendert` invalidiert danach den
+ * Cache wie überall sonst — kein optimistisches Update, kein zweiter Schreibweg (CLAUDE.md §2). */
+type ProfilModus = 'lesen' | 'bearbeiten'
+
 export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
   const { t } = useTranslation('profil')
   const abfrage = usePersonDetail({ personId })
   const [schublade, setSchublade] = useState<SchubladeZustand>(SCHUBLADE_KEINE)
+  const [modus, setModus] = useState<ProfilModus>('lesen')
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -123,22 +133,41 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
         <Text rolle="beschriftung" als="span" id="wz-profil-ansicht-titel">
           {t('ueberschrift')}
         </Text>
-        <Schaltflaeche variante="unauffaellig" aufKlick={aufSchliessen}>
-          {t('schliessen')}
-        </Schaltflaeche>
+        <div className="wz-profil-ansicht__kopfzeile-aktionen">
+          {abfrage.isSuccess ? (
+            <Schaltflaeche variante="unauffaellig" aufKlick={() => setModus(modus === 'lesen' ? 'bearbeiten' : 'lesen')}>
+              {t(modus === 'lesen' ? 'bearbeiten' : 'fertig')}
+            </Schaltflaeche>
+          ) : null}
+          <Schaltflaeche variante="unauffaellig" aufKlick={aufSchliessen}>
+            {t('schliessen')}
+          </Schaltflaeche>
+        </div>
       </header>
 
       <div className="wz-profil-ansicht__inhalt">
         {abfrage.isPending ? <ProfilLaedt /> : null}
         {abfrage.isError && abfrage.error !== null ? <ProfilFehler code={abfrage.error.code} /> : null}
         {abfrage.isSuccess ? (
-          <ProfilInhalt
-            daten={abfrage.data}
-            aufBelegOeffnen={(feld) => setSchublade({ art: 'beleg', feld })}
-            aufWiderspruchOeffnen={(feld) => setSchublade({ art: 'widerspruch', feld })}
-          />
+          modus === 'lesen' ? (
+            <ProfilInhalt
+              daten={abfrage.data}
+              aufBelegOeffnen={(feld) => setSchublade({ art: 'beleg', feld })}
+              aufWiderspruchOeffnen={(feld) => setSchublade({ art: 'widerspruch', feld })}
+            />
+          ) : (
+            <ProfilBearbeitenInhalt personId={personId} daten={abfrage.data} />
+          )
         ) : null}
       </div>
+
+      {modus === 'bearbeiten' ? (
+        <footer className="wz-profil-ansicht__fusszeile" aria-live="polite">
+          <Text rolle="hilfe" als="span">
+            {t('bearbeitungsstatus_hinweis')}
+          </Text>
+        </footer>
+      ) : null}
 
       {schublade.art === 'keine' ? null : (
         <Seitenschublade
@@ -192,6 +221,29 @@ function ProfilInhalt({ daten, aufBelegOeffnen, aufWiderspruchOeffnen }: ProfilI
       <BeziehungenAbschnitt beziehungen={daten.beziehungen} />
       <GesundheitAbschnitt gesundheit={daten.gesundheit} />
       <NotizAbschnitt notiz={daten.notiz} />
+    </>
+  )
+}
+
+interface ProfilBearbeitenInhaltProps {
+  readonly personId: string
+  readonly daten: PersonDetailAus
+}
+
+/**
+ * Bearbeiten-Zweig der Profilseite (AP-1.14a, S-20 Kernfelder) — Namen + Grunddaten
+ * (Geschlecht/Notiz/Platzhalter-Kennzeichen+Grund), alle über die AP-1.12-Befehle. **Lebensdaten
+ * (Geburts-/Todesdatum) sind bewusst NICHT hier** — offene Datenmodellfrage, s.
+ * `GrunddatenBearbeitenAbschnitt`-Kopfkommentar und `docs/80_Offene_Fragen.md` §26. Beziehungen/
+ * Ereignisse/Gesundheit bleiben lesend (spätere Arbeitspakete) — der Kopf zeigt weiterhin den
+ * Anzeigenamen, damit „wen bearbeite ich gerade" nie aus dem Blick gerät.
+ */
+function ProfilBearbeitenInhalt({ personId, daten }: ProfilBearbeitenInhaltProps) {
+  return (
+    <>
+      <ProfilKopf kopf={daten.kopf} />
+      <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
+      <GrunddatenBearbeitenAbschnitt personId={personId} kopf={daten.kopf} notiz={daten.notiz} />
     </>
   )
 }

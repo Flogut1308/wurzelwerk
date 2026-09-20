@@ -6,7 +6,9 @@ import type { z } from 'zod'
 import type { BeteiligungRolleEnum } from '../../../shared/schemata/beteiligung'
 import type { ElternschaftTypEnum } from '../../../shared/schemata/elternschaft'
 import type { EreignisTypEnum } from '../../../shared/schemata/ereignis'
+import type { NameTypEnum, SchriftEnum } from '../../../shared/schemata/name'
 import type { PartnerschaftTypEnum } from '../../../shared/schemata/partnerschaft'
+import type { GeschlechtEnum, PlatzhalterGrundEnum } from '../../../shared/schemata/person'
 import type { PersonDetailBeziehungRichtungEnum, PersonDetailGesundheitArtEnum } from '../../../shared/schemata/person-detail'
 import type { QuelleTypEnum, UnmittelbarkeitEnum } from '../../../shared/schemata/quelle'
 
@@ -210,4 +212,68 @@ export const PRAEDIKAT_SCHLUESSEL: Readonly<Record<string, string>> = {
  * erfundenen deutschen Text vorzutäuschen. */
 export function praedikatSchluessel(praedikat: string): string | undefined {
   return PRAEDIKAT_SCHLUESSEL[praedikat]
+}
+
+/** `name.typ` (AP-1.14a, Kernfelder-Schreibmaske — Auswahlfeld je Namenszeile). */
+export function nameTypSchluessel(typ: z.infer<typeof NameTypEnum>): string {
+  switch (typ) {
+    case 'geburtsname':
+      return 'name_typ_geburtsname'
+    case 'ehename':
+      return 'name_typ_ehename'
+    case 'vulgo':
+      return 'name_typ_vulgo'
+    case 'latinisiert':
+      return 'name_typ_latinisiert'
+    case 'transliteriert':
+      return 'name_typ_transliteriert'
+    case 'ordensname':
+      return 'name_typ_ordensname'
+    case 'beruf':
+      return 'name_typ_beruf'
+    case 'aka':
+      return 'name_typ_aka'
+    case 'sonstiges':
+      return 'name_typ_sonstiges'
+  }
+}
+
+/** `name.schrift` (AP-1.14a) — optional, das Auswahlfeld führt zusätzlich einen dritten,
+ * lokalen "nicht angegeben"-Wert (`''`), der KEIN `SchriftEnum`-Wert ist, s.
+ * `profil-bearbeiten-logik.ts::SCHRIFT_AUSWAHL_UNBESTIMMT`. */
+export function schriftSchluessel(schrift: z.infer<typeof SchriftEnum>): string {
+  switch (schrift) {
+    case 'latn':
+      return 'schrift_latn'
+    case 'cyrl':
+      return 'schrift_cyrl'
+  }
+}
+
+/** `person.geschlecht` (AP-1.14a, Kernfelder-Schreibmaske). */
+export function geschlechtSchluessel(geschlecht: z.infer<typeof GeschlechtEnum>): string {
+  switch (geschlecht) {
+    case 'M':
+      return 'geschlecht_m'
+    case 'F':
+      return 'geschlecht_f'
+    case 'U':
+      return 'geschlecht_u'
+    case 'X':
+      return 'geschlecht_x'
+  }
+}
+
+/** `person.platzhalter_grund` (AP-1.14a, nur sichtbar, wenn `ist_platzhalter` gesetzt ist). */
+export function platzhalterGrundSchluessel(grund: z.infer<typeof PlatzhalterGrundEnum>): string {
+  switch (grund) {
+    case 'unbekannt':
+      return 'platzhalter_grund_unbekannt'
+    case 'unehelich':
+      return 'platzhalter_grund_unehelich'
+    case 'nicht_identifiziert':
+      return 'platzhalter_grund_nicht_identifiziert'
+    case 'forschungsluecke':
+      return 'platzhalter_grund_forschungsluecke'
+  }
 }
