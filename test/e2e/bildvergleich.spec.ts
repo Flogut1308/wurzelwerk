@@ -96,6 +96,12 @@ async function aufnahme(
   clip?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
 ): Promise<void> {
   await fenster.evaluate(kombinationImDomSetzen, { theme, dichte })
+  // Maus auf eine neutrale, nicht-interaktive Position bewegen: Chromium blendet die
+  // Spin-Buttons nativer `type="number"`-Felder nur bei Hover ein. Ohne diese Zeile hängt die
+  // Aufnahme von der zufälligen Maus-Ruheposition nach vorherigen Interaktionen ab (z. B. nach
+  // einem Klick, dessen Position sich mit dem Layout verschiebt) — sichtbar geworden an den
+  // Filterfeldern „Geburtsjahr zwischen" der Liste.
+  await fenster.mouse.move(0, 0)
   await expect(fenster).toHaveScreenshot(`${name}.png`, clip === undefined ? AUFNAHME_OPTIONEN : { ...AUFNAHME_OPTIONEN, clip })
 }
 
