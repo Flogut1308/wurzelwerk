@@ -16,7 +16,7 @@ import { suche } from '../abfragen/suche'
 import { fuehreAus } from '../befehle/bus'
 import { importAusfuehren } from '../befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
-import { berichtSpeichern, importDateiWaehlen } from '../dialoge'
+import { berichtSpeichern, importDateiWaehlen, projektElternordnerWaehlen, projektOrdnerWaehlen } from '../dialoge'
 import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
@@ -97,6 +97,15 @@ export function ipcRegistrierung(): void {
     projektSchliessen()
     return null
   })
+
+  // AP-1.26, S-01: „Pfade wählt man nie durch Tippen" — die Startansicht wählt den übergeordneten
+  // Ordner (Neues Projekt) bzw. den Projektordner (Projekt öffnen) über den nativen Dialog aus
+  // `dialoge.ts` (verallgemeinert aus dem Import-Assistenten, AP-1.4b). `befehl:`, nicht
+  // `abfrage:` — ein nativer Dialog ist eine Nebenwirkung im Hauptprozess (analog zu
+  // `befehl:import.dateiWaehlen`). Kein offenes Projekt nötig.
+  registriere('befehl:projekt.elternordnerWaehlen', z.null(), () => projektElternordnerWaehlen())
+  registriere('befehl:projekt.ordnerWaehlen', z.null(), () => projektOrdnerWaehlen())
+
   registriere('abfrage:projekt.zuletzt', z.null(), () => projektZuletzt())
 
   registriere('befehl:wartung.abgeleiteteNeuAufbauen', z.null(), () => wartungAbgeleiteteNeuAufbauen())

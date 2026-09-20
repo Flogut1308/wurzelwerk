@@ -13,7 +13,7 @@
 import { writeFileSync } from 'node:fs'
 import { BrowserWindow, dialog } from 'electron'
 import i18next from 'i18next'
-import type { ImportBerichtSpeichernAus, ImportBerichtSpeichernEin, ImportDateiWaehlenAus } from '../shared/ipc/vertrag'
+import type { ImportBerichtSpeichernAus, ImportBerichtSpeichernEin, ImportDateiWaehlenAus, ProjektOrdnerWaehlenAus } from '../shared/ipc/vertrag'
 import dialogeI18n from '../shared/i18n/de/dialoge.json'
 import { alsText } from './import/bericht'
 
@@ -73,4 +73,37 @@ export async function berichtSpeichern(ein: ImportBerichtSpeichernEin): Promise<
   }
   writeFileSync(antwort.filePath, alsText(ein.bericht), 'utf8')
   return { gespeichertNach: antwort.filePath }
+}
+
+/**
+ * Öffnet den nativen Ordnerdialog für den übergeordneten Ordner eines neuen Projekts (S-01,
+ * AP-1.26 — „Pfade wählt man nie durch Tippen", `70_UX_Konzept.md`). Liefert den gewählten
+ * Ordnerpfad oder `null` bei Abbruch — ein Abbruch ist kein Fehler, die Startansicht bleibt
+ * einfach stehen (analog zu `importDateiWaehlen`).
+ */
+export async function projektElternordnerWaehlen(): Promise<ProjektOrdnerWaehlenAus> {
+  const fenster = elternFenster()
+  const optionen = { title: dialogI18n.t('projekt_elternordner_titel'), properties: ['openDirectory' as const] }
+  const antwort = fenster === undefined ? await dialog.showOpenDialog(optionen) : await dialog.showOpenDialog(fenster, optionen)
+  if (antwort.canceled) {
+    return null
+  }
+  const pfad = antwort.filePaths[0]
+  return pfad ?? null
+}
+
+/**
+ * Öffnet den nativen Ordnerdialog zum Öffnen eines bestehenden Projekts (S-01, AP-1.26). Liefert
+ * den gewählten Ordnerpfad oder `null` bei Abbruch (wie oben). Im Dialog kann wie gewohnt
+ * navigiert und ein Ordner angelegt werden — der Systemdialog macht das selbst.
+ */
+export async function projektOrdnerWaehlen(): Promise<ProjektOrdnerWaehlenAus> {
+  const fenster = elternFenster()
+  const optionen = { title: dialogI18n.t('projekt_ordner_titel'), properties: ['openDirectory' as const] }
+  const antwort = fenster === undefined ? await dialog.showOpenDialog(optionen) : await dialog.showOpenDialog(fenster, optionen)
+  if (antwort.canceled) {
+    return null
+  }
+  const pfad = antwort.filePaths[0]
+  return pfad ?? null
 }

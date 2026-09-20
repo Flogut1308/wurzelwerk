@@ -13,6 +13,8 @@ const kanaele: readonly Kanal[] = [
   'befehl:projekt.anlegen',
   'befehl:projekt.oeffnen',
   'befehl:projekt.schliessen',
+  'befehl:projekt.elternordnerWaehlen',
+  'befehl:projekt.ordnerWaehlen',
   'abfrage:projekt.zuletzt',
   'befehl:wartung.abgeleiteteNeuAufbauen',
   'befehl:person.anlegen',

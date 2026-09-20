@@ -24,6 +24,17 @@ export interface ZuletztEintrag {
   readonly zuletztGeoeffnetAm: string
 }
 
+/**
+ * Anzeigeform von `ZuletztEintrag`, wie sie `abfrage:projekt.zuletzt` ausliefert (AP-1.26, S-01):
+ * `existiert` kommt aus einem `existsSync(pfad)` beim Beantworten der Abfrage dazu (nur lesend,
+ * s. `src/main/projekt/projekt-dienst.ts::projektZuletzt()`) und gehört bewusst NICHT in die
+ * Speicherform (`zuletzt-speicher.ts`) — ein verschwundener Ordner soll bei jedem Aufruf neu
+ * geprüft werden, nicht als veralteter Snapshot in der Datei stehen bleiben.
+ */
+export interface ZuletztEintragAnzeige extends ZuletztEintrag {
+  readonly existiert: boolean
+}
+
 /** Antwort von `abfrage:version` — Nachweis, dass die IPC-Hülle steht (AP-0.2). */
 export interface VersionInfo {
   readonly app: string
@@ -62,6 +73,14 @@ export interface ProjektOeffnenEin {
 export type ProjektOeffnenAus =
   | { readonly status: 'geoeffnet'; readonly projekt: ProjektInfo }
   | { readonly status: 'sync_warnung'; readonly anbieter: SyncAnbieter; readonly pfad: string }
+
+/**
+ * Ergebnis von `befehl:projekt.elternordnerWaehlen`/`befehl:projekt.ordnerWaehlen` (S-01,
+ * AP-1.26): der im nativen Ordnerdialog gewählte Pfad, oder `null` bei Abbruch. Ein Abbruch ist
+ * KEIN Fehler (kein `ok:false`) — die Startansicht bleibt einfach stehen, wie bei
+ * `ImportDateiWaehlenAus`.
+ */
+export type ProjektOrdnerWaehlenAus = string | null
 
 /**
  * Nutzlast von `befehl:protokoll.melden` (§10.3): Der Renderer meldet einen Fehler aus der
@@ -239,7 +258,9 @@ export interface Vertrag {
   'befehl:projekt.anlegen': { ein: ProjektAnlegenEin; aus: ProjektInfo }
   'befehl:projekt.oeffnen': { ein: ProjektOeffnenEin; aus: ProjektOeffnenAus }
   'befehl:projekt.schliessen': { ein: null; aus: null }
-  'abfrage:projekt.zuletzt': { ein: null; aus: readonly ZuletztEintrag[] }
+  'befehl:projekt.elternordnerWaehlen': { ein: null; aus: ProjektOrdnerWaehlenAus }
+  'befehl:projekt.ordnerWaehlen': { ein: null; aus: ProjektOrdnerWaehlenAus }
+  'abfrage:projekt.zuletzt': { ein: null; aus: readonly ZuletztEintragAnzeige[] }
   'befehl:wartung.abgeleiteteNeuAufbauen': { ein: null; aus: null }
   'befehl:person.anlegen': { ein: PersonAnlegenEin; aus: { readonly id: string } }
   'befehl:person.feldSetzen': { ein: PersonFeldSetzenEin; aus: null }
