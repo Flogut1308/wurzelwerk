@@ -75,13 +75,28 @@
 //   `test/invarianten/_kanonischer-abzug.ts`) zurück und trägt sie in `zustand.aussagen` nach:
 //   das macht diese Existenz-Aussagen selbst zu gültigen `aussage.loeschen`-Zielen, statt nur die
 //   per `aussage.anlegen` zusätzlich geschriebenen Aussagen zu erreichen.
-// - `aussage.anlegen`: `praedikat` kommt bewusst aus einer KLEINEN, festen Wertemenge (statt
-//   `fc.string()`), damit derselbe (subjektTyp, subjektId, praedikat)-Dreiklang über eine Folge
-//   hinweg realistisch oft wiederholt auftritt — das ist genau die Voraussetzung für den
-//   "Fakt ändern"-Demote-Pfad (`aussage-anlegen.ts`: eine neue `istBevorzugt=1`-Aussage aberkennt
-//   die vorherige bevorzugte Aussage zum selben Prädikat), der selbst schon eine
-//   Mehrzeilen-Transaktion ist (ein `update` + ein `insert`) und darum eigene Undo-Deckung
-//   braucht.
+// - `aussage.anlegen`/`aussage.faktAendern`: DEMOTE-DECKUNG (hueter-Befund, AP-1.12 PR-B —
+//   die ursprüngliche Fassung dieses Kommentars behauptete, eine kleine feste `praedikat`-Menge
+//   allein mache Wiederholungen "realistisch oft"; belegt waren es 0 von 300 Läufen, weil
+//   `subjektWahlRoh % pools.length` die fünf Subjekt-Pools GLEICH oft wählte, obwohl vier davon
+//   (`name`/`elternschaft`/`partnerschaft`/`ereignis`) am Anfang jeder Folge leer sind — ein
+//   uniform verteilter Modulo trifft darum weit überwiegend leere Pools und damit No-ops, und
+//   selbst ein Treffer auf `person` traf `subjektZielRoh % personIds.length` mit wechselnder
+//   Poolgröße kaum je zweimal dieselbe Person/dasselbe Prädikat):
+//   - `poolIndexBiased()` gewichtet die Poolwahl zu 80 % auf `person` (Index 0) — der einzige Pool,
+//     der ab der ersten `person.anlegen`-Aktion garantiert befüllt ist — statt gleich zu verteilen.
+//   - `praedikat` bleibt aus einer KLEINEN, festen Wertemenge (jetzt zwei statt vier Werten).
+//   - Die eigentliche Garantie liefert die eigene Aktion `aussageFaktAendern`: sie führt Buch über
+//     jedes per `aussage.anlegen`/`aussageFaktAendern` erzeugte (subjektTyp, subjektId, praedikat)
+//     in `zustand.aussageTripel` und WIEDERHOLT bei jeder weiteren Ausführung eines dieser
+//     Dreiklänge — mit `istBevorzugt: 1` erzwungen, sowohl beim erstmaligen Anlegen ALS AUCH bei
+//     jeder Wiederholung (der Demote-Zweig in `aussage-anlegen.ts` demoted nur, was zuvor selbst
+//     `istBevorzugt=1` war — ein Zufallstreffer mit `istBevorzugt` aus `fc.option()` hätte das nicht
+//     zuverlässig sichergestellt). Sobald ein Dreiklang einmal existiert, bleibt jede weitere
+//     `aussageFaktAendern`-Ausführung (solange `zustand.aussageTripel` nicht leer ist) ein
+//     GARANTIERTER Demote-Treffer statt eines Zufallstreffers. Gelöschte Subjekte werden aus
+//     `zustand.aussageTripel` entfernt (dieselben Filter wie bei `zustand.aussagen`), damit nie ein
+//     `NICHT_GEFUNDEN_*`-Wurf auf ein inzwischen kaskadiert/manuell gelöschtes Subjekt entsteht.
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -253,6 +268,21 @@ export interface AktionAussageLoeschen {
   readonly aussageZielRoh: number
 }
 
+/** Garantiert (statt zufällig) den "Fakt ändern"-Demote-Pfad — s. Kopfkommentar dieser Datei
+ * ("DEMOTE-DECKUNG"). Existiert bereits ein getrackter (subjektTyp, subjektId, praedikat)-Dreiklang
+ * (`zustand.aussageTripel`), wiederholt diese Aktion GENAU DIESEN Dreiklang mit `istBevorzugt: 1`
+ * (garantierter Demote-Treffer); sonst legt sie — analog zu `aussage.anlegen` — einen neuen an
+ * (ebenfalls mit `istBevorzugt: 1`) und trackt ihn für spätere Wiederholungen. */
+export interface AktionAussageFaktAendern {
+  readonly art: 'aussageFaktAendern'
+  readonly tripelWahlRoh: number
+  readonly subjektWahlRoh: number
+  readonly subjektZielRoh: number
+  readonly praedikat: string
+  readonly wert: AktionAussageWert
+  readonly konfidenz: number
+}
+
 export type Aktion =
   | AktionAnlegen
   | AktionFeldSetzen
@@ -271,6 +301,7 @@ export type Aktion =
   | AktionEreignisLoeschen
   | AktionAussageAnlegen
   | AktionAussageLoeschen
+  | AktionAussageFaktAendern
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -413,15 +444,16 @@ function aussageWertArbitrary(): fc.Arbitrary<AktionAussageWert> {
   )
 }
 
-/** `praedikat` aus einer kleinen, festen Wertemenge (s. Kopfkommentar) — begünstigt Wiederholungen
- * desselben (subjektTyp, subjektId, praedikat)-Dreiklangs, damit der "Fakt ändern"-Demote-Pfad
- * (`aussage-anlegen.ts`) über die 300 Läufe hinweg realistisch oft ausgeführt wird. */
+/** `praedikat` aus einer kleinen, festen Wertemenge (zwei Werte, s. Kopfkommentar "DEMOTE-
+ * DECKUNG") — begünstigt Wiederholungen desselben (subjektTyp, subjektId, praedikat)-Dreiklangs.
+ * Die ZUVERLÄSSIGE Demote-Deckung liefert aber `aussageFaktAendernAktionArbitrary()` unten, nicht
+ * diese Funktion allein (s. Kopfkommentar). */
 function aussageAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageAnlegen> {
   return fc
     .record({
       subjektWahlRoh: fc.nat(),
       subjektZielRoh: fc.nat(),
-      praedikat: fc.constantFrom('beruf', 'wohnort', 'glaube', 'stand'),
+      praedikat: fc.constantFrom('beruf', 'wohnort'),
       wert: aussageWertArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
       istBevorzugt: fc.option(fc.constantFrom<0 | 1>(0, 1), { nil: undefined }),
@@ -433,6 +465,23 @@ function aussageLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageLoeschen> {
   return fc.nat().map((aussageZielRoh): AktionAussageLoeschen => ({ art: 'aussageLoeschen', aussageZielRoh }))
 }
 
+/** s. Kopfkommentar "DEMOTE-DECKUNG" und Typkommentar bei `AktionAussageFaktAendern`. Derselbe
+ * kleine, feste `praedikat`-Wertevorrat wie `aussageAnlegenAktionArbitrary()` — bewusst dieselben
+ * zwei Werte, damit ein per `aussage.anlegen` zufällig erzeugter Dreiklang ebenfalls als
+ * Wiederholungsziel taugt, sobald `zustand.aussageTripel` ihn enthält. */
+function aussageFaktAendernAktionArbitrary(): fc.Arbitrary<AktionAussageFaktAendern> {
+  return fc
+    .record({
+      tripelWahlRoh: fc.nat(),
+      subjektWahlRoh: fc.nat(),
+      subjektZielRoh: fc.nat(),
+      praedikat: fc.constantFrom('beruf', 'wohnort'),
+      wert: aussageWertArbitrary(),
+      konfidenz: fc.integer({ min: 1, max: 4 }),
+    })
+    .map((r): AktionAussageFaktAendern => ({ art: 'aussageFaktAendern', ...r }))
+}
+
 /**
  * Arbitrary für eine einzelne `Aktion`. Gewichte: `anlegen` (Person) bleibt mit Abstand am
  * höchsten (3), weil praktisch jede neue Aktion — die eigenen `person.*`-Aktionen ausgenommen —
@@ -440,7 +489,10 @@ function aussageLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageLoeschen> {
  * `name`/`elternschaft`/`partnerschaft`/`ereignis`/`aussage`-Aktionen überwiegend No-ops. Die
  * `anlegen`-Aktionen der neuen Entitäten liegen bei 2 (mehr Gewicht als ihre `aendern`/`loeschen`-
  * Geschwister, damit über eine 40 Aktionen lange Folge hinweg genug davon existieren, an denen
- * `aendern`/`loeschen` überhaupt etwas zu tun haben).
+ * `aendern`/`loeschen` überhaupt etwas zu tun haben). `aussageFaktAendern` liegt bewusst bei 3
+ * (höher als `aussageAnlegen`/`aussageLoeschen`) — sie ist der garantierte Demote-Pfad
+ * (Kopfkommentar "DEMOTE-DECKUNG") und soll darum über eine Folge hinweg mehrfach feuern, nicht
+ * nur einmal zufällig.
  */
 function aktionArbitrary(): fc.Arbitrary<Aktion> {
   return fc.oneof(
@@ -466,12 +518,18 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: ereignisLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
+    { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
   )
 }
 
-/** Eine Folge von `Aktion`en — die eigentliche Arbitrary, die `undo-bitgleich.test.ts` an `fc.property()` übergibt. */
+/** Eine Folge von `Aktion`en — die eigentliche Arbitrary, die `undo-bitgleich.test.ts` an
+ * `fc.property()` übergibt. `minLength: 15` (statt der vorherigen `0`, s. Kopfkommentar "DEMOTE-
+ * DECKUNG"): fast-checks eingebaute Größenheuristik hält die generierten Längen über weite Teile
+ * der 300 Läufe klein, eine zu kurze Folge lässt `aussageFaktAendern` (Gewicht 3 von 28) selten
+ * zweimal in DERSELBEN Folge fallen — ohne `minLength` feuerte der Demote-Pfad nur in 5 von 300
+ * Läufen, mit `minLength: 15` deutlich öfter (Belegzahl im PR-Bericht). */
 export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(), { maxLength: 40 })
+  return fc.array(aktionArbitrary(), { minLength: 15, maxLength: 40 })
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
@@ -508,6 +566,14 @@ interface AussageInfo {
   readonly subjektId: string
 }
 
+/** Ein getrackter (subjektTyp, subjektId, praedikat)-Dreiklang — die Grundlage der garantierten
+ * Demote-Wiederholung durch `aussageFaktAendern` (s. Kopfkommentar "DEMOTE-DECKUNG"). */
+interface AussageTripelInfo {
+  readonly subjektTyp: AussageSubjektKind
+  readonly subjektId: string
+  readonly praedikat: string
+}
+
 /** Mutabler Modellzustand einer einzelnen Eigenschaftslauf-Ausführung (kein Vertrags-/Ergebnistyp — bewusst kein `readonly`, analog `ModellZustand` in `_modell-abgeleitet.ts`). */
 export interface Zustand {
   personIds: string[]
@@ -516,10 +582,11 @@ export interface Zustand {
   partnerschaften: PartnerschaftInfo[]
   ereignisse: EreignisInfo[]
   aussagen: AussageInfo[]
+  aussageTripel: AussageTripelInfo[]
 }
 
 export function neuerZustand(): Zustand {
-  return { personIds: [], namen: [], elternschaften: [], partnerschaften: [], ereignisse: [], aussagen: [] }
+  return { personIds: [], namen: [], elternschaften: [], partnerschaften: [], ereignisse: [], aussagen: [], aussageTripel: [] }
 }
 
 /** Löst `zielRoh` gegen die aktuell lebenden Personen auf — `undefined`, wenn die Liste (noch) leer ist. */
@@ -631,8 +698,9 @@ interface AussageSubjektPool {
   readonly ids: readonly string[]
 }
 
-/** Die fünf Kandidatenlisten für `aussage.anlegen`s `subjektTyp`/`subjektId` (s. Kopfkommentar zu
- * `AussageSubjektKind` — kein `'ort'`, weil kein `ort.anlegen`-Befehl existiert). */
+/** Die fünf Kandidatenlisten für `aussage.anlegen`s `subjektTyp`/`subjektId`, IN DIESER
+ * REIHENFOLGE (`person` an Index 0 — `poolIndexBiased()` unten setzt das voraus, s. Kopfkommentar
+ * zu `AussageSubjektKind` — kein `'ort'`, weil kein `ort.anlegen`-Befehl existiert). */
 function aussageSubjektPools(zustand: Zustand): readonly AussageSubjektPool[] {
   return [
     { kind: 'person', ids: zustand.personIds },
@@ -643,19 +711,40 @@ function aussageSubjektPools(zustand: Zustand): readonly AussageSubjektPool[] {
   ]
 }
 
+/** Wählt den Index in `aussageSubjektPools()` BIASED zu `person` (Index 0, 80 % der Fälle) statt
+ * gleichverteilt über alle fünf Pools — s. Kopfkommentar "DEMOTE-DECKUNG". `person` ist der einzige
+ * Pool, der ab der ersten `person.anlegen`-Aktion garantiert befüllt ist; ein uniformer
+ * `roh % 5`-Modulo hätte 80 % der `aussage.anlegen`/`aussageFaktAendern`-Aktionen auf typischerweise
+ * leere Pools gelenkt und damit zu No-ops gemacht (belegter hueter-Befund: 0/300 Demote-Treffer). */
+function poolIndexBiased(roh: number): number {
+  const bucket = roh % 100
+  if (bucket < 80) return 0
+  if (bucket < 85) return 1
+  if (bucket < 90) return 2
+  if (bucket < 95) return 3
+  return 4
+}
+
+/** Gemeinsamer Baustein für `wertText`/`wertZahl` aus `AktionAussageWert` — bedingtes Spreaden
+ * (statt eines optionalen Felds mit `undefined`), damit ein weggelassenes Feld beim Zusammenbau
+ * wirklich FEHLT statt explizit `undefined` zu sein (`exactOptionalPropertyTypes`). Von
+ * `aussageAnlegenEinBauen()` UND dem `aussageFaktAendern`-Zweig in `aktionAusfuehren()` genutzt. */
+function aussageWertFeld(wert: AktionAussageWert): { readonly wertText: string } | { readonly wertZahl: number } {
+  return wert.art === 'text' ? { wertText: wert.wert } : { wertZahl: wert.wert }
+}
+
 /** Baut die `AussageAnlegenEin`-Nutzlast aus `AktionAussageAnlegen` — bedingtes Spreaden für
  * `wertText`/`wertZahl`/`istBevorzugt`, damit ein weggelassenes Feld beim Zusammenbau wirklich
  * FEHLT statt explizit `undefined` zu sein (`exactOptionalPropertyTypes`, s. Typkommentar bei
  * `AktionAussageAnlegen`). */
 function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, aktion: AktionAussageAnlegen): AussageAnlegenEin {
-  const wertFeld = aktion.wert.art === 'text' ? { wertText: aktion.wert.wert } : { wertZahl: aktion.wert.wert }
   const bevorzugtFeld = aktion.istBevorzugt === undefined ? {} : { istBevorzugt: aktion.istBevorzugt }
   return {
     subjektTyp: kind,
     subjektId,
     praedikat: aktion.praedikat,
     konfidenz: aktion.konfidenz,
-    ...wertFeld,
+    ...aussageWertFeld(aktion.wert),
     ...bevorzugtFeld,
   }
 }
@@ -693,8 +782,23 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       fuehreAus(db, 'person.loeschen', { id })
+      // Die `name`-Ids der gelöschten Person VOR dem Filtern merken (s. unten — CASCADE nimmt sie
+      // mit, `zustand.aussageTripel` muss das für 'name'-Dreiklänge genauso nachvollziehen wie für
+      // 'person'-Dreiklänge).
+      const kaskadiertGeloeschteNamenIds = zustand.namen.filter((n) => n.personId === id).map((n) => n.id)
       zustand.personIds = zustand.personIds.filter((vorhandeneId) => vorhandeneId !== id)
       zustand.namen = zustand.namen.filter((n) => n.personId !== id) // CASCADE (name.person_id)
+      // Kein FK-`CASCADE` auf `aussage` (s. Modul-Kommentar) — eine bereits vorhandene `aussage`-
+      // ZEILE über die gelöschte Person (oder ihre kaskadiert gelöschten Namen) bleibt bestehen,
+      // aber der (subjektTyp, subjektId, praedikat)-Dreiklang darf NICHT mehr für eine neue
+      // `aussage.anlegen`-Wiederholung (`aussageFaktAendern`) herangezogen werden — deren Subjekt
+      // existiert nicht mehr, ein erneutes Anlegen würde `NICHT_GEFUNDEN_PERSON`/`NICHT_GEFUNDEN_NAME`
+      // werfen.
+      zustand.aussageTripel = zustand.aussageTripel.filter(
+        (t) =>
+          !(t.subjektTyp === 'person' && t.subjektId === id) &&
+          !(t.subjektTyp === 'name' && kaskadiertGeloeschteNamenIds.includes(t.subjektId)),
+      )
       return
     }
 
@@ -729,6 +833,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'name.loeschen', { id: ziel.id })
       zustand.namen = zustand.namen.filter((n) => n.id !== ziel.id)
+      zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'name' && t.subjektId === ziel.id))
       return
     }
 
@@ -771,6 +876,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       fuehreAus(db, 'elternschaft.loeschen', { id: ziel.id })
       zustand.elternschaften = zustand.elternschaften.filter((e) => e.id !== ziel.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'elternschaft' && a.subjektId === ziel.id))
+      zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'elternschaft' && t.subjektId === ziel.id))
       return
     }
 
@@ -808,6 +914,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       fuehreAus(db, 'partnerschaft.loeschen', { id: ziel.id })
       zustand.partnerschaften = zustand.partnerschaften.filter((p) => p.id !== ziel.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'partnerschaft' && a.subjektId === ziel.id))
+      zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'partnerschaft' && t.subjektId === ziel.id))
       return
     }
 
@@ -844,14 +951,15 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       fuehreAus(db, 'ereignis.loeschen', { id: ziel.id })
       zustand.ereignisse = zustand.ereignisse.filter((e) => e.id !== ziel.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'ereignis' && a.subjektId === ziel.id))
+      zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'ereignis' && t.subjektId === ziel.id))
       return
     }
 
     case 'aussageAnlegen': {
       const pools = aussageSubjektPools(zustand)
-      const pool = pools[aktion.subjektWahlRoh % pools.length]
+      const pool = pools[poolIndexBiased(aktion.subjektWahlRoh)]
       if (pool === undefined) {
-        throw new Error('aktionAusfuehren(aussageAnlegen): unerreichbar — der Modulo liegt innerhalb der Poolanzahl.')
+        throw new Error('aktionAusfuehren(aussageAnlegen): unerreichbar — der Index liegt innerhalb der Poolanzahl.')
       }
       const subjektId = zielAusListe(pool.ids, aktion.subjektZielRoh)
       if (subjektId === undefined) {
@@ -859,6 +967,12 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       const { id } = fuehreAus(db, 'aussage.anlegen', aussageAnlegenEinBauen(pool.kind, subjektId, aktion))
       zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      // `istBevorzugt === 1` macht diesen Dreiklang ebenfalls zu einem gültigen Wiederholungsziel
+      // für `aussageFaktAendern` (s. dortiger Fall) — nur dann demoted eine spätere Wiederholung
+      // tatsächlich etwas (`aussage-anlegen.ts` demoted nur zuvor selbst bevorzugte Aussagen).
+      if (aktion.istBevorzugt === 1) {
+        zustand.aussageTripel.push({ subjektTyp: pool.kind, subjektId, praedikat: aktion.praedikat })
+      }
       return
     }
 
@@ -869,6 +983,52 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'aussage.loeschen', { id: ziel.id })
       zustand.aussagen = zustand.aussagen.filter((a) => a.id !== ziel.id)
+      return
+    }
+
+    case 'aussageFaktAendern': {
+      // Existiert bereits ein getrackter Dreiklang: GENAU DIESEN wiederholen — mit `istBevorzugt: 1`
+      // erzwungen, garantierter Demote-Treffer (s. Kopfkommentar "DEMOTE-DECKUNG" und Typkommentar
+      // bei `AktionAussageFaktAendern`). Kein No-op-Fall hier: `zielAusListe()` liefert bei
+      // nichtleerer Liste immer ein Element.
+      if (zustand.aussageTripel.length > 0) {
+        const tripel = zielAusListe(zustand.aussageTripel, aktion.tripelWahlRoh)
+        if (tripel === undefined) {
+          throw new Error('aktionAusfuehren(aussageFaktAendern): unerreichbar — die Liste ist nicht leer.')
+        }
+        const { id } = fuehreAus(db, 'aussage.anlegen', {
+          subjektTyp: tripel.subjektTyp,
+          subjektId: tripel.subjektId,
+          praedikat: tripel.praedikat,
+          konfidenz: aktion.konfidenz,
+          istBevorzugt: 1,
+          ...aussageWertFeld(aktion.wert),
+        })
+        zustand.aussagen.push({ id, subjektTyp: tripel.subjektTyp, subjektId: tripel.subjektId })
+        return
+      }
+
+      // Noch kein getrackter Dreiklang: einen neuen anlegen (analog `aussageAnlegen`, aber IMMER
+      // `istBevorzugt: 1`) und für spätere Wiederholungen vormerken.
+      const pools = aussageSubjektPools(zustand)
+      const pool = pools[poolIndexBiased(aktion.subjektWahlRoh)]
+      if (pool === undefined) {
+        throw new Error('aktionAusfuehren(aussageFaktAendern): unerreichbar — der Index liegt innerhalb der Poolanzahl.')
+      }
+      const subjektId = zielAusListe(pool.ids, aktion.subjektZielRoh)
+      if (subjektId === undefined) {
+        return
+      }
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: pool.kind,
+        subjektId,
+        praedikat: aktion.praedikat,
+        konfidenz: aktion.konfidenz,
+        istBevorzugt: 1,
+        ...aussageWertFeld(aktion.wert),
+      })
+      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      zustand.aussageTripel.push({ subjektTyp: pool.kind, subjektId, praedikat: aktion.praedikat })
       return
     }
 

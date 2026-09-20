@@ -21,14 +21,29 @@
 // Vorgehen:
 // 1. Frische, leere migrierte `:memory:`-Datenbank (kein Fixture-Korpus — der existiert erst ab
 //    AP-0.12, Entscheidung "Default 1" laut Auftrag). `schnappschuesse[0]` = ihr kanonischer Abzug.
-// 2. Eine fast-check-generierte Befehlsfolge (`_befehlsfolge-generator.ts`) über die drei
-//    registrierten Befehle über den ECHTEN Befehlsbus (`fuehreAus`) ausführen — NACH JEDER Aktion,
-//    die tatsächlich eine neue `transaktion`-Zeile committet hat (erkannt an einer gestiegenen
-//    `COUNT(*) FROM transaktion` — eine vom Befehlsbus verworfene leere Transaktion hinterlässt
-//    dort NIE eine Zeile, `src/main/befehle/bus.ts`), einen weiteren Schnappschuss anhängen.
+// 2. Eine fast-check-generierte Befehlsfolge (`_befehlsfolge-generator.ts`) über die registrierten
+//    Befehle über den ECHTEN Befehlsbus (`fuehreAus`) ausführen — nach jeder Aktion wird die `id`
+//    von `undoZiel(db)` (der obersten anwendbaren Transaktion, `journal-repo.ts`) mit der vor der
+//    Aktion verglichen:
+//    - ändert sich die `id` (eine neue Transaktionszeile liegt jetzt oben), wird ein neuer
+//      Schnappschuss ANGEHÄNGT — ein echter neuer Undo-Schritt.
+//    - bleibt die `id` GLEICH, wird der ZULETZT aufgezeichnete Schnappschuss ERSETZT statt
+//      angehängt. Das deckt zwei Fälle ab, die sich von außen nicht unterscheiden lassen und beide
+//      denselben Umgang brauchen: (a) ein echter No-op (Aktion hat nichts verändert, der Ersatz
+//      schreibt denselben Wert erneut) und (b) KOALESZENZ (AP-0.15, `versucheZusammenfassen()` in
+//      `src/main/journal/koaleszenz.ts`) — zwei schnelle Änderungen mit demselben
+//      Koaleszenz-Schlüssel (z. B. zwei `feldSetzen('notiz', …)` auf dieselbe Person, `bus.ts`
+//      §4.8) werden zu EINEM Undo-Schritt verschmolzen; die resultierende Zeile behält die `id` der
+//      ERSTEN der beiden (`kandidat.id`), ihr Inhalt (der Vorzustand, den ein Undo wiederherstellt)
+//      ändert sich aber. Ein reiner `COUNT(*) FROM transaktion`-Vergleich (frühere Fassung dieses
+//      Tests) übersieht Fall (b): die verworfene, neu angelegte Zeile hebt den Zählerstand wieder
+//      exakt auf, obwohl sich die JETZT oberste Transaktion inhaltlich geändert hat — genau diese
+//      Lücke hat die erhöhte Demote-Deckung in `_befehlsfolge-generator.ts` (AP-1.12 PR-B,
+//      Kopfkommentar dort "DEMOTE-DECKUNG") real getroffen (zwei aufeinanderfolgende
+//      `feldSetzen('notiz', …)` innerhalb des 2-Sekunden-Fensters).
 //    `schnappschuesse` ist damit exakt die Folge der Zustände nach 0, 1, 2, … tatsächlich
-//    committeten Transaktionen — unabhängig von No-op-Aktionen (Modul-Kommentar
-//    `_befehlsfolge-generator.ts`) und leeren `feldSetzen`-Aufrufen.
+//    ANWENDBAREN (nicht bloß tabellenweise gezählten) Undo-Schritten — unabhängig von No-ops
+//    (Modul-Kommentar `_befehlsfolge-generator.ts`) und von Koaleszenz.
 // 3. `undo()` GENAU `schnappschuesse.length - 1`-mal aufrufen — nach dem i-ten `undo()`-Aufruf MUSS
 //    der kanonische Abzug mit `schnappschuesse[schnappschuesse.length - 1 - i]` übereinstimmen: das
 //    prüft nicht nur den Endzustand, sondern JEDEN einzelnen Rücknahmeschritt gegen den exakt
@@ -76,19 +91,6 @@ function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   return db
 }
 
-interface TransaktionAnzahlZeile {
-  readonly anzahl: number
-}
-
-/** Anzahl der (ausschließlich committeten — s. Modul-Kommentar) `transaktion`-Zeilen. */
-function transaktionAnzahl(db: ReturnType<typeof oeffnen>): number {
-  const zeile = db.prepare<[], TransaktionAnzahlZeile>('SELECT COUNT(*) AS anzahl FROM transaktion').get()
-  if (zeile === undefined) {
-    throw new Error('transaktionAnzahl(): COUNT(*)-Abfrage lieferte unerwartet keine Zeile.')
-  }
-  return zeile.anzahl
-}
-
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
   it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (alle registrierten Schreibbefehle, AP-1.12 PR-B) trifft exakt den passenden Vorzustand', () => {
     fc.assert(
@@ -96,16 +98,21 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
-          let anzahlVorher = transaktionAnzahl(db)
+          // `id` der aktuell obersten anwendbaren Transaktion — `undefined`, solange keine existiert.
+          // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neue Transaktion vs. No-op/Koaleszenz).
+          let oberstesTxIdVorher = undoZiel(db)?.id
 
           const zustand = neuerZustand()
           for (const aktion of folge) {
             aktionAusfuehren(db, zustand, aktion)
-            const anzahlJetzt = transaktionAnzahl(db)
-            if (anzahlJetzt > anzahlVorher) {
+            const oberstesTxIdJetzt = undoZiel(db)?.id
+            if (oberstesTxIdJetzt !== oberstesTxIdVorher) {
               schnappschuesse.push(kanonischerAbzug(db))
-              anzahlVorher = anzahlJetzt
+            } else if (oberstesTxIdJetzt !== undefined) {
+              const letzterIndex = schnappschuesse.length - 1
+              schnappschuesse[letzterIndex] = kanonischerAbzug(db)
             }
+            oberstesTxIdVorher = oberstesTxIdJetzt
           }
 
           const anzahlSchritte = schnappschuesse.length - 1
