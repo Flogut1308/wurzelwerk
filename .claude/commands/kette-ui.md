@@ -24,7 +24,11 @@ Paket ein fertiges Bild still verändert. Der Nutzer sieht gestapelt hin, an den
   AP-1.25 direkt danach: friert die Referenzbilder ein, solange es wenig einzufrieren gibt.
   **Danach ANHALTEN — Checkpoint 1.** Der Nutzer sieht sich die Zustandsbibliothek an.
 
-**Kette 2** (`/kette-ui 2`): AP-1.12 → AP-1.13 → AP-1.14 → AP-1.15 → AP-1.16 → AP-1.17
+**Kette 2** (`/kette-ui 2`): AP-1.28 → AP-1.26 → AP-1.27 → AP-1.12 → AP-1.13 → AP-1.14 → AP-1.15 → AP-1.16 → AP-1.17
+  AP-1.28 zuerst: die Bausteinkorrekturen aus Checkpoint 1 — sie tragen alles Folgende.
+  Dann AP-1.26: der Eingang der App (die Startansicht ist der einzige ungestaltete Bildschirm,
+  und ihre Pfadtextfelder verstoßen gegen die Regel „Pfade wählt man nie durch Tippen"),
+  AP-1.27 direkt danach: der Eingang der Testdaten.
   **Danach ANHALTEN — Checkpoint 2.** Der Nutzer arbeitet einen Abend mit echten Daten.
 
 **Kette 3** (`/kette-ui 3`): AP-1.18 → AP-1.19 → AP-1.20 → AP-1.23 → AP-1.24 → AP-1.21 → AP-1.22
