@@ -21,7 +21,9 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
+import { NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
+import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../shared/schemata/person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
 import type {
   PersonDetailAus,
@@ -31,6 +33,7 @@ import type {
   PersonDetailEreignis,
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
+  PersonDetailName,
 } from '../../shared/schemata/person-detail'
 import { datensatzExistiert } from '../repositories/basis'
 
@@ -41,6 +44,8 @@ interface KopfZeile {
   readonly ist_platzhalter: number
   readonly privat: number
   readonly notiz: string | null
+  readonly geschlecht: string | null
+  readonly platzhalter_grund: string | null
 }
 
 function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefined {
@@ -49,12 +54,52 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
       { readonly personId: string },
       KopfZeile
     >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.konfidenz_min AS konfidenz_min,
-              p.ist_platzhalter AS ist_platzhalter, p.privat AS privat, p.notiz AS notiz
+              p.ist_platzhalter AS ist_platzhalter, p.privat AS privat, p.notiz AS notiz,
+              p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
        WHERE pf.person_id = @personId`,
     )
     .get({ personId })
+}
+
+interface NameZeile {
+  readonly id: string
+  readonly typ: string
+  readonly schrift: string | null
+  readonly vornamen: string | null
+  readonly nachname: string | null
+  readonly praefix: string | null
+  readonly titel_vor: string | null
+  readonly zusatz_nach: string | null
+  readonly rufname_text: string | null
+}
+
+/** `name`-Zeilen dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — sortiert nach `ist_bevorzugt`
+ * (bevorzugter Name zuerst), dann `id` als stabiler Tie-Break (analog `ereignisseSortierenUndWandeln`). */
+function namenLaden(db: Database.Database, personId: string): readonly PersonDetailName[] {
+  const zeilen = db
+    .prepare<
+      { readonly personId: string },
+      NameZeile
+    >(`SELECT id AS id, typ AS typ, schrift AS schrift, vornamen AS vornamen, nachname AS nachname,
+              praefix AS praefix, titel_vor AS titel_vor, zusatz_nach AS zusatz_nach, rufname_text AS rufname_text
+       FROM name
+       WHERE person_id = @personId
+       ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id`,
+    )
+    .all({ personId })
+  return zeilen.map((zeile) => ({
+    id: zeile.id,
+    typ: NameTypEnum.parse(zeile.typ),
+    schrift: zeile.schrift === null ? null : SchriftEnum.parse(zeile.schrift),
+    vornamen: zeile.vornamen,
+    nachname: zeile.nachname,
+    praefix: zeile.praefix,
+    titel_vor: zeile.titel_vor,
+    zusatz_nach: zeile.zusatz_nach,
+    rufname_text: zeile.rufname_text,
+  }))
 }
 
 interface AussageZeile {
@@ -520,7 +565,10 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       konfidenz_min: kopfZeile.konfidenz_min,
       ist_platzhalter: kopfZeile.ist_platzhalter === 1,
       privat: kopfZeile.privat === 1,
+      geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
+      platzhalter_grund: kopfZeile.platzhalter_grund === null ? null : PlatzhalterGrundEnum.parse(kopfZeile.platzhalter_grund),
     },
+    namen: namenLaden(db, ein.personId),
     grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
     beziehungen: beziehungenLaden(db, ein.personId),

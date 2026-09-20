@@ -203,6 +203,25 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(ergebnis.kopf.anzeigename).toBe('August Wruck')
       expect(ergebnis.kopf.ist_platzhalter).toBe(false)
 
+      // AP-1.14a: `namen` + `kopf.geschlecht`/`kopf.platzhalter_grund` sind eine read-only
+      // Ergänzung für die Kernfelder-Schreibmaske (`ProfilAnsicht`-Bearbeitenmodus) — `personAnlegen()`
+      // oben legt genau eine `geburtsname`-Zeile an, ohne `geschlecht` gesetzt.
+      expect(ergebnis.namen).toEqual([
+        {
+          id: expect.any(String),
+          typ: 'geburtsname',
+          schrift: null,
+          vornamen: 'August',
+          nachname: 'Wruck',
+          praefix: null,
+          titel_vor: null,
+          zusatz_nach: null,
+          rufname_text: null,
+        },
+      ])
+      expect(ergebnis.kopf.geschlecht).toBeNull()
+      expect(ergebnis.kopf.platzhalter_grund).toBeNull()
+
       const feld = todesdatumFeld(ergebnis.grunddaten)
       expect(feld).toBeDefined()
       // KEIN Widerspruch, obwohl zwei abweichende Werte vorliegen: Entscheidung 1961 IST bevorzugt
@@ -345,6 +364,24 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       // ebenfalls `anzeigename === ''` — darf aber NICHT als Platzhalter erscheinen.
       const mutterBeziehung = ergebnis.beziehungen.find((beziehung) => beziehung.person_id === echteNamenloseMutterId)
       expect(mutterBeziehung?.ist_platzhalter).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  // AP-1.14a: `kopf.geschlecht`/`kopf.platzhalter_grund` lesen `person.geschlecht`/
+  // `person.platzhalter_grund` — `platzhalterAnlegen()` setzt oben `platzhalter_grund: 'unbekannt'`,
+  // aber KEINEN Namen: `namen` bleibt darum eine leere Liste, kein `[undefined]`.
+  it('kopf.geschlecht/kopf.platzhalter_grund spiegeln die person-Spalten; namen ist [] ohne Namenszeile', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const platzhalterId = platzhalterAnlegen(db)
+
+      const ergebnis = personDetail(db, { personId: platzhalterId })
+
+      expect(ergebnis.kopf.platzhalter_grund).toBe('unbekannt')
+      expect(ergebnis.kopf.geschlecht).toBeNull()
+      expect(ergebnis.namen).toEqual([])
     } finally {
       db.close()
     }

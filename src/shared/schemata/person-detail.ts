@@ -24,7 +24,9 @@ import { z } from 'zod'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
+import { NameTypEnum, SchriftEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
+import { GeschlechtEnum, PlatzhalterGrundEnum } from './person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 
 /** Nutzlast von `abfrage:person.detail`. */
@@ -37,13 +39,35 @@ export const personDetailEinSchema: z.ZodType<PersonDetailEin> = z.object({
 })
 
 /** Kopf der Profilseite — Anzeigename und Konfidenz aus `person_flach`, Platzhalter-/
- * Privat-Status aus `person` (docs/schema/0002_kern.sql, 0003_abgeleitet.sql). */
+ * Privat-Status aus `person` (docs/schema/0002_kern.sql, 0003_abgeleitet.sql).
+ *
+ * `geschlecht`/`platzhalter_grund` (AP-1.14a): bislang nur für die ANZEIGE gebraucht — jetzt zum
+ * Vorbefüllen der Kernfelder-Schreibmaske (`befehl:person.feldSetzen`) ergänzt. Read-only wie jede
+ * andere Spalte hier; kein neuer Schreibweg (CLAUDE.md §2). */
 export interface PersonDetailKopf {
   readonly person_id: string
   readonly anzeigename: string
   readonly konfidenz_min: number | null
   readonly ist_platzhalter: boolean
   readonly privat: boolean
+  readonly geschlecht: z.infer<typeof GeschlechtEnum> | null
+  readonly platzhalter_grund: z.infer<typeof PlatzhalterGrundEnum> | null
+}
+
+/** Eine `name`-Zeile dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — read-only Spiegel der
+ * `name`-Tabelle (docs/schema/0002_kern.sql §2.2), NUR die Spalten, die die Kernfelder-Maske
+ * bearbeitet (`befehl:name.anlegen`/`.aendern`). Kein `konfidenz`/`beleg`-Slot (ADR-026: Name
+ * trägt keine Aussage). */
+export interface PersonDetailName {
+  readonly id: string
+  readonly typ: z.infer<typeof NameTypEnum>
+  readonly schrift: z.infer<typeof SchriftEnum> | null
+  readonly vornamen: string | null
+  readonly nachname: string | null
+  readonly praefix: string | null
+  readonly titel_vor: string | null
+  readonly zusatz_nach: string | null
+  readonly rufname_text: string | null
 }
 
 /** Stufe 1 eines Belegs (S-08): die Quelle selbst — `docs/schema/0002_kern.sql` §2.7/§2.15.
@@ -156,9 +180,15 @@ export interface PersonDetailGesundheitseintrag {
   readonly notiz: string | null
 }
 
-/** Antwort von `abfrage:person.detail`. */
+/** Antwort von `abfrage:person.detail`.
+ *
+ * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
+ * `abfrage:person.detail` die Namensliste liefert" — sie tat es vorher nicht; ergänzt hier statt
+ * eines zweiten Abfragekanals, weil die Profilseite ohnehin schon EINEN vollständigen
+ * Personen-Datensatz lädt). */
 export interface PersonDetailAus {
   readonly kopf: PersonDetailKopf
+  readonly namen: readonly PersonDetailName[]
   readonly grunddaten: readonly PersonDetailGrunddatenFeld[]
   readonly ereignisse: readonly PersonDetailEreignis[]
   readonly beziehungen: readonly PersonDetailBeziehung[]
