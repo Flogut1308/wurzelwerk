@@ -37,6 +37,7 @@ import { TrockenlaufBericht } from '../../bausteine/trockenlauf-bericht'
 import { Trennlinie } from '../../bausteine/trennlinie'
 import { Textfeld } from '../../bausteine/textfeld'
 import { Umschalter } from '../../bausteine/umschalter'
+import { Vorschlagskarte } from '../../bausteine/vorschlagskarte'
 import { WiderspruchZeichen } from '../../bausteine/widerspruch-zeichen'
 import { Zaehler } from '../../bausteine/zaehler'
 import { Zahlfeld } from '../../bausteine/zahlfeld'
@@ -560,6 +561,18 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
             hatAktivenFilter={false}
           />
         </div>
+      </Abschnitt>
+
+      <Abschnitt name="vorschlagskarte">
+        <Vorschlagskarte zustand="vorschlag" originalwortlaut={t('beispiel_vorschlagskarte_original')} aufBestaetigen={() => {}} aufVerwerfen={() => {}}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
+        <Vorschlagskarte zustand="bestaetigt" originalwortlaut={t('beispiel_vorschlagskarte_original')}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
+        <Vorschlagskarte zustand="verworfen" originalwortlaut={t('beispiel_vorschlagskarte_original')} aufWiederherstellen={() => {}}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">

@@ -1,0 +1,43 @@
+/*
+ * Baustein `Vorschlagskarte` — Molekül (docs/71_Designsystem.md §2.2/§3.5). Drei Zustände über
+ * eigene Modifikatorklassen, deutlich mehr als eine Farbnuance auseinander: `vorschlag` gestrichelt
+ * und auf vertiefter Fläche (grau, „nicht geschrieben"), `bestaetigt` normale Fläche mit festem
+ * Rahmen, `verworfen` eine einzeilige, kompakte Leiste statt der ganzen Karte.
+ */
+
+.wz-vorschlagskarte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-12) var(--wz-abstand-16);
+  border-radius: var(--wz-radius-gross);
+}
+
+.wz-vorschlagskarte--vorschlag {
+  background: var(--wz-flaeche-vertieft);
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+}
+
+.wz-vorschlagskarte--bestaetigt {
+  background: var(--wz-flaeche-basis);
+  border: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-vorschlagskarte__inhalt {
+  display: block;
+}
+
+.wz-vorschlagskarte__aktionen {
+  display: flex;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-vorschlagskarte--verworfen {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--wz-abstand-4) var(--wz-abstand-16);
+  background: transparent;
+  border: 1px solid var(--wz-rahmen-fein);
+  opacity: 0.7;
+}

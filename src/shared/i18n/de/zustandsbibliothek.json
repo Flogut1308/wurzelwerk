@@ -43,7 +43,8 @@
     "seitenschublade": "Seitenschublade",
     "fehlerliste-import": "FehlerlisteImport",
     "trockenlauf-bericht": "TrockenlaufBericht",
-    "datentabelle": "Datentabelle"
+    "datentabelle": "Datentabelle",
+    "vorschlagskarte": "Vorschlagskarte"
   },
   "variante_primaer": "primär",
   "variante_sekundaer": "sekundär",
@@ -73,6 +74,8 @@
   "beispiel_formularfeld_beschriftung": "Geburtsdatum",
   "beispiel_formularfeld_hilfetext": "Format TT.MM.JJJJ oder \"um 1890\"",
   "beispiel_formularfeld_fehlertext": "Dieses Datum ist nicht auflösbar.",
+  "beispiel_vorschlagskarte_original": "Karl ist 1890 in Marienwerder zur Welt gekommen.",
+  "beispiel_vorschlagskarte_inhalt": "Geburt: etwa 1890, Marienwerder",
   "beispiel_konfidenzwaehler_beschriftung": "Konfidenz",
   "beispiel_suchfeld_platzhalter": "Suchen …",
   "beispiel_filter_konfidenz_alle": "alle",

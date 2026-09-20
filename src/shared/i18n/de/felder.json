@@ -15,5 +15,9 @@
   "datumsfeld_kalender_gregorianisch": "gregorianisch",
   "datumsfeld_kalender_julianisch": "julianisch",
   "datumsfeld_kalender_hebraeisch": "hebräisch",
-  "datumsfeld_kalender_franzoesisch_republikanisch": "französisch-republikanisch"
+  "datumsfeld_kalender_franzoesisch_republikanisch": "französisch-republikanisch",
+  "vorschlagskarte_bestaetigen": "Vorschlag übernehmen",
+  "vorschlagskarte_verwerfen": "Vorschlag verwerfen",
+  "vorschlagskarte_wiederherstellen": "Verworfenen Vorschlag wiederherstellen",
+  "vorschlagskarte_verworfen": "Verworfen"
 }

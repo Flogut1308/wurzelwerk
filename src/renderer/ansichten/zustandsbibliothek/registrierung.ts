@@ -45,4 +45,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'fehlerliste-import',
   'trockenlauf-bericht',
   'datentabelle',
+  'vorschlagskarte',
 ]
