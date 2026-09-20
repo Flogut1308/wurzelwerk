@@ -13,6 +13,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface EreignisZeile {
@@ -158,6 +159,37 @@ describe('ereignis.anlegen (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo entfernt Kante + beteiligung-Kinder + Existenz-Aussage bitgleich, Redo legt alle wieder an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const hauptperson = neuePerson(db)
+      const { id } = fuehreAus(db, 'ereignis.anlegen', {
+        typ: 'geburt',
+        beteiligungen: [{ personId: hauptperson, rolle: 'hauptperson' }],
+        konfidenz: 3,
+      })
+
+      const zeileNachAnlegen = ereignisLesen(db, id)
+      const beteiligungenNachAnlegen = beteiligungListe(db, id)
+      const aussagenNachAnlegen = aussagenFuerEreignis(db, id)
+      expect(zeileNachAnlegen).toBeDefined()
+      expect(beteiligungenNachAnlegen).toHaveLength(1)
+      expect(aussagenNachAnlegen).toHaveLength(1)
+
+      undo(db)
+      expect(ereignisLesen(db, id)).toBeUndefined()
+      expect(beteiligungListe(db, id)).toHaveLength(0)
+      expect(aussagenFuerEreignis(db, id)).toHaveLength(0)
+
+      redo(db)
+      expect(ereignisLesen(db, id)).toEqual(zeileNachAnlegen)
+      expect(beteiligungListe(db, id)).toEqual(beteiligungenNachAnlegen)
+      expect(aussagenFuerEreignis(db, id)).toEqual(aussagenNachAnlegen)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('ereignis.aendern (AP-1.12)', () => {
@@ -193,6 +225,30 @@ describe('ereignis.aendern (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo stellt die vorherige beschreibung/notiz bitgleich wieder her, Redo die Änderung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const hauptperson = neuePerson(db)
+      const { id } = fuehreAus(db, 'ereignis.anlegen', {
+        typ: 'geburt',
+        beteiligungen: [{ personId: hauptperson, rolle: 'hauptperson' }],
+        konfidenz: 3,
+      })
+      const vorAendern = ereignisLesen(db, id)
+
+      fuehreAus(db, 'ereignis.aendern', { id, typ: 'geburt', beschreibung: 'Hausgeburt', notiz: 'Notiz' })
+      const nachAendern = ereignisLesen(db, id)
+
+      undo(db)
+      expect(ereignisLesen(db, id)).toEqual(vorAendern)
+
+      redo(db)
+      expect(ereignisLesen(db, id)).toEqual(nachAendern)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('ereignis.loeschen (AP-1.12)', () => {
@@ -223,6 +279,36 @@ describe('ereignis.loeschen (AP-1.12)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'ereignis.loeschen', { id: 'nicht-vorhanden' }))
       expect(code).toBe('NICHT_GEFUNDEN_EREIGNIS')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt Kante + beteiligung-Kinder + Existenz-Aussage bitgleich wieder her, Redo löscht alle erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const hauptperson = neuePerson(db)
+      const { id } = fuehreAus(db, 'ereignis.anlegen', {
+        typ: 'geburt',
+        beteiligungen: [{ personId: hauptperson, rolle: 'hauptperson' }],
+        konfidenz: 3,
+      })
+      const vorLoeschen = ereignisLesen(db, id)
+      const beteiligungenVorLoeschen = beteiligungListe(db, id)
+      const aussagenVorLoeschen = aussagenFuerEreignis(db, id)
+
+      fuehreAus(db, 'ereignis.loeschen', { id })
+      expect(ereignisLesen(db, id)).toBeUndefined()
+
+      undo(db)
+      expect(ereignisLesen(db, id)).toEqual(vorLoeschen)
+      expect(beteiligungListe(db, id)).toEqual(beteiligungenVorLoeschen)
+      expect(aussagenFuerEreignis(db, id)).toEqual(aussagenVorLoeschen)
+
+      redo(db)
+      expect(ereignisLesen(db, id)).toBeUndefined()
+      expect(beteiligungListe(db, id)).toHaveLength(0)
+      expect(aussagenFuerEreignis(db, id)).toHaveLength(0)
     } finally {
       db.close()
     }

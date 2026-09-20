@@ -13,6 +13,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface NameZeile {
@@ -127,6 +128,24 @@ describe('name.anlegen (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo entfernt die angelegte name-Zeile wieder, Redo legt sie bitgleich erneut an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller', vornamen: 'Anna' })
+      const nachAnlegen = nameLesen(db, id)
+      expect(nachAnlegen).toBeDefined()
+
+      undo(db)
+      expect(nameLesen(db, id)).toBeUndefined()
+
+      redo(db)
+      expect(nameLesen(db, id)).toEqual(nachAnlegen)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('name.aendern (AP-1.12)', () => {
@@ -178,6 +197,26 @@ describe('name.aendern (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo stellt den vorherigen Namen bitgleich wieder her, Redo den geänderten', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller', vornamen: 'Anna' })
+      const vorAendern = nameLesen(db, id)
+
+      fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', nachname: 'Müller-Schmidt', vornamen: 'Anna' })
+      const nachAendern = nameLesen(db, id)
+
+      undo(db)
+      expect(nameLesen(db, id)).toEqual(vorAendern)
+
+      redo(db)
+      expect(nameLesen(db, id)).toEqual(nachAendern)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('name.loeschen (AP-1.12)', () => {
@@ -205,6 +244,26 @@ describe('name.loeschen (AP-1.12)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'name.loeschen', { id: 'nicht-vorhanden' }))
       expect(code).toBe('NICHT_GEFUNDEN_NAME')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt die gelöschte name-Zeile bitgleich wieder her, Redo löscht sie erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
+      const vorLoeschen = nameLesen(db, id)
+
+      fuehreAus(db, 'name.loeschen', { id })
+      expect(nameLesen(db, id)).toBeUndefined()
+
+      undo(db)
+      expect(nameLesen(db, id)).toEqual(vorLoeschen)
+
+      redo(db)
+      expect(nameLesen(db, id)).toBeUndefined()
     } finally {
       db.close()
     }

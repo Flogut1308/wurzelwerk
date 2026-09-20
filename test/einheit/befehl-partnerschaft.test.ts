@@ -13,6 +13,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface PartnerschaftZeile {
@@ -79,6 +80,12 @@ function neuePerson(db: ReturnType<typeof oeffnen>): string {
   return fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
 }
 
+/** Sortiert nach `person_id`, damit ein Vorher/Nachher-Vergleich unabhängig von der physischen
+ * Einfüge-/Undo-Reihenfolge ist (die Bitgleichheit gilt pro Zeile, nicht für die Zeilenreihenfolge). */
+function nachPersonSortiert(zeilen: readonly PartnerschaftPersonZeile[]): readonly PartnerschaftPersonZeile[] {
+  return [...zeilen].sort((a, b) => a.person_id.localeCompare(b.person_id))
+}
+
 function fehlerCode(fn: () => void): string | undefined {
   try {
     fn()
@@ -140,6 +147,41 @@ describe('partnerschaft.anlegen (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo entfernt Kante + partnerschaft_person-Kinder + Existenz-Aussage bitgleich, Redo legt alle wieder an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const a = neuePerson(db)
+      const b = neuePerson(db)
+      const { id } = fuehreAus(db, 'partnerschaft.anlegen', {
+        typ: 'ehe_zivil',
+        beteiligte: [
+          { personId: a, rolle: 'ehepartner' },
+          { personId: b, rolle: 'ehepartner' },
+        ],
+        konfidenz: 4,
+      })
+
+      const zeileNachAnlegen = partnerschaftLesen(db, id)
+      const beteiligteNachAnlegen = nachPersonSortiert(partnerschaftPersonListe(db, id))
+      const aussagenNachAnlegen = aussagenFuerPartnerschaft(db, id)
+      expect(zeileNachAnlegen).toBeDefined()
+      expect(beteiligteNachAnlegen).toHaveLength(2)
+      expect(aussagenNachAnlegen).toHaveLength(1)
+
+      undo(db)
+      expect(partnerschaftLesen(db, id)).toBeUndefined()
+      expect(partnerschaftPersonListe(db, id)).toHaveLength(0)
+      expect(aussagenFuerPartnerschaft(db, id)).toHaveLength(0)
+
+      redo(db)
+      expect(partnerschaftLesen(db, id)).toEqual(zeileNachAnlegen)
+      expect(nachPersonSortiert(partnerschaftPersonListe(db, id))).toEqual(beteiligteNachAnlegen)
+      expect(aussagenFuerPartnerschaft(db, id)).toEqual(aussagenNachAnlegen)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('partnerschaft.aendern (AP-1.12)', () => {
@@ -176,6 +218,31 @@ describe('partnerschaft.aendern (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo stellt den vorherigen endeGrund/notiz bitgleich wieder her, Redo die Änderung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const a = neuePerson(db)
+      const b = neuePerson(db)
+      const { id } = fuehreAus(db, 'partnerschaft.anlegen', {
+        typ: 'ehe_zivil',
+        beteiligte: [{ personId: a }, { personId: b }],
+        konfidenz: 3,
+      })
+      const vorAendern = partnerschaftLesen(db, id)
+
+      fuehreAus(db, 'partnerschaft.aendern', { id, typ: 'ehe_zivil', endeGrund: 'scheidung', notiz: 'geschieden 1930' })
+      const nachAendern = partnerschaftLesen(db, id)
+
+      undo(db)
+      expect(partnerschaftLesen(db, id)).toEqual(vorAendern)
+
+      redo(db)
+      expect(partnerschaftLesen(db, id)).toEqual(nachAendern)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('partnerschaft.loeschen (AP-1.12)', () => {
@@ -207,6 +274,37 @@ describe('partnerschaft.loeschen (AP-1.12)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'partnerschaft.loeschen', { id: 'nicht-vorhanden' }))
       expect(code).toBe('NICHT_GEFUNDEN_PARTNERSCHAFT')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt Kante + partnerschaft_person-Kinder + Existenz-Aussage bitgleich wieder her, Redo löscht alle erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const a = neuePerson(db)
+      const b = neuePerson(db)
+      const { id } = fuehreAus(db, 'partnerschaft.anlegen', {
+        typ: 'ehe_zivil',
+        beteiligte: [{ personId: a }, { personId: b }],
+        konfidenz: 3,
+      })
+      const vorLoeschen = partnerschaftLesen(db, id)
+      const beteiligteVorLoeschen = nachPersonSortiert(partnerschaftPersonListe(db, id))
+      const aussagenVorLoeschen = aussagenFuerPartnerschaft(db, id)
+
+      fuehreAus(db, 'partnerschaft.loeschen', { id })
+      expect(partnerschaftLesen(db, id)).toBeUndefined()
+
+      undo(db)
+      expect(partnerschaftLesen(db, id)).toEqual(vorLoeschen)
+      expect(nachPersonSortiert(partnerschaftPersonListe(db, id))).toEqual(beteiligteVorLoeschen)
+      expect(aussagenFuerPartnerschaft(db, id)).toEqual(aussagenVorLoeschen)
+
+      redo(db)
+      expect(partnerschaftLesen(db, id)).toBeUndefined()
+      expect(partnerschaftPersonListe(db, id)).toHaveLength(0)
+      expect(aussagenFuerPartnerschaft(db, id)).toHaveLength(0)
     } finally {
       db.close()
     }

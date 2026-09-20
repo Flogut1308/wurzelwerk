@@ -14,6 +14,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 import { aussageAnlegenEinSchema } from '../../src/shared/schemata/befehle'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
@@ -142,6 +143,37 @@ describe('aussage.anlegen (AP-1.12)', () => {
     }
   })
 
+  it('Undo entfernt die aussage-Zeile + aussage_zitat-Verknüpfung bitgleich, Redo legt beide wieder an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const zitatId = neuesZitat(db)
+
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 3,
+        belege: [zitatId],
+      })
+      const zeileNachAnlegen = aussageLesen(db, id)
+      const zitateNachAnlegen = aussageZitatListe(db, id)
+      expect(zeileNachAnlegen).toBeDefined()
+      expect(zitateNachAnlegen).toHaveLength(1)
+
+      undo(db)
+      expect(aussageLesen(db, id)).toBeUndefined()
+      expect(aussageZitatListe(db, id)).toHaveLength(0)
+
+      redo(db)
+      expect(aussageLesen(db, id)).toEqual(zeileNachAnlegen)
+      expect(aussageZitatListe(db, id)).toEqual(zitateNachAnlegen)
+    } finally {
+      db.close()
+    }
+  })
+
   it('"Fakt ändern": eine neue bevorzugte Aussage demotet die vorherige bevorzugte Aussage (dasselbe Prädikat)', () => {
     const db = neueTestDatenbank()
     try {
@@ -171,6 +203,46 @@ describe('aussage.anlegen (AP-1.12)', () => {
 
       const alle = aussagenFuerSubjekt(db, 'person', personId)
       expect(alle).toHaveLength(2) // beide Aussagen bleiben erhalten, nur eine ist bevorzugt
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo des Demotes stellt den vorherigen bevorzugten Zustand bitgleich wieder her, Redo demotet erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+
+      const { id: alteId } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Bauer',
+        konfidenz: 2,
+        istBevorzugt: 1,
+      })
+      const alteVorDemote = aussageLesen(db, alteId)
+      expect(alteVorDemote?.ist_bevorzugt).toBe(1)
+
+      const { id: neueIdWert } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 4,
+        istBevorzugt: 1,
+      })
+      const alteNachDemote = aussageLesen(db, alteId)
+      const neueNachAnlegen = aussageLesen(db, neueIdWert)
+      expect(alteNachDemote?.ist_bevorzugt).toBe(0)
+
+      undo(db)
+      expect(aussageLesen(db, alteId)).toEqual(alteVorDemote) // wieder ist_bevorzugt=1, bitgleich
+      expect(aussageLesen(db, neueIdWert)).toBeUndefined()
+
+      redo(db)
+      expect(aussageLesen(db, alteId)).toEqual(alteNachDemote)
+      expect(aussageLesen(db, neueIdWert)).toEqual(neueNachAnlegen)
     } finally {
       db.close()
     }
@@ -253,6 +325,37 @@ describe('aussage.loeschen (AP-1.12)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'aussage.loeschen', { id: 'nicht-vorhanden' }))
       expect(code).toBe('NICHT_GEFUNDEN_AUSSAGE')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt die gelöschte aussage-Zeile + aussage_zitat-Verknüpfung bitgleich wieder her, Redo löscht erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const zitatId = neuesZitat(db)
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 3,
+        belege: [zitatId],
+      })
+      const vorLoeschen = aussageLesen(db, id)
+      const zitateVorLoeschen = aussageZitatListe(db, id)
+
+      fuehreAus(db, 'aussage.loeschen', { id })
+      expect(aussageLesen(db, id)).toBeUndefined()
+
+      undo(db)
+      expect(aussageLesen(db, id)).toEqual(vorLoeschen)
+      expect(aussageZitatListe(db, id)).toEqual(zitateVorLoeschen)
+
+      redo(db)
+      expect(aussageLesen(db, id)).toBeUndefined()
+      expect(aussageZitatListe(db, id)).toHaveLength(0)
     } finally {
       db.close()
     }

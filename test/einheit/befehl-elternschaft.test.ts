@@ -13,6 +13,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 interface ElternschaftZeile {
@@ -146,6 +147,30 @@ describe('elternschaft.anlegen (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo entfernt Kante + Existenz-Aussage bitgleich, Redo legt beide wieder an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const elternteilId = neuePerson(db)
+      const kindId = neuePerson(db)
+      const { id } = fuehreAus(db, 'elternschaft.anlegen', { elternteilId, kindId, typ: 'biologisch', konfidenz: 3 })
+
+      const zeileNachAnlegen = elternschaftLesen(db, id)
+      const aussagenNachAnlegen = aussagenFuerElternschaft(db, id)
+      expect(zeileNachAnlegen).toBeDefined()
+      expect(aussagenNachAnlegen).toHaveLength(1)
+
+      undo(db)
+      expect(elternschaftLesen(db, id)).toBeUndefined()
+      expect(aussagenFuerElternschaft(db, id)).toHaveLength(0)
+
+      redo(db)
+      expect(elternschaftLesen(db, id)).toEqual(zeileNachAnlegen)
+      expect(aussagenFuerElternschaft(db, id)).toEqual(aussagenNachAnlegen)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('elternschaft.aendern (AP-1.12)', () => {
@@ -178,6 +203,27 @@ describe('elternschaft.aendern (AP-1.12)', () => {
       db.close()
     }
   })
+
+  it('Undo stellt den vorherigen typ/notiz bitgleich wieder her, Redo die Änderung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const elternteilId = neuePerson(db)
+      const kindId = neuePerson(db)
+      const { id } = fuehreAus(db, 'elternschaft.anlegen', { elternteilId, kindId, typ: 'biologisch', konfidenz: 3 })
+      const vorAendern = elternschaftLesen(db, id)
+
+      fuehreAus(db, 'elternschaft.aendern', { id, typ: 'adoptiv', notiz: 'Adoption 1920' })
+      const nachAendern = elternschaftLesen(db, id)
+
+      undo(db)
+      expect(elternschaftLesen(db, id)).toEqual(vorAendern)
+
+      redo(db)
+      expect(elternschaftLesen(db, id)).toEqual(nachAendern)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('elternschaft.loeschen (AP-1.12)', () => {
@@ -205,6 +251,30 @@ describe('elternschaft.loeschen (AP-1.12)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'elternschaft.loeschen', { id: 'nicht-vorhanden' }))
       expect(code).toBe('NICHT_GEFUNDEN_ELTERNSCHAFT')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt Kante + Existenz-Aussage bitgleich wieder her, Redo löscht beide erneut', () => {
+    const db = neueTestDatenbank()
+    try {
+      const elternteilId = neuePerson(db)
+      const kindId = neuePerson(db)
+      const { id } = fuehreAus(db, 'elternschaft.anlegen', { elternteilId, kindId, typ: 'biologisch', konfidenz: 3 })
+      const vorLoeschen = elternschaftLesen(db, id)
+      const aussagenVorLoeschen = aussagenFuerElternschaft(db, id)
+
+      fuehreAus(db, 'elternschaft.loeschen', { id })
+      expect(elternschaftLesen(db, id)).toBeUndefined()
+
+      undo(db)
+      expect(elternschaftLesen(db, id)).toEqual(vorLoeschen)
+      expect(aussagenFuerElternschaft(db, id)).toEqual(aussagenVorLoeschen)
+
+      redo(db)
+      expect(elternschaftLesen(db, id)).toBeUndefined()
+      expect(aussagenFuerElternschaft(db, id)).toHaveLength(0)
     } finally {
       db.close()
     }
