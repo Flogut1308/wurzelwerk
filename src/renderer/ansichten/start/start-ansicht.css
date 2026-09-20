@@ -8,18 +8,24 @@
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
   background: var(--wz-flaeche-grund);
   overflow-y: auto;
 }
 
+/* `margin: auto` statt `align-items/justify-content: center` auf `.wz-start` (bewusst, Nachzug
+ * PR #71-Klasse Bug): Eine lange „Zuletzt geöffnet"-Liste kann die Spalte höher als das Fenster
+ * machen — mit `justify-content: center` würde der obere Teil (Titel, Aktionen) dann über den
+ * sichtbaren Bereich hinaus nach oben verschoben und wäre nicht mehr scrollbar erreichbar
+ * (`scrollTop` kann nicht negativ werden). Ein Auto-Margin auf dem Kind zentriert stattdessen nur,
+ * solange Platz ist, und fällt bei Überlauf auf normalen Fluss von oben zurück — von dort ist alles
+ * über gewöhnliches Scrollen erreichbar. */
 .wz-start__spalte {
   display: flex;
   flex-direction: column;
   gap: var(--wz-abstand-32);
   width: 100%;
   max-width: 640px;
+  margin: auto;
   padding: var(--wz-abstand-24);
 }
 

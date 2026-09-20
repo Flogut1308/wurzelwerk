@@ -239,7 +239,10 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
     })
 
     test('Projekt anlegen', async () => {
-      await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+      // „Neues Projekt" wählt den übergeordneten Ordner seit AP-1.26 über den Systemdialog
+      // (`src/main/dialoge.ts`), nicht mehr über ein Pfadtextfeld — derselbe Stub wie oben
+      // (Importansicht), hier für den Elternordner-Dialog wiederverwendet.
+      await dialogLiefert(elternordner)
       await fenster.getByPlaceholder('Projektname').fill('Bildvergleichstest')
       await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
       await expect(fenster.getByRole('table')).toBeVisible()
@@ -304,8 +307,12 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       await fensterAufFesteGroesseSetzen(app, fenster)
 
       // Eigenes, frisches Projekt — wie `ablauf-01-import-und-liste.spec.ts`, echte Oberfläche für
-      // Anlegen/Navigation.
-      await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+      // Anlegen/Navigation. „Neues Projekt" wählt den übergeordneten Ordner seit AP-1.26 über den
+      // Systemdialog (`src/main/dialoge.ts`), nicht mehr über ein Pfadtextfeld — eigene
+      // Electron-Instanz, darum ein eigener, lokaler Stub statt des `dialogLiefert()` oben.
+      await app.evaluate(({ dialog }, gewaehlt) => {
+        dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+      }, elternordner)
       await fenster.getByPlaceholder('Projektname').fill('Bildvergleichstest Liste')
       await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
       await expect(fenster.getByRole('table')).toBeVisible()

@@ -59,10 +59,19 @@ test.describe('Ablauf 01 — Import und Liste', () => {
     rmSync(elternordner, { recursive: true, force: true })
   })
 
+  /** Stubbt den nativen Ordnerdialog im Hauptprozess (AP-1.26: `src/main/dialoge.ts`, Muster wie
+   * `ablauf-import-trockenlauf.spec.ts`) — „Neues Projekt" wählt den übergeordneten Ordner seit
+   * AP-1.26 über den Systemdialog, nicht mehr über ein Pfadtextfeld. */
+  async function dialogLiefert(pfad: string): Promise<void> {
+    await app.evaluate(({ dialog }, gewaehlt) => {
+      dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+    }, pfad)
+  }
+
   test('Projekt anlegen, importieren, Personen erscheinen in der Liste, Suche nach „Wruck" findet Treffer', async () => {
     // Start-Ansicht: neues Projekt anlegen (echte Oberfläche, keine IPC-Abkürzung — das prüft
     // zugleich die Start→Liste-Verdrahtung aus app.tsx, AP-1.6 Stufe 4).
-    await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+    await dialogLiefert(elternordner)
     await fenster.getByPlaceholder('Projektname').fill('Listentest')
     await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
 
