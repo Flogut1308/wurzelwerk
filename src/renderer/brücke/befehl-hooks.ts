@@ -58,6 +58,13 @@ export function usePersonLoeschen(): UseMutationResult<null, AppFehler, Ein<'bef
   })
 }
 
+/** `befehl:ort.anlegen` (AP-1.13 PR-C, docs/71 §3.2) — die feste Schlusszeile des `Ortsfeld`s. */
+export function useOrtAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ort.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ort.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ort.anlegen', ein)),
+  })
+}
+
 /**
  * Invalidiert pauschal den gesamten `@tanstack/react-query`-Cache nach jedem `ereignis:
  * datenGeaendert`-Push (D-EREIGNIS: die Nutzlast trägt kein `betroffen`-Feld, es gibt also nichts

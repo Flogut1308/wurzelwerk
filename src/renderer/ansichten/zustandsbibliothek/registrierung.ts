@@ -47,4 +47,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'datentabelle',
   'vorschlagskarte',
   'personenwaehler',
+  'ortsfeld',
 ]

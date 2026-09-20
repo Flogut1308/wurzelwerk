@@ -77,3 +77,15 @@ export function usePruefhinweise(optionen?: AbfrageOptionen): UseQueryResult<Aus
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:ort.suche` (55_Architektur.md §5, AP-1.13 PR-C) — Tippsuche fürs `Ortsfeld`. Dieselbe
+ * Key-Strategie und Invalidierung wie `useSuche`.
+ */
+export function useOrtSuche(ein: Ein<'abfrage:ort.suche'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:ort.suche'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:ort.suche', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:ort.suche', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}
