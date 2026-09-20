@@ -51,6 +51,10 @@
     "titel": "Aussage nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist die Aussage tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
   },
+  "NICHT_GEFUNDEN_ZITAT": {
+    "titel": "Beleg nicht gefunden",
+    "was_tun": "Den Beleg aus der Auswahl entfernen. Ist das Zitat tatsächlich gelöscht, einen neuen Beleg auswählen."
+  },
   "KONFLIKT_ZYKLUS": {
     "titel": "Verwandtschaft würde einen Zyklus erzeugen",
     "was_tun": "Die Elternschaft nicht anlegen — eine Person kann nicht ihr eigener Vorfahre sein. Die Beziehung prüfen und korrigieren."

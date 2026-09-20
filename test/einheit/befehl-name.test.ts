@@ -129,6 +129,21 @@ describe('name.anlegen (AP-1.12)', () => {
     }
   })
 
+  it('nicht existierende umschriftVon → NICHT_GEFUNDEN_NAME, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const anzahlVorher = transaktionAnzahl(db)
+      const code = fehlerCode(() =>
+        fuehreAus(db, 'name.anlegen', { personId, typ: 'transliteriert', nachname: 'Muller', umschriftVon: 'nicht-vorhanden' }),
+      )
+      expect(code).toBe('NICHT_GEFUNDEN_NAME')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
   it('Undo entfernt die angelegte name-Zeile wieder, Redo legt sie bitgleich erneut an', () => {
     const db = neueTestDatenbank()
     try {

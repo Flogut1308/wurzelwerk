@@ -12,6 +12,13 @@ export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string 
   if (!datensatzExistiert(tx, 'person', ein.personId)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_PERSON')
   }
+  // Konsistent zum sonstigen Muster (z. B. `elternschaft-anlegen.ts`): eine referenzierte, nicht
+  // existierende `name`-Zeile (Selbstverweis `umschrift_von`, docs/schema/0002_kern.sql §2.1) wird
+  // VOR dem Schreiben geprüft, statt den `INSERT` erst an `DATENBANK_FREMDSCHLUESSEL` scheitern zu
+  // lassen (generischer Code, keine Handlungsanweisung).
+  if (ein.umschriftVon !== undefined && !datensatzExistiert(tx, 'name', ein.umschriftVon)) {
+    throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+  }
 
   const id = neueId()
   const jetzt = Date.now()

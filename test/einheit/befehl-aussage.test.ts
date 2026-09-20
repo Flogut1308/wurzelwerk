@@ -143,6 +143,74 @@ describe('aussage.anlegen (AP-1.12)', () => {
     }
   })
 
+  it('nicht existierende zitatId in belege → NICHT_GEFUNDEN_ZITAT, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const anzahlVorher = transaktionAnzahl(db)
+
+      const code = fehlerCode(() =>
+        fuehreAus(db, 'aussage.anlegen', {
+          subjektTyp: 'person',
+          subjektId: personId,
+          praedikat: 'beruf',
+          wertText: 'Schmied',
+          konfidenz: 3,
+          belege: ['nicht-vorhanden'],
+        }),
+      )
+
+      expect(code).toBe('NICHT_GEFUNDEN_ZITAT')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nicht existierende subjektId (subjektTyp person) → NICHT_GEFUNDEN_PERSON, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const anzahlVorher = transaktionAnzahl(db)
+
+      const code = fehlerCode(() =>
+        fuehreAus(db, 'aussage.anlegen', {
+          subjektTyp: 'person',
+          subjektId: 'nicht-vorhanden',
+          praedikat: 'beruf',
+          wertText: 'Schmied',
+          konfidenz: 3,
+        }),
+      )
+
+      expect(code).toBe('NICHT_GEFUNDEN_PERSON')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nicht existierende subjektId (subjektTyp ereignis) → NICHT_GEFUNDEN_EREIGNIS, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const anzahlVorher = transaktionAnzahl(db)
+
+      const code = fehlerCode(() =>
+        fuehreAus(db, 'aussage.anlegen', {
+          subjektTyp: 'ereignis',
+          subjektId: 'nicht-vorhanden',
+          praedikat: 'existenz',
+          wertText: 'ja',
+          konfidenz: 3,
+        }),
+      )
+
+      expect(code).toBe('NICHT_GEFUNDEN_EREIGNIS')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
   it('Undo entfernt die aussage-Zeile + aussage_zitat-Verknüpfung bitgleich, Redo legt beide wieder an', () => {
     const db = neueTestDatenbank()
     try {
