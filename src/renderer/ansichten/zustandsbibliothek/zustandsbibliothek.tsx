@@ -16,6 +16,7 @@ import { Filterleiste } from '../../bausteine/filterleiste'
 import { Fokusring } from '../../bausteine/fokusring'
 import { Formularfeld } from '../../bausteine/formularfeld'
 import { Fortschritt } from '../../bausteine/fortschritt'
+import { Konfidenzwaehler } from '../../bausteine/konfidenzwaehler'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
 import { KonfidenzPunkt, type KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
 import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimmer'
@@ -334,9 +335,23 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
         <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} fehlertext={t('beispiel_formularfeld_fehlertext')}>
           <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ungueltig />
         </Formularfeld>
+        <Formularfeld
+          beschriftung={t('beispiel_formularfeld_beschriftung')}
+          konfidenzwaehler={<Konfidenzwaehler wert={3} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />}
+          belegabzeichen={<BelegAbzeichen anzahl={2} />}
+        >
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} />
+        </Formularfeld>
         <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} gesperrt belegabzeichen={<BelegAbzeichen anzahl={2} />}>
           <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} gesperrt />
         </Formularfeld>
+      </Abschnitt>
+
+      <Abschnitt name="konfidenzwaehler">
+        <Konfidenzwaehler wert={null} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={1} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={4} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={2} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} gesperrt />
       </Abschnitt>
 
       <Abschnitt name="textfeld">

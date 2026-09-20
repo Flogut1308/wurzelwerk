@@ -140,4 +140,15 @@ describe('Trefferfläche ≥32×32 von sichtbarer Größe entkoppelt (AP-1.28, C
     expect(block).toMatch(/min-height:\s*var\(--wz-trefferflaeche-min\)/)
     expect(block).toMatch(/min-width:\s*var\(--wz-trefferflaeche-min\)/)
   })
+
+  // AP-1.13 PR-A: `Konfidenzwaehler` (§3.4) hat kein dokumentiertes kleineres Entwurfsmaß für den
+  // Knopf selbst (anders als Umschalter/Kontrollkästchen/Optionsfeld, deren SICHTBARE Spur/Kästchen
+  // per Beleg kleiner als 32×32 sein muss) — der einfache, direkte Weg wie bei `.wz-schaltflaeche`
+  // ist hier zulässig, kein `::before`-Muster nötig.
+  it('Konfidenzwaehler: __stufe trägt min-height UND min-width direkt (wie .wz-schaltflaeche, kein ausgemessenes kleineres Entwurfsmaß)', () => {
+    const konfidenzwaehlerCss = lesen('../../src/renderer/bausteine/konfidenzwaehler.css')
+    const block = blockInhalt(konfidenzwaehlerCss, '.wz-konfidenzwaehler__stufe')
+    expect(block).toMatch(/min-height:\s*var\(--wz-trefferflaeche-min\)/)
+    expect(block).toMatch(/min-width:\s*var\(--wz-trefferflaeche-min\)/)
+  })
 })

@@ -30,6 +30,7 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'textfeld',
   'zahlfeld',
   'langtextfeld',
+  'konfidenzwaehler',
   'auswahlfeld',
   'beleg-abzeichen',
   'blaetterleiste',
