@@ -46,4 +46,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'trockenlauf-bericht',
   'datentabelle',
   'vorschlagskarte',
+  'personenwaehler',
 ]
