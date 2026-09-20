@@ -1,0 +1,52 @@
+/*
+ * Baustein `Datumsfeld` — Molekül (docs/71_Designsystem.md §2.2/§3.1). `__interpretation` reserviert
+ * eine Zeile unabhängig davon, ob gerade Text darin steht (Entwurfsprüfstein §3.1: „zwischen 1750
+ * und 1760" darf beim Tippen keinen Sprung auslösen) — `white-space: nowrap` plus horizontales
+ * Scrollen im Extremfall statt eines Umbruchs, der die Zeilenhöhe verändert.
+ */
+
+.wz-datumsfeld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-datumsfeld__interpretation {
+  display: block;
+  min-height: 18px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.wz-datumsfeld__kalenderKnopf {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+  align-self: flex-start;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: 0 var(--wz-abstand-4);
+  border: none;
+  background: transparent;
+  color: var(--wz-text-sekundaer);
+  cursor: pointer;
+}
+
+.wz-datumsfeld__kalenderKnopf:hover:not(:disabled) {
+  color: var(--wz-text-primaer);
+}
+
+.wz-datumsfeld__kalenderKnopf:focus-visible {
+  outline: var(--wz-rahmen-fokus-breite) solid var(--wz-rahmen-fokus);
+  outline-offset: var(--wz-rahmen-fokus-versatz);
+}
+
+.wz-datumsfeld__kalenderKnopf:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.wz-datumsfeld__kalenderzeile {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}

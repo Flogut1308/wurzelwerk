@@ -9,6 +9,7 @@ import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Blaetterleiste } from '../../bausteine/blaetterleiste'
 import { ALLE_DATENTABELLE_SPALTEN } from '../../bausteine/datentabelle-spalten'
 import { Datentabelle } from '../../bausteine/datentabelle'
+import { Datumsfeld } from '../../bausteine/datumsfeld'
 import { Eingabekoerper } from '../../bausteine/eingabekoerper'
 import { FehlerlisteImport } from '../../bausteine/fehlerliste-import'
 import { FeldKonfidenz } from '../../bausteine/feld-konfidenz'
@@ -371,6 +372,64 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
       <Abschnitt name="langtextfeld">
         <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} />
         <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} gesperrt />
+      </Abschnitt>
+
+      <Abschnitt name="datumsfeld">
+        <Datumsfeld
+          text=""
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="um 1890"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="zwischen 1750 und 1760"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="31.02.1900"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="1750/51"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text={t('beispiel_geburtsjahr')}
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+          gesperrt
+        />
       </Abschnitt>
 
       <Abschnitt name="auswahlfeld">
