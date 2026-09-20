@@ -152,12 +152,16 @@ organisatorisch, nicht technisch:
 Alle drei Beispieldateien sind gegen das Schema geprüft und gültig; sie werden **referenziert**,
 nicht kopiert (keine Kopie, die stillschweigend vom Original abweichen könnte):
 
-- `fixtures/import/v1/gueltig/beispiel-1-einfach.json` — einfacher Fall, ein Familienstammbuch.
-- `fixtures/import/v1/gueltig/beispiel-2-widersprueche.json` — Widersprüche, unscharfe Daten,
-  historische Ortsnamen, Platzhalter (enthält die absichtliche Großvater/Vater-Verwechslung aus
-  Abschnitt 2).
-- `fixtures/import/v1/gueltig/beispiel-3-interview.json` — Interview mit Audio-Zeitmarken,
-  Gesundheitsdaten, unverarbeitete Notizen.
+- `fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json` — einfacher Fall, ein
+  Familienstammbuch.
+- `fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json` — Widersprüche,
+  unscharfe Daten, historische Ortsnamen, Platzhalter (enthält die absichtliche
+  Großvater/Vater-Verwechslung aus Abschnitt 2).
+- `fixtures/import/v1/gueltig/braucht-bestand/beispiel-3-interview.json` — Interview mit
+  Audio-Zeitmarken, Gesundheitsdaten, unverarbeitete Notizen. Liegt bewusst unter
+  `braucht-bestand/`, nicht `eigenstaendig/` (AP-1.27, `fixtures/import/v1/LIESMICH.md`): der
+  Informant ist über eine `db:`-Kennung eine bereits vorhandene Person, die Fixture ist also erst
+  gegen einen Bestand mit dieser Person fehlerfrei importierbar, nicht gegen ein frisches Projekt.
 
 Bei einem neuen Fall zuerst prüfen, welches Muster strukturell am nächsten liegt, und davon
 ausgehend erzeugen — nicht bei Null anfangen.

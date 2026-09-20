@@ -2,7 +2,7 @@
 // der Implementierung geschrieben (CLAUDE.md §5, eiserne Regel). Direktes INSERT statt
 // Befehlsbus/Import (der Bus ist für Lesevorgänge nicht zuständig, analog
 // test/einheit/abfrage-person-liste.test.ts). Das Hauptszenario spiegelt
-// fixtures/import/v1/gueltig/beispiel-2-widersprueche.json nach (August Wruck, zwei
+// fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json nach (August Wruck, zwei
 // `todesdatum`-Aussagen 1961 vs. 1958, 1961 `ist_bevorzugt` mit Begründung, belegt über Grabstein
 // bzw. Ernas mündliche Erinnerung) — hier per Direkt-INSERT statt Import, um die Abfrage isoliert
 // und schnell zu prüfen.

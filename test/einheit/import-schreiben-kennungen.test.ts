@@ -11,7 +11,7 @@ import { importDateiSchema } from '../../src/shared/schemata/import-v1'
 
 const UUID_V7_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
-const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
+const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
 
 function ladeFixture(): ReturnType<typeof importDateiSchema.parse> {
   return importDateiSchema.parse(JSON.parse(readFileSync(FIXTURE_PFAD, 'utf8')))

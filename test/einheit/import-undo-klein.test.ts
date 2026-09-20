@@ -14,7 +14,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { undo } from '../../src/main/journal/undo'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
 
-const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
+const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
 
 describe('importAusfuehren() + undo() — kleiner Import ist bitgleich rücknehmbar (AP-1.5, ADR-019)', () => {
   let ordner: string

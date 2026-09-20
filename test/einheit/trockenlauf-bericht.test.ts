@@ -25,7 +25,7 @@ import * as aussageRepo from '../../src/main/repositories/aussage-repo'
 import { naechsteLfd, transaktionAnlegen } from '../../src/main/repositories/journal-repo'
 import { frischeDatenbankMitJournal } from './_hilfen-trockenlauf'
 
-const BEISPIEL_2 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-2-widersprueche.json', import.meta.url))
+const BEISPIEL_2 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json', import.meta.url))
 
 /** Seedet eine Bestandsperson "August Wruck" (Geburtsjahr 1890, wie im Grabstein/der Erzählung in
  * `beispiel-2-widersprueche.json`) — Grundlage für den erwarteten IMP-401-Dublettenfund. */

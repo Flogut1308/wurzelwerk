@@ -12,7 +12,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
  * Der restliche Flow (Assistent öffnen, Prüfen, Sperre) läuft durch die echte UI und IPC.
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
-const FIXTURE_GUELTIG = join(__dirname, 'fixtures/import-erna-und-walter-wruck.json')
+const FIXTURE_GUELTIG = join(__dirname, '../../fixtures/import/v1/gueltig/eigenstaendig/import-erna-und-walter-wruck.json')
 const FIXTURE_UNGUELTIG = join(__dirname, 'fixtures/import-ungueltig.json')
 
 test.describe('Ablauf — Import-Trockenlauf (S-10…S-13)', () => {

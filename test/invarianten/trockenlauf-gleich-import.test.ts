@@ -71,9 +71,12 @@ import type { Trockenlaufbericht } from '../../src/shared/import/trockenlauf-ber
 const GUELTIG_ORDNER = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/', import.meta.url))
 
 /** Alle gültigen Fixture-Dateien, deterministisch sortiert (Verzeichnisreihenfolge ist plattform-
- * abhängig nicht garantiert stabil — CLAUDE.md §13 Determinismus ist Pflicht). */
+ * abhängig nicht garantiert stabil — CLAUDE.md §13 Determinismus ist Pflicht). Rekursiv, weil
+ * `gueltig/` seit AP-1.27 in `eigenstaendig/` und `braucht-bestand/` aufgeteilt ist — reine
+ * Auffindungslogik, die Zusicherung selbst (Berichtsgleichheit, mind. drei Dateien) bleibt
+ * unverändert. */
 function gueltigeFixturePfade(): readonly string[] {
-  return readdirSync(GUELTIG_ORDNER)
+  return readdirSync(GUELTIG_ORDNER, { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.json'))
     .sort()
     .map((name) => join(GUELTIG_ORDNER, name))

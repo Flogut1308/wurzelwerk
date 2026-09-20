@@ -13,7 +13,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { herkunftFuerDatensatz } from '../../src/main/repositories/import-herkunft-repo'
 import { aenderungenLoeschen, rueckgaengigMoeglichAberkennen } from '../../src/main/repositories/journal-repo'
 
-const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
+const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
 
 interface PersonIdZeile {
   readonly id: string

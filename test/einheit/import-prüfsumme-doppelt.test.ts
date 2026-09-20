@@ -9,7 +9,7 @@ import { armieren, entwaffnen } from '../../src/main/journal/kontext'
 import { naechsteLfd, transaktionAnlegen } from '../../src/main/repositories/journal-repo'
 import { frischeDatenbankMitJournal } from './_hilfen-trockenlauf'
 
-const BEISPIEL_1 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
+const BEISPIEL_1 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
 const PRUEFSUMME = 'sha256-3b1f0c6a9d2e4f5081a7b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708' // aus beispiel-1-einfach.json
 
 describe('Prüfsummen-Abgleich (56_Import_Vertrag.md §6.2)', () => {

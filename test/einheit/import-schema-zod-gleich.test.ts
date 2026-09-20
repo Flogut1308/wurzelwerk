@@ -25,7 +25,16 @@ function jsonDateien(ordner: string): readonly string[] {
     .sort()
 }
 
-const gueltigeDateien = jsonDateien(join(FIXTURES_WURZEL, 'gueltig'))
+// Rekursiv, weil `gueltig/` seit AP-1.27 in `eigenstaendig/` und `braucht-bestand/` aufgeteilt
+// ist — ein flacher `readdirSync` fände unter `gueltig/` selbst gar keine `.json`-Dateien mehr.
+function jsonDateienRekursiv(ordner: string): readonly string[] {
+  return readdirSync(ordner, { recursive: true, encoding: 'utf8' })
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => join(ordner, name))
+    .sort()
+}
+
+const gueltigeDateien = jsonDateienRekursiv(join(FIXTURES_WURZEL, 'gueltig'))
 const fehlerhafteDateien = jsonDateien(join(FIXTURES_WURZEL, 'fehlerhaft'))
 const alleDateien = [...gueltigeDateien, ...fehlerhafteDateien]
 
