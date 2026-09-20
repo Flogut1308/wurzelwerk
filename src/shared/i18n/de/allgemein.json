@@ -3,17 +3,17 @@
   "titel_mit_schema": "Wurzelwerk — Schema {{schema, number}}",
   "fehlergrenze": "Ein Fehler ist aufgetreten.",
 
-  "start_neues_projekt_titel": "Neues Projekt",
-  "start_neues_projekt_elternordner_platzhalter": "Übergeordneter Ordner",
+  "start_tagline": "Ahnenforschung, offline. Jede Aussage mit ihrer Quelle.",
+
   "start_neues_projekt_name_platzhalter": "Projektname",
+  "start_neues_projekt_name_aria": "Projektname für das neue Projekt",
   "start_neues_projekt_button": "Neues Projekt anlegen",
 
-  "start_projekt_oeffnen_titel": "Projekt öffnen",
-  "start_projekt_oeffnen_platzhalter": "Pfad zum Projektordner (*.ahnen)",
-  "start_projekt_oeffnen_button": "Öffnen",
+  "start_projekt_oeffnen_button": "Projekt öffnen …",
 
   "start_zuletzt_titel": "Zuletzt geöffnet",
   "start_zuletzt_leer": "Noch keine Projekte geöffnet.",
+  "start_zuletzt_nicht_gefunden": "nicht gefunden",
 
   "start_sync_warnung_text": "Dieses Projekt liegt in einem {{anbieter}}-Ordner. Dort können SQLite-Dateien beschädigt werden.",
   "start_sync_warnung_trotzdem_oeffnen": "Trotzdem öffnen",

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { aufrufen } from '../../brücke/aufrufen'
 import type { FehlerCode } from '../../../shared/fehler/codes'
-import type { ProjektInfo, SyncAnbieter, ZuletztEintrag } from '../../../shared/ipc/vertrag'
+import type { ProjektInfo, SyncAnbieter, ZuletztEintragAnzeige } from '../../../shared/ipc/vertrag'
+import { projektnameGueltig } from '../../../shared/schemata/projekt'
+import { Abzeichen } from '../../bausteine/abzeichen'
+import { Eingabekoerper } from '../../bausteine/eingabekoerper'
+import { Schaltflaeche } from '../../bausteine/schaltflaeche'
+import { Text } from '../../bausteine/text'
+import './start-ansicht.css'
 
 interface SyncWarnung {
   readonly anbieter: SyncAnbieter
@@ -33,11 +39,18 @@ export interface StartAnsichtProps {
 }
 
 /**
- * Start-Ansicht (AP-0.4): Neues Projekt anlegen, ein bestehendes öffnen, zuletzt geöffnete
- * Projekte erneut öffnen. Nur über `aufrufen('befehl:projekt.*' | 'abfrage:projekt.zuletzt', …)`
- * — kein `fs`/`path`/DB im Renderer (§2). Pragmatische Vereinfachung: Pfade werden als Text
- * eingegeben statt über einen nativen Dateidialog, um AP-0.4 nicht um einen zusätzlichen
- * IPC-Kanal zu erweitern, der außerhalb des vereinbarten Umfangs liegt.
+ * Start-Ansicht (S-01, AP-1.26 — vormals AP-0.4 unverdrahtet ohne Gestaltung, `72_Screens_und_
+ * Flows.md` S-01, `70_UX_Konzept.md` „Pfade wählt man nie durch Tippen"). Neues Projekt anlegen,
+ * ein bestehendes öffnen, zuletzt geöffnete Projekte erneut öffnen — beide Ordnerwahlen laufen
+ * über den nativen Systemdialog (`befehl:projekt.elternordnerWaehlen`/`befehl:projekt.ordnerWaehlen`,
+ * `src/main/dialoge.ts`), **kein Pfadtextfeld mehr**. Nur über
+ * `aufrufen('befehl:projekt.*' | 'abfrage:projekt.zuletzt', …)` — kein `fs`/`path`/DB im Renderer (§2).
+ *
+ * ABWEICHUNG (CLAUDE.md §14 Fall 1): Das Design-Mockup (`72` S-01) zeigt kein Eingabefeld für den
+ * Projektnamen — „Neues Projekt" ist dort nur eine Schaltfläche. Die Abnahme aus AP-1.26 verlangt
+ * ausdrücklich, dass das Namensfeld bleibt („ein Name ist kein Pfad"). Aus dem vorhandenen
+ * `Eingabekoerper`-Baustein ergänzt, direkt neben der Schaltfläche — vermerkt in
+ * `docs/80_Offene_Fragen.md`.
  *
  * AP-1.6 Stufe 4: Diese Ansicht zeigt nur noch den Startzustand — der „Projekt offen"-Zustand lebt
  * jetzt in `App` (Start ↔ Liste), das dann `ListenAnsicht` statt dieser Komponente rendert.
@@ -46,12 +59,14 @@ export function StartAnsicht({ aufProjektGeoeffnet }: StartAnsichtProps) {
   const { t } = useTranslation('allgemein')
   const { t: tFehler } = useTranslation('fehler')
 
-  const [zuletzt, setZuletzt] = useState<readonly ZuletztEintrag[]>([])
-  const [neuElternordner, setNeuElternordner] = useState('')
+  const [zuletzt, setZuletzt] = useState<readonly ZuletztEintragAnzeige[]>([])
   const [neuName, setNeuName] = useState('')
-  const [oeffnenPfad, setOeffnenPfad] = useState('')
   const [syncWarnung, setSyncWarnung] = useState<SyncWarnung | null>(null)
   const [fehlerCode, setFehlerCode] = useState<FehlerCode | null>(null)
+  const [elternordnerWirdGewaehlt, setElternordnerWirdGewaehlt] = useState(false)
+  const [neuLaedt, setNeuLaedt] = useState(false)
+  const [ordnerWirdGewaehlt, setOrdnerWirdGewaehlt] = useState(false)
+  const [oeffnenLaedt, setOeffnenLaedt] = useState(false)
 
   const zuletztLaden = useCallback(() => {
     void aufrufen('abfrage:projekt.zuletzt', null).then((ergebnis) => {
@@ -68,8 +83,10 @@ export function StartAnsicht({ aufProjektGeoeffnet }: StartAnsichtProps) {
   const projektOeffnenAufrufen = useCallback(
     (pfad: string, syncBestaetigt?: boolean) => {
       setFehlerCode(null)
+      setOeffnenLaedt(true)
       void aufrufen('befehl:projekt.oeffnen', syncBestaetigt === undefined ? { pfad } : { pfad, syncBestaetigt }).then(
         (ergebnis) => {
+          setOeffnenLaedt(false)
           if (!ergebnis.ok) {
             setFehlerCode(ergebnis.fehler.code)
             return
@@ -89,84 +106,138 @@ export function StartAnsicht({ aufProjektGeoeffnet }: StartAnsichtProps) {
 
   const neuesProjektAnlegen = useCallback(() => {
     setFehlerCode(null)
-    void aufrufen('befehl:projekt.anlegen', { elternordner: neuElternordner, name: neuName }).then((ergebnis) => {
+    setElternordnerWirdGewaehlt(true)
+    void aufrufen('befehl:projekt.elternordnerWaehlen', null).then((ordnerErgebnis) => {
+      setElternordnerWirdGewaehlt(false)
+      if (!ordnerErgebnis.ok) {
+        setFehlerCode(ordnerErgebnis.fehler.code)
+        return
+      }
+      if (ordnerErgebnis.daten === null) {
+        return // Abbruch im Dialog ist kein Fehler — die Ansicht bleibt einfach stehen.
+      }
+      setNeuLaedt(true)
+      void aufrufen('befehl:projekt.anlegen', { elternordner: ordnerErgebnis.daten, name: neuName }).then((ergebnis) => {
+        setNeuLaedt(false)
+        if (!ergebnis.ok) {
+          setFehlerCode(ergebnis.fehler.code)
+          return
+        }
+        zuletztLaden()
+        aufProjektGeoeffnet(ergebnis.daten)
+      })
+    })
+  }, [aufProjektGeoeffnet, neuName, zuletztLaden])
+
+  const projektUeberDialogOeffnen = useCallback(() => {
+    setFehlerCode(null)
+    setOrdnerWirdGewaehlt(true)
+    void aufrufen('befehl:projekt.ordnerWaehlen', null).then((ergebnis) => {
+      setOrdnerWirdGewaehlt(false)
       if (!ergebnis.ok) {
         setFehlerCode(ergebnis.fehler.code)
         return
       }
-      zuletztLaden()
-      aufProjektGeoeffnet(ergebnis.daten)
+      if (ergebnis.daten !== null) {
+        projektOeffnenAufrufen(ergebnis.daten)
+      }
     })
-  }, [aufProjektGeoeffnet, neuElternordner, neuName, zuletztLaden])
+  }, [projektOeffnenAufrufen])
+
+  const nameGueltig = projektnameGueltig(neuName)
 
   return (
-    <div>
-      <h1>{t('app_titel')}</h1>
-
-      {fehlerCode !== null ? (
-        <div role="alert">
-          <strong>{tFehler(`${fehlerCode}.titel`)}</strong>
-          <p>{tFehler(`${fehlerCode}.was_tun`)}</p>
+    <div className="wz-start">
+      <div className="wz-start__spalte">
+        <div className="wz-start__kopf">
+          <Text rolle="titel-gross" als="h1">
+            {t('app_titel')}
+          </Text>
+          <Text rolle="koerper" farbe="sekundaer" als="p">
+            {t('start_tagline')}
+          </Text>
         </div>
-      ) : null}
 
-      <section>
-        <h2>{t('start_neues_projekt_titel')}</h2>
-        <input
-          value={neuElternordner}
-          onChange={(ereignis) => setNeuElternordner(ereignis.target.value)}
-          placeholder={t('start_neues_projekt_elternordner_platzhalter')}
-        />
-        <input
-          value={neuName}
-          onChange={(ereignis) => setNeuName(ereignis.target.value)}
-          placeholder={t('start_neues_projekt_name_platzhalter')}
-        />
-        <button type="button" onClick={neuesProjektAnlegen} disabled={neuElternordner === '' || neuName === ''}>
-          {t('start_neues_projekt_button')}
-        </button>
-      </section>
+        {fehlerCode !== null ? (
+          <div className="wz-start__fehler" role="alert">
+            <Text rolle="titel-klein" als="p">
+              {tFehler(`${fehlerCode}.titel`)}
+            </Text>
+            <Text rolle="koerper-klein" als="p">
+              {tFehler(`${fehlerCode}.was_tun`)}
+            </Text>
+          </div>
+        ) : null}
 
-      <section>
-        <h2>{t('start_projekt_oeffnen_titel')}</h2>
-        <input
-          value={oeffnenPfad}
-          onChange={(ereignis) => setOeffnenPfad(ereignis.target.value)}
-          placeholder={t('start_projekt_oeffnen_platzhalter')}
-        />
-        <button type="button" onClick={() => projektOeffnenAufrufen(oeffnenPfad)} disabled={oeffnenPfad === ''}>
-          {t('start_projekt_oeffnen_button')}
-        </button>
-      </section>
+        <div className="wz-start__aktionen">
+          <Eingabekoerper
+            wert={neuName}
+            aufAenderung={setNeuName}
+            platzhalter={t('start_neues_projekt_name_platzhalter')}
+            ariaLabel={t('start_neues_projekt_name_aria')}
+          />
+          <Schaltflaeche
+            variante="primaer"
+            aufKlick={neuesProjektAnlegen}
+            gesperrt={!nameGueltig}
+            ladend={elternordnerWirdGewaehlt || neuLaedt}
+          >
+            {t('start_neues_projekt_button')}
+          </Schaltflaeche>
+          <Schaltflaeche variante="sekundaer" aufKlick={projektUeberDialogOeffnen} ladend={ordnerWirdGewaehlt || oeffnenLaedt}>
+            {t('start_projekt_oeffnen_button')}
+          </Schaltflaeche>
+        </div>
 
-      <section>
-        <h2>{t('start_zuletzt_titel')}</h2>
-        {zuletzt.length === 0 ? (
-          <p>{t('start_zuletzt_leer')}</p>
-        ) : (
-          <ul>
-            {zuletzt.map((eintrag) => (
-              <li key={eintrag.pfad}>
-                <button type="button" onClick={() => projektOeffnenAufrufen(eintrag.pfad)}>
-                  {eintrag.name}
+        <section className="wz-start__zuletzt">
+          <Text rolle="beschriftung" farbe="sekundaer" als="h2">
+            {t('start_zuletzt_titel')}
+          </Text>
+          {zuletzt.length === 0 ? (
+            <Text rolle="hilfe" als="p">
+              {t('start_zuletzt_leer')}
+            </Text>
+          ) : (
+            <div className="wz-start__zuletzt-liste" role="list">
+              {zuletzt.map((eintrag) => (
+                <button
+                  key={eintrag.pfad}
+                  type="button"
+                  role="listitem"
+                  className={`wz-start__zuletzt-zeile${eintrag.existiert ? '' : ' wz-start__zuletzt-zeile--fehlend'}`}
+                  onClick={() => projektOeffnenAufrufen(eintrag.pfad)}
+                >
+                  <span className="wz-start__zuletzt-name">
+                    <Text rolle="koerper" farbe={eintrag.existiert ? 'primaer' : 'tertiaer'}>
+                      {eintrag.name}
+                    </Text>
+                    {eintrag.existiert ? null : <Abzeichen variante="warnung">{t('start_zuletzt_nicht_gefunden')}</Abzeichen>}
+                  </span>
+                  <Text rolle="technisch" farbe="sekundaer">
+                    {eintrag.pfad}
+                  </Text>
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
 
-      {syncWarnung !== null ? (
-        <div role="alertdialog">
-          <p>{t('start_sync_warnung_text', { anbieter: t(anbieterSchluessel(syncWarnung.anbieter)) })}</p>
-          <button type="button" onClick={() => projektOeffnenAufrufen(syncWarnung.pfad, true)}>
-            {t('start_sync_warnung_trotzdem_oeffnen')}
-          </button>
-          <button type="button" onClick={() => setSyncWarnung(null)}>
-            {t('start_sync_warnung_abbrechen')}
-          </button>
-        </div>
-      ) : null}
+        {syncWarnung !== null ? (
+          <div className="wz-start__sync-warnung" role="alertdialog">
+            <Text rolle="koerper" als="p">
+              {t('start_sync_warnung_text', { anbieter: t(anbieterSchluessel(syncWarnung.anbieter)) })}
+            </Text>
+            <div className="wz-start__sync-warnung-aktionen">
+              <Schaltflaeche variante="primaer" aufKlick={() => projektOeffnenAufrufen(syncWarnung.pfad, true)} ladend={oeffnenLaedt}>
+                {t('start_sync_warnung_trotzdem_oeffnen')}
+              </Schaltflaeche>
+              <Schaltflaeche variante="unauffaellig" aufKlick={() => setSyncWarnung(null)}>
+                {t('start_sync_warnung_abbrechen')}
+              </Schaltflaeche>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
