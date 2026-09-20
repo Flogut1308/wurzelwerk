@@ -8,19 +8,33 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--wz-trefferflaeche-min);
-  min-width: var(--wz-trefferflaeche-min);
+  position: relative;
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
 }
 
+/* Unsichtbare Trefferfläche ≥32×32 px, aus dem Fluss genommen — verschiebt keine Nachbarn.
+ * Die Trefferfläche saß vorher als `min-width`/`min-height` auf dem Button selbst und blähte
+ * das Kästchen auf 32×32 auf; das Entwurfsmaß bleibt 18×18 px auf `__haken` (Checkpoint 1,
+ * Befund 1). */
+.wz-kontrollkaestchen::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--wz-trefferflaeche-min));
+  height: max(100%, var(--wz-trefferflaeche-min));
+}
+
 .wz-kontrollkaestchen__haken {
   display: block;
   box-sizing: border-box;
-  width: var(--wz-abstand-16);
-  height: var(--wz-abstand-16);
+  /* Entwurfsmaß (design-export/…/Wurzelwerk Komponenten.dc.html Z. 236-239). */
+  width: 18px;
+  height: 18px;
   border-radius: var(--wz-radius-klein);
   border: 1px solid var(--wz-rahmen-standard);
   background: var(--wz-flaeche-basis);
