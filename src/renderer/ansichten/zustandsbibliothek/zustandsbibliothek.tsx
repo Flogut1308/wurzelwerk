@@ -14,6 +14,7 @@ import { FehlerlisteImport } from '../../bausteine/fehlerliste-import'
 import { FeldKonfidenz } from '../../bausteine/feld-konfidenz'
 import { Filterleiste } from '../../bausteine/filterleiste'
 import { Fokusring } from '../../bausteine/fokusring'
+import { Formularfeld } from '../../bausteine/formularfeld'
 import { Fortschritt } from '../../bausteine/fortschritt'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
 import { KonfidenzPunkt, type KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
@@ -325,6 +326,18 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
       <Text rolle="titel-klein" als="h2">
         {t('abschnitt_molekuele')}
       </Text>
+
+      <Abschnitt name="formularfeld">
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} hilfetext={t('beispiel_formularfeld_hilfetext')}>
+          <Textfeld wert="" aufAenderung={() => {}} />
+        </Formularfeld>
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} fehlertext={t('beispiel_formularfeld_fehlertext')}>
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ungueltig />
+        </Formularfeld>
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} gesperrt belegabzeichen={<BelegAbzeichen anzahl={2} />}>
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} gesperrt />
+        </Formularfeld>
+      </Abschnitt>
 
       <Abschnitt name="textfeld">
         <Textfeld wert="" aufAenderung={() => {}} platzhalter={t('beispiel_suchfeld_platzhalter')} ariaLabel={t('beispiel_person_karl')} />

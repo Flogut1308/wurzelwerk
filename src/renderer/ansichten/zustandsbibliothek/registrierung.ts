@@ -26,6 +26,7 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'optionsfeld',
   'fortschritt',
   // Moleküle/Organismen (docs/71_Designsystem.md §2.2/§2.3)
+  'formularfeld',
   'textfeld',
   'zahlfeld',
   'langtextfeld',
