@@ -36,16 +36,17 @@
 // 4. Am Ende zusätzlich `undoZiel(db) === undefined` (nichts mehr rücknehmbar) als Gegenprobe, dass
 //    die Zählung stimmt.
 //
-// BEKANNTE DECKUNGSGRENZE (hueter-Auflage 1, PR-B): Alle drei heute registrierten Befehle
-// (`person.anlegen`/`feldSetzen`/`loeschen`) berühren GENAU EINE `person`-Zeile → jede Transaktion
-// hat genau eine `aenderung`-Zeile, und es gibt keinen Befehl mit wechselseitigen Fremdschlüsseln
-// (`ort.nachfolger_ort_id`). Damit sind zwei Undo-Codepfade mit dem AP-0.9-Befehlsvorrat prinzipiell
-// unerreichbar und hier ungeprüft: die Rücknahme-REIHENFOLGE innerhalb einer Transaktion (DESC) und
-// `defer_foreign_keys` (Mutationsprobe M2/M3 überlebt — kein Invarianten-Defekt, sondern fehlende
-// Angriffsfläche). SOBALD der erste Befehl landet, dessen Transaktion MEHR ALS EINE `aenderung`-Zeile
-// erzeugt (z. B. `ort`, `name`, `elternschaft` oder ein `person.anlegen` mit zusätzlicher Namenszeile),
-// ist `_befehlsfolge-generator.ts` um diesen Befehl zu erweitern — sonst bleiben DESC und
-// defer_foreign_keys dauerhaft ungeprüft.
+// FRÜHERE DECKUNGSGRENZE, JETZT GESCHLOSSEN (hueter-Auflage 1, PR-B; AP-1.12 PR-B zieht nach):
+// Mit den drei ursprünglich registrierten Befehlen (`person.anlegen`/`feldSetzen`/`loeschen`)
+// berührte jede Transaktion GENAU EINE `person`-Zeile — die Rücknahme-REIHENFOLGE innerhalb einer
+// Transaktion (DESC) und `defer_foreign_keys` waren mit diesem Befehlsvorrat prinzipiell
+// unerreichbar (Mutationsprobe M2/M3 überlebte — kein Invarianten-Defekt, sondern fehlende
+// Angriffsfläche). AP-1.12 hat inzwischen `name`/`elternschaft`/`partnerschaft`/`ereignis`/
+// `aussage` als Schreibbefehle eingeführt, jeder davon mit einer Mehrzeilen-Transaktion (Kante +
+// Existenz-Aussage, Kante + N Beteiligungszeilen + Existenz-Aussage, ein `update` + ein `insert`
+// beim "Fakt ändern"-Demote-Pfad, …) — `_befehlsfolge-generator.ts` deckt seit AP-1.12 PR-B genau
+// diese Befehle mit ab (s. dortiger Kopfkommentar für die Generierungsregeln), DESC und
+// `defer_foreign_keys` sind damit real geprüft, nicht mehr nur eine offene Lücke.
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
@@ -89,7 +90,7 @@ function transaktionAnzahl(db: ReturnType<typeof oeffnen>): number {
 }
 
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
-  it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (person.anlegen/feldSetzen/loeschen) trifft exakt den passenden Vorzustand', () => {
+  it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (alle registrierten Schreibbefehle, AP-1.12 PR-B) trifft exakt den passenden Vorzustand', () => {
     fc.assert(
       fc.property(befehlsfolgeArbitrary(), (folge) => {
         const db = neueTestDatenbank()
