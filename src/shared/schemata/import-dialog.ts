@@ -1,7 +1,7 @@
 // AP-1.4b PR-A: Zod-Eingabeschemata der beiden Import-Dialog-Kanäle. Die Schemata sind hier (in
 // `src/shared`), damit `src/main/ipc/registrierung.ts` sie registrieren kann, ohne dass eine
-// Electron-abhängige Datei importiert wird — und damit `test/einheit/import-dialog-kanaele.test.ts`
-// sie Electron-frei gegenprüft.
+// Electron-abhängige Datei importiert wird — und damit `test/einheit/dialoge.test.ts` (AP-1.26,
+// vormals `import-dialog-kanaele.test.ts`) sie Electron-frei gegenprüft.
 //
 // `berichtSpeichern` bekommt den vollständigen `Trockenlaufbericht`, den der Renderer bereits hält
 // (Entscheidung Nutzer, 18.09.2026): schlank, ein Codeweg, kein zweiter Trockenlauf. Das Schema
