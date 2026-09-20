@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Befund } from '../../../shared/import/imp-codes'
 import type { Trockenlaufbericht } from '../../../shared/import/trockenlauf-bericht'
-import type { PersonListeDatumsgruppe, PersonListeFilter, PersonListeZeile } from '../../../shared/schemata/person-liste'
+import type { PersonListeDatumsgruppe, PersonListeFilter, PersonListeZeile, SucheTreffer } from '../../../shared/schemata/person-liste'
 import { Abzeichen, type AbzeichenVariante } from '../../bausteine/abzeichen'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
@@ -24,6 +24,7 @@ import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimme
 import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
+import { Personenwaehler } from '../../bausteine/personenwaehler'
 import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
 import { Schrittleiste } from '../../bausteine/schrittleiste'
@@ -126,6 +127,27 @@ const BEISPIEL_ZEILEN: readonly PersonListeZeile[] = [
     geburt_datum: null,
     tod_datum: null,
   }),
+]
+
+/** `abfrage:suche`-Treffer (§3.3) — dieselben Beispielpersonen wie `BEISPIEL_ZEILEN`, nur mit der
+ * zusätzlichen `quelle` (Volltext/Phonetik, `src/shared/schemata/person-liste.ts`). */
+const BEISPIEL_SUCHTREFFER: readonly SucheTreffer[] = [
+  { ...beispielZeile(), quelle: 'volltext' },
+  {
+    ...beispielZeile({
+      person_id: 'tmp:emma-wruck',
+      anzeigename: 'Emma Wruck',
+      geburt_jahr: 1895,
+      tod_jahr: 1970,
+      konfidenz_min: 4,
+      beruf: 'Hebamme',
+      belegzahl: 1,
+      kinderzahl: 4,
+      geburt_datum: beispielDatumExakt('1895'),
+      tod_datum: beispielDatumExakt('1970'),
+    }),
+    quelle: 'phonetik',
+  },
 ]
 
 const BEISPIEL_FILTER: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
@@ -573,6 +595,66 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
         <Vorschlagskarte zustand="verworfen" originalwortlaut={t('beispiel_vorschlagskarte_original')} aufWiederherstellen={() => {}}>
           <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
         </Vorschlagskarte>
+      </Abschnitt>
+
+      {/* AP-1.13 PR-B (docs/71 §3.3): leer · tippend (lädt) · Treffer (mit hervorgehobener Zeile) ·
+          kein Treffer · Platzhalter-Zeile (letzte Zeile "als Platzhalter anlegen" hervorgehoben). */}
+      <Abschnitt name="personenwaehler">
+        <Personenwaehler
+          text=""
+          zustand="leer"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          aufPlatzhalterAnlegen={() => {}}
+          ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
+        <Personenwaehler
+          text="Wr"
+          zustand="laedt"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          aufPlatzhalterAnlegen={() => {}}
+          ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
+        <Personenwaehler
+          text="Wr"
+          zustand="bereit"
+          treffer={BEISPIEL_SUCHTREFFER}
+          hervorgehobenerIndex={0}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          aufPlatzhalterAnlegen={() => {}}
+          ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
+        <Personenwaehler
+          text="Xyz"
+          zustand="bereit"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          aufPlatzhalterAnlegen={() => {}}
+          ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
+        <Personenwaehler
+          text="Wr"
+          zustand="bereit"
+          treffer={BEISPIEL_SUCHTREFFER}
+          hervorgehobenerIndex={BEISPIEL_SUCHTREFFER.length + 1}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          aufPlatzhalterAnlegen={() => {}}
+          ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">
