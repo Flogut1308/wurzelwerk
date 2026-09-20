@@ -11,7 +11,8 @@
 //    (z. B. `militaer` → `medal-military`) stehen NICHT hier, sondern in
 //    `skripte/symbole-holen.ts` (Beschaffung ist Sache des Skripts, nicht des Vertrags).
 // 2. UI-Chrome (dieselbe Liste wie ihr Phosphor-Quellname, keine Übersetzung nötig): caret-up,
-//    caret-down, tray, funnel, warning-circle, x.
+//    caret-down, tray, funnel, warning-circle, x, check (AP-1.13 PR-A: Bestätigen-Aktion der
+//    `Vorschlagskarte`, §3.5 — „Bestätigen mit einer Taste, ohne Maus, ohne Dialog").
 export type SymbolName =
   | 'geburt'
   | 'taufe'
@@ -35,6 +36,7 @@ export type SymbolName =
   | 'funnel'
   | 'warning-circle'
   | 'x'
+  | 'check'
 
 export const ALLE_SYMBOLE: readonly SymbolName[] = [
   'geburt',
@@ -59,4 +61,5 @@ export const ALLE_SYMBOLE: readonly SymbolName[] = [
   'funnel',
   'warning-circle',
   'x',
+  'check',
 ]

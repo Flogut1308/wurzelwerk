@@ -62,6 +62,7 @@ const PHOSPHOR_QUELLNAME: Readonly<Record<Exclude<SymbolName, 'trauung' | 'beerd
   funnel: 'funnel',
   'warning-circle': 'warning-circle',
   x: 'x',
+  check: 'check',
 }
 
 function curlText(url: string): string {
