@@ -71,7 +71,11 @@ const datumswertBasis = z.strictObject({
 
 /** Alle drei `allOf`-Regeln aus Anhang A `$defs.Datumswert` — jeder Verstoß wird IMP-106
  * (56_Import_Vertrag.md §2.4 „die wichtigste Regel im ganzen Vertrag"). */
-const datumswertSchema: z.ZodType<Datumswert> = datumswertBasis.superRefine((wert, ctx) => {
+// Exportiert (AP-1.12): `src/shared/schemata/befehle.ts` verwendet dieselbe Vertragsform +
+// Prüfregeln für die Datumsfelder der Schreibbefehle (`ereignis.anlegen`/`aendern`,
+// `partnerschaft.anlegen`/`aendern`, `aussage.anlegen`) — ein Duplikat der drei `allOf`-Regeln
+// hätte dort drift-anfällig eine zweite, potenziell abweichende Fassung erzeugt.
+export const datumswertSchema: z.ZodType<Datumswert> = datumswertBasis.superRefine((wert, ctx) => {
   const brauchtOriginalText = MODIFIKATOREN_MIT_ORIGINALTEXT_PFLICHT.includes(wert.modifikator)
   if (brauchtOriginalText && wert.original_text === undefined) {
     ctx.addIssue({
