@@ -45,7 +45,8 @@
     "trockenlauf-bericht": "TrockenlaufBericht",
     "datentabelle": "Datentabelle",
     "vorschlagskarte": "Vorschlagskarte",
-    "personenwaehler": "Personenwaehler"
+    "personenwaehler": "Personenwaehler",
+    "ortsfeld": "Ortsfeld"
   },
   "variante_primaer": "primär",
   "variante_sekundaer": "sekundär",
@@ -78,6 +79,7 @@
   "beispiel_vorschlagskarte_original": "Karl ist 1890 in Marienwerder zur Welt gekommen.",
   "beispiel_vorschlagskarte_inhalt": "Geburt: etwa 1890, Marienwerder",
   "beispiel_personenwaehler_beschriftung": "Vater suchen",
+  "beispiel_ortsfeld_beschriftung": "Geburtsort suchen",
   "beispiel_konfidenzwaehler_beschriftung": "Konfidenz",
   "beispiel_suchfeld_platzhalter": "Suchen …",
   "beispiel_filter_konfidenz_alle": "alle",

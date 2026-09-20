@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Befund } from '../../../shared/import/imp-codes'
 import type { Trockenlaufbericht } from '../../../shared/import/trockenlauf-bericht'
 import type { PersonListeDatumsgruppe, PersonListeFilter, PersonListeZeile, SucheTreffer } from '../../../shared/schemata/person-liste'
+import type { OrtTreffer } from '../../../shared/schemata/ort-suche'
 import { Abzeichen, type AbzeichenVariante } from '../../bausteine/abzeichen'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
@@ -24,6 +25,7 @@ import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimme
 import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
+import { Ortsfeld } from '../../bausteine/ortsfeld'
 import { Personenwaehler } from '../../bausteine/personenwaehler'
 import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
@@ -148,6 +150,13 @@ const BEISPIEL_SUCHTREFFER: readonly SucheTreffer[] = [
     }),
     quelle: 'phonetik',
   },
+]
+
+/** `abfrage:ort.suche`-Treffer (§3.2, AP-1.13 PR-C) — bewusst NUR `id`/`anzeigename` (die minimale
+ * Ortssuche fürs `Ortsfeld`, s. Kopfkommentar `ortsfeld-logik.ts`). */
+const BEISPIEL_ORT_TREFFER: readonly OrtTreffer[] = [
+  { id: 'tmp:marienwerder', anzeigename: 'Marienwerder' },
+  { id: 'tmp:kwidzyn', anzeigename: 'Kwidzyn' },
 ]
 
 const BEISPIEL_FILTER: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
@@ -654,6 +663,62 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
           aufNeuAnlegen={() => {}}
           aufPlatzhalterAnlegen={() => {}}
           ariaLabel={t('beispiel_personenwaehler_beschriftung')}
+        />
+      </Abschnitt>
+
+      {/* AP-1.13 PR-C (docs/71 §3.2): leer · tippend (lädt) · Treffer (mit hervorgehobener Zeile) ·
+          kein Treffer (nur die Schlusszeile "neu anlegen") — dieselben vier Zustände wie
+          `personenwaehler` oben, ohne das Platzhalter-Äquivalent (Orte kennen keine Platzhalter). */}
+      <Abschnitt name="ortsfeld">
+        <Ortsfeld
+          text=""
+          zustand="leer"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+        <Ortsfeld
+          text="Marienw"
+          zustand="laedt"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+        <Ortsfeld
+          text="Marienw"
+          zustand="bereit"
+          treffer={BEISPIEL_ORT_TREFFER}
+          hervorgehobenerIndex={0}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+        <Ortsfeld
+          text="Xyz"
+          zustand="bereit"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+        <Ortsfeld
+          text="Marienw"
+          zustand="bereit"
+          treffer={BEISPIEL_ORT_TREFFER}
+          hervorgehobenerIndex={BEISPIEL_ORT_TREFFER.length}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
         />
       </Abschnitt>
 
