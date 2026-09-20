@@ -46,7 +46,7 @@ test.describe('Ablauf — Import-Trockenlauf (S-10…S-13)', () => {
   /** Stubbt den nativen Öffnen-Dialog im Hauptprozess, sodass er `pfad` zurückgibt. */
   async function dialogLiefert(pfad: string): Promise<void> {
     await app.evaluate(({ dialog }, gewaehlt) => {
-      // Reine Test-Injektion: dieselbe `dialog`-Instanz, die `src/main/import/dialog.ts` benutzt.
+      // Reine Test-Injektion: dieselbe `dialog`-Instanz, die `src/main/dialoge.ts` benutzt.
       dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
     }, pfad)
   }
