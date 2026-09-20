@@ -99,5 +99,9 @@ describe('importAusfuehren() + undo() — Großimport wird über den Schnappschu
     } finally {
       dbNachRuecknahme.close()
     }
-  })
+    // 60s statt des globalen 20s-Timeouts: Großimport (Schnappschuss-Datei-Roundtrip über
+    // ~ANZAHL_PERSONEN Zeilen) läuft auf dem langsameren Windows-CI-Runner gelegentlich in >20s
+    // (belegt mehrfach als Flake bei kette-ui-Läufen); großzügiger Timeout beseitigt die Flakiness,
+    // ohne die geprüfte Eigenschaft zu berühren.
+  }, 60_000)
 })
