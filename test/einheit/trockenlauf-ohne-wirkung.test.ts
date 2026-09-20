@@ -15,8 +15,8 @@ import { abgeleiteterAbzug } from '../../src/main/datenbank/abgeleitet-abzug'
 import { importTrockenlaufDurchfuehren } from '../../src/main/befehle/import-trockenlauf'
 import { frischeDatenbankMitJournal } from './_hilfen-trockenlauf'
 
-const BEISPIEL_1 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
-const BEISPIEL_2 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-2-widersprueche.json', import.meta.url))
+const BEISPIEL_1 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
+const BEISPIEL_2 = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json', import.meta.url))
 
 // FTS5-Schattentabellen: kein sinnvoller `PRAGMA table_info`/`SELECT`-Abzug über benannte Spalten
 // (CLAUDE.md §6) — ihr Inhalt wird stattdessen über `abgeleiteterAbzug()` (fts5vocab) geprüft.

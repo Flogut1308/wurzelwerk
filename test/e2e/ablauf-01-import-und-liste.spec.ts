@@ -15,21 +15,20 @@ import { _electron as electron, expect, test } from '@playwright/test'
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 
 /**
- * Eigene, self-contained e2e-Fixture (bewusst NICHT `fixtures/import/v1/gueltig/`, das von
- * `import-schema-zod-gleich.test.ts` und `import-fehlercodes-stufe1.test.ts` vollständig
- * durchlaufen wird — eine zusätzliche Datei dort würde ungewollt an deren Prüfungen teilnehmen,
- * `docs/80_Offene_Fragen.md` §17). Inhaltlich abgeleitet aus
- * `fixtures/import/v1/gueltig/beispiel-3-interview.json` (dieselben zwei Personen, Erna und
- * Walter Wruck), aber ohne die beiden Eigenschaften, die diese Originaldatei für einen frischen
- * Import ungeeignet machen (56_Import_Vertrag.md §2.1, IMP-202/IMP-208): die `db:018f2c44-…`-
- * Kennung (verweist auf einen bereits vorhandenen Datensatz, den es in einem frisch angelegten
- * Projekt naturgemäß nicht gibt) ist zu einer gleichwertigen `tmp:erna`-Kennung aufgelöst, und die
- * referenzierte Audiodatei liegt als mitgelieferte Platzhalterdatei direkt daneben. Die
- * eingecheckte Originaldatei unter `fixtures/` bleibt unangetastet (sie wird von
- * `import-schreiben-belege.test.ts` mit genau der gegenteiligen Erwartung — vorhandene
- * `db:`-Person — verwendet).
+ * Eigene, self-contained e2e-Fixture unter `fixtures/import/v1/gueltig/eigenstaendig/` (AP-1.27):
+ * dieser Unterordner enthält ausschließlich Importdateien, die gegen ein frisches, leeres Projekt
+ * fehlerfrei durchlaufen — genau das braucht dieser Ablauf. Inhaltlich abgeleitet aus
+ * `fixtures/import/v1/gueltig/braucht-bestand/beispiel-3-interview.json` (dieselben zwei Personen,
+ * Erna und Walter Wruck), aber ohne die beiden Eigenschaften, die diese Originaldatei für einen
+ * frischen Import ungeeignet machen (56_Import_Vertrag.md §2.1, IMP-202/IMP-208): die
+ * `db:018f2c44-…`-Kennung (verweist auf einen bereits vorhandenen Datensatz, den es in einem
+ * frisch angelegten Projekt naturgemäß nicht gibt) ist zu einer gleichwertigen `tmp:erna`-Kennung
+ * aufgelöst, und die referenzierte Audiodatei liegt als mitgelieferte Platzhalterdatei direkt
+ * daneben. Die eingecheckte Originaldatei unter `gueltig/braucht-bestand/` bleibt unangetastet
+ * (sie wird von `import-schreiben-belege.test.ts` mit genau der gegenteiligen Erwartung —
+ * vorhandene `db:`-Person — verwendet).
  */
-const FIXTURE_PFAD = join(__dirname, 'fixtures/import-erna-und-walter-wruck.json')
+const FIXTURE_PFAD = join(__dirname, '../../fixtures/import/v1/gueltig/eigenstaendig/import-erna-und-walter-wruck.json')
 
 test.describe('Ablauf 01 — Import und Liste', () => {
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)

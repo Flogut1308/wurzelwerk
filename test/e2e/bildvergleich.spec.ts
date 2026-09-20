@@ -52,7 +52,7 @@ import { kombinationImDomSetzen, VIER_KOMBINATIONEN } from '../../skripte/bilder
  * eine zusätzliche Instanz ist deren Preis.
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
-const FIXTURE_ERNA_WALTER = join(__dirname, 'fixtures/import-erna-und-walter-wruck.json')
+const FIXTURE_ERNA_WALTER = join(__dirname, '../../fixtures/import/v1/gueltig/eigenstaendig/import-erna-und-walter-wruck.json')
 
 /** Feste Fenster-Inhaltsgröße — unabhängig von der plattformübergreifend persistierten
  * Fenstergeometrie (`geometrie-speicher.ts`), sonst wäre die Bildgröße vom letzten `pnpm dev`/

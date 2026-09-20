@@ -10,18 +10,20 @@ import { _electron as electron, expect, test } from '@playwright/test'
  * Oberfläche (analog `ablauf-01-import-und-liste.spec.ts`), der Import über die IPC-Brücke — es
  * gibt noch keine Import-Ansicht.
  *
- * Fixture: die bereits eingecheckte `fixtures/import/v1/gueltig/beispiel-2-widersprueche.json`
- * (Augusts zwei Todesdaten: Grabstein 1961, bevorzugt, mit Begründung, gegen Ernas Erinnerung
- * „58 oder 59" als 1958 erfasst) — bewusst NICHT kopiert (anders als `ablauf-01`s eigene
- * `import-erna-und-walter-wruck.json`-Fixture): diese Datei referenziert weder eine `db:`-Kennung
- * noch eine externe Mediendatei, ist also in einem frischen Projekt fehlerfrei importierbar, und
- * ein reines LESEN dieser Datei aus einem neuen Test nimmt nicht an den Prüfungen teil, die ALLE
+ * Fixture: die bereits eingecheckte
+ * `fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json` (Augusts zwei
+ * Todesdaten: Grabstein 1961, bevorzugt, mit Begründung, gegen Ernas Erinnerung „58 oder 59" als
+ * 1958 erfasst) — bewusst NICHT kopiert (anders als `ablauf-01`s eigene
+ * `import-erna-und-walter-wruck.json`-Fixture, die aus demselben Grund seit AP-1.27 ebenfalls
+ * unter `gueltig/eigenstaendig/` liegt): diese Datei referenziert weder eine `db:`-Kennung noch
+ * eine externe Mediendatei, ist also in einem frischen Projekt fehlerfrei importierbar, und ein
+ * reines LESEN dieser Datei aus einem neuen Test nimmt nicht an den Prüfungen teil, die ALLE
  * Dateien unter `fixtures/import/v1/gueltig/` einsammeln (`import-schema-zod-gleich.test.ts`,
  * `import-fehlercodes-stufe1.test.ts`) — nur ein zusätzlich EINGECHECKTES File dort täte das
  * (`docs/80_Offene_Fragen.md`, U-1.6-e2e-fixture).
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
-const FIXTURE_PFAD = join(__dirname, '../../fixtures/import/v1/gueltig/beispiel-2-widersprueche.json')
+const FIXTURE_PFAD = join(__dirname, '../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json')
 
 test.describe('Ablauf 02 — Profil', () => {
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)

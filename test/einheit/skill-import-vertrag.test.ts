@@ -88,9 +88,9 @@ describe('Skill wurzelwerk-import-vertrag', () => {
     const inhalt = leseSkill()
     expect(inhalt).toContain('wurzelwerk-import/v1')
     expect(inhalt).toContain('docs/import-vertrag/wurzelwerk-import-v1.schema.json')
-    expect(inhalt).toContain('fixtures/import/v1/gueltig/beispiel-1-einfach.json')
-    expect(inhalt).toContain('fixtures/import/v1/gueltig/beispiel-2-widersprueche.json')
-    expect(inhalt).toContain('fixtures/import/v1/gueltig/beispiel-3-interview.json')
+    expect(inhalt).toContain('fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json')
+    expect(inhalt).toContain('fixtures/import/v1/gueltig/eigenstaendig/beispiel-2-widersprueche.json')
+    expect(inhalt).toContain('fixtures/import/v1/gueltig/braucht-bestand/beispiel-3-interview.json')
   })
 
   it('nennt den Trockenlauf-Rückweg', () => {

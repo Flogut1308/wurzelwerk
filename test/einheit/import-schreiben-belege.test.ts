@@ -1,4 +1,4 @@
-// AP-1.3d: `schreibeImport()` gegen `fixtures/import/v1/gueltig/beispiel-3-interview.json` —
+// AP-1.3d: `schreibeImport()` gegen `fixtures/import/v1/gueltig/braucht-bestand/beispiel-3-interview.json` —
 // prüft, dass jedes `$defs/Beleg`-Feld (56_Import_Vertrag.md §2.3), das diese Fixture belegt, in
 // der richtigen `zitat`-Spalte landet (v. a. `zeitmarke_sekunden`, die 0005-Spalte, A-16), und dass
 // die `aussage_zitat`-Verknüpfungen stehen. Die `db:018f2c44-…`-Person (Erna) wird VOR dem Import
@@ -12,7 +12,7 @@ import { schreibeImport } from '../../src/main/import/schreiben'
 import { einfuegen as personEinfuegen } from '../../src/main/repositories/person-repo'
 import { importDateiSchema } from '../../src/shared/schemata/import-v1'
 
-const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-3-interview.json', import.meta.url))
+const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/braucht-bestand/beispiel-3-interview.json', import.meta.url))
 const ERNA_UUID = '018f2c44-7a91-7c3e-9d10-5b6e7f801234' // db:-Kennung aus der Fixture, ohne Präfix
 
 function ladeFixture(): ReturnType<typeof importDateiSchema.parse> {

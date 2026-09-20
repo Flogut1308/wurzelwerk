@@ -1,4 +1,4 @@
-// AP-1.3d: `schreibeImport()` gegen `fixtures/import/v1/gueltig/beispiel-1-einfach.json` — prüft
+// AP-1.3d: `schreibeImport()` gegen `fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json` — prüft
 // die Grundabbildung (medium/ort/person/name/quelle/ereignis/beteiligung/elternschaft/
 // partnerschaft), die Existenz-Aussagen (ADR-026, `wert_text='ja'`), die abgeleiteten
 // `geburtsdatum`/`geburtsort`-Aussagen (NUR aus `typ='geburt'`) und die Vertrags-`aussagen[]`
@@ -12,7 +12,7 @@ import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { schreibeImport } from '../../src/main/import/schreiben'
 import { importDateiSchema } from '../../src/shared/schemata/import-v1'
 
-const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/beispiel-1-einfach.json', import.meta.url))
+const FIXTURE_PFAD = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
 
 function ladeFixture(): ReturnType<typeof importDateiSchema.parse> {
   return importDateiSchema.parse(JSON.parse(readFileSync(FIXTURE_PFAD, 'utf8')))

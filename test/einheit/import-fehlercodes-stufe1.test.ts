@@ -41,6 +41,14 @@ function jsonDateien(ordner: string): readonly string[] {
     .sort()
 }
 
+// Rekursiv, weil `gueltig/` seit AP-1.27 in `eigenstaendig/` und `braucht-bestand/` aufgeteilt
+// ist — ein flacher `readdirSync` fände unter `gueltig/` selbst gar keine `.json`-Dateien mehr.
+function jsonDateienRekursiv(ordner: string): readonly string[] {
+  return readdirSync(ordner, { recursive: true, encoding: 'utf8' })
+    .filter((name) => name.endsWith('.json'))
+    .sort()
+}
+
 const STUFE1_CODES = ALLE_IMP_CODES.filter((code) => code.startsWith('IMP-1'))
 const fehlerhafteDateien = jsonDateien(FEHLERHAFT_ORDNER).filter((name) => /^imp-1\d{2}-/.test(name))
 
@@ -63,7 +71,7 @@ describe('Stufe-1-Fehlercodes: jede Fehlerfixture löst genau ihren Code aus (§
     expect(ergebnis.befunde.map((befund) => befund.code)).toEqual([erwartet])
   })
 
-  it.each(jsonDateien(GUELTIG_ORDNER))('%s (gültig) wird akzeptiert, ohne Befunde', (dateiname) => {
+  it.each(jsonDateienRekursiv(GUELTIG_ORDNER))('%s (gültig) wird akzeptiert, ohne Befunde', (dateiname) => {
     const pfad = join(GUELTIG_ORDNER, dateiname)
     const rohtext = readFileSync(pfad, 'utf8')
 
