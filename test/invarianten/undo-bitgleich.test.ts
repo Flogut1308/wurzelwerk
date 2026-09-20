@@ -134,5 +134,11 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
       // Fester Seed + Mindestlaufzahl 300 (CLAUDE.md §13: Determinismus ist Pflicht, Auftragsvorgabe).
       { seed: 20260910, numRuns: 300 },
     )
-  }, 60_000)
+  }, 180_000)
+  // it()-Timeout 180s statt 60s (AP-1.12 PR-B, Nachzug): die erhöhte Demote-Deckung
+  // (`minLength: 15`, `_befehlsfolge-generator.ts`) braucht auf dem Windows-CI-Runner
+  // beobachtet 79286ms — deutlich über den vorherigen 60000ms, obwohl macOS lokal schneller
+  // durchläuft. Das ist eine reine Laufzeit-/Runner-Frage, keine Abschwächung der Prüfung:
+  // `numRuns: 300` und `minLength: 15` (Demote-Deckung, hueter-Auflage) bleiben unverändert;
+  // 180s lässt auf dem langsameren Runner klaren Sicherheitsabstand samt CI-Lastreserve.
 })
