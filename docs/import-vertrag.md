@@ -1108,6 +1108,15 @@ bei Abweichung gilt die Datei.
 
 Die Dateien liegen vollständig in `56_Beispiele/`. Was sie jeweils zeigen:
 
+**Ordnertrennung im Fixture-Korpus (AP-1.27).** Der eingecheckte Fixture-Korpus unter
+`fixtures/import/v1/gueltig/` ist in zwei Unterordner geteilt: `eigenstaendig/` (Dateien, die
+gegen ein frisches, leeres Projekt fehlerfrei importierbar sind — `beispiel-1-einfach.json`,
+`beispiel-2-widersprueche.json` und die e2e-Fixture `import-erna-und-walter-wruck.json`) und
+`braucht-bestand/` (Dateien, die eine bereits vorhandene Person voraussetzen —
+`beispiel-3-interview.json`, dessen Informant über eine `db:`-Kennung auf einen vorhandenen
+Datensatz zeigt, §2.1). Details und eine Empfehlung fürs Ausprobieren stehen in
+`fixtures/import/v1/LIESMICH.md`.
+
 **`beispiel-1-einfach.json`** — Familienstammbuch, 3 Personen, Geburt, Trauung, Kind, ein Beruf. Alles Konfidenz 3–4, exakte Daten, keine Widersprüche. Der Fall, der zeigt, wie der Vertrag aussieht, wenn nichts kompliziert ist.
 
 **`beispiel-2-widersprueche.json`** — zwei konkurrierende Todesdaten (Grabstein 1961 gegen Erinnerung „58 oder 59"), mit `ist_bevorzugt` und `begruendung` auf der stärkeren Quelle und der schwächeren daneben stehengelassen. Dazu: unscharfes Geburtsdatum („so um 1890 rum"), ein Ort mit zwei zeitlich gültigen Namen (Marienwerder bis 1945 / Kwidzyn ab 1945) samt Notiz, dass Ernas Angabe „Ostpreußen" sachlich falsch war, ein Platzhaltervater, eine absichtlich falsch gesetzte Elternkante, die IMP-302 auslöst, und zwei unverarbeitete Notizen mit Begründung.
