@@ -21,14 +21,29 @@
 // Vorgehen:
 // 1. Frische, leere migrierte `:memory:`-Datenbank (kein Fixture-Korpus — der existiert erst ab
 //    AP-0.12, Entscheidung "Default 1" laut Auftrag). `schnappschuesse[0]` = ihr kanonischer Abzug.
-// 2. Eine fast-check-generierte Befehlsfolge (`_befehlsfolge-generator.ts`) über die drei
-//    registrierten Befehle über den ECHTEN Befehlsbus (`fuehreAus`) ausführen — NACH JEDER Aktion,
-//    die tatsächlich eine neue `transaktion`-Zeile committet hat (erkannt an einer gestiegenen
-//    `COUNT(*) FROM transaktion` — eine vom Befehlsbus verworfene leere Transaktion hinterlässt
-//    dort NIE eine Zeile, `src/main/befehle/bus.ts`), einen weiteren Schnappschuss anhängen.
+// 2. Eine fast-check-generierte Befehlsfolge (`_befehlsfolge-generator.ts`) über die registrierten
+//    Befehle über den ECHTEN Befehlsbus (`fuehreAus`) ausführen — nach jeder Aktion wird die `id`
+//    von `undoZiel(db)` (der obersten anwendbaren Transaktion, `journal-repo.ts`) mit der vor der
+//    Aktion verglichen:
+//    - ändert sich die `id` (eine neue Transaktionszeile liegt jetzt oben), wird ein neuer
+//      Schnappschuss ANGEHÄNGT — ein echter neuer Undo-Schritt.
+//    - bleibt die `id` GLEICH, wird der ZULETZT aufgezeichnete Schnappschuss ERSETZT statt
+//      angehängt. Das deckt zwei Fälle ab, die sich von außen nicht unterscheiden lassen und beide
+//      denselben Umgang brauchen: (a) ein echter No-op (Aktion hat nichts verändert, der Ersatz
+//      schreibt denselben Wert erneut) und (b) KOALESZENZ (AP-0.15, `versucheZusammenfassen()` in
+//      `src/main/journal/koaleszenz.ts`) — zwei schnelle Änderungen mit demselben
+//      Koaleszenz-Schlüssel (z. B. zwei `feldSetzen('notiz', …)` auf dieselbe Person, `bus.ts`
+//      §4.8) werden zu EINEM Undo-Schritt verschmolzen; die resultierende Zeile behält die `id` der
+//      ERSTEN der beiden (`kandidat.id`), ihr Inhalt (der Vorzustand, den ein Undo wiederherstellt)
+//      ändert sich aber. Ein reiner `COUNT(*) FROM transaktion`-Vergleich (frühere Fassung dieses
+//      Tests) übersieht Fall (b): die verworfene, neu angelegte Zeile hebt den Zählerstand wieder
+//      exakt auf, obwohl sich die JETZT oberste Transaktion inhaltlich geändert hat — genau diese
+//      Lücke hat die erhöhte Demote-Deckung in `_befehlsfolge-generator.ts` (AP-1.12 PR-B,
+//      Kopfkommentar dort "DEMOTE-DECKUNG") real getroffen (zwei aufeinanderfolgende
+//      `feldSetzen('notiz', …)` innerhalb des 2-Sekunden-Fensters).
 //    `schnappschuesse` ist damit exakt die Folge der Zustände nach 0, 1, 2, … tatsächlich
-//    committeten Transaktionen — unabhängig von No-op-Aktionen (Modul-Kommentar
-//    `_befehlsfolge-generator.ts`) und leeren `feldSetzen`-Aufrufen.
+//    ANWENDBAREN (nicht bloß tabellenweise gezählten) Undo-Schritten — unabhängig von No-ops
+//    (Modul-Kommentar `_befehlsfolge-generator.ts`) und von Koaleszenz.
 // 3. `undo()` GENAU `schnappschuesse.length - 1`-mal aufrufen — nach dem i-ten `undo()`-Aufruf MUSS
 //    der kanonische Abzug mit `schnappschuesse[schnappschuesse.length - 1 - i]` übereinstimmen: das
 //    prüft nicht nur den Endzustand, sondern JEDEN einzelnen Rücknahmeschritt gegen den exakt
@@ -36,16 +51,17 @@
 // 4. Am Ende zusätzlich `undoZiel(db) === undefined` (nichts mehr rücknehmbar) als Gegenprobe, dass
 //    die Zählung stimmt.
 //
-// BEKANNTE DECKUNGSGRENZE (hueter-Auflage 1, PR-B): Alle drei heute registrierten Befehle
-// (`person.anlegen`/`feldSetzen`/`loeschen`) berühren GENAU EINE `person`-Zeile → jede Transaktion
-// hat genau eine `aenderung`-Zeile, und es gibt keinen Befehl mit wechselseitigen Fremdschlüsseln
-// (`ort.nachfolger_ort_id`). Damit sind zwei Undo-Codepfade mit dem AP-0.9-Befehlsvorrat prinzipiell
-// unerreichbar und hier ungeprüft: die Rücknahme-REIHENFOLGE innerhalb einer Transaktion (DESC) und
-// `defer_foreign_keys` (Mutationsprobe M2/M3 überlebt — kein Invarianten-Defekt, sondern fehlende
-// Angriffsfläche). SOBALD der erste Befehl landet, dessen Transaktion MEHR ALS EINE `aenderung`-Zeile
-// erzeugt (z. B. `ort`, `name`, `elternschaft` oder ein `person.anlegen` mit zusätzlicher Namenszeile),
-// ist `_befehlsfolge-generator.ts` um diesen Befehl zu erweitern — sonst bleiben DESC und
-// defer_foreign_keys dauerhaft ungeprüft.
+// FRÜHERE DECKUNGSGRENZE, JETZT GESCHLOSSEN (hueter-Auflage 1, PR-B; AP-1.12 PR-B zieht nach):
+// Mit den drei ursprünglich registrierten Befehlen (`person.anlegen`/`feldSetzen`/`loeschen`)
+// berührte jede Transaktion GENAU EINE `person`-Zeile — die Rücknahme-REIHENFOLGE innerhalb einer
+// Transaktion (DESC) und `defer_foreign_keys` waren mit diesem Befehlsvorrat prinzipiell
+// unerreichbar (Mutationsprobe M2/M3 überlebte — kein Invarianten-Defekt, sondern fehlende
+// Angriffsfläche). AP-1.12 hat inzwischen `name`/`elternschaft`/`partnerschaft`/`ereignis`/
+// `aussage` als Schreibbefehle eingeführt, jeder davon mit einer Mehrzeilen-Transaktion (Kante +
+// Existenz-Aussage, Kante + N Beteiligungszeilen + Existenz-Aussage, ein `update` + ein `insert`
+// beim "Fakt ändern"-Demote-Pfad, …) — `_befehlsfolge-generator.ts` deckt seit AP-1.12 PR-B genau
+// diese Befehle mit ab (s. dortiger Kopfkommentar für die Generierungsregeln), DESC und
+// `defer_foreign_keys` sind damit real geprüft, nicht mehr nur eine offene Lücke.
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
@@ -75,36 +91,28 @@ function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   return db
 }
 
-interface TransaktionAnzahlZeile {
-  readonly anzahl: number
-}
-
-/** Anzahl der (ausschließlich committeten — s. Modul-Kommentar) `transaktion`-Zeilen. */
-function transaktionAnzahl(db: ReturnType<typeof oeffnen>): number {
-  const zeile = db.prepare<[], TransaktionAnzahlZeile>('SELECT COUNT(*) AS anzahl FROM transaktion').get()
-  if (zeile === undefined) {
-    throw new Error('transaktionAnzahl(): COUNT(*)-Abfrage lieferte unerwartet keine Zeile.')
-  }
-  return zeile.anzahl
-}
-
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
-  it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (person.anlegen/feldSetzen/loeschen) trifft exakt den passenden Vorzustand', () => {
+  it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (alle registrierten Schreibbefehle, AP-1.12 PR-B) trifft exakt den passenden Vorzustand', () => {
     fc.assert(
       fc.property(befehlsfolgeArbitrary(), (folge) => {
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
-          let anzahlVorher = transaktionAnzahl(db)
+          // `id` der aktuell obersten anwendbaren Transaktion — `undefined`, solange keine existiert.
+          // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neue Transaktion vs. No-op/Koaleszenz).
+          let oberstesTxIdVorher = undoZiel(db)?.id
 
           const zustand = neuerZustand()
           for (const aktion of folge) {
             aktionAusfuehren(db, zustand, aktion)
-            const anzahlJetzt = transaktionAnzahl(db)
-            if (anzahlJetzt > anzahlVorher) {
+            const oberstesTxIdJetzt = undoZiel(db)?.id
+            if (oberstesTxIdJetzt !== oberstesTxIdVorher) {
               schnappschuesse.push(kanonischerAbzug(db))
-              anzahlVorher = anzahlJetzt
+            } else if (oberstesTxIdJetzt !== undefined) {
+              const letzterIndex = schnappschuesse.length - 1
+              schnappschuesse[letzterIndex] = kanonischerAbzug(db)
             }
+            oberstesTxIdVorher = oberstesTxIdJetzt
           }
 
           const anzahlSchritte = schnappschuesse.length - 1
@@ -126,5 +134,11 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
       // Fester Seed + Mindestlaufzahl 300 (CLAUDE.md §13: Determinismus ist Pflicht, Auftragsvorgabe).
       { seed: 20260910, numRuns: 300 },
     )
-  }, 60_000)
+  }, 180_000)
+  // it()-Timeout 180s statt 60s (AP-1.12 PR-B, Nachzug): die erhöhte Demote-Deckung
+  // (`minLength: 15`, `_befehlsfolge-generator.ts`) braucht auf dem Windows-CI-Runner
+  // beobachtet 79286ms — deutlich über den vorherigen 60000ms, obwohl macOS lokal schneller
+  // durchläuft. Das ist eine reine Laufzeit-/Runner-Frage, keine Abschwächung der Prüfung:
+  // `numRuns: 300` und `minLength: 15` (Demote-Deckung, hueter-Auflage) bleiben unverändert;
+  // 180s lässt auf dem langsameren Runner klaren Sicherheitsabstand samt CI-Lastreserve.
 })
