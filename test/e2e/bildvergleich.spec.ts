@@ -191,12 +191,30 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       let clip: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
       test.beforeAll(async () => {
+        // Absolute y-Position ist wegen der vertikalen Zentrierung der Startspalte
+        // (`margin: auto` in `start-ansicht.css`, bewusst für den Scroll-Bug-Fix aus AP-1.26)
+        // nichtdeterministisch — sie hängt von der Gesamt-Inhaltshöhe ab, und die schwankt mit
+        // der Zahl der „Zuletzt geöffnet"-Einträge im echten, testübergreifend geteilten
+        // electron-store (s. Kommentar oben, §22). Der Abstand zwischen Titel „Wurzelwerk" (H1)
+        // und der Überschrift „Zuletzt geöffnet" (H2) ist dagegen KONSTANT: die Einträge liegen
+        // unter der H2, nicht dazwischen, und der statische Block Titel→Tagline→Namensfeld→
+        // Buttons dazwischen ändert sich nicht. Der Clip wird darum relativ zum Titel verankert.
+        const titelUeberschrift = fenster.getByRole('heading', { name: 'Wurzelwerk', level: 1 })
+        const titelBox = await titelUeberschrift.boundingBox()
+        if (titelBox === null) {
+          throw new Error('Überschrift „Wurzelwerk" nicht gefunden — Startansicht-Struktur hat sich geändert.')
+        }
         const zuletztUeberschrift = fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })
         const box = await zuletztUeberschrift.boundingBox()
         if (box === null) {
           throw new Error('Überschrift „Zuletzt geöffnet" nicht gefunden — Startansicht-Struktur hat sich geändert.')
         }
-        clip = { x: 0, y: 0, width: FENSTER_BREITE, height: Math.floor(box.y) }
+        clip = {
+          x: 0,
+          y: Math.floor(titelBox.y),
+          width: FENSTER_BREITE,
+          height: Math.floor(box.y - titelBox.y),
+        }
       })
 
       // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist die statische Überschrift,
