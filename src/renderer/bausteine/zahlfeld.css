@@ -1,0 +1,14 @@
+/*
+ * Baustein `Zahlfeld` — Molekül (docs/71_Designsystem.md §2.2). `display: contents` wie
+ * `textfeld.css` — nur der Nachfahre `.wz-eingabekoerper` bekommt Ziffern gleicher Breite und
+ * rechtsbündige Ausrichtung (Zahlenspalten wie Jahreszahlen sollen untereinander stehen).
+ */
+
+.wz-zahlfeld {
+  display: contents;
+}
+
+.wz-zahlfeld .wz-eingabekoerper {
+  font-variant-numeric: var(--wz-ziffern-tabelle);
+  text-align: right;
+}

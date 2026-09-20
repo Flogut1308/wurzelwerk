@@ -1,0 +1,23 @@
+{
+  "datumsfeld_verstanden_als": "Verstanden als: {{text}}",
+  "datumsfeld_verstanden_als_mit_genauigkeit": "Verstanden als: {{text}} · Genauigkeit {{genauigkeit}}",
+  "datumsfeld_nicht_aufloesbar": "nicht auflösbar: {{grund}}",
+  "datumsfeld_grund_leer": "leer",
+  "datumsfeld_grund_unbekanntes_format": "unbekanntes Format",
+  "datumsfeld_grund_ungueltiger_tag": "ungültiger Tag",
+  "datumsfeld_grund_ungueltiger_monat": "ungültiger Monat",
+  "datumsfeld_genauigkeit_tag": "Tag",
+  "datumsfeld_genauigkeit_monat": "Monat",
+  "datumsfeld_genauigkeit_jahr": "Jahr",
+  "datumsfeld_genauigkeit_jahrzehnt": "Jahrzehnt",
+  "datumsfeld_kalender_umschalten": "Kalender",
+  "datumsfeld_kalender_beschriftung": "Kalender",
+  "datumsfeld_kalender_gregorianisch": "gregorianisch",
+  "datumsfeld_kalender_julianisch": "julianisch",
+  "datumsfeld_kalender_hebraeisch": "hebräisch",
+  "datumsfeld_kalender_franzoesisch_republikanisch": "französisch-republikanisch",
+  "vorschlagskarte_bestaetigen": "Vorschlag übernehmen",
+  "vorschlagskarte_verwerfen": "Vorschlag verwerfen",
+  "vorschlagskarte_wiederherstellen": "Verworfenen Vorschlag wiederherstellen",
+  "vorschlagskarte_verworfen": "Verworfen"
+}

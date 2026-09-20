@@ -1,0 +1,48 @@
+/*
+ * Baustein `Konfidenzwaehler` — Molekül (docs/71_Designsystem.md §2.2/§3.4). Die gewählte Stufe
+ * bekommt zusätzlich zur Punktfarbe (die schon `konfidenz-punkt.css` trägt) einen sichtbaren Ring
+ * (Form, keine Farbe allein — §1.2 Regel 4) und einen dickeren Punkt (Größe), damit „gewählt" auch
+ * ohne Farbwahrnehmung erkennbar ist.
+ */
+
+.wz-konfidenzwaehler {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-konfidenzwaehler__stufe {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--wz-trefferflaeche-min);
+  min-height: var(--wz-trefferflaeche-min);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--wz-radius-voll);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wz-konfidenzwaehler__stufe:hover:not(:disabled) {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-konfidenzwaehler__stufe:focus-visible {
+  border-color: var(--wz-rahmen-fokus);
+}
+
+.wz-konfidenzwaehler__stufe--gewaehlt {
+  border-color: var(--wz-rahmen-stark);
+  background: var(--wz-flaeche-auswahl);
+}
+
+.wz-konfidenzwaehler__stufe--gewaehlt .wz-konfidenzpunkt {
+  width: var(--wz-abstand-16);
+  height: var(--wz-abstand-16);
+}
+
+.wz-konfidenzwaehler__stufe:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

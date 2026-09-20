@@ -9,15 +9,19 @@ import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Blaetterleiste } from '../../bausteine/blaetterleiste'
 import { ALLE_DATENTABELLE_SPALTEN } from '../../bausteine/datentabelle-spalten'
 import { Datentabelle } from '../../bausteine/datentabelle'
+import { Datumsfeld } from '../../bausteine/datumsfeld'
 import { Eingabekoerper } from '../../bausteine/eingabekoerper'
 import { FehlerlisteImport } from '../../bausteine/fehlerliste-import'
 import { FeldKonfidenz } from '../../bausteine/feld-konfidenz'
 import { Filterleiste } from '../../bausteine/filterleiste'
 import { Fokusring } from '../../bausteine/fokusring'
+import { Formularfeld } from '../../bausteine/formularfeld'
 import { Fortschritt } from '../../bausteine/fortschritt'
+import { Konfidenzwaehler } from '../../bausteine/konfidenzwaehler'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
 import { KonfidenzPunkt, type KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
 import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimmer'
+import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
 import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schaltflaeche'
@@ -31,9 +35,12 @@ import { TastenKappe } from '../../bausteine/tastenkappe'
 import { Text, type TextRolle } from '../../bausteine/text'
 import { TrockenlaufBericht } from '../../bausteine/trockenlauf-bericht'
 import { Trennlinie } from '../../bausteine/trennlinie'
+import { Textfeld } from '../../bausteine/textfeld'
 import { Umschalter } from '../../bausteine/umschalter'
+import { Vorschlagskarte } from '../../bausteine/vorschlagskarte'
 import { WiderspruchZeichen } from '../../bausteine/widerspruch-zeichen'
 import { Zaehler } from '../../bausteine/zaehler'
+import { Zahlfeld } from '../../bausteine/zahlfeld'
 import { ZUSTANDSBIBLIOTHEK_EINTRAEGE } from './registrierung'
 import './zustandsbibliothek.css'
 
@@ -323,6 +330,109 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
         {t('abschnitt_molekuele')}
       </Text>
 
+      <Abschnitt name="formularfeld">
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} hilfetext={t('beispiel_formularfeld_hilfetext')}>
+          <Textfeld wert="" aufAenderung={() => {}} />
+        </Formularfeld>
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} fehlertext={t('beispiel_formularfeld_fehlertext')}>
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ungueltig />
+        </Formularfeld>
+        <Formularfeld
+          beschriftung={t('beispiel_formularfeld_beschriftung')}
+          konfidenzwaehler={<Konfidenzwaehler wert={3} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />}
+          belegabzeichen={<BelegAbzeichen anzahl={2} />}
+        >
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} />
+        </Formularfeld>
+        <Formularfeld beschriftung={t('beispiel_formularfeld_beschriftung')} gesperrt belegabzeichen={<BelegAbzeichen anzahl={2} />}>
+          <Textfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} gesperrt />
+        </Formularfeld>
+      </Abschnitt>
+
+      <Abschnitt name="konfidenzwaehler">
+        <Konfidenzwaehler wert={null} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={1} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={4} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} />
+        <Konfidenzwaehler wert={2} aufAenderung={() => {}} ariaLabel={t('beispiel_konfidenzwaehler_beschriftung')} gesperrt />
+      </Abschnitt>
+
+      <Abschnitt name="textfeld">
+        <Textfeld wert="" aufAenderung={() => {}} platzhalter={t('beispiel_suchfeld_platzhalter')} ariaLabel={t('beispiel_person_karl')} />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} ungueltig />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} gesperrt />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} nurLesen />
+      </Abschnitt>
+
+      <Abschnitt name="zahlfeld">
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} />
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} ungueltig />
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} gesperrt />
+      </Abschnitt>
+
+      <Abschnitt name="langtextfeld">
+        <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} />
+        <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} gesperrt />
+      </Abschnitt>
+
+      <Abschnitt name="datumsfeld">
+        <Datumsfeld
+          text=""
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="um 1890"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="zwischen 1750 und 1760"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="31.02.1900"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text="1750/51"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+        />
+        <Datumsfeld
+          text={t('beispiel_geburtsjahr')}
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+          gesperrt
+        />
+      </Abschnitt>
+
       <Abschnitt name="auswahlfeld">
         <Auswahlfeld
           wert="alle"
@@ -451,6 +561,18 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
             hatAktivenFilter={false}
           />
         </div>
+      </Abschnitt>
+
+      <Abschnitt name="vorschlagskarte">
+        <Vorschlagskarte zustand="vorschlag" originalwortlaut={t('beispiel_vorschlagskarte_original')} aufBestaetigen={() => {}} aufVerwerfen={() => {}}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
+        <Vorschlagskarte zustand="bestaetigt" originalwortlaut={t('beispiel_vorschlagskarte_original')}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
+        <Vorschlagskarte zustand="verworfen" originalwortlaut={t('beispiel_vorschlagskarte_original')} aufWiederherstellen={() => {}}>
+          <Text rolle="koerper">{t('beispiel_vorschlagskarte_inhalt')}</Text>
+        </Vorschlagskarte>
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">

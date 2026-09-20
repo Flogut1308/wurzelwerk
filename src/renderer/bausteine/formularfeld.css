@@ -1,0 +1,35 @@
+/*
+ * Baustein `Formularfeld` — Molekül (docs/71_Designsystem.md §2.2): die Hülle, die jedes
+ * Datenfeld trägt. `__meta` reserviert eine Zeile in `--wz-schrift-hilfe`-Zeilenhöhe, unabhängig
+ * davon, ob Hilfe- oder Fehlertext gerade gerendert wird — sonst springt das Feld darüber beim
+ * ersten Auftreten eines Fehlers nach oben (Entwurfsprüfstein §3.1).
+ */
+
+.wz-formularfeld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  cursor: default;
+}
+
+.wz-formularfeld__kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-formularfeld__slots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-formularfeld__feld {
+  display: block;
+}
+
+.wz-formularfeld__meta {
+  display: block;
+  min-height: 18px;
+}

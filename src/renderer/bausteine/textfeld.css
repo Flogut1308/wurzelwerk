@@ -1,0 +1,10 @@
+/*
+ * Baustein `Textfeld` — Molekül (docs/71_Designsystem.md §2.2). Reiner Namens-Wrapper um
+ * `.wz-eingabekoerper` (eingabekoerper.css trägt Rahmen/Radius/Zustände) — `display: contents`
+ * nimmt den Wrapper aus dem Layoutfluss, ohne die Struktur von `Eingabekoerper` selbst anfassen zu
+ * müssen (kein zusätzlicher Kasten um das native `<input>`).
+ */
+
+.wz-textfeld {
+  display: contents;
+}
