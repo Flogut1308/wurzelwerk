@@ -20,13 +20,16 @@ import {
   ereignisLoeschenEinSchema,
   aussageAnlegenEinSchema,
   aussageLoeschenEinSchema,
+  ortAnlegenEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
+import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
+import { ortSuche } from '../abfragen/ort-suche'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
 import { pruefhinweise } from '../abfragen/pruefhinweise'
@@ -226,4 +229,9 @@ export function ipcRegistrierung(): void {
   // AP-1.8 PR-A (F-07): Bestandsprüfung (Fußzeile + Liste) — `abfrage:`, schreibt nichts (§11,
   // ADR-016). Kein `ein`, analog `abfrage:version`.
   registriere('abfrage:pruefhinweise', z.null(), () => pruefhinweise(offenesProjektDatenbank()))
+
+  // AP-1.13 PR-C (docs/71 §3.2, A-04): minimale Ortsverwaltung fürs `Ortsfeld` — Suche (lesend,
+  // `abfrage:`) + einfaches Anlegen (schreibend, über den Befehlsbus wie `person.anlegen` oben).
+  registriere('abfrage:ort.suche', ortSucheEinSchema, (ein) => ortSuche(offenesProjektDatenbank(), ein))
+  registriere('befehl:ort.anlegen', ortAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort.anlegen', ein))
 }
