@@ -1,0 +1,14 @@
+/*
+ * Baustein `Langtextfeld` — Molekül (docs/71_Designsystem.md §2.2). Übernimmt Rahmen/Radius/
+ * Zustände von `.wz-eingabekoerper` (eingabekoerper.css) unverändert — nur Höhe/Umbruch/
+ * Größenänderung sind eigen, weil `<textarea>` sie anders behandelt als `<input>`.
+ */
+
+.wz-langtextfeld {
+  display: block;
+  min-height: calc(var(--wz-trefferflaeche-min) * 3);
+  max-height: var(--wz-abstand-96);
+  resize: vertical;
+  white-space: pre-wrap;
+  font-family: var(--wz-familie-ui);
+}

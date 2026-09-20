@@ -18,6 +18,7 @@ import { Fortschritt } from '../../bausteine/fortschritt'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
 import { KonfidenzPunkt, type KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
 import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimmer'
+import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
 import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schaltflaeche'
@@ -31,9 +32,11 @@ import { TastenKappe } from '../../bausteine/tastenkappe'
 import { Text, type TextRolle } from '../../bausteine/text'
 import { TrockenlaufBericht } from '../../bausteine/trockenlauf-bericht'
 import { Trennlinie } from '../../bausteine/trennlinie'
+import { Textfeld } from '../../bausteine/textfeld'
 import { Umschalter } from '../../bausteine/umschalter'
 import { WiderspruchZeichen } from '../../bausteine/widerspruch-zeichen'
 import { Zaehler } from '../../bausteine/zaehler'
+import { Zahlfeld } from '../../bausteine/zahlfeld'
 import { ZUSTANDSBIBLIOTHEK_EINTRAEGE } from './registrierung'
 import './zustandsbibliothek.css'
 
@@ -322,6 +325,25 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
       <Text rolle="titel-klein" als="h2">
         {t('abschnitt_molekuele')}
       </Text>
+
+      <Abschnitt name="textfeld">
+        <Textfeld wert="" aufAenderung={() => {}} platzhalter={t('beispiel_suchfeld_platzhalter')} ariaLabel={t('beispiel_person_karl')} />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} ungueltig />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} gesperrt />
+        <Textfeld wert={t('beispiel_person_karl')} aufAenderung={() => {}} ariaLabel={t('beispiel_person_karl')} nurLesen />
+      </Abschnitt>
+
+      <Abschnitt name="zahlfeld">
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} />
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} ungueltig />
+        <Zahlfeld wert={t('beispiel_geburtsjahr')} aufAenderung={() => {}} ariaLabel={t('beispiel_geburtsjahr')} gesperrt />
+      </Abschnitt>
+
+      <Abschnitt name="langtextfeld">
+        <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} />
+        <Langtextfeld wert={t('beispiel_notiz')} aufAenderung={() => {}} ariaLabel={t('beispiel_notiz')} gesperrt />
+      </Abschnitt>
 
       <Abschnitt name="auswahlfeld">
         <Auswahlfeld
