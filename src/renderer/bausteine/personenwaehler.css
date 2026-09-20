@@ -1,0 +1,67 @@
+/*
+ * Baustein `Personenwaehler` — Molekül (docs/71_Designsystem.md §2.2/§3.3). Die Trefferliste steht
+ * im normalen Fluss direkt unter dem Eingabekörper (wie die Vorschlagsliste des `Ortsfeld`-Entwurfs,
+ * §3.2 ASCII-Skizze) statt als überlagertes Popover — kein `--wz-schatten-popover`/`z-index`-Token
+ * vorhanden, ein freischwebendes Popover wäre hier ein erfundenes Muster (CLAUDE.md §14).
+ */
+
+.wz-personenwaehler {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-personenwaehler__liste {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.wz-personenwaehler__hinweis {
+  padding: var(--wz-abstand-12) var(--wz-abstand-16);
+}
+
+.wz-personenwaehler__zeile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--wz-abstand-4);
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-16);
+  cursor: pointer;
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-personenwaehler__zeile:first-child {
+  border-top: none;
+}
+
+.wz-personenwaehler__zeile:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-personenwaehler__zeile--hervorgehoben,
+.wz-personenwaehler__zeile[aria-selected='true'] {
+  background: var(--wz-flaeche-auswahl);
+}
+
+/*
+ * Die zwei festen Schlusszeilen (§3.3) sind Handlungen, keine Treffer — ein Trennstrich vor der
+ * ersten von beiden macht das sichtbar, ohne eine dritte Farbe einzuführen (§1.2 Regel 4).
+ */
+.wz-personenwaehler__zeile--neuAnlegen {
+  border-top: 1px solid var(--wz-rahmen-standard);
+}
+
+.wz-personenwaehler__zeile-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}

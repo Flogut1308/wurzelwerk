@@ -19,5 +19,11 @@
   "vorschlagskarte_bestaetigen": "Vorschlag übernehmen",
   "vorschlagskarte_verwerfen": "Vorschlag verwerfen",
   "vorschlagskarte_wiederherstellen": "Verworfenen Vorschlag wiederherstellen",
-  "vorschlagskarte_verworfen": "Verworfen"
+  "vorschlagskarte_verworfen": "Verworfen",
+  "personenwaehler_beschriftung": "Person suchen",
+  "personenwaehler_platzhalter": "Name suchen…",
+  "personenwaehler_laedt": "Suche läuft…",
+  "personenwaehler_keine_treffer": "Keine Treffer",
+  "personenwaehler_neu_anlegen": "als neue Person anlegen",
+  "personenwaehler_platzhalter_anlegen": "als Platzhalter anlegen"
 }
