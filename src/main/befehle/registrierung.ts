@@ -47,6 +47,8 @@ import {
   aussageLoeschenEinSchema,
   type AussageAnlegenEin,
   type AussageLoeschenEin,
+  ortAnlegenEinSchema,
+  type OrtAnlegenEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -65,6 +67,7 @@ import { ereignisAendern } from './ereignis-aendern'
 import { ereignisLoeschen } from './ereignis-loeschen'
 import { aussageAnlegen } from './aussage-anlegen'
 import { aussageLoeschen } from './aussage-loeschen'
+import { ortAnlegen } from './ort-anlegen'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -102,6 +105,7 @@ interface BefehlKarte {
   'ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
   'aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
+  'ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -215,5 +219,11 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.aussage_geloescht',
     handler: aussageLoeschen,
+  },
+  'ort.anlegen': {
+    schema: ortAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ort_angelegt',
+    handler: ortAnlegen,
   },
 }

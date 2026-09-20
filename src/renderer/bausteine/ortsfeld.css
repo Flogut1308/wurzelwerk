@@ -1,0 +1,59 @@
+/*
+ * Baustein `Ortsfeld` — Molekül (docs/71_Designsystem.md §2.2/§3.2). Die Vorschlagsliste steht im
+ * normalen Fluss direkt unter dem Eingabekörper, kein überlagertes Popover — dasselbe Muster wie
+ * `Personenwaehler` (s. dortiger Kopfkommentar zur Begründung: kein `--wz-schatten-popover`/
+ * `z-index`-Token vorhanden, ein freischwebendes Popover wäre ein erfundenes Muster, CLAUDE.md §14).
+ */
+
+.wz-ortsfeld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-ortsfeld__liste {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.wz-ortsfeld__hinweis {
+  padding: var(--wz-abstand-12) var(--wz-abstand-16);
+}
+
+.wz-ortsfeld__zeile {
+  display: flex;
+  align-items: center;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-16);
+  cursor: pointer;
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-ortsfeld__zeile:first-child {
+  border-top: none;
+}
+
+.wz-ortsfeld__zeile:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-ortsfeld__zeile--hervorgehoben,
+.wz-ortsfeld__zeile[aria-selected='true'] {
+  background: var(--wz-flaeche-auswahl);
+}
+
+/*
+ * Die feste Schlusszeile (§3.2) ist eine Handlung, kein Treffer — ein Trennstrich davor macht das
+ * sichtbar, ohne eine dritte Farbe einzuführen (§1.2 Regel 4), analog `Personenwaehler`.
+ */
+.wz-ortsfeld__zeile--neuAnlegen {
+  border-top: 1px solid var(--wz-rahmen-standard);
+}

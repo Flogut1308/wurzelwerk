@@ -25,5 +25,10 @@
   "personenwaehler_laedt": "Suche läuft…",
   "personenwaehler_keine_treffer": "Keine Treffer",
   "personenwaehler_neu_anlegen": "als neue Person anlegen",
-  "personenwaehler_platzhalter_anlegen": "als Platzhalter anlegen"
+  "personenwaehler_platzhalter_anlegen": "als Platzhalter anlegen",
+  "ortsfeld_beschriftung": "Ort suchen",
+  "ortsfeld_platzhalter": "Ort suchen…",
+  "ortsfeld_laedt": "Suche läuft…",
+  "ortsfeld_keine_treffer": "Keine Treffer",
+  "ortsfeld_neu_anlegen": "„{{text}}“ als neuen Ort anlegen"
 }

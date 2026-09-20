@@ -19,10 +19,12 @@ import type {
   EreignisLoeschenEin,
   AussageAnlegenEin,
   AussageLoeschenEin,
+  OrtAnlegenEin,
 } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
 import type { PruefhinweiseAus } from '../schemata/pruefhinweise'
+import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -312,6 +314,8 @@ export interface Vertrag {
   'abfrage:suche': { ein: SucheEin; aus: SucheAus }
   'abfrage:person.detail': { ein: PersonDetailEin; aus: PersonDetailAus }
   'abfrage:pruefhinweise': { ein: null; aus: PruefhinweiseAus }
+  'befehl:ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
+  'abfrage:ort.suche': { ein: OrtSucheEin; aus: OrtSucheAus }
 }
 
 export type Kanal = keyof Vertrag

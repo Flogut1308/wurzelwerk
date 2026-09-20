@@ -17,6 +17,7 @@ import { ElternschaftTypEnum } from './elternschaft'
 import { PartnerschaftTypEnum, EndeGrundEnum } from './partnerschaft'
 import { EreignisTypEnum } from './ereignis'
 import { BeteiligungRolleEnum } from './beteiligung'
+import { OrtTypEnum } from './ort'
 import { type Datumswert, datumswertSchema } from './import-v1'
 
 /** Liste bestehender `zitat.id`-Werte, mit denen eine neue Aussage verknüpft wird (AP-1.12) —
@@ -444,4 +445,28 @@ export interface AussageLoeschenEin {
 
 export const aussageLoeschenEinSchema: z.ZodType<AussageLoeschenEin> = z.object({
   id: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// ort.anlegen (AP-1.13 PR-C, docs/71_Designsystem.md §3.2) — NUR Ort + EIN primärer Ortsname
+// (minimale Ortsverwaltung fürs `Ortsfeld`, direkt aus der Trefferliste heraus). Die volle
+// Ortsverwaltung (zeitabhängige Namensgeschichte pflegen, politisch/kirchlich getrennte
+// Zugehörigkeitsketten bearbeiten) bleibt AP-1.16 vorbehalten (CLAUDE.md §10: nicht vorgreifen) —
+// ebenso KEIN `ort.aendern`/`ort.loeschen` in diesem PR und KEINE Existenz-Aussage (analog
+// `name.anlegen`, ADR-026 betrifft nur belegbare Fachaussagen über Personen/Beziehungen).
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:ort.anlegen`. `typ` bleibt optional — ein aus dem `Ortsfeld` heraus schnell
+ * eingetippter Ortsname hat oft noch keine Einordnung (Dorf/Stadt/…), das DB-Schema erlaubt
+ * `ort.typ IS NULL` genau dafür (docs/schema/0002_kern.sql §2.4). */
+export interface OrtAnlegenEin {
+  readonly name: string
+  readonly typ?: z.infer<typeof OrtTypEnum> | undefined
+  readonly notiz?: string | undefined
+}
+
+export const ortAnlegenEinSchema: z.ZodType<OrtAnlegenEin> = z.object({
+  name: z.string().min(1),
+  typ: OrtTypEnum.optional(),
+  notiz: z.string().optional(),
 })

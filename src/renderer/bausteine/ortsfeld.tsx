@@ -1,0 +1,141 @@
+import type { KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { OrtTreffer } from '../../shared/schemata/ort-suche'
+import { Eingabekoerper } from './eingabekoerper'
+import { ortsfeldNaechsterIndex, ortsfeldZeileAktivieren, ortsfeldZeilenAufbauen, type OrtsfeldZeile } from './ortsfeld-logik'
+import { Text } from './text'
+import './ortsfeld.css'
+
+export type OrtsfeldZustand = 'leer' | 'laedt' | 'bereit'
+
+export interface OrtsfeldProps {
+  /** Die rohe Sucheingabe. */
+  readonly text: string
+  readonly aufAenderung: (text: string) => void
+  /** `'leer'`: noch nichts eingegeben, kein Listbox. `'laedt'`: `abfrage:ort.suche` läuft (der
+   * Aufrufer verdrahtet `useOrtSuche`, `src/renderer/brücke/abfrage-hooks.ts`). `'bereit'`:
+   * `treffer` ist das aktuelle Ergebnis (auch bei 0 Treffern). */
+  readonly zustand: OrtsfeldZustand
+  /** `OrtSucheAus.treffer` unverändert (`src/shared/schemata/ort-suche.ts`) — keine eigene
+   * Suchlogik im Baustein. */
+  readonly treffer: readonly OrtTreffer[]
+  /** Vollständig kontrolliert wie jeder Baustein hier (kein `useState`) — der Aufrufer hält den
+   * per Pfeiltaste hervorgehobenen Index. `null` = nichts hervorgehoben. Zählung über ALLE
+   * sichtbaren Zeilen (Treffer + die feste Schlusszeile, `ortsfeldZeilenAufbauen`). */
+  readonly hervorgehobenerIndex: number | null
+  readonly aufHervorgehobenerIndexAenderung?: (index: number | null) => void
+  /** Ein Treffer wurde gewählt (Klick oder Enter auf der hervorgehobenen Zeile). */
+  readonly aufAusgewaehlt: (ortId: string) => void
+  /** Schlusszeile „... als neuen Ort anlegen" (§3.2) — der Aufrufer ruft
+   * `useOrtAnlegen().mutate(ortsfeldNeuAnlegenEin(text))` (`ortsfeld-logik.ts`). */
+  readonly aufNeuAnlegen: () => void
+  readonly gesperrt?: boolean
+  /** Zugänglicher Name des Suchfelds, wenn keine sichtbare Beschriftung danebensteht (ADR-011). */
+  readonly ariaLabel?: string
+  readonly id?: string
+}
+
+/**
+ * `Ortsfeld` — Molekül (docs/71_Designsystem.md §2.2/§3.2, A-04). Eingabekörper + Vorschlagsliste
+ * + eine feste Schlusszeile „... als neuen Ort anlegen". Vollständig kontrolliert wie jeder
+ * Baustein hier — die eigentliche `abfrage:ort.suche`/`befehl:ort.anlegen`-Verdrahtung
+ * (`src/renderer/brücke/*-hooks.ts`) liegt beim Aufrufer, analog `Personenwaehler`. Tastatur:
+ * Pfeil-runter/-hoch bewegt `hervorgehobenerIndex` (mit Umlauf), Enter aktiviert die
+ * hervorgehobene Zeile — EIN `onKeyDown`-Handler auf der Hülle genügt.
+ *
+ * SCOPE (CLAUDE.md §10): §3.2 zeigt je Vorschlag zusätzlich die volle zeitabhängige
+ * Zugehörigkeitskette (politisch/kirchlich, z. B. "Kreis Marienwerder · Westpreußen · Preußen").
+ * Diese Kette bleibt AP-1.16 vorbehalten — hier steht je Vorschlag NUR der bereits datumsgültig
+ * berechnete Name (`OrtTreffer.anzeigename`), s. docs/80_Offene_Fragen.md.
+ */
+export function Ortsfeld({
+  text,
+  aufAenderung,
+  zustand,
+  treffer,
+  hervorgehobenerIndex,
+  aufHervorgehobenerIndexAenderung,
+  aufAusgewaehlt,
+  aufNeuAnlegen,
+  gesperrt = false,
+  ariaLabel,
+  id,
+}: OrtsfeldProps) {
+  const { t } = useTranslation('felder')
+
+  const zeilen: readonly OrtsfeldZeile[] = zustand === 'bereit' ? ortsfeldZeilenAufbauen(treffer) : []
+  const listboxId = id === undefined ? 'wz-ortsfeld-liste' : `${id}-liste`
+
+  function tastendruck(ereignis: KeyboardEvent<HTMLDivElement>) {
+    if (zustand !== 'bereit' || zeilen.length === 0) return
+    if (ereignis.key === 'ArrowDown') {
+      ereignis.preventDefault()
+      aufHervorgehobenerIndexAenderung?.(ortsfeldNaechsterIndex(hervorgehobenerIndex, 'runter', zeilen.length))
+    } else if (ereignis.key === 'ArrowUp') {
+      ereignis.preventDefault()
+      aufHervorgehobenerIndexAenderung?.(ortsfeldNaechsterIndex(hervorgehobenerIndex, 'hoch', zeilen.length))
+    } else if (ereignis.key === 'Enter') {
+      if (hervorgehobenerIndex === null) return
+      const zeile = zeilen[hervorgehobenerIndex]
+      if (zeile === undefined) return
+      ereignis.preventDefault()
+      ortsfeldZeileAktivieren(zeile, { aufAusgewaehlt, aufNeuAnlegen })
+    }
+  }
+
+  function zeileText(zeile: OrtsfeldZeile): string {
+    switch (zeile.art) {
+      case 'treffer':
+        return zeile.treffer.anzeigename
+      case 'neuAnlegen':
+        return t('ortsfeld_neu_anlegen', { text })
+    }
+  }
+
+  function zeileSchluessel(zeile: OrtsfeldZeile): string {
+    return zeile.art === 'treffer' ? zeile.treffer.id : zeile.art
+  }
+
+  return (
+    <div className="wz-ortsfeld" onKeyDown={tastendruck}>
+      <Eingabekoerper
+        typ="search"
+        wert={text}
+        aufAenderung={aufAenderung}
+        platzhalter={t('ortsfeld_platzhalter')}
+        ariaLabel={ariaLabel ?? t('ortsfeld_beschriftung')}
+        gesperrt={gesperrt}
+        {...(id === undefined ? {} : { id })}
+      />
+      {zustand === 'leer' ? null : (
+        <ul id={listboxId} className="wz-ortsfeld__liste" role="listbox" aria-label={t('ortsfeld_beschriftung')}>
+          {zustand === 'laedt' ? (
+            <li className="wz-ortsfeld__hinweis" role="presentation">
+              <Text rolle="hilfe">{t('ortsfeld_laedt')}</Text>
+            </li>
+          ) : null}
+          {zustand === 'bereit' && treffer.length === 0 ? (
+            <li className="wz-ortsfeld__hinweis" role="presentation">
+              <Text rolle="hilfe">{t('ortsfeld_keine_treffer')}</Text>
+            </li>
+          ) : null}
+          {zeilen.map((zeile, index) => (
+            <li
+              key={zeileSchluessel(zeile)}
+              id={`${listboxId}-${index}`}
+              role="option"
+              aria-selected={index === hervorgehobenerIndex}
+              className={`wz-ortsfeld__zeile wz-ortsfeld__zeile--${zeile.art}${index === hervorgehobenerIndex ? ' wz-ortsfeld__zeile--hervorgehoben' : ''}`}
+              onMouseDown={(ereignis) => {
+                ereignis.preventDefault()
+                ortsfeldZeileAktivieren(zeile, { aufAusgewaehlt, aufNeuAnlegen })
+              }}
+            >
+              <Text rolle="koerper">{zeileText(zeile)}</Text>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
