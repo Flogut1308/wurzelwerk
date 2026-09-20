@@ -50,9 +50,18 @@ test.describe('Ablauf 02 — Profil', () => {
     rmSync(elternordner, { recursive: true, force: true })
   })
 
+  /** Stubbt den nativen Ordnerdialog im Hauptprozess (AP-1.26: `src/main/dialoge.ts`, Muster wie
+   * `ablauf-import-trockenlauf.spec.ts`) — „Neues Projekt" wählt den übergeordneten Ordner seit
+   * AP-1.26 über den Systemdialog, nicht mehr über ein Pfadtextfeld. */
+  async function dialogLiefert(pfad: string): Promise<void> {
+    await app.evaluate(({ dialog }, gewaehlt) => {
+      dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+    }, pfad)
+  }
+
   test('aus der Liste in das Profil, Beleg öffnen, Widerspruch aufklappen, schließen — zurück an der Ausgangsstelle', async () => {
     // Start-Ansicht: neues Projekt anlegen (echte Oberfläche, wie ablauf-01).
-    await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+    await dialogLiefert(elternordner)
     await fenster.getByPlaceholder('Projektname').fill('Profiltest')
     await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
     await expect(fenster.getByRole('table')).toBeVisible()

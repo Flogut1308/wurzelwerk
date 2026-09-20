@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { app } from 'electron'
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { Kontext } from '../ipc/huelle'
 import type {
@@ -7,7 +8,7 @@ import type {
   ProjektInfo,
   ProjektOeffnenAus,
   ProjektOeffnenEin,
-  ZuletztEintrag,
+  ZuletztEintragAnzeige,
 } from '../../shared/ipc/vertrag'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { protokollInfo } from '../protokoll/logger'
@@ -216,9 +217,14 @@ export function projektSchliessen(): void {
   sendeEreignis('ereignis:projektGeschlossen', { pfad })
 }
 
-/** `abfrage:projekt.zuletzt`. */
-export function projektZuletzt(): readonly ZuletztEintrag[] {
-  return zuletztLesen()
+/**
+ * `abfrage:projekt.zuletzt`. Ergänzt je Eintrag `existiert` über `existsSync(ordnerPfad)` (S-01,
+ * AP-1.26) — rein lesend, keine Transaktion, kein Journal (§11). Bewusst nur in dieser
+ * Anzeigeform, nicht in der Speicherform (`zuletzt-speicher.ts`): ein verschwundener Ordner soll
+ * bei jedem Aufruf neu geprüft werden, nicht als veralteter Stand in der Datei stehen bleiben.
+ */
+export function projektZuletzt(): readonly ZuletztEintragAnzeige[] {
+  return zuletztLesen().map((eintrag) => ({ ...eintrag, existiert: existsSync(eintrag.pfad) }))
 }
 
 /**

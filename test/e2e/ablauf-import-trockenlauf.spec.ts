@@ -31,8 +31,11 @@ test.describe('Ablauf — Import-Trockenlauf (S-10…S-13)', () => {
     app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG] })
     fenster = await app.firstWindow()
 
-    // Projekt anlegen (echte Start→Liste-Oberfläche).
-    await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+    // Projekt anlegen (echte Start→Liste-Oberfläche). „Neues Projekt" wählt den übergeordneten
+    // Ordner seit AP-1.26 über den Systemdialog (`src/main/dialoge.ts`), nicht mehr über ein
+    // Pfadtextfeld — `dialogLiefert()` ist unten definiert, aber als Funktionsdeklaration bereits
+    // hier nutzbar (Hoisting).
+    await dialogLiefert(elternordner)
     await fenster.getByPlaceholder('Projektname').fill('Importtest')
     await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
     await expect(fenster.getByRole('table')).toBeVisible()
@@ -46,7 +49,7 @@ test.describe('Ablauf — Import-Trockenlauf (S-10…S-13)', () => {
   /** Stubbt den nativen Öffnen-Dialog im Hauptprozess, sodass er `pfad` zurückgibt. */
   async function dialogLiefert(pfad: string): Promise<void> {
     await app.evaluate(({ dialog }, gewaehlt) => {
-      // Reine Test-Injektion: dieselbe `dialog`-Instanz, die `src/main/import/dialog.ts` benutzt.
+      // Reine Test-Injektion: dieselbe `dialog`-Instanz, die `src/main/dialoge.ts` benutzt.
       dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
     }, pfad)
   }

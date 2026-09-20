@@ -1,0 +1,120 @@
+/*
+ * Start-Ansicht (S-01, AP-1.26) — zentrierte Spalte, `T-Leer` (72_Screens_und_Flows.md), erster
+ * Bildschirm der App. Kein `T-Shell` (Suchleiste/Tabs) — der ist S-04 und außerhalb dieses Pakets
+ * (kein Screen dafür im Code, §10 „nicht vorgreifen").
+ */
+
+.wz-start {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  background: var(--wz-flaeche-grund);
+  overflow-y: auto;
+}
+
+/* `margin: auto` statt `align-items/justify-content: center` auf `.wz-start` (bewusst, Nachzug
+ * PR #71-Klasse Bug): Eine lange „Zuletzt geöffnet"-Liste kann die Spalte höher als das Fenster
+ * machen — mit `justify-content: center` würde der obere Teil (Titel, Aktionen) dann über den
+ * sichtbaren Bereich hinaus nach oben verschoben und wäre nicht mehr scrollbar erreichbar
+ * (`scrollTop` kann nicht negativ werden). Ein Auto-Margin auf dem Kind zentriert stattdessen nur,
+ * solange Platz ist, und fällt bei Überlauf auf normalen Fluss von oben zurück — von dort ist alles
+ * über gewöhnliches Scrollen erreichbar. */
+.wz-start__spalte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-32);
+  width: 100%;
+  max-width: 640px;
+  margin: auto;
+  padding: var(--wz-abstand-24);
+}
+
+.wz-start__kopf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-start__fehler {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  padding: var(--wz-abstand-12) var(--wz-abstand-16);
+  border-radius: var(--wz-radius-standard);
+  border: 1px solid var(--wz-status-fehler-rahmen);
+  background: var(--wz-status-fehler-flaeche);
+}
+
+.wz-start__aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-start__aktionen .wz-eingabekoerper {
+  min-width: 220px;
+  flex: 1 1 220px;
+}
+
+.wz-start__zuletzt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-start__zuletzt-liste {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+  overflow: hidden;
+}
+
+.wz-start__zuletzt-zeile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--wz-abstand-4);
+  width: 100%;
+  padding: var(--wz-abstand-12) var(--wz-abstand-16);
+  border: none;
+  border-top: 1px solid var(--wz-rahmen-fein);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wz-start__zuletzt-zeile:first-child {
+  border-top: none;
+}
+
+.wz-start__zuletzt-zeile:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-start__zuletzt-zeile--fehlend {
+  background: var(--wz-flaeche-vertieft);
+}
+
+.wz-start__zuletzt-name {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-start__sync-warnung {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-16);
+  border-radius: var(--wz-radius-standard);
+  border: 1px solid var(--wz-status-warnung-rahmen);
+  background: var(--wz-status-warnung-flaeche);
+}
+
+.wz-start__sync-warnung-aktionen {
+  display: flex;
+  gap: var(--wz-abstand-12);
+}

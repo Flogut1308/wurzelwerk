@@ -114,6 +114,20 @@ describe('main/projekt/projekt-dienst', () => {
     expect(zuletzt[0]).toMatchObject({ pfad: info.pfad, name: 'Testbaum' })
   })
 
+  it('projektZuletzt markiert einen vorhandenen Ordner als existiert:true, einen entfernten als existiert:false (S-01, AP-1.26)', () => {
+    const info = projektAnlegen({ elternordner, name: 'Testbaum' })
+    expect(projektZuletzt()[0]).toMatchObject({ pfad: info.pfad, existiert: true })
+
+    // Schließen zuerst — Windows kann eine offene Datei sonst nicht löschen (wie andernorts in
+    // diesem Testmodul beachtet, s. `projektUebernehmen()`-Kommentar in `projekt-dienst.ts`).
+    projektSchliessen()
+    rmSync(info.pfad, { recursive: true, force: true })
+
+    // Der Eintrag bleibt stehen (keine eigene IPC-Änderung für „entfernen", §14-Vermerk), ist aber
+    // jetzt als nicht mehr erreichbar erkennbar.
+    expect(projektZuletzt()[0]).toMatchObject({ pfad: info.pfad, existiert: false })
+  })
+
   it('projektSchliessen entfernt die Sperre wieder', () => {
     const info = projektAnlegen({ elternordner, name: 'Testbaum' })
     projektSchliessen()

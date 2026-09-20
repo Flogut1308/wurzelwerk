@@ -96,6 +96,12 @@ async function aufnahme(
   clip?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
 ): Promise<void> {
   await fenster.evaluate(kombinationImDomSetzen, { theme, dichte })
+  // Maus auf eine neutrale, nicht-interaktive Position bewegen: Chromium blendet die
+  // Spin-Buttons nativer `type="number"`-Felder nur bei Hover ein. Ohne diese Zeile hängt die
+  // Aufnahme von der zufälligen Maus-Ruheposition nach vorherigen Interaktionen ab (z. B. nach
+  // einem Klick, dessen Position sich mit dem Layout verschiebt) — sichtbar geworden an den
+  // Filterfeldern „Geburtsjahr zwischen" der Liste.
+  await fenster.mouse.move(0, 0)
   await expect(fenster).toHaveScreenshot(`${name}.png`, clip === undefined ? AUFNAHME_OPTIONEN : { ...AUFNAHME_OPTIONEN, clip })
 }
 
@@ -185,12 +191,30 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       let clip: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
       test.beforeAll(async () => {
+        // Absolute y-Position ist wegen der vertikalen Zentrierung der Startspalte
+        // (`margin: auto` in `start-ansicht.css`, bewusst für den Scroll-Bug-Fix aus AP-1.26)
+        // nichtdeterministisch — sie hängt von der Gesamt-Inhaltshöhe ab, und die schwankt mit
+        // der Zahl der „Zuletzt geöffnet"-Einträge im echten, testübergreifend geteilten
+        // electron-store (s. Kommentar oben, §22). Der Abstand zwischen Titel „Wurzelwerk" (H1)
+        // und der Überschrift „Zuletzt geöffnet" (H2) ist dagegen KONSTANT: die Einträge liegen
+        // unter der H2, nicht dazwischen, und der statische Block Titel→Tagline→Namensfeld→
+        // Buttons dazwischen ändert sich nicht. Der Clip wird darum relativ zum Titel verankert.
+        const titelUeberschrift = fenster.getByRole('heading', { name: 'Wurzelwerk', level: 1 })
+        const titelBox = await titelUeberschrift.boundingBox()
+        if (titelBox === null) {
+          throw new Error('Überschrift „Wurzelwerk" nicht gefunden — Startansicht-Struktur hat sich geändert.')
+        }
         const zuletztUeberschrift = fenster.getByRole('heading', { name: 'Zuletzt geöffnet', level: 2 })
         const box = await zuletztUeberschrift.boundingBox()
         if (box === null) {
           throw new Error('Überschrift „Zuletzt geöffnet" nicht gefunden — Startansicht-Struktur hat sich geändert.')
         }
-        clip = { x: 0, y: 0, width: FENSTER_BREITE, height: Math.floor(box.y) }
+        clip = {
+          x: 0,
+          y: Math.floor(titelBox.y),
+          width: FENSTER_BREITE,
+          height: Math.floor(box.y - titelBox.y),
+        }
       })
 
       // Order-Unabhängigkeit (PR #71, Nachzug): jeder Einzeltest weist die statische Überschrift,
@@ -239,7 +263,10 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
     })
 
     test('Projekt anlegen', async () => {
-      await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+      // „Neues Projekt" wählt den übergeordneten Ordner seit AP-1.26 über den Systemdialog
+      // (`src/main/dialoge.ts`), nicht mehr über ein Pfadtextfeld — derselbe Stub wie oben
+      // (Importansicht), hier für den Elternordner-Dialog wiederverwendet.
+      await dialogLiefert(elternordner)
       await fenster.getByPlaceholder('Projektname').fill('Bildvergleichstest')
       await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
       await expect(fenster.getByRole('table')).toBeVisible()
@@ -304,8 +331,12 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
       await fensterAufFesteGroesseSetzen(app, fenster)
 
       // Eigenes, frisches Projekt — wie `ablauf-01-import-und-liste.spec.ts`, echte Oberfläche für
-      // Anlegen/Navigation.
-      await fenster.getByPlaceholder('Übergeordneter Ordner').fill(elternordner)
+      // Anlegen/Navigation. „Neues Projekt" wählt den übergeordneten Ordner seit AP-1.26 über den
+      // Systemdialog (`src/main/dialoge.ts`), nicht mehr über ein Pfadtextfeld — eigene
+      // Electron-Instanz, darum ein eigener, lokaler Stub statt des `dialogLiefert()` oben.
+      await app.evaluate(({ dialog }, gewaehlt) => {
+        dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+      }, elternordner)
       await fenster.getByPlaceholder('Projektname').fill('Bildvergleichstest Liste')
       await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
       await expect(fenster.getByRole('table')).toBeVisible()
