@@ -31,6 +31,26 @@
     "titel": "Vorgang nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Der Vorgang wurde möglicherweise bereits abgeschlossen oder zurückgenommen."
   },
+  "NICHT_GEFUNDEN_NAME": {
+    "titel": "Name nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Name tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_ELTERNSCHAFT": {
+    "titel": "Elternschaft nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Elternschaft tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_PARTNERSCHAFT": {
+    "titel": "Partnerschaft nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Partnerschaft tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_EREIGNIS": {
+    "titel": "Ereignis nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist das Ereignis tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_AUSSAGE": {
+    "titel": "Aussage nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Aussage tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
   "KONFLIKT_ZYKLUS": {
     "titel": "Verwandtschaft würde einen Zyklus erzeugen",
     "was_tun": "Die Elternschaft nicht anlegen — eine Person kann nicht ihr eigener Vorfahre sein. Die Beziehung prüfen und korrigieren."

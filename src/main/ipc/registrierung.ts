@@ -2,7 +2,25 @@ import { app } from 'electron'
 import { z } from 'zod'
 import { ALLE_FEHLERCODES } from '../../shared/fehler/codes'
 import { MANIFEST_SCHEMAVERSION } from '../../shared/konstanten'
-import { personAnlegenEinSchema, personFeldSetzenEinSchema, personLoeschenEinSchema } from '../../shared/schemata/befehle'
+import {
+  personAnlegenEinSchema,
+  personFeldSetzenEinSchema,
+  personLoeschenEinSchema,
+  nameAnlegenEinSchema,
+  nameAendernEinSchema,
+  nameLoeschenEinSchema,
+  elternschaftAnlegenEinSchema,
+  elternschaftAendernEinSchema,
+  elternschaftLoeschenEinSchema,
+  partnerschaftAnlegenEinSchema,
+  partnerschaftAendernEinSchema,
+  partnerschaftLoeschenEinSchema,
+  ereignisAnlegenEinSchema,
+  ereignisAendernEinSchema,
+  ereignisLoeschenEinSchema,
+  aussageAnlegenEinSchema,
+  aussageLoeschenEinSchema,
+} from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
@@ -115,6 +133,27 @@ export function ipcRegistrierung(): void {
     fuehreAus(offenesProjektDatenbank(), 'person.feldSetzen', ein),
   )
   registriere('befehl:person.loeschen', personLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'person.loeschen', ein))
+
+  // AP-1.12: Schreibbefehle für name/elternschaft/partnerschaft/ereignis/aussage — dasselbe Muster
+  // wie die drei `person.*`-Kanäle oben (über den Befehlsbus, `db` per D-DB-Injektion).
+  registriere('befehl:name.anlegen', nameAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.anlegen', ein))
+  registriere('befehl:name.aendern', nameAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.aendern', ein))
+  registriere('befehl:name.loeschen', nameLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.loeschen', ein))
+
+  registriere('befehl:elternschaft.anlegen', elternschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.anlegen', ein))
+  registriere('befehl:elternschaft.aendern', elternschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.aendern', ein))
+  registriere('befehl:elternschaft.loeschen', elternschaftLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.loeschen', ein))
+
+  registriere('befehl:partnerschaft.anlegen', partnerschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'partnerschaft.anlegen', ein))
+  registriere('befehl:partnerschaft.aendern', partnerschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'partnerschaft.aendern', ein))
+  registriere('befehl:partnerschaft.loeschen', partnerschaftLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'partnerschaft.loeschen', ein))
+
+  registriere('befehl:ereignis.anlegen', ereignisAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.anlegen', ein))
+  registriere('befehl:ereignis.aendern', ereignisAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.aendern', ein))
+  registriere('befehl:ereignis.loeschen', ereignisLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.loeschen', ein))
+
+  registriere('befehl:aussage.anlegen', aussageAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.anlegen', ein))
+  registriere('befehl:aussage.loeschen', aussageLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.loeschen', ein))
 
   // `undo()`/`redo()` laufen NICHT über `fuehreAus()`/den Befehlsbus (55_Architektur.md §4.9,
   // Kopfkommentar `src/main/journal/undo.ts`) - die beiden Ereignisse, die der Bus sonst selbst

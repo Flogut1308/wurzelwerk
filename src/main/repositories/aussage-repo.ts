@@ -103,3 +103,20 @@ export function zitatVerknuepfen(tx: Tx, ein: AussageZitatVerknuepfenEin): void 
     geaendertAm: ein.geaendertAm,
   })
 }
+
+/** Löscht eine `aussage`-Zeile (`aussage.loeschen`, AP-1.12) — CASCADE räumt `aussage_zitat` ab. */
+export function loeschen(tx: Tx, id: string): void {
+  tx.prepare('DELETE FROM aussage WHERE id = @id').run({ id })
+}
+
+/**
+ * Löscht ALLE `aussage`-Zeilen zu einem Subjekt (`subjekt_typ`/`subjekt_id`, AP-1.12) —
+ * `aussage.subjekt_id` ist polymorph OHNE Fremdschlüssel-`CASCADE` (E-7): wird die referenzierte
+ * Zeile selbst gelöscht (`elternschaft.loeschen`/`partnerschaft.loeschen`/`ereignis.loeschen`),
+ * bliebe ohne diesen Aufruf jede Aussage über sie verwaist — sichtbar u. a. als Undo-Bitgleich-
+ * Bruch (CLAUDE.md §5: „Undo(Aktion) stellt den Datenbestand bitgleich wieder her"). `aussage_zitat`
+ * folgt automatisch über `ON DELETE CASCADE` auf `aussage_zitat.aussage_id`.
+ */
+export function loeschenNachSubjekt(tx: Tx, subjektTyp: string, subjektId: string): void {
+  tx.prepare('DELETE FROM aussage WHERE subjekt_typ = @subjektTyp AND subjekt_id = @subjektId').run({ subjektTyp, subjektId })
+}

@@ -19,10 +19,52 @@ import {
   type PersonAnlegenEin,
   type PersonFeldSetzenEin,
   type PersonLoeschenEin,
+  nameAnlegenEinSchema,
+  nameAendernEinSchema,
+  nameLoeschenEinSchema,
+  type NameAnlegenEin,
+  type NameAendernEin,
+  type NameLoeschenEin,
+  elternschaftAnlegenEinSchema,
+  elternschaftAendernEinSchema,
+  elternschaftLoeschenEinSchema,
+  type ElternschaftAnlegenEin,
+  type ElternschaftAendernEin,
+  type ElternschaftLoeschenEin,
+  partnerschaftAnlegenEinSchema,
+  partnerschaftAendernEinSchema,
+  partnerschaftLoeschenEinSchema,
+  type PartnerschaftAnlegenEin,
+  type PartnerschaftAendernEin,
+  type PartnerschaftLoeschenEin,
+  ereignisAnlegenEinSchema,
+  ereignisAendernEinSchema,
+  ereignisLoeschenEinSchema,
+  type EreignisAnlegenEin,
+  type EreignisAendernEin,
+  type EreignisLoeschenEin,
+  aussageAnlegenEinSchema,
+  aussageLoeschenEinSchema,
+  type AussageAnlegenEin,
+  type AussageLoeschenEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
 import { personLoeschen } from './person-loeschen'
+import { nameAnlegen } from './name-anlegen'
+import { nameAendern } from './name-aendern'
+import { nameLoeschen } from './name-loeschen'
+import { elternschaftAnlegen } from './elternschaft-anlegen'
+import { elternschaftAendern } from './elternschaft-aendern'
+import { elternschaftLoeschen } from './elternschaft-loeschen'
+import { partnerschaftAnlegen } from './partnerschaft-anlegen'
+import { partnerschaftAendern } from './partnerschaft-aendern'
+import { partnerschaftLoeschen } from './partnerschaft-loeschen'
+import { ereignisAnlegen } from './ereignis-anlegen'
+import { ereignisAendern } from './ereignis-aendern'
+import { ereignisLoeschen } from './ereignis-loeschen'
+import { aussageAnlegen } from './aussage-anlegen'
+import { aussageLoeschen } from './aussage-loeschen'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -46,6 +88,20 @@ interface BefehlKarte {
   'person.anlegen': { ein: PersonAnlegenEin; aus: { readonly id: string } }
   'person.feldSetzen': { ein: PersonFeldSetzenEin; aus: null }
   'person.loeschen': { ein: PersonLoeschenEin; aus: null }
+  'name.anlegen': { ein: NameAnlegenEin; aus: { readonly id: string } }
+  'name.aendern': { ein: NameAendernEin; aus: null }
+  'name.loeschen': { ein: NameLoeschenEin; aus: null }
+  'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
+  'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
+  'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
+  'partnerschaft.anlegen': { ein: PartnerschaftAnlegenEin; aus: { readonly id: string } }
+  'partnerschaft.aendern': { ein: PartnerschaftAendernEin; aus: null }
+  'partnerschaft.loeschen': { ein: PartnerschaftLoeschenEin; aus: null }
+  'ereignis.anlegen': { ein: EreignisAnlegenEin; aus: { readonly id: string } }
+  'ereignis.aendern': { ein: EreignisAendernEin; aus: null }
+  'ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
+  'aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
+  'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -75,5 +131,89 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.person_geloescht',
     handler: personLoeschen,
+  },
+  'name.anlegen': {
+    schema: nameAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.name_angelegt',
+    handler: nameAnlegen,
+  },
+  'name.aendern': {
+    schema: nameAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.name_geaendert',
+    handler: nameAendern,
+  },
+  'name.loeschen': {
+    schema: nameLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.name_geloescht',
+    handler: nameLoeschen,
+  },
+  'elternschaft.anlegen': {
+    schema: elternschaftAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.elternschaft_angelegt',
+    handler: elternschaftAnlegen,
+  },
+  'elternschaft.aendern': {
+    schema: elternschaftAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.elternschaft_geaendert',
+    handler: elternschaftAendern,
+  },
+  'elternschaft.loeschen': {
+    schema: elternschaftLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.elternschaft_geloescht',
+    handler: elternschaftLoeschen,
+  },
+  'partnerschaft.anlegen': {
+    schema: partnerschaftAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.partnerschaft_angelegt',
+    handler: partnerschaftAnlegen,
+  },
+  'partnerschaft.aendern': {
+    schema: partnerschaftAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.partnerschaft_geaendert',
+    handler: partnerschaftAendern,
+  },
+  'partnerschaft.loeschen': {
+    schema: partnerschaftLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.partnerschaft_geloescht',
+    handler: partnerschaftLoeschen,
+  },
+  'ereignis.anlegen': {
+    schema: ereignisAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ereignis_angelegt',
+    handler: ereignisAnlegen,
+  },
+  'ereignis.aendern': {
+    schema: ereignisAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ereignis_geaendert',
+    handler: ereignisAendern,
+  },
+  'ereignis.loeschen': {
+    schema: ereignisLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ereignis_geloescht',
+    handler: ereignisLoeschen,
+  },
+  'aussage.anlegen': {
+    schema: aussageAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.aussage_angelegt',
+    handler: aussageAnlegen,
+  },
+  'aussage.loeschen': {
+    schema: aussageLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.aussage_geloescht',
+    handler: aussageLoeschen,
   },
 }

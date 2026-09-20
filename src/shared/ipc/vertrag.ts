@@ -1,7 +1,25 @@
 import type { FehlerCode } from '../fehler/codes'
 import type { PruefBericht } from '../import/imp-codes'
 import type { Trockenlaufbericht } from '../import/trockenlauf-bericht'
-import type { PersonAnlegenEin, PersonFeldSetzenEin, PersonLoeschenEin } from '../schemata/befehle'
+import type {
+  PersonAnlegenEin,
+  PersonFeldSetzenEin,
+  PersonLoeschenEin,
+  NameAnlegenEin,
+  NameAendernEin,
+  NameLoeschenEin,
+  ElternschaftAnlegenEin,
+  ElternschaftAendernEin,
+  ElternschaftLoeschenEin,
+  PartnerschaftAnlegenEin,
+  PartnerschaftAendernEin,
+  PartnerschaftLoeschenEin,
+  EreignisAnlegenEin,
+  EreignisAendernEin,
+  EreignisLoeschenEin,
+  AussageAnlegenEin,
+  AussageLoeschenEin,
+} from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
 import type { PruefhinweiseAus } from '../schemata/pruefhinweise'
@@ -265,6 +283,20 @@ export interface Vertrag {
   'befehl:person.anlegen': { ein: PersonAnlegenEin; aus: { readonly id: string } }
   'befehl:person.feldSetzen': { ein: PersonFeldSetzenEin; aus: null }
   'befehl:person.loeschen': { ein: PersonLoeschenEin; aus: null }
+  'befehl:name.anlegen': { ein: NameAnlegenEin; aus: { readonly id: string } }
+  'befehl:name.aendern': { ein: NameAendernEin; aus: null }
+  'befehl:name.loeschen': { ein: NameLoeschenEin; aus: null }
+  'befehl:elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
+  'befehl:elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
+  'befehl:elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
+  'befehl:partnerschaft.anlegen': { ein: PartnerschaftAnlegenEin; aus: { readonly id: string } }
+  'befehl:partnerschaft.aendern': { ein: PartnerschaftAendernEin; aus: null }
+  'befehl:partnerschaft.loeschen': { ein: PartnerschaftLoeschenEin; aus: null }
+  'befehl:ereignis.anlegen': { ein: EreignisAnlegenEin; aus: { readonly id: string } }
+  'befehl:ereignis.aendern': { ein: EreignisAendernEin; aus: null }
+  'befehl:ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
+  'befehl:aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
+  'befehl:aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
   'befehl:journal.undo': { ein: null; aus: UndoErgebnis }
   'befehl:journal.redo': { ein: null; aus: UndoErgebnis }
   'abfrage:journal.verlauf': { ein: JournalVerlaufEin; aus: readonly VerlaufEintrag[] }

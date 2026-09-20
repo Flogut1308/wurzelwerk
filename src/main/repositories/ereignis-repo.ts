@@ -77,3 +77,85 @@ export function beteiligungEinfuegen(tx: Tx, ein: BeteiligungEinfuegenEin): void
     geaendertAm: ein.geaendertAm,
   })
 }
+
+/** Spalten von `ereignis` (docs/schema/0002_kern.sql §2.5), für `lesen()` (AP-1.12,
+ * AP-0.22-Vergleich vor `ereignis.aendern`). */
+export interface EreignisZeile {
+  readonly id: string
+  readonly typ: string
+  readonly ort_id: string | null
+  readonly datum_kalender: string | null
+  readonly datum_modifikator: string | null
+  readonly datum_praezision: string | null
+  readonly datum_wert1: string | null
+  readonly datum_wert2: string | null
+  readonly datum_originaltext: string | null
+  readonly datum_sort_von: number | null
+  readonly datum_sort_bis: number | null
+  readonly datum_zweitkalender: string | null
+  readonly datum_zweitwert: string | null
+  readonly datum_doppeljahr: string | null
+  readonly beschreibung: string | null
+  readonly notiz: string | null
+}
+
+/** Liest eine `ereignis`-Zeile. `undefined`, wenn `id` nicht existiert. */
+export function lesen(tx: Tx, id: string): EreignisZeile | undefined {
+  return tx
+    .prepare<{ readonly id: string }, EreignisZeile>(
+      `SELECT id, typ, ort_id, datum_kalender, datum_modifikator, datum_praezision, datum_wert1, datum_wert2,
+              datum_originaltext, datum_sort_von, datum_sort_bis, datum_zweitkalender, datum_zweitwert, datum_doppeljahr,
+              beschreibung, notiz
+       FROM ereignis WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+/** Nutzlast von `aktualisieren()`: die editierbare Zeile selbst (ohne die Beteiligungen —
+ * außerhalb des AP-1.12-Umfangs) + der vom Handler gesetzte `geaendert_am`-Zeitstempel (D-3). */
+export interface EreignisAktualisierenEin {
+  readonly id: string
+  readonly typ: string
+  readonly ortId: string | null
+  readonly datum: DatumSpaltengruppe
+  readonly beschreibung: string | null
+  readonly notiz: string | null
+  readonly geaendertAm: number
+}
+
+/** Aktualisiert alle editierbaren Spalten einer `ereignis`-Zeile in einem `UPDATE` (AP-1.12). */
+export function aktualisieren(tx: Tx, ein: EreignisAktualisierenEin): void {
+  tx.prepare(
+    `UPDATE ereignis SET
+       typ = @typ, ort_id = @ortId,
+       datum_kalender = @datumKalender, datum_modifikator = @datumModifikator, datum_praezision = @datumPraezision,
+       datum_wert1 = @datumWert1, datum_wert2 = @datumWert2, datum_originaltext = @datumOriginaltext,
+       datum_sort_von = @datumSortVon, datum_sort_bis = @datumSortBis,
+       datum_zweitkalender = @datumZweitkalender, datum_zweitwert = @datumZweitwert, datum_doppeljahr = @datumDoppeljahr,
+       beschreibung = @beschreibung, notiz = @notiz, geaendert_am = @geaendertAm
+     WHERE id = @id`,
+  ).run({
+    id: ein.id,
+    typ: ein.typ,
+    ortId: ein.ortId,
+    datumKalender: ein.datum.kalender,
+    datumModifikator: ein.datum.modifikator,
+    datumPraezision: ein.datum.praezision,
+    datumWert1: ein.datum.wert1,
+    datumWert2: ein.datum.wert2,
+    datumOriginaltext: ein.datum.originaltext,
+    datumSortVon: ein.datum.sortVon,
+    datumSortBis: ein.datum.sortBis,
+    datumZweitkalender: ein.datum.zweitkalender,
+    datumZweitwert: ein.datum.zweitwert,
+    datumDoppeljahr: ein.datum.doppeljahr,
+    beschreibung: ein.beschreibung,
+    notiz: ein.notiz,
+    geaendertAm: ein.geaendertAm,
+  })
+}
+
+/** Löscht eine `ereignis`-Zeile (CASCADE räumt `beteiligung` ab, AP-1.12). */
+export function loeschen(tx: Tx, id: string): void {
+  tx.prepare('DELETE FROM ereignis WHERE id = @id').run({ id })
+}
