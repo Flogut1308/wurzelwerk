@@ -4,10 +4,13 @@ import type { EreignisKanal, Kanal } from './vertrag'
  * Weißliste aller `abfrage:`/`befehl:`-Kanäle aus `Vertrag` (ADR-016). Der Preload prüft jeden
  * Aufruf dagegen, bevor er `ipcRenderer.invoke` überhaupt aufruft — dort ist der Kanalname ein
  * roher, ungeprüfter `string` aus dem Renderer, darum ist die Weißliste selbst `readonly
- * string[]`. Die Elemente sind hier trotzdem gegen `Kanal` geprüft: `kanaele` ist `readonly
- * Kanal[]`, ein Tippfehler in der Liste wäre also schon hier ein Typfehler.
+ * string[]`. `kanaele` ist `as const satisfies readonly Kanal[]`: ein Tippfehler in der Liste
+ * ist schon hier ein Typfehler, UND die Literalunion bleibt erhalten, damit der
+ * Vollständigkeitsbeweis unten (`FehlendeKanaele`) greift — die reine `readonly Kanal[]`-Annotation
+ * hätte das auf die breite Union verwässert und wäre für eine Teilmenge typkorrekt geblieben (der
+ * eigentliche Grund, warum 13 Kanäle unbemerkt fehlen konnten, s. AP-1.17c1-Nachbesserung unten).
  */
-const kanaele: readonly Kanal[] = [
+const kanaele = [
   'abfrage:version',
   'befehl:protokoll.melden',
   'befehl:projekt.anlegen',
@@ -38,6 +41,15 @@ const kanaele: readonly Kanal[] = [
   'befehl:journal.undo',
   'befehl:journal.redo',
   'abfrage:journal.verlauf',
+  // Vom Compile-Zeit-Vollständigkeitsbeweis unten (`FehlendeKanaele`) beim Einbau dieses Guards
+  // aufgedeckt: dieselbe Bugklasse wie die 13 Kanäle weiter unten — in `registrierung.ts` bedient
+  // (`schnappschussErzeugen`/`schnappschussListeLesen`/`schnappschussWiederherstellen`), aber nie
+  // hier eingetragen. Die hartkodierte Runtime-Liste in
+  // `test/einheit/kanaele-vollstaendigkeit.test.ts` deckte nur die dort benannten 13 ab und hätte
+  // diese drei nie gefunden — genau der Beweis, warum diese Liste jetzt der eigentliche Wächter ist.
+  'befehl:schnappschuss.erzeugen',
+  'abfrage:schnappschuss.liste',
+  'befehl:schnappschuss.wiederherstellen',
   'abfrage:import.pruefen',
   'befehl:import.trockenlauf',
   'befehl:import.ausfuehren',
@@ -59,7 +71,37 @@ const kanaele: readonly Kanal[] = [
   'befehl:ortszugehoerigkeit.loeschen',
   'befehl:ort-externe-id.anlegen',
   'befehl:ort-externe-id.loeschen',
-]
+  // AP-1.17c1-Nachbesserung: diese 13 Kanäle waren in `registrierung.ts` bedient, aber nie hier
+  // eingetragen — der Preload wies jeden Aufruf mit `IPC_UNBEKANNTER_KANAL` zurück, unabhängig
+  // vom Handler (s. `test/einheit/kanaele-vollstaendigkeit.test.ts`). Damit war die gesamte
+  // Quellen-/Zitat-/Archiv-/Negativbefund-Pflege aus dem Renderer heraus unerreichbar.
+  'befehl:archiv.anlegen',
+  'befehl:archiv.aendern',
+  'abfrage:archiv.suche',
+  'befehl:quelle.anlegen',
+  'befehl:quelle.aendern',
+  'abfrage:quelle.detail',
+  'befehl:zitat.anlegen',
+  'befehl:zitat.aendern',
+  'befehl:zitat.loeschen',
+  'befehl:negativbefund.anlegen',
+  'befehl:negativbefund.aendern',
+  'befehl:negativbefund.loeschen',
+  'abfrage:negativbefund.liste',
+] as const satisfies readonly Kanal[]
+
+/**
+ * Compile-Zeit-Vollständigkeitsbeweis: Wenn ein in `Vertrag` deklarierter `abfrage:`/`befehl:`-
+ * Kanal hier in `kanaele` fehlt, ist `FehlendeKanaele` kein `never` mehr — die Zuweisung an
+ * `_kanaeleVollstaendig` wird dann ein Typfehler und `pnpm typen` schlägt fehl. Das ersetzt eine
+ * Handpflege-Liste: jeder künftig neu deklarierte Kanal muss hier auftauchen, sonst kompiliert
+ * nichts mehr (s. AP-1.17c1-Nachbesserung, Kopfkommentar in
+ * `test/einheit/kanaele-vollstaendigkeit.test.ts`).
+ */
+type FehlendeKanaele = Exclude<Kanal, (typeof kanaele)[number]>
+const _kanaeleVollstaendig: [FehlendeKanaele] extends [never] ? true : false = true
+void _kanaeleVollstaendig
+
 export const ALLE_KANAELE: readonly string[] = kanaele
 
 /**

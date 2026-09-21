@@ -28,6 +28,8 @@
   "beleg_eintragsnummer_label": "Eintrag Nr. {{eintragsnummer}}",
   "beleg_zugriffsdatum_label": "Zugriff am {{datum}}",
   "beleg_digitalisat_link": "Digitalisat öffnen",
+  "beleg_quelle_bearbeiten": "Quelle bearbeiten",
+  "beleg_quelle_anlegen": "Quelle anlegen",
 
   "quelle_typ_kirchenbuch": "Kirchenbuch",
   "quelle_typ_standesamt": "Standesamt",

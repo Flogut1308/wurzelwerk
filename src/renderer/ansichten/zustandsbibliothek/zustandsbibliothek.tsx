@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import type { Befund } from '../../../shared/import/imp-codes'
 import type { Trockenlaufbericht } from '../../../shared/import/trockenlauf-bericht'
 import type { PersonListeDatumsgruppe, PersonListeFilter, PersonListeZeile, SucheTreffer } from '../../../shared/schemata/person-liste'
+import type { ArchivTreffer } from '../../../shared/schemata/archiv-suche'
 import type { OrtTreffer } from '../../../shared/schemata/ort-suche'
 import { Abzeichen, type AbzeichenVariante } from '../../bausteine/abzeichen'
+import { Archivfeld } from '../../bausteine/archivfeld'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Blaetterleiste } from '../../bausteine/blaetterleiste'
@@ -159,6 +161,12 @@ const BEISPIEL_SUCHTREFFER: readonly SucheTreffer[] = [
 const BEISPIEL_ORT_TREFFER: readonly OrtTreffer[] = [
   { id: 'tmp:marienwerder', anzeigename: 'Marienwerder', politischeKette: [] },
   { id: 'tmp:kwidzyn', anzeigename: 'Kwidzyn', politischeKette: [] },
+]
+
+/** `abfrage:archiv.suche`-Treffer (AP-1.17 PR-C1, `Archivfeld`) — analog `BEISPIEL_ORT_TREFFER`. */
+const BEISPIEL_ARCHIV_TREFFER: readonly ArchivTreffer[] = [
+  { id: 'tmp:landesarchiv-berlin', name: 'Landesarchiv Berlin' },
+  { id: 'tmp:staatsarchiv-danzig', name: 'Staatsarchiv Danzig' },
 ]
 
 const BEISPIEL_FILTER: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
@@ -721,6 +729,62 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
           aufAusgewaehlt={() => {}}
           aufNeuAnlegen={() => {}}
           ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+      </Abschnitt>
+
+      {/* AP-1.17 PR-C1: dieselben vier Zustände wie `ortsfeld` oben — dritte Instanz desselben
+          Musters (Eingabekörper + Vorschlagsliste + feste Schlusszeile), hier an `Archiv` statt
+          `Ort` gebunden. */}
+      <Abschnitt name="archivfeld">
+        <Archivfeld
+          text=""
+          zustand="leer"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_archivfeld_beschriftung')}
+        />
+        <Archivfeld
+          text="Landesar"
+          zustand="laedt"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_archivfeld_beschriftung')}
+        />
+        <Archivfeld
+          text="Landesar"
+          zustand="bereit"
+          treffer={BEISPIEL_ARCHIV_TREFFER}
+          hervorgehobenerIndex={0}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_archivfeld_beschriftung')}
+        />
+        <Archivfeld
+          text="Xyz"
+          zustand="bereit"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_archivfeld_beschriftung')}
+        />
+        <Archivfeld
+          text="Landesar"
+          zustand="bereit"
+          treffer={BEISPIEL_ARCHIV_TREFFER}
+          hervorgehobenerIndex={BEISPIEL_ARCHIV_TREFFER.length}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_archivfeld_beschriftung')}
         />
       </Abschnitt>
 

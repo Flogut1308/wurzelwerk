@@ -250,6 +250,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(bevorzugteAussage?.belege).toEqual([
         {
           quelle: {
+            id: quelleGrabstein,
             typ: 'grabstein',
             titel: 'Grabstein Friedhof Kwidzyn, Feld 4, Reihe 11',
             archiv_name: 'Friedhofsamt Kwidzyn',
@@ -272,6 +273,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(nichtBevorzugteAussage?.belege).toEqual([
         {
           quelle: {
+            id: quelleErna,
             typ: 'muendlich',
             titel: 'Gespraech mit Erna Wruck, 12.09.2026',
             archiv_name: null,

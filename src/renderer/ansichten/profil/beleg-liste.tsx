@@ -1,6 +1,11 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonDetailBeleg, PersonDetailGrunddatenFeld } from '../../../shared/schemata/person-detail'
+import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
+import { useQuelleAnlegen } from '../../brücke/befehl-hooks'
+import { QuelleBearbeitenAnsicht } from '../quellen/quelle-bearbeiten'
+import { quelleNeuAnlegenEin } from '../quellen/quelle-bearbeiten-logik'
 import { quelleTypSchluessel, unmittelbarkeitSchluessel } from './profil-schluessel'
 import './beleg-liste.css'
 
@@ -21,11 +26,19 @@ export interface BelegEintragProps {
  * `--wz-familie-original` über `Text rolle="original"`, wie zuvor). Exportiert, weil
  * `Widerspruchsblock` (S-09) dieselbe Beleg-Anzeige braucht — ein Beleg sieht in beiden Schubladen
  * gleich aus.
+ *
+ * „Quelle bearbeiten"-Link (AP-1.17 PR-C1, docs/80_Offene_Fragen.md §29): kontextueller
+ * Einstiegspunkt in die Quelle/Zitat/Archiv-Pflege-Ansicht (`quelle-bearbeiten.tsx`) — es gibt
+ * noch KEINEN globalen „Quellen"-Screen (S-35, Phase 2/3), analog zum „Ort bearbeiten"-Link am
+ * `Ortsfeld` (AP-1.16 PR-C). Lokaler Zustand genügt, `QuelleBearbeitenAnsicht` ist eine
+ * `position: fixed`-Seitenschublade (analog `OrtBearbeitenAnsicht`) und stapelt sich einfach über
+ * die bereits offene Beleg-/Widerspruchs-Seitenschublade.
  */
 export function BelegEintrag({ beleg }: BelegEintragProps) {
   const { t } = useTranslation('profil')
   const { quelle, zitat, transkript } = beleg
   const zitatHatInhalt = zitat.seite !== null || zitat.eintragsnummer !== null || zitat.zugriffsdatum_wert1 !== null || zitat.digitalisat_url !== null
+  const [quelleBearbeitenOffen, setQuelleBearbeitenOffen] = useState(false)
 
   return (
     <div className="wz-beleg-eintrag">
@@ -53,6 +66,9 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
             {t(unmittelbarkeitSchluessel(quelle.unmittelbarkeit))}
           </Text>
         ) : null}
+        <Schaltflaeche variante="unauffaellig" aufKlick={() => setQuelleBearbeitenOffen(true)}>
+          {t('beleg_quelle_bearbeiten')}
+        </Schaltflaeche>
       </div>
 
       {zitatHatInhalt ? (
@@ -85,6 +101,8 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
           {transkript}
         </Text>
       ) : null}
+
+      {quelleBearbeitenOffen ? <QuelleBearbeitenAnsicht quelleId={quelle.id} aufSchliessen={() => setQuelleBearbeitenOffen(false)} /> : null}
     </div>
   )
 }
@@ -92,33 +110,51 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
 /**
  * `Belegliste` — Organismus (docs/71_Designsystem.md §2.3, B-01, S-08): Inhalt der
  * `Seitenschublade`, die `BelegAbzeichen` öffnet. Zeigt jede Aussage des Felds mit ihren Belegen
- * über `BelegEintrag` (s. o.).
+ * über `BelegEintrag` (s. o.), plus einen festen „Quelle anlegen"-Link am Fuß (AP-1.17 PR-C1) —
+ * anders als `BelegEintrag`s „Quelle bearbeiten" (kontextuell, an eine bestehende Quelle
+ * gebunden) legt dieser Link eine NEUE, noch unverknüpfte Quelle an (§14-Vermerk,
+ * docs/80_Offene_Fragen.md §29: das Verknüpfen einer neuen Quelle mit dieser Aussage — ein
+ * `aussage_zitat.anlegen`-Schreibweg — existiert noch nicht, das bleibt einem Folge-AP
+ * vorbehalten; diese Quelle lässt sich trotzdem schon jetzt anlegen und pflegen).
  */
 export function BelegListe({ feld }: BelegListeProps) {
   const { t } = useTranslation('profil')
+  const quelleAnlegen = useQuelleAnlegen()
+  const [neueQuelleId, setNeueQuelleId] = useState<string | null>(null)
+
+  async function quelleAnlegenUndOeffnen(): Promise<void> {
+    const ergebnis = await quelleAnlegen.mutateAsync(quelleNeuAnlegenEin())
+    setNeueQuelleId(ergebnis.id)
+  }
 
   return (
-    <ul className="wz-beleg-liste">
-      {feld.aussagen.map((aussage) => (
-        <li key={aussage.aussage_id} className="wz-beleg-liste__aussage">
-          <Text rolle="koerper" als="p">
-            {aussage.wert ?? t('wert_unbekannt')}
-          </Text>
-          {aussage.belege.length === 0 ? (
-            <Text rolle="hilfe" als="p">
-              {t('beleg_schublade_keine_belege')}
+    <>
+      <ul className="wz-beleg-liste">
+        {feld.aussagen.map((aussage) => (
+          <li key={aussage.aussage_id} className="wz-beleg-liste__aussage">
+            <Text rolle="koerper" als="p">
+              {aussage.wert ?? t('wert_unbekannt')}
             </Text>
-          ) : (
-            <ul className="wz-beleg-liste__belege">
-              {aussage.belege.map((beleg, index) => (
-                <li key={index} className="wz-beleg-liste__beleg">
-                  <BelegEintrag beleg={beleg} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
-      ))}
-    </ul>
+            {aussage.belege.length === 0 ? (
+              <Text rolle="hilfe" als="p">
+                {t('beleg_schublade_keine_belege')}
+              </Text>
+            ) : (
+              <ul className="wz-beleg-liste__belege">
+                {aussage.belege.map((beleg, index) => (
+                  <li key={index} className="wz-beleg-liste__beleg">
+                    <BelegEintrag beleg={beleg} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+      <Schaltflaeche variante="unauffaellig" aufKlick={() => void quelleAnlegenUndOeffnen()}>
+        {t('beleg_quelle_anlegen')}
+      </Schaltflaeche>
+      {neueQuelleId !== null ? <QuelleBearbeitenAnsicht quelleId={neueQuelleId} aufSchliessen={() => setNeueQuelleId(null)} /> : null}
+    </>
   )
 }

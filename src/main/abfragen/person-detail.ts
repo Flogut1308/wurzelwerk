@@ -168,6 +168,7 @@ function belegzahlJePraedikatLaden(db: Database.Database, personId: string): Rea
 interface BelegZeile {
   readonly aussage_id: string
   readonly transkript: string | null
+  readonly quelle_id: string
   readonly quelle_typ: string
   readonly quelle_titel: string | null
   readonly quelle_signatur: string | null
@@ -193,7 +194,7 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
       Record<string, string>,
       BelegZeile
     >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript,
-              q.typ AS quelle_typ, q.titel AS quelle_titel, q.signatur AS quelle_signatur,
+              q.id AS quelle_id, q.typ AS quelle_typ, q.titel AS quelle_titel, q.signatur AS quelle_signatur,
               q.unmittelbarkeit AS quelle_unmittelbarkeit, a.name AS archiv_name,
               z.seite AS zitat_seite, z.eintragsnummer AS zitat_eintragsnummer,
               z.zugriffsdatum_wert1 AS zitat_zugriffsdatum_wert1, z.digitalisat_url AS zitat_digitalisat_url
@@ -209,6 +210,7 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
   for (const zeile of zeilen) {
     const beleg: PersonDetailBeleg = {
       quelle: {
+        id: zeile.quelle_id,
         typ: QuelleTypEnum.parse(zeile.quelle_typ),
         titel: zeile.quelle_titel,
         archiv_name: zeile.archiv_name,

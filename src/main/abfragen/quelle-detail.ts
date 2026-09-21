@@ -23,6 +23,7 @@ interface KopfZeile {
   readonly signatur: string | null
   readonly notiz: string | null
   readonly informant_person_id: string | null
+  readonly informant_anzeigename: string | null
   readonly gespraechsdatum_kalender: string | null
   readonly gespraechsdatum_modifikator: string | null
   readonly gespraechsdatum_praezision: string | null
@@ -45,6 +46,7 @@ function kopfLaden(db: Database.Database, quelleId: string): KopfZeile | undefin
     >(`SELECT q.id AS id, q.typ AS typ, q.titel AS titel, q.autor AS autor, q.verlag AS verlag, q.jahr AS jahr,
               q.art AS art, q.informationsart AS informationsart, q.archiv_id AS archiv_id, a.name AS archiv_name,
               q.signatur AS signatur, q.notiz AS notiz, q.informant_person_id AS informant_person_id,
+              pf.anzeigename AS informant_anzeigename,
               q.gespraechsdatum_kalender AS gespraechsdatum_kalender, q.gespraechsdatum_modifikator AS gespraechsdatum_modifikator,
               q.gespraechsdatum_praezision AS gespraechsdatum_praezision, q.gespraechsdatum_wert1 AS gespraechsdatum_wert1,
               q.gespraechsdatum_wert2 AS gespraechsdatum_wert2, q.gespraechsdatum_originaltext AS gespraechsdatum_originaltext,
@@ -53,6 +55,7 @@ function kopfLaden(db: Database.Database, quelleId: string): KopfZeile | undefin
               q.form AS form, q.unmittelbarkeit AS unmittelbarkeit, q.audio_medium_id AS audio_medium_id
        FROM quelle q
        LEFT JOIN archiv a ON a.id = q.archiv_id
+       LEFT JOIN person_flach pf ON pf.person_id = q.informant_person_id
        WHERE q.id = @quelleId`,
     )
     .get({ quelleId })
@@ -64,24 +67,63 @@ interface ZitatZeile {
   readonly eintragsnummer: string | null
   readonly band: string | null
   readonly jahr: number | null
+  readonly zugriffsdatum_kalender: string | null
+  readonly zugriffsdatum_modifikator: string | null
+  readonly zugriffsdatum_praezision: string | null
+  readonly zugriffsdatum_wert1: string | null
+  readonly zugriffsdatum_wert2: string | null
+  readonly zugriffsdatum_originaltext: string | null
+  readonly zugriffsdatum_zweitkalender: string | null
+  readonly zugriffsdatum_zweitwert: string | null
+  readonly zugriffsdatum_doppeljahr: string | null
   readonly zeitmarke_sekunden: number | null
   readonly digitalisat_url: string | null
   readonly transkript: string | null
   readonly uebersetzung: string | null
   readonly konfidenz: number | null
+  readonly medium_id: string | null
 }
 
+/** `zugriffsdatum_*`/`medium_id` ergänzt (AP-1.17 PR-C1) — reine Durchreiche-Spalten für die
+ * Pflege-Ansicht, s. Kopfkommentar `QuelleDetailZitat` (`quelle-detail.ts`, `src/shared`). */
 function zitateLaden(db: Database.Database, quelleId: string): readonly QuelleDetailZitat[] {
-  return db
+  const zeilen = db
     .prepare<
       { readonly quelleId: string },
       ZitatZeile
-    >(`SELECT id, seite, eintragsnummer, band, jahr, zeitmarke_sekunden, digitalisat_url, transkript, uebersetzung, konfidenz
+    >(`SELECT id, seite, eintragsnummer, band, jahr,
+              zugriffsdatum_kalender, zugriffsdatum_modifikator, zugriffsdatum_praezision,
+              zugriffsdatum_wert1, zugriffsdatum_wert2, zugriffsdatum_originaltext,
+              zugriffsdatum_zweitkalender, zugriffsdatum_zweitwert, zugriffsdatum_doppeljahr,
+              zeitmarke_sekunden, digitalisat_url, transkript, uebersetzung, konfidenz, medium_id
        FROM zitat
        WHERE quelle_id = @quelleId
        ORDER BY id`,
     )
     .all({ quelleId })
+
+  return zeilen.map((zeile): QuelleDetailZitat => ({
+    id: zeile.id,
+    seite: zeile.seite,
+    eintragsnummer: zeile.eintragsnummer,
+    band: zeile.band,
+    jahr: zeile.jahr,
+    zugriffsdatum_kalender: zeile.zugriffsdatum_kalender === null ? null : KalenderEnum.parse(zeile.zugriffsdatum_kalender),
+    zugriffsdatum_modifikator: zeile.zugriffsdatum_modifikator === null ? null : DatumModifikatorEnum.parse(zeile.zugriffsdatum_modifikator),
+    zugriffsdatum_praezision: zeile.zugriffsdatum_praezision === null ? null : DatumPraezisionEnum.parse(zeile.zugriffsdatum_praezision),
+    zugriffsdatum_wert1: zeile.zugriffsdatum_wert1,
+    zugriffsdatum_wert2: zeile.zugriffsdatum_wert2,
+    zugriffsdatum_originaltext: zeile.zugriffsdatum_originaltext,
+    zugriffsdatum_zweitkalender: zeile.zugriffsdatum_zweitkalender === null ? null : KalenderEnum.parse(zeile.zugriffsdatum_zweitkalender),
+    zugriffsdatum_zweitwert: zeile.zugriffsdatum_zweitwert,
+    zugriffsdatum_doppeljahr: zeile.zugriffsdatum_doppeljahr,
+    zeitmarke_sekunden: zeile.zeitmarke_sekunden,
+    digitalisat_url: zeile.digitalisat_url,
+    transkript: zeile.transkript,
+    uebersetzung: zeile.uebersetzung,
+    konfidenz: zeile.konfidenz,
+    medium_id: zeile.medium_id,
+  }))
 }
 
 /** `abfrage:quelle.detail` (docs/arbeitspakete.md AP-1.17 PR-A2). */
@@ -110,6 +152,7 @@ export function quelleDetail(db: Database.Database, ein: QuelleDetailEin): Quell
     signatur: kopfZeile.signatur,
     notiz: kopfZeile.notiz,
     informant_person_id: kopfZeile.informant_person_id,
+    informant_anzeigename: kopfZeile.informant_anzeigename,
     gespraechsdatum_kalender: kopfZeile.gespraechsdatum_kalender === null ? null : KalenderEnum.parse(kopfZeile.gespraechsdatum_kalender),
     gespraechsdatum_modifikator:
       kopfZeile.gespraechsdatum_modifikator === null ? null : DatumModifikatorEnum.parse(kopfZeile.gespraechsdatum_modifikator),

@@ -102,3 +102,28 @@ export function useOrtDetail(ein: Ein<'abfrage:ort.detail'>, optionen?: AbfrageO
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:archiv.suche` (55_Architektur.md §5, AP-1.17 PR-A1) — Tippsuche fürs `Archivfeld`
+ * (AP-1.17 PR-C1). Dieselbe Key-Strategie und Invalidierung wie `useOrtSuche`.
+ */
+export function useArchivSuche(ein: Ein<'abfrage:archiv.suche'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:archiv.suche'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:archiv.suche', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:archiv.suche', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}
+
+/**
+ * `abfrage:quelle.detail` (55_Architektur.md §5, AP-1.17 PR-A2) — die Quelle/Zitat-Pflege-Ansicht
+ * (`src/renderer/ansichten/quellen/quelle-bearbeiten.tsx`, AP-1.17 PR-C1). Dieselbe Key-Strategie
+ * und Invalidierung wie `usePersonDetail`/`useOrtDetail`.
+ */
+export function useQuelleDetail(ein: Ein<'abfrage:quelle.detail'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:quelle.detail'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:quelle.detail', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:quelle.detail', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}
