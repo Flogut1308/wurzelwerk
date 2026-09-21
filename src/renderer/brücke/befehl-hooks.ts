@@ -149,6 +149,56 @@ export function useOrtExterneIdLoeschen(): UseMutationResult<null, AppFehler, Ei
   })
 }
 
+/** `befehl:archiv.anlegen` (AP-1.17 PR-A1, PR-C1) — die feste Schlusszeile des `Archivfeld`s. */
+export function useArchivAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:archiv.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:archiv.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:archiv.anlegen', ein)),
+  })
+}
+
+/** `befehl:archiv.aendern` (AP-1.17 PR-A1, PR-C1, Quelle-Pflege-Ansicht). */
+export function useArchivAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:archiv.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:archiv.aendern'>) => ergebnisEntpacken(aufrufen('befehl:archiv.aendern', ein)),
+  })
+}
+
+/** `befehl:quelle.anlegen` (AP-1.17 PR-A2, PR-C1) — Einstiegspunkt „Quelle anlegen" am
+ * Belegapparat des Profils (`beleg-liste.tsx`). */
+export function useQuelleAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:quelle.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:quelle.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:quelle.anlegen', ein)),
+  })
+}
+
+/** `befehl:quelle.aendern` (AP-1.17 PR-A2, PR-C1, Quelle-Pflege-Ansicht). */
+export function useQuelleAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:quelle.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:quelle.aendern'>) => ergebnisEntpacken(aufrufen('befehl:quelle.aendern', ein)),
+  })
+}
+
+/** `befehl:zitat.anlegen` (AP-1.17 PR-A3, PR-C1, Quelle-Pflege-Ansicht: „Zitat hinzufügen"). */
+export function useZitatAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:zitat.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:zitat.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:zitat.anlegen', ein)),
+  })
+}
+
+/** `befehl:zitat.aendern` (AP-1.17 PR-A3, PR-C1, Quelle-Pflege-Ansicht: Inline-Bearbeiten eines Zitats). */
+export function useZitatAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:zitat.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:zitat.aendern'>) => ergebnisEntpacken(aufrufen('befehl:zitat.aendern', ein)),
+  })
+}
+
+/** `befehl:zitat.loeschen` (AP-1.17 PR-A3, PR-C1, Quelle-Pflege-Ansicht: „Entfernen"). */
+export function useZitatLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:zitat.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:zitat.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:zitat.loeschen', ein)),
+  })
+}
+
 /** `befehl:ereignis.anlegen` (AP-1.12, AP-1.15 PR-A: erster Konsument — das Ereignis-Neu-Formular
  * der Profil-Bearbeitungsseite schreibt ALLE gesammelten Beteiligten in EINEM Aufruf, Variante A). */
 export function useEreignisAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ereignis.anlegen'>> {

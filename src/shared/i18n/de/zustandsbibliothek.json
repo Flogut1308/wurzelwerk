@@ -46,7 +46,8 @@
     "datentabelle": "Datentabelle",
     "vorschlagskarte": "Vorschlagskarte",
     "personenwaehler": "Personenwaehler",
-    "ortsfeld": "Ortsfeld"
+    "ortsfeld": "Ortsfeld",
+    "archivfeld": "Archivfeld"
   },
   "variante_primaer": "primär",
   "variante_sekundaer": "sekundär",
@@ -80,6 +81,7 @@
   "beispiel_vorschlagskarte_inhalt": "Geburt: etwa 1890, Marienwerder",
   "beispiel_personenwaehler_beschriftung": "Vater suchen",
   "beispiel_ortsfeld_beschriftung": "Geburtsort suchen",
+  "beispiel_archivfeld_beschriftung": "Archiv suchen",
   "beispiel_konfidenzwaehler_beschriftung": "Konfidenz",
   "beispiel_suchfeld_platzhalter": "Suchen …",
   "beispiel_filter_konfidenz_alle": "alle",

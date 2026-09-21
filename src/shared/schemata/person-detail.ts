@@ -73,8 +73,13 @@ export interface PersonDetailName {
 /** Stufe 1 eines Belegs (S-08): die Quelle selbst — `docs/schema/0002_kern.sql` §2.7/§2.15.
  * `archiv_name` kommt über `quelle.archiv_id` → `archiv.name` (LEFT JOIN, kann fehlen).
  * `unmittelbarkeit` ist nur bei `typ === 'muendlich'` sinnvoll befüllt (§2.15), bei jedem anderen
- * Typ `null` — die Anzeige entscheidet selbst, ob sie das Feld zeigt. */
+ * Typ `null` — die Anzeige entscheidet selbst, ob sie das Feld zeigt.
+ *
+ * `id` (AP-1.17 PR-C1, docs/80_Offene_Fragen.md §29): ergänzt, damit der Belegapparat einen
+ * „Quelle bearbeiten"-Link zur passenden `abfrage:quelle.detail`/Pflege-Ansicht setzen kann — ohne
+ * sie wäre eine bereits belegte Quelle aus dem Profil heraus nicht erreichbar gewesen. */
 export interface PersonDetailBelegQuelle {
+  readonly id: string
   readonly typ: z.infer<typeof QuelleTypEnum>
   readonly titel: string | null
   readonly archiv_name: string | null

@@ -48,4 +48,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'vorschlagskarte',
   'personenwaehler',
   'ortsfeld',
+  'archivfeld',
 ]

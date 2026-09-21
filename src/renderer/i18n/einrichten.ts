@@ -11,6 +11,7 @@ import menue from '../../shared/i18n/de/menue.json'
 import orte from '../../shared/i18n/de/orte.json'
 import profil from '../../shared/i18n/de/profil.json'
 import pruefhinweise from '../../shared/i18n/de/pruefhinweise.json'
+import quellen from '../../shared/i18n/de/quellen.json'
 import zustandsbibliothek from '../../shared/i18n/de/zustandsbibliothek.json'
 
 /**
@@ -33,10 +34,10 @@ export const i18n = i18next.createInstance()
 void i18n.use(initReactI18next).init({
   lng: 'de',
   fallbackLng: false,
-  ns: ['allgemein', 'datum', 'felder', 'fehler', 'import', 'journal', 'liste', 'menue', 'orte', 'profil', 'pruefhinweise', 'zustandsbibliothek'],
+  ns: ['allgemein', 'datum', 'felder', 'fehler', 'import', 'journal', 'liste', 'menue', 'orte', 'profil', 'pruefhinweise', 'quellen', 'zustandsbibliothek'],
   defaultNS: 'allgemein',
   resources: {
-    de: { allgemein, datum, felder, fehler, import: importNs, journal, liste, menue, orte, profil, pruefhinweise, zustandsbibliothek },
+    de: { allgemein, datum, felder, fehler, import: importNs, journal, liste, menue, orte, profil, pruefhinweise, quellen, zustandsbibliothek },
   },
   interpolation: {
     escapeValue: false,

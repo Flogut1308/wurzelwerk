@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { ALLE_FEHLERCODES } from '../../src/shared/fehler/codes'
 import fehlerRessourcen from '../../src/shared/i18n/de/fehler.json'
 import profilRessourcen from '../../src/shared/i18n/de/profil.json'
+import quellenRessourcen from '../../src/shared/i18n/de/quellen.json'
 import {
   PRAEDIKAT_SCHLUESSEL,
   beteiligungRolleSchluessel,
@@ -19,6 +20,7 @@ import {
   schriftSchluessel,
   unmittelbarkeitSchluessel,
 } from '../../src/renderer/ansichten/profil/profil-schluessel'
+import { informationsartSchluessel, quelleArtSchluessel, quelleFormSchluessel } from '../../src/renderer/ansichten/quellen/quellen-schluessel'
 import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../src/shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../src/shared/schemata/ereignis'
@@ -26,7 +28,7 @@ import { NameTypEnum, SchriftEnum } from '../../src/shared/schemata/name'
 import { PartnerschaftTypEnum } from '../../src/shared/schemata/partnerschaft'
 import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { PersonDetailBeziehungRichtungEnum, PersonDetailGesundheitArtEnum } from '../../src/shared/schemata/person-detail'
-import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../src/shared/schemata/quelle'
+import { InformationsartEnum, QuelleArtEnum, QuelleFormEnum, QuelleTypEnum, UnmittelbarkeitEnum } from '../../src/shared/schemata/quelle'
 
 /**
  * Erzwingt §7: jeder Fehlercode braucht einen i18n-Schlüssel `.titel` und `.was_tun`, und
@@ -127,6 +129,72 @@ describe('i18n-Ressourcen für den profil-Namespace (AP-1.7 PR-B)', () => {
     expect(gefundene.size).toBeGreaterThan(0)
     for (const schluessel of gefundene) {
       expect(profilRessourcen, `Schlüssel "${schluessel}" (dynamisch erzeugt) fehlt in profil.json`).toHaveProperty(schluessel)
+    }
+  })
+})
+
+/**
+ * AP-1.17 PR-C1: dehnt dasselbe Vollständigkeitsnetz auf den neuen `quellen`-Namespace aus
+ * (`quelle-bearbeiten.tsx`, `quellen-schluessel.ts`) — dieselbe Zweiteilung (literal/dynamisch)
+ * wie beim `profil`-Namespace oben, bewusst als eigener `describe`-Block mit eigenen, lokal
+ * scope­nden Hilfsfunktionen statt einer verschachtelten Abhängigkeit vom Block oben.
+ */
+describe('i18n-Ressourcen für den quellen-Namespace (AP-1.17 PR-C1)', () => {
+  const RENDERER_WURZEL = fileURLToPath(new URL('../../src/renderer', import.meta.url))
+  const NUTZT_QUELLEN_NAMESPACE = /useTranslation\(\s*['"]quellen['"]\s*\)/
+  const LITERALER_T_AUFRUF = /\bt\(\s*['"]([a-zA-Z0-9_]+)['"]/g
+
+  function quellDateien(wurzel: string): readonly string[] {
+    const gefunden: string[] = []
+    for (const eintrag of readdirSync(wurzel, { withFileTypes: true })) {
+      const pfad = join(wurzel, eintrag.name)
+      if (eintrag.isDirectory()) gefunden.push(...quellDateien(pfad))
+      else if (eintrag.name.endsWith('.tsx') || eintrag.name.endsWith('.ts')) gefunden.push(pfad)
+    }
+    return gefunden
+  }
+
+  /** Alle LITERAL in `t(...)` verwendeten Schlüssel aus jeder Datei, die `useTranslation('quellen')`
+   * aufruft. */
+  function literaleQuellenSchluessel(): ReadonlySet<string> {
+    const schluessel = new Set<string>()
+    for (const datei of quellDateien(RENDERER_WURZEL)) {
+      const inhalt = readFileSync(datei, 'utf8')
+      if (!NUTZT_QUELLEN_NAMESPACE.test(inhalt)) continue
+      for (const treffer of inhalt.matchAll(LITERALER_T_AUFRUF)) {
+        const gefundenerSchluessel = treffer[1]
+        if (gefundenerSchluessel !== undefined) schluessel.add(gefundenerSchluessel)
+      }
+    }
+    return schluessel
+  }
+
+  /** Alle Schlüssel, die die geschlossenen Schalter-Funktionen aus `quellen-schluessel.ts`
+   * (inklusive der von dort re-exportierten `quelleTypSchluessel`/`unmittelbarkeitSchluessel`)
+   * über IHRE VOLLE Eingabemenge tatsächlich erzeugen können. */
+  function dynamischeQuellenSchluessel(): ReadonlySet<string> {
+    const schluessel = new Set<string>()
+    for (const typ of QuelleTypEnum.options) schluessel.add(quelleTypSchluessel(typ))
+    for (const unmittelbarkeit of UnmittelbarkeitEnum.options) schluessel.add(unmittelbarkeitSchluessel(unmittelbarkeit))
+    for (const art of QuelleArtEnum.options) schluessel.add(quelleArtSchluessel(art))
+    for (const wert of InformationsartEnum.options) schluessel.add(informationsartSchluessel(wert))
+    for (const form of QuelleFormEnum.options) schluessel.add(quelleFormSchluessel(form))
+    return schluessel
+  }
+
+  it('jeder literal in t(...) verwendete Schlüssel existiert in quellen.json', () => {
+    const gefundene = literaleQuellenSchluessel()
+    expect(gefundene.size).toBeGreaterThan(0)
+    for (const schluessel of gefundene) {
+      expect(quellenRessourcen, `Schlüssel "${schluessel}" (literal verwendet) fehlt in quellen.json`).toHaveProperty(schluessel)
+    }
+  })
+
+  it('jeder von quellen-schluessel.ts über die volle Enum-Menge erzeugte Schlüssel existiert in quellen.json', () => {
+    const gefundene = dynamischeQuellenSchluessel()
+    expect(gefundene.size).toBeGreaterThan(0)
+    for (const schluessel of gefundene) {
+      expect(quellenRessourcen, `Schlüssel "${schluessel}" (dynamisch erzeugt) fehlt in quellen.json`).toHaveProperty(schluessel)
     }
   })
 })

@@ -1,0 +1,66 @@
+/*
+ * `QuelleBearbeitenAnsicht`/`QuelleBearbeitenInhalt` — AP-1.17 PR-C1, Quelle/Zitat/Archiv-Pflege-
+ * Ansicht. Dasselbe Feldsystem-Raster wie `ort-bearbeiten.css` (mehrere Formularfelder
+ * nebeneinander, umbrechend, je Zeile in einer eigenen Karte mit feinem Rahmen) — keine neue
+ * visuelle Sprache (CLAUDE.md §14).
+ */
+
+.wz-quelle-bearbeiten__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-quelle-bearbeiten__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-quelle-bearbeiten__zeile {
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+.wz-quelle-bearbeiten__felder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-quelle-bearbeiten__felder > * {
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+.wz-quelle-bearbeiten__neu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+  border-radius: var(--wz-radius-standard);
+}
+
+/* Mündlich-Block (§2.15) — dezent abgesetzt (feiner Rahmen, wie eine verschachtelte Zeile), damit
+ * sichtbar bleibt, dass diese Felder nur für `typ === 'muendlich'` gelten. */
+.wz-quelle-bearbeiten__muendlich {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+/* Zitat-Transkript in Original-Schriftfamilie (docs/71_Designsystem.md §3, dieselbe Rolle wie
+ * `Text rolle="original"` in `beleg-liste.tsx`) — hier auf dem `Langtextfeld` selbst, weil dieses
+ * Formular ein editierbares Feld statt einer reinen `Text`-Anzeige zeigt. */
+.wz-quelle-bearbeiten__transkript textarea {
+  font-family: var(--wz-familie-original);
+}

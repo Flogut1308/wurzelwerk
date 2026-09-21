@@ -422,6 +422,46 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
         await aufnahme(fenster, 'profil-dunkel', 'dunkel')
       })
+
+      // AP-1.17 PR-C1 (docs/80_Offene_Fragen.md §29): Motiv für die Quelle/Zitat/Archiv-Pflege-
+      // Ansicht, erreicht über den kontextuellen „Quelle bearbeiten"-Link am Belegapparat (Walters
+      // einziger Beleg, `beruf: Bergmann`, ist eine MÜNDLICHE Quelle mit Informant/Gesprächsdatum/
+      // Form/Unmittelbarkeit — zeigt darum den mündlich-Block gleich mit, statt eines zweiten,
+      // eigens dafür importierten Motivs). Vier Kombinationen wie „Zustandsbibliothek" oben,
+      // gemeinsames beforeAll/afterAll öffnet/schließt Beleg- UND Quelle-Schublade EINMAL.
+      test.describe('Quelle bearbeiten — vier Kombinationen', () => {
+        let belegSchublade: ReturnType<typeof fenster.getByRole>
+        let quelleSchublade: ReturnType<typeof fenster.getByRole>
+
+        test.beforeAll(async () => {
+          test.setTimeout(60_000)
+          await profil.getByRole('button', { name: '1 Belege', exact: true }).click()
+          belegSchublade = fenster.getByRole('dialog', { name: 'Belege: Beruf', exact: true })
+          await expect(belegSchublade).toBeVisible()
+          await belegSchublade.getByRole('button', { name: 'Quelle bearbeiten', exact: true }).click()
+          quelleSchublade = fenster.getByRole('dialog', { name: 'Quelle bearbeiten', exact: true })
+          await expect(quelleSchublade).toBeVisible()
+          // Der Informant (Erna Wruck, `informant_person`) löst beim Öffnen eine ECHTE
+          // `abfrage:suche` aus (die Personenwähler-Sucheingabe startet vorbefüllt mit ihrem
+          // Anzeigenamen, `quelle-bearbeiten.tsx`) — ohne diesen Wait wäre die Aufnahme von der
+          // Ankunftszeit dieser Abfrage abhängig (nichtdeterministisches Golden, dieselbe
+          // Begründung wie der „Bearbeiten"-Wait bei „Profil" oben).
+          await expect(quelleSchublade.getByText('Erna Wruck')).toBeVisible()
+        })
+
+        test.afterAll(async () => {
+          await quelleSchublade.getByRole('button', { name: 'Schließen', exact: true }).click()
+          await belegSchublade.getByRole('button', { name: 'Schließen', exact: true }).click()
+        })
+
+        for (const kombination of VIER_KOMBINATIONEN) {
+          test(`quelle-bearbeiten-${kombination.theme}-${kombination.dichte}`, async () => {
+            // Order-Unabhängigkeit (PR #71, Nachzug): weist die geöffnete Schublade selbst nach.
+            await expect(quelleSchublade).toBeVisible()
+            await aufnahme(fenster, `quelle-bearbeiten-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+          })
+        }
+      })
     })
   })
 })

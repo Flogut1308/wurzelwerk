@@ -33,5 +33,10 @@
   "ortsfeld_neu_anlegen": "„{{text}}“ als neuen Ort anlegen",
   "ortsfeld_geltung_bis": "bis {{jahr}}",
   "ortsfeld_geltung_ab": "ab {{jahr}}",
-  "ortsfeld_geltung_zwischen": "{{von}}–{{bis}}"
+  "ortsfeld_geltung_zwischen": "{{von}}–{{bis}}",
+  "archivfeld_beschriftung": "Archiv suchen",
+  "archivfeld_platzhalter": "Archiv suchen…",
+  "archivfeld_laedt": "Suche läuft…",
+  "archivfeld_keine_treffer": "Keine Treffer",
+  "archivfeld_neu_anlegen": "„{{text}}“ als neues Archiv anlegen"
 }
