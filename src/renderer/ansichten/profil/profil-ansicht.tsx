@@ -18,6 +18,7 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Text } from '../../bausteine/text'
 import { BelegListe } from './beleg-liste'
+import { NegativbefundAbschnitt } from './negativbefund-abschnitt'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
@@ -152,6 +153,7 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
         {abfrage.isSuccess ? (
           modus === 'lesen' ? (
             <ProfilInhalt
+              personId={personId}
               daten={abfrage.data}
               aufBelegOeffnen={(feld) => setSchublade({ art: 'beleg', feld })}
               aufWiderspruchOeffnen={(feld) => setSchublade({ art: 'widerspruch', feld })}
@@ -205,6 +207,7 @@ function ProfilFehler({ code }: { readonly code: FehlerCode }) {
 }
 
 interface ProfilInhaltProps {
+  readonly personId: string
   readonly daten: PersonDetailAus
   readonly aufBelegOeffnen: (feld: PersonDetailGrunddatenFeld) => void
   readonly aufWiderspruchOeffnen: (feld: PersonDetailGrunddatenFeld) => void
@@ -212,8 +215,10 @@ interface ProfilInhaltProps {
 
 /** Adaptiver Umfang (C-04, S-07): jeder Abschnitt entscheidet selbst, ob er etwas zu zeigen hat,
  * und rendert sonst `null` — eine datenarme Person ergibt eine kurze Seite, kein Formular voller
- * leerer Felder. */
-function ProfilInhalt({ daten, aufBelegOeffnen, aufWiderspruchOeffnen }: ProfilInhaltProps) {
+ * leerer Felder. `NegativbefundAbschnitt` (AP-1.17 PR-C2) ist die bewusste Ausnahme: er trägt ein
+ * dauerhaftes „hinzufügen"-Formular und zeigt darum immer mindestens dieses, unabhängig vom
+ * Datenbestand (s. dortiger Kopfkommentar). */
+function ProfilInhalt({ personId, daten, aufBelegOeffnen, aufWiderspruchOeffnen }: ProfilInhaltProps) {
   return (
     <>
       <ProfilKopf kopf={daten.kopf} />
@@ -222,6 +227,7 @@ function ProfilInhalt({ daten, aufBelegOeffnen, aufWiderspruchOeffnen }: ProfilI
       <BeziehungenAbschnitt beziehungen={daten.beziehungen} />
       <GesundheitAbschnitt gesundheit={daten.gesundheit} />
       <NotizAbschnitt notiz={daten.notiz} />
+      <NegativbefundAbschnitt personId={personId} />
     </>
   )
 }

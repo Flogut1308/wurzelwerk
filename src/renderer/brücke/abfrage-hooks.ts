@@ -127,3 +127,19 @@ export function useQuelleDetail(ein: Ein<'abfrage:quelle.detail'>, optionen?: Ab
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:negativbefund.liste` (55_Architektur.md §5, AP-1.17 PR-A4/PR-C2) — der Negativbefund-
+ * Abschnitt des Profils (`src/renderer/ansichten/profil/negativbefund-abschnitt.tsx`). Dieselbe
+ * Key-Strategie und Invalidierung wie `usePersonDetail`/`useOrtDetail`/`useQuelleDetail`.
+ */
+export function useNegativbefundListe(
+  ein: Ein<'abfrage:negativbefund.liste'>,
+  optionen?: AbfrageOptionen,
+): UseQueryResult<Aus<'abfrage:negativbefund.liste'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:negativbefund.liste', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:negativbefund.liste', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}

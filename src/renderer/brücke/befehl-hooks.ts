@@ -199,6 +199,28 @@ export function useZitatLoeschen(): UseMutationResult<null, AppFehler, Ein<'befe
   })
 }
 
+/** `befehl:negativbefund.anlegen` (AP-1.17 PR-A4, PR-C2) — das „Negativbefund hinzufügen"-Formular
+ * im Profil (`negativbefund-abschnitt.tsx`). */
+export function useNegativbefundAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:negativbefund.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:negativbefund.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:negativbefund.anlegen', ein)),
+  })
+}
+
+/** `befehl:negativbefund.aendern` (AP-1.17 PR-A4, PR-C2, Negativbefund-Abschnitt: Inline-Bearbeiten). */
+export function useNegativbefundAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:negativbefund.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:negativbefund.aendern'>) => ergebnisEntpacken(aufrufen('befehl:negativbefund.aendern', ein)),
+  })
+}
+
+/** `befehl:negativbefund.loeschen` (AP-1.17 PR-A4, PR-C2, Negativbefund-Abschnitt: „Entfernen"). */
+export function useNegativbefundLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:negativbefund.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:negativbefund.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:negativbefund.loeschen', ein)),
+  })
+}
+
 /** `befehl:ereignis.anlegen` (AP-1.12, AP-1.15 PR-A: erster Konsument — das Ereignis-Neu-Formular
  * der Profil-Bearbeitungsseite schreibt ALLE gesammelten Beteiligten in EINEM Aufruf, Variante A). */
 export function useEreignisAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ereignis.anlegen'>> {

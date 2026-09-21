@@ -1,0 +1,20 @@
+{
+  "ueberschrift": "Negativbefunde",
+  "laedt": "Negativbefunde werden geladen…",
+  "fehler": "Die Negativbefunde konnten nicht geladen werden.",
+  "liste_leer": "Noch kein Negativbefund erfasst.",
+  "entfernen": "Entfernen",
+
+  "praedikat_beschriftung": "Gesuchtes Merkmal",
+  "zeitraum_von_beschriftung": "Zeitraum von",
+  "zeitraum_bis_beschriftung": "Zeitraum bis",
+  "zeitraum_ungueltig": "Bitte eine Jahreszahl eingeben.",
+  "datum_der_pruefung_beschriftung": "Datum der Prüfung",
+  "beschreibung_beschriftung": "Beschreibung",
+
+  "quelle_verknuepft_label": "Verknüpfte Quelle: {{titel}}",
+  "quelle_verknuepft_ohne_titel": "ohne Titel",
+
+  "neu_ueberschrift": "Negativbefund hinzufügen",
+  "hinzufuegen": "Negativbefund hinzufügen"
+}

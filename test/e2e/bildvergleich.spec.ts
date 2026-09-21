@@ -471,6 +471,48 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           })
         }
       })
+
+      // AP-1.17 PR-C2 (S-23): Motiv für den Negativbefund-Abschnitt des Profils — anders als
+      // „Quelle bearbeiten" (eigene Seitenschublade) ist dieser Abschnitt ein fester, IMMER
+      // sichtbarer Teil der Profilseite selbst (`profil-ansicht.tsx`, ganz am Fuß, nach „Notiz"),
+      // kein zusätzlicher Dialog. Walters Fixture (`import-erna-und-walter-wruck.json`) trägt
+      // KEINEN Negativbefund — das Motiv zeigt darum bewusst den (fachlich echten) Leerzustand
+      // „Noch kein Negativbefund erfasst." zusammen mit dem festen „Negativbefund hinzufügen"-
+      // Formular, statt eigens für dieses Golden einen Negativbefund über den rohen Kanal zu
+      // seeden (kein zusätzlicher, unbegründeter Datenpfad nur fürs Bild).
+      test.describe('Negativbefund-Abschnitt — vier Kombinationen', () => {
+        test.beforeAll(async () => {
+          test.setTimeout(60_000)
+          const negativbefundUeberschrift = profil.getByRole('heading', { name: 'Negativbefunde', level: 2 })
+          await expect(negativbefundUeberschrift).toBeVisible()
+          // `abfrage:negativbefund.liste` löst beim Einhängen des Abschnitts eine ECHTE Abfrage
+          // aus — ohne diesen Wait wäre die Aufnahme von deren Ankunftszeit abhängig
+          // (nichtdeterministisches Golden, dieselbe Begründung wie der Informant-Wait bei
+          // „Quelle bearbeiten" oben).
+          await expect(profil.getByText('Noch kein Negativbefund erfasst.')).toBeVisible()
+          // `.wz-profil-ansicht` ist SELBST der scrollende Container (`position: fixed;
+          // overflow-y: auto`, `profil-ansicht.css`) — `window.scrollTo` (in
+          // `kombinationImDomSetzen`, innerhalb `aufnahme()` oben) wirkt auf das ÄUSSERE Dokument,
+          // nicht auf diesen inneren Scroll-Kontext. Der Abschnitt liegt am Fuß einer bereits
+          // längeren Profilseite und ist beim Öffnen außerhalb des sichtbaren Bereichs — ein
+          // einmaliger manueller Scroll ans Seitenende bleibt darum über alle vier Aufnahmen
+          // hinweg stabil erhalten (kein Reset zwischen den Kombinationen, anders als beim
+          // äußeren Fenster).
+          await fenster.evaluate(() => {
+            const container = document.querySelector('.wz-profil-ansicht')
+            container?.scrollTo(0, container.scrollHeight)
+          })
+          await expect(negativbefundUeberschrift).toBeVisible()
+        })
+
+        for (const kombination of VIER_KOMBINATIONEN) {
+          test(`negativbefund-abschnitt-${kombination.theme}-${kombination.dichte}`, async () => {
+            // Order-Unabhängigkeit (PR #71, Nachzug): weist die Überschrift selbst nach.
+            await expect(profil.getByRole('heading', { name: 'Negativbefunde', level: 2 })).toBeVisible()
+            await aufnahme(fenster, `negativbefund-abschnitt-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+          })
+        }
+      })
     })
   })
 })

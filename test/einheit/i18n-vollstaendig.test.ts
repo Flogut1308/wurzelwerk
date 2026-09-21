@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { ALLE_FEHLERCODES } from '../../src/shared/fehler/codes'
 import fehlerRessourcen from '../../src/shared/i18n/de/fehler.json'
+import negativbefundRessourcen from '../../src/shared/i18n/de/negativbefund.json'
 import profilRessourcen from '../../src/shared/i18n/de/profil.json'
 import quellenRessourcen from '../../src/shared/i18n/de/quellen.json'
 import {
@@ -195,6 +196,50 @@ describe('i18n-Ressourcen für den quellen-Namespace (AP-1.17 PR-C1)', () => {
     expect(gefundene.size).toBeGreaterThan(0)
     for (const schluessel of gefundene) {
       expect(quellenRessourcen, `Schlüssel "${schluessel}" (dynamisch erzeugt) fehlt in quellen.json`).toHaveProperty(schluessel)
+    }
+  })
+})
+
+/**
+ * AP-1.17 PR-C2: dehnt dasselbe Vollständigkeitsnetz auf den neuen `negativbefund`-Namespace aus
+ * (`negativbefund-abschnitt.tsx`) — hier NUR literal geprüft, es gibt (anders als `profil`/
+ * `quellen`) keine geschlossene Schalter-Funktion über einen Enum in diesem Namespace.
+ */
+describe('i18n-Ressourcen für den negativbefund-Namespace (AP-1.17 PR-C2)', () => {
+  const RENDERER_WURZEL = fileURLToPath(new URL('../../src/renderer', import.meta.url))
+  const NUTZT_NEGATIVBEFUND_NAMESPACE = /useTranslation\(\s*['"]negativbefund['"]\s*\)/
+  const LITERALER_T_AUFRUF = /\bt\(\s*['"]([a-zA-Z0-9_]+)['"]/g
+
+  function quellDateien(wurzel: string): readonly string[] {
+    const gefunden: string[] = []
+    for (const eintrag of readdirSync(wurzel, { withFileTypes: true })) {
+      const pfad = join(wurzel, eintrag.name)
+      if (eintrag.isDirectory()) gefunden.push(...quellDateien(pfad))
+      else if (eintrag.name.endsWith('.tsx') || eintrag.name.endsWith('.ts')) gefunden.push(pfad)
+    }
+    return gefunden
+  }
+
+  /** Alle LITERAL in `t(...)` verwendeten Schlüssel aus jeder Datei, die
+   * `useTranslation('negativbefund')` aufruft. */
+  function literaleNegativbefundSchluessel(): ReadonlySet<string> {
+    const schluessel = new Set<string>()
+    for (const datei of quellDateien(RENDERER_WURZEL)) {
+      const inhalt = readFileSync(datei, 'utf8')
+      if (!NUTZT_NEGATIVBEFUND_NAMESPACE.test(inhalt)) continue
+      for (const treffer of inhalt.matchAll(LITERALER_T_AUFRUF)) {
+        const gefundenerSchluessel = treffer[1]
+        if (gefundenerSchluessel !== undefined) schluessel.add(gefundenerSchluessel)
+      }
+    }
+    return schluessel
+  }
+
+  it('jeder literal in t(...) verwendete Schlüssel existiert in negativbefund.json', () => {
+    const gefundene = literaleNegativbefundSchluessel()
+    expect(gefundene.size).toBeGreaterThan(0)
+    for (const schluessel of gefundene) {
+      expect(negativbefundRessourcen, `Schlüssel "${schluessel}" (literal verwendet) fehlt in negativbefund.json`).toHaveProperty(schluessel)
     }
   })
 })
