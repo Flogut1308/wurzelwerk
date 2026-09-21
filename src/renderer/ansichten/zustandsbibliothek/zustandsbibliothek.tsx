@@ -153,10 +153,12 @@ const BEISPIEL_SUCHTREFFER: readonly SucheTreffer[] = [
 ]
 
 /** `abfrage:ort.suche`-Treffer (§3.2, AP-1.13 PR-C) — bewusst NUR `id`/`anzeigename` (die minimale
- * Ortssuche fürs `Ortsfeld`, s. Kopfkommentar `ortsfeld-logik.ts`). */
+ * Ortssuche fürs `Ortsfeld`, s. Kopfkommentar `ortsfeld-logik.ts`). `politischeKette: []` (AP-1.16
+ * PR-C) hält dieses erfasste Motiv (`zustandsbibliothek-*.png`) bewusst UNVERÄNDERT — die neue
+ * Hierarchiezeile im `Ortsfeld` rendert nur bei einer NICHT-leeren Kette. */
 const BEISPIEL_ORT_TREFFER: readonly OrtTreffer[] = [
-  { id: 'tmp:marienwerder', anzeigename: 'Marienwerder' },
-  { id: 'tmp:kwidzyn', anzeigename: 'Kwidzyn' },
+  { id: 'tmp:marienwerder', anzeigename: 'Marienwerder', politischeKette: [] },
+  { id: 'tmp:kwidzyn', anzeigename: 'Kwidzyn', politischeKette: [] },
 ]
 
 const BEISPIEL_FILTER: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }

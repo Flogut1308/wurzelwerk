@@ -30,5 +30,8 @@
   "ortsfeld_platzhalter": "Ort suchen…",
   "ortsfeld_laedt": "Suche läuft…",
   "ortsfeld_keine_treffer": "Keine Treffer",
-  "ortsfeld_neu_anlegen": "„{{text}}“ als neuen Ort anlegen"
+  "ortsfeld_neu_anlegen": "„{{text}}“ als neuen Ort anlegen",
+  "ortsfeld_geltung_bis": "bis {{jahr}}",
+  "ortsfeld_geltung_ab": "ab {{jahr}}",
+  "ortsfeld_geltung_zwischen": "{{von}}–{{bis}}"
 }

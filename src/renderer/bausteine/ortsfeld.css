@@ -45,6 +45,26 @@
   background: var(--wz-flaeche-hover);
 }
 
+/* Name + Hierarchiezeile (§3.2, AP-1.16 PR-C) untereinander, nicht nebeneinander — die Kette kann
+ * lang werden ("Kreis Marienwerder · Westpreußen · Preußen") und würde die Zeile sonst sprengen. */
+.wz-ortsfeld__zeile-inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  min-width: 0;
+}
+
+/* Geltungszeitraum des Anzeigenamens, rechts (docs/71_Designsystem.md §3.2, "Zwingend": "bis
+ * 1945"/"ab 1945" neben dem Namen) — `margin-left: auto` schiebt ihn im flexen `.wz-ortsfeld__zeile`
+ * (align-items: center) an den rechten Rand, `flex-shrink: 0` hält ihn stets lesbar, auch wenn
+ * Name/Hierarchie lang werden. */
+.wz-ortsfeld__zeile-geltung {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--wz-abstand-12);
+  white-space: nowrap;
+}
+
 .wz-ortsfeld__zeile--hervorgehoben,
 .wz-ortsfeld__zeile[aria-selected='true'] {
   background: var(--wz-flaeche-auswahl);

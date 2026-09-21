@@ -2,7 +2,14 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { OrtTreffer } from '../../shared/schemata/ort-suche'
 import { Eingabekoerper } from './eingabekoerper'
-import { ortsfeldNaechsterIndex, ortsfeldZeileAktivieren, ortsfeldZeilenAufbauen, type OrtsfeldZeile } from './ortsfeld-logik'
+import {
+  ortsfeldGeltungszeitraum,
+  ortsfeldHierarchieText,
+  ortsfeldNaechsterIndex,
+  ortsfeldZeileAktivieren,
+  ortsfeldZeilenAufbauen,
+  type OrtsfeldZeile,
+} from './ortsfeld-logik'
 import { Text } from './text'
 import './ortsfeld.css'
 
@@ -43,10 +50,20 @@ export interface OrtsfeldProps {
  * Pfeil-runter/-hoch bewegt `hervorgehobenerIndex` (mit Umlauf), Enter aktiviert die
  * hervorgehobene Zeile — EIN `onKeyDown`-Handler auf der Hülle genügt.
  *
- * SCOPE (CLAUDE.md §10): §3.2 zeigt je Vorschlag zusätzlich die volle zeitabhängige
- * Zugehörigkeitskette (politisch/kirchlich, z. B. "Kreis Marienwerder · Westpreußen · Preußen").
- * Diese Kette bleibt AP-1.16 vorbehalten — hier steht je Vorschlag NUR der bereits datumsgültig
- * berechnete Name (`OrtTreffer.anzeigename`), s. docs/80_Offene_Fragen.md.
+ * §3.2 zeigt je Vorschlag zusätzlich die zum Datum gültige POLITISCHE Zugehörigkeitskette
+ * (z. B. "Kreis Marienwerder · Westpreußen · Preußen", AP-1.16 PR-C) — bereits vom Hauptprozess
+ * aufgelöst (`OrtTreffer.politischeKette`, `src/core/ort/zeitbezug.ts::hierarchieZuDatum`), kein
+ * zweiter Auflösungsweg hier, nur die Verkettung zu EINER Zeile (`ortsfeldHierarchieText`). Die
+ * Zeile erscheint nur, wenn die Kette nicht leer ist (kein `jdn` übergeben -> immer leer, s.
+ * `OrtTreffer`-Kopfkommentar). Die KIRCHLICHE Kette bleibt der Detailansicht (`abfrage:ort.detail`)
+ * vorbehalten — dieser Vorschlag zeigt nur EINE Kette, s. docs/80_Offene_Fragen.md.
+ *
+ * §3.2 verlangt außerdem ("Zwingend"): der zeitliche Geltungsbereich des Anzeigenamens steht
+ * RECHTS neben jedem Vorschlag ("bis 1945"/"ab 1945"). Auch das kommt bereits berechnet vom
+ * Hauptprozess (`OrtTreffer.gueltigVonJahr`/`gueltigBisJahr`,
+ * `src/core/ort/zeitbezug.ts::geltungszeitraumJahre`) — `ortsfeldGeltungszeitraum` wählt hier nur
+ * den passenden i18n-Schlüssel. Kein Zusatz, wenn der Name unbegrenzt gültig ist (beide Grenzen
+ * offen).
  */
 export function Ortsfeld({
   text,
@@ -96,6 +113,15 @@ export function Ortsfeld({
     return zeile.art === 'treffer' ? zeile.treffer.id : zeile.art
   }
 
+  /** Geltungszeitraum-Text rechts neben dem Treffer (docs/71 §3.2 "Zwingend": "bis 1945"/
+   * "ab 1945") — `undefined`, wenn `ortsfeldGeltungszeitraum` keinen Zusatz liefert (unbegrenzt
+   * gültig oder die feste Schlusszeile). */
+  function zeileGeltungText(zeile: OrtsfeldZeile): string | undefined {
+    if (zeile.art !== 'treffer') return undefined
+    const geltung = ortsfeldGeltungszeitraum(zeile.treffer)
+    return geltung === undefined ? undefined : t(geltung.schluessel, geltung.werte)
+  }
+
   return (
     <div className="wz-ortsfeld" onKeyDown={tastendruck}>
       <Eingabekoerper
@@ -131,7 +157,21 @@ export function Ortsfeld({
                 ortsfeldZeileAktivieren(zeile, { aufAusgewaehlt, aufNeuAnlegen })
               }}
             >
-              <Text rolle="koerper">{zeileText(zeile)}</Text>
+              <span className="wz-ortsfeld__zeile-inhalt">
+                <Text rolle="koerper">{zeileText(zeile)}</Text>
+                {zeile.art === 'treffer' && zeile.treffer.politischeKette.length > 0 ? (
+                  <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                    {ortsfeldHierarchieText(zeile.treffer.politischeKette)}
+                  </Text>
+                ) : null}
+              </span>
+              {zeileGeltungText(zeile) === undefined ? null : (
+                <span className="wz-ortsfeld__zeile-geltung">
+                  <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                    {zeileGeltungText(zeile)}
+                  </Text>
+                </span>
+              )}
             </li>
           ))}
         </ul>

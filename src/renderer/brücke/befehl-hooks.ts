@@ -86,6 +86,69 @@ export function useOrtAnlegen(): UseMutationResult<{ readonly id: string }, AppF
   })
 }
 
+/** `befehl:ort.aendern` (AP-1.16 PR-C, Orte-Pflege-Ansicht). */
+export function useOrtAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:ort.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ort.aendern'>) => ergebnisEntpacken(aufrufen('befehl:ort.aendern', ein)),
+  })
+}
+
+/** `befehl:ortsname.anlegen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Namen hinzufügen"). */
+export function useOrtsnameAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ortsname.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortsname.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ortsname.anlegen', ein)),
+  })
+}
+
+/** `befehl:ortsname.aendern` (AP-1.16 PR-C, Orte-Pflege-Ansicht: Inline-Bearbeiten einer Namenszeile). */
+export function useOrtsnameAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:ortsname.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortsname.aendern'>) => ergebnisEntpacken(aufrufen('befehl:ortsname.aendern', ein)),
+  })
+}
+
+/** `befehl:ortsname.loeschen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Entfernen"). */
+export function useOrtsnameLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:ortsname.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortsname.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:ortsname.loeschen', ein)),
+  })
+}
+
+/** `befehl:ortszugehoerigkeit.anlegen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Zugehörigkeit hinzufügen"). */
+export function useOrtszugehoerigkeitAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ortszugehoerigkeit.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortszugehoerigkeit.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ortszugehoerigkeit.anlegen', ein)),
+  })
+}
+
+/** `befehl:ortszugehoerigkeit.aendern` (AP-1.16 PR-C, Orte-Pflege-Ansicht: Inline-Bearbeiten der Gültigkeit). */
+export function useOrtszugehoerigkeitAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:ortszugehoerigkeit.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortszugehoerigkeit.aendern'>) => ergebnisEntpacken(aufrufen('befehl:ortszugehoerigkeit.aendern', ein)),
+  })
+}
+
+/** `befehl:ortszugehoerigkeit.loeschen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Entfernen"). */
+export function useOrtszugehoerigkeitLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:ortszugehoerigkeit.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ortszugehoerigkeit.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:ortszugehoerigkeit.loeschen', ein)),
+  })
+}
+
+/** `befehl:ort-externe-id.anlegen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Externe Kennung hinzufügen"). */
+export function useOrtExterneIdAnlegen(): UseMutationResult<null, AppFehler, Ein<'befehl:ort-externe-id.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ort-externe-id.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ort-externe-id.anlegen', ein)),
+  })
+}
+
+/** `befehl:ort-externe-id.loeschen` (AP-1.16 PR-C, Orte-Pflege-Ansicht: „Entfernen"). */
+export function useOrtExterneIdLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:ort-externe-id.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ort-externe-id.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:ort-externe-id.loeschen', ein)),
+  })
+}
+
 /** `befehl:ereignis.anlegen` (AP-1.12, AP-1.15 PR-A: erster Konsument — das Ereignis-Neu-Formular
  * der Profil-Bearbeitungsseite schreibt ALLE gesammelten Beteiligten in EINEM Aufruf, Variante A). */
 export function useEreignisAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ereignis.anlegen'>> {

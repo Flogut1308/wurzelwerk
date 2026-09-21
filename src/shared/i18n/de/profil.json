@@ -175,6 +175,7 @@
   "ereignis_neu_typ_beschriftung": "Art",
   "ereignis_neu_datum_beschriftung": "Datum",
   "ereignis_neu_ort_beschriftung": "Ort",
+  "ereignis_neu_ort_bearbeiten": "Ort bearbeiten",
   "ereignis_neu_konfidenz_beschriftung": "Konfidenz",
   "ereignis_neu_weitere_beteiligte_ueberschrift": "Weitere Beteiligte",
   "ereignis_neu_weiterer_beteiligter_hinzufuegen": "+ Beteiligten",

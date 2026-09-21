@@ -34,6 +34,7 @@ import {
   ereignisDatumwertAusEntwurf,
   ereignisEntwurfAbsendbar,
   ereignisEntwurfDatumIstGueltig,
+  ereignisEntwurfJdn,
   weitererBeteiligterLeer,
   type EreignisEntwurfWerte,
 } from '../../src/renderer/ansichten/profil/profil-bearbeiten-logik'
@@ -119,6 +120,19 @@ describe('profil-bearbeiten-logik: Ereignisse (AP-1.15 PR-A)', () => {
 
   it('weitererBeteiligterLeer: personId null, Standardrolle informant', () => {
     expect(weitererBeteiligterLeer('zeile-1')).toEqual({ schluessel: 'zeile-1', personId: null, rolle: 'informant' })
+  })
+
+  it('ereignisEntwurfJdn: leerer Text -> undefined (Ortsfeld sucht ohne jdn, AP-1.16 PR-C)', () => {
+    expect(ereignisEntwurfJdn('')).toBeUndefined()
+    expect(ereignisEntwurfJdn('   ')).toBeUndefined()
+  })
+
+  it('ereignisEntwurfJdn: nicht auflösbarer Text -> undefined', () => {
+    expect(ereignisEntwurfJdn('völliger Unsinn')).toBeUndefined()
+  })
+
+  it('ereignisEntwurfJdn: auflösbares Datum liefert seinen sortVon-JDN', () => {
+    expect(ereignisEntwurfJdn('14.3.1850')).toBeTypeOf('number')
   })
 })
 

@@ -15,10 +15,12 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
 import { useOrtSuche, useSuche } from '../../brücke/abfrage-hooks'
 import { useBeteiligungLoeschen, useEreignisAnlegen, useEreignisLoeschen, useOrtAnlegen, usePersonAnlegen } from '../../brücke/befehl-hooks'
+import { OrtBearbeitenAnsicht } from '../orte/ort-bearbeiten'
 import {
   EREIGNIS_ENTWURF_LEER,
   ereignisAnlegenEinAusEntwurf,
   ereignisEntwurfAbsendbar,
+  ereignisEntwurfJdn,
   ereignisPersonSucheEin,
   weitererBeteiligterLeer,
   type EreignisEntwurfWerte,
@@ -185,13 +187,23 @@ function EreignisNeuFormular({ personId }: { readonly personId: string }) {
   const [entwurf, setEntwurf] = useState<EreignisEntwurfWerte>(EREIGNIS_ENTWURF_LEER)
   const [ortSuchtext, setOrtSuchtext] = useState('')
   const [ortHervorgehobenerIndex, setOrtHervorgehobenerIndex] = useState<number | null>(null)
+  // Einstiegspunkt in die Orte-Pflege-Ansicht (AP-1.16 PR-C, docs/80_Offene_Fragen.md) — der
+  // wenigst aufdringliche, tastaturerreichbare Ort: ein Link direkt am gewählten Ort dieses
+  // Formulars, KEIN globaler Header-„Orte"-Eintrag (der bleibt S-35, Phase 2/3). Lokaler Zustand
+  // genügt, `OrtBearbeitenAnsicht` ist eine `position: fixed`-Seitenschublade (analog `ProfilAnsicht`/
+  // `Seitenschublade`) und braucht keinen Kontext eines übergeordneten Routers.
+  const [ortBearbeitenOffen, setOrtBearbeitenOffen] = useState(false)
   // Reiner Zähler für React-Listenschlüssel der „weiterer Beteiligter"-Zeilen (KEINE fachliche
   // ID) — `useRef`, nicht `Math.random()`/`crypto.randomUUID()`: ein einfacher, im Renderer
   // erlaubter Zähler genügt (CLAUDE.md §4 verbietet `Math.random`/`Date.now` nur in `src/core`).
   const naechsterSchluessel = useRef(0)
 
   const ortSucheAktiv = ortSuchtext.trim() !== ''
-  const ortSucheAbfrage = useOrtSuche({ text: ortSuchtext }, { enabled: ortSucheAktiv })
+  // `jdn` aus dem Ereignis-Datumstext (AP-1.16 PR-C) — die Ortsfeld-Hierarchiezeile (docs/71 §3.2)
+  // braucht einen konkreten Gültigkeitszeitpunkt; ohne auflösbares Datum bleibt sie leer (kein
+  // `jdn`, `exactOptionalPropertyTypes` verbietet ein explizites `jdn: undefined`).
+  const ereignisJdn = ereignisEntwurfJdn(entwurf.datumText)
+  const ortSucheAbfrage = useOrtSuche({ text: ortSuchtext, ...(ereignisJdn === undefined ? {} : { jdn: ereignisJdn }) }, { enabled: ortSucheAktiv })
   const ortZustand: OrtsfeldZustand = ortSucheAktiv ? (ortSucheAbfrage.isPending ? 'laedt' : 'bereit') : 'leer'
   const ortTreffer = ortSucheAbfrage.data?.treffer ?? []
 
@@ -233,64 +245,74 @@ function EreignisNeuFormular({ personId }: { readonly personId: string }) {
   }
 
   return (
-    <form className="wz-profil-bearbeiten-ereignisse__neu" onSubmit={absenden} aria-labelledby="wz-profil-bearbeiten-ereignisse-neu-titel">
-      <Text rolle="beschriftung" als="p" id="wz-profil-bearbeiten-ereignisse-neu-titel">
-        {t('ereignis_neu_ueberschrift')}
-      </Text>
+    <>
+      <form className="wz-profil-bearbeiten-ereignisse__neu" onSubmit={absenden} aria-labelledby="wz-profil-bearbeiten-ereignisse-neu-titel">
+        <Text rolle="beschriftung" als="p" id="wz-profil-bearbeiten-ereignisse-neu-titel">
+          {t('ereignis_neu_ueberschrift')}
+        </Text>
 
-      <div className="wz-profil-bearbeiten-ereignisse__felder">
-        <Formularfeld beschriftung={t('ereignis_neu_typ_beschriftung')}>
-          <Auswahlfeld wert={entwurf.typ} optionen={ereignisTypOptionen(t)} aufAenderung={(wert) => setEntwurf({ ...entwurf, typ: wert })} />
-        </Formularfeld>
-        <Formularfeld beschriftung={t('ereignis_neu_datum_beschriftung')}>
-          <Datumsfeld
-            text={entwurf.datumText}
-            aufAenderung={(wert) => setEntwurf({ ...entwurf, datumText: wert })}
-            kalender={entwurf.kalender}
-            aufKalenderAenderung={(wert) => setEntwurf({ ...entwurf, kalender: wert })}
-            kalenderErweitert={entwurf.kalenderErweitert}
-            aufKalenderErweitertAenderung={(wert) => setEntwurf({ ...entwurf, kalenderErweitert: wert })}
-          />
-        </Formularfeld>
-        <Formularfeld beschriftung={t('ereignis_neu_ort_beschriftung')}>
-          <Ortsfeld
-            text={ortSuchtext}
-            aufAenderung={setOrtSuchtext}
-            zustand={ortZustand}
-            treffer={ortTreffer}
-            hervorgehobenerIndex={ortHervorgehobenerIndex}
-            aufHervorgehobenerIndexAenderung={setOrtHervorgehobenerIndex}
-            aufAusgewaehlt={ortAusgewaehlt}
-            aufNeuAnlegen={() => void ortNeuAnlegen()}
-          />
-        </Formularfeld>
-        <Formularfeld beschriftung={t('ereignis_neu_konfidenz_beschriftung')}>
-          <Konfidenzwaehler
-            wert={entwurf.konfidenz}
-            aufAenderung={(stufe) => setEntwurf({ ...entwurf, konfidenz: stufe })}
-            ariaLabel={t('ereignis_neu_konfidenz_beschriftung')}
-          />
-        </Formularfeld>
-      </div>
+        <div className="wz-profil-bearbeiten-ereignisse__felder">
+          <Formularfeld beschriftung={t('ereignis_neu_typ_beschriftung')}>
+            <Auswahlfeld wert={entwurf.typ} optionen={ereignisTypOptionen(t)} aufAenderung={(wert) => setEntwurf({ ...entwurf, typ: wert })} />
+          </Formularfeld>
+          <Formularfeld beschriftung={t('ereignis_neu_datum_beschriftung')}>
+            <Datumsfeld
+              text={entwurf.datumText}
+              aufAenderung={(wert) => setEntwurf({ ...entwurf, datumText: wert })}
+              kalender={entwurf.kalender}
+              aufKalenderAenderung={(wert) => setEntwurf({ ...entwurf, kalender: wert })}
+              kalenderErweitert={entwurf.kalenderErweitert}
+              aufKalenderErweitertAenderung={(wert) => setEntwurf({ ...entwurf, kalenderErweitert: wert })}
+            />
+          </Formularfeld>
+          <Formularfeld beschriftung={t('ereignis_neu_ort_beschriftung')}>
+            <Ortsfeld
+              text={ortSuchtext}
+              aufAenderung={setOrtSuchtext}
+              zustand={ortZustand}
+              treffer={ortTreffer}
+              hervorgehobenerIndex={ortHervorgehobenerIndex}
+              aufHervorgehobenerIndexAenderung={setOrtHervorgehobenerIndex}
+              aufAusgewaehlt={ortAusgewaehlt}
+              aufNeuAnlegen={() => void ortNeuAnlegen()}
+            />
+            {entwurf.ortId === null ? null : (
+              <Schaltflaeche variante="unauffaellig" aufKlick={() => setOrtBearbeitenOffen(true)}>
+                {t('ereignis_neu_ort_bearbeiten')}
+              </Schaltflaeche>
+            )}
+          </Formularfeld>
+          <Formularfeld beschriftung={t('ereignis_neu_konfidenz_beschriftung')}>
+            <Konfidenzwaehler
+              wert={entwurf.konfidenz}
+              aufAenderung={(stufe) => setEntwurf({ ...entwurf, konfidenz: stufe })}
+              ariaLabel={t('ereignis_neu_konfidenz_beschriftung')}
+            />
+          </Formularfeld>
+        </div>
 
-      <Text rolle="beschriftung" als="p">
-        {t('ereignis_neu_weitere_beteiligte_ueberschrift')}
-      </Text>
-      {entwurf.weitereBeteiligte.map((eintrag) => (
-        <WeitererBeteiligterZeile
-          key={eintrag.schluessel}
-          eintrag={eintrag}
-          aufAenderung={weitererBeteiligterAendern}
-          aufEntfernen={() => weitererBeteiligterEntfernen(eintrag.schluessel)}
-        />
-      ))}
-      <Schaltflaeche variante="unauffaellig" aufKlick={weitererBeteiligterHinzufuegen}>
-        {t('ereignis_neu_weiterer_beteiligter_hinzufuegen')}
-      </Schaltflaeche>
+        <Text rolle="beschriftung" als="p">
+          {t('ereignis_neu_weitere_beteiligte_ueberschrift')}
+        </Text>
+        {entwurf.weitereBeteiligte.map((eintrag) => (
+          <WeitererBeteiligterZeile
+            key={eintrag.schluessel}
+            eintrag={eintrag}
+            aufAenderung={weitererBeteiligterAendern}
+            aufEntfernen={() => weitererBeteiligterEntfernen(eintrag.schluessel)}
+          />
+        ))}
+        <Schaltflaeche variante="unauffaellig" aufKlick={weitererBeteiligterHinzufuegen}>
+          {t('ereignis_neu_weiterer_beteiligter_hinzufuegen')}
+        </Schaltflaeche>
 
-      <Schaltflaeche variante="sekundaer" typ="submit" gesperrt={!ereignisEntwurfAbsendbar(entwurf)}>
-        {t('ereignis_neu_hinzufuegen')}
-      </Schaltflaeche>
-    </form>
+        <Schaltflaeche variante="sekundaer" typ="submit" gesperrt={!ereignisEntwurfAbsendbar(entwurf)}>
+          {t('ereignis_neu_hinzufuegen')}
+        </Schaltflaeche>
+      </form>
+      {ortBearbeitenOffen && entwurf.ortId !== null ? (
+        <OrtBearbeitenAnsicht ortId={entwurf.ortId} aufSchliessen={() => setOrtBearbeitenOffen(false)} />
+      ) : null}
+    </>
   )
 }

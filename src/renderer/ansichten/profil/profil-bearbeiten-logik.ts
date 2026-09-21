@@ -235,6 +235,17 @@ export function ereignisDatumwertAusEntwurf(text: string, kalender: Kalender): V
   }
 }
 
+/** JDN (`sortVon`) des Ereignis-Datumstexts, für `abfrage:ort.suche`s `jdn`-Parameter (AP-1.16
+ * PR-C, docs/71 §3.2: die Ortsfeld-Hierarchiezeile braucht einen konkreten Gültigkeitszeitpunkt).
+ * `undefined` bei leerem/nicht auflösbarem Text — dann sucht `Ortsfeld` ohne `jdn` (bevorzugter
+ * Name, keine Hierarchiezeile, s. `OrtTreffer`-Kopfkommentar in `src/shared/schemata/ort-suche.ts`).
+ * Dieselbe `parse()`-Quelle wie `ereignisDatumwertAusEntwurf` oben — kein zweiter Parsevorgang. */
+export function ereignisEntwurfJdn(text: string): number | undefined {
+  if (text.trim() === '') return undefined
+  const ergebnis = parse(text)
+  return ergebnis.ok ? ergebnis.wert.sortVon : undefined
+}
+
 /** Nutzlast für `abfrage:suche` (`useSuche`), Personensuche INNERHALB des Ereignis-Neu-Formulars
  * (`Personenwaehler`-Zeile je weiterem Beteiligten). Feste, kleine Ergebnismenge und keine
  * aktiven Filter — dies ist eine schmale Tippsuche zum Auffinden EINER Person, keine Listenansicht

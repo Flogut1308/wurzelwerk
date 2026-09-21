@@ -50,6 +50,7 @@ const kanaele: readonly Kanal[] = [
   'befehl:ort.anlegen',
   'befehl:ort.aendern',
   'abfrage:ort.suche',
+  'abfrage:ort.detail',
   'befehl:ortsname.anlegen',
   'befehl:ortsname.aendern',
   'befehl:ortsname.loeschen',

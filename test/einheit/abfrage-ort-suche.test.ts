@@ -7,8 +7,13 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { nachJdn } from '../../src/core/datum/kalender'
 import { ortSuche } from '../../src/main/abfragen/ort-suche'
 import type { OrtSucheEin } from '../../src/shared/schemata/ort-suche'
+
+// Kriegsende/Verwaltungswechsel als präziser Testanker (wie test/einheit/ort-zeitbezug.test.ts) —
+// keine "magischen" Tageszahlen im Test (AP-1.16 PR-C).
+const GRENZTAG_1945 = nachJdn(1945, 5, 8, 'gregorian')
 
 function ortAnlegen(db: Database.Database, typ: string | null = null): string {
   const ortId = uuidv7()
@@ -36,6 +41,19 @@ function ortsnameAnlegen(
 
 function sucheEingabe(ueberschreibung: Partial<OrtSucheEin> & Pick<OrtSucheEin, 'text'>): OrtSucheEin {
   return { grenze: 20, ...ueberschreibung }
+}
+
+function zugehoerigkeitAnlegen(
+  db: Database.Database,
+  ortId: string,
+  uebergeordnetId: string,
+  art: 'politisch' | 'kirchlich',
+  optionen: { readonly gueltigVon?: number; readonly gueltigBis?: number } = {},
+): void {
+  db.prepare(
+    `INSERT INTO ortszugehoerigkeit (id, ort_id, uebergeordnet_id, art, gueltig_von, gueltig_bis)
+     VALUES (@id, @ortId, @uebergeordnetId, @art, @gueltigVon, @gueltigBis)`,
+  ).run({ id: uuidv7(), ortId, uebergeordnetId, art, gueltigVon: optionen.gueltigVon ?? null, gueltigBis: optionen.gueltigBis ?? null })
 }
 
 describe('abfrage:ort.suche (AP-1.13 PR-C)', () => {
@@ -86,6 +104,96 @@ describe('abfrage:ort.suche (AP-1.13 PR-C)', () => {
 
       const ergebnis = ortSuche(db, sucheEingabe({ text: '' }))
       expect(ergebnis.treffer).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ohne jdn: politischeKette ist IMMER leer (kein eindeutiger Gültigkeitszeitpunkt)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch')
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marien' }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mit jdn: politischeKette trägt die MEHRSTUFIGE politische Kette, nächster Vorfahre zuerst (docs/71 §3.2)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      const provinzId = ortAnlegen(db, 'provinz')
+      ortsnameAnlegen(db, provinzId, { name: 'Westpreußen', istBevorzugt: 1 })
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch')
+      zugehoerigkeitAnlegen(db, kreisId, provinzId, 'politisch')
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marienwerder', jdn: 2415021 }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual(['Kreis Marienwerder', 'Westpreußen'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mit jdn: eine zum Datum abgelaufene Zugehörigkeit erscheint NICHT in der Kette', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      // Zugehörigkeit endet 1945 (JDN ≈ 2431182) — ein Abfragedatum danach (1950, JDN 2433283)
+      // liegt außerhalb, die Kette bleibt für diesen Ort leer.
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch', { gueltigBis: 2431182 })
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marienwerder', jdn: 2433283 }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  // AP-1.16 PR-C (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+  // Vorschlag). Grobe JDN-Grenzwerte wie im Testfall oben (2433282 ≈ 1.1.1950, 2415021 ≈ 1.1.1900).
+  it('trägt den Geltungszeitraum des angezeigten Namens (Marienwerder bis 1945 / Kwidzyn ab 1945)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'stadt')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', gueltigBis: GRENZTAG_1945, istBevorzugt: 0 })
+      ortsnameAnlegen(db, ortId, { name: 'Kwidzyn', gueltigVon: GRENZTAG_1945 + 1, istBevorzugt: 1 })
+
+      const ohneJdn = ortSuche(db, sucheEingabe({ text: 'wid' }))
+      expect(ohneJdn.treffer[0]?.anzeigename).toBe('Kwidzyn')
+      expect(ohneJdn.treffer[0]?.gueltigVonJahr).toBe(1945)
+      expect(ohneJdn.treffer[0]?.gueltigBisJahr).toBeUndefined()
+
+      const mit1900 = ortSuche(db, sucheEingabe({ text: 'wid', jdn: 2415021 }))
+      expect(mit1900.treffer[0]?.anzeigename).toBe('Marienwerder')
+      expect(mit1900.treffer[0]?.gueltigBisJahr).toBe(1945)
+      expect(mit1900.treffer[0]?.gueltigVonJahr).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ohne Geltungsgrenzen (unbegrenzt gültig): weder gueltigVonJahr noch gueltigBisJahr gesetzt', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'stadt')
+      ortsnameAnlegen(db, ortId, { name: 'Berlin', istBevorzugt: 1 })
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'berlin' }))
+      expect(ergebnis.treffer[0]?.gueltigVonJahr).toBeUndefined()
+      expect(ergebnis.treffer[0]?.gueltigBisJahr).toBeUndefined()
     } finally {
       db.close()
     }

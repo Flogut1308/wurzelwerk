@@ -35,10 +35,12 @@ import {
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
 import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
+import { ortDetailEinSchema } from '../../shared/schemata/ort-detail'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
+import { ortDetail } from '../abfragen/ort-detail'
 import { ortSuche } from '../abfragen/ort-suche'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
@@ -244,6 +246,7 @@ export function ipcRegistrierung(): void {
   // AP-1.13 PR-C (docs/71 §3.2, A-04): minimale Ortsverwaltung fürs `Ortsfeld` — Suche (lesend,
   // `abfrage:`) + einfaches Anlegen (schreibend, über den Befehlsbus wie `person.anlegen` oben).
   registriere('abfrage:ort.suche', ortSucheEinSchema, (ein) => ortSuche(offenesProjektDatenbank(), ein))
+  registriere('abfrage:ort.detail', ortDetailEinSchema, (ein) => ortDetail(offenesProjektDatenbank(), ein))
   registriere('befehl:ort.anlegen', ortAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort.anlegen', ein))
 
   // AP-1.16 PR-A: volle Ortsverwaltung — Stammfelder ändern, weitere Namen, Zugehörigkeitsketten
