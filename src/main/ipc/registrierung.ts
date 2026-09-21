@@ -38,6 +38,9 @@ import {
   zitatAnlegenEinSchema,
   zitatAendernEinSchema,
   zitatLoeschenEinSchema,
+  negativbefundAnlegenEinSchema,
+  negativbefundAendernEinSchema,
+  negativbefundLoeschenEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
@@ -45,6 +48,7 @@ import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
 import { ortDetailEinSchema } from '../../shared/schemata/ort-detail'
 import { archivSucheEinSchema } from '../../shared/schemata/archiv-suche'
 import { quelleDetailEinSchema } from '../../shared/schemata/quelle-detail'
+import { negativbefundListeEinSchema } from '../../shared/schemata/negativbefund-liste'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
@@ -53,6 +57,7 @@ import { ortDetail } from '../abfragen/ort-detail'
 import { ortSuche } from '../abfragen/ort-suche'
 import { archivSuche } from '../abfragen/archiv-suche'
 import { quelleDetail } from '../abfragen/quelle-detail'
+import { negativbefundListe } from '../abfragen/negativbefund-liste'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
 import { pruefhinweise } from '../abfragen/pruefhinweise'
@@ -300,4 +305,18 @@ export function ipcRegistrierung(): void {
   registriere('befehl:zitat.anlegen', zitatAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.anlegen', ein))
   registriere('befehl:zitat.aendern', zitatAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.aendern', ein))
   registriere('befehl:zitat.loeschen', zitatLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.loeschen', ein))
+
+  // AP-1.17 PR-A4 (docs/schema/0002_kern.sql §2.7): manuelle Negativbefundverwaltung —
+  // Anlegen/Ändern/Löschen (schreibend, über den Befehlsbus) + Liste je gesuchter Person (lesend,
+  // `abfrage:`, fürs Profil in AP-1.17 PR-C).
+  registriere('befehl:negativbefund.anlegen', negativbefundAnlegenEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'negativbefund.anlegen', ein),
+  )
+  registriere('befehl:negativbefund.aendern', negativbefundAendernEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'negativbefund.aendern', ein),
+  )
+  registriere('befehl:negativbefund.loeschen', negativbefundLoeschenEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'negativbefund.loeschen', ein),
+  )
+  registriere('abfrage:negativbefund.liste', negativbefundListeEinSchema, (ein) => negativbefundListe(offenesProjektDatenbank(), ein))
 }

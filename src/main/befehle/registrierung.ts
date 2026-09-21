@@ -83,6 +83,12 @@ import {
   type ZitatAnlegenEin,
   type ZitatAendernEin,
   type ZitatLoeschenEin,
+  negativbefundAnlegenEinSchema,
+  negativbefundAendernEinSchema,
+  negativbefundLoeschenEinSchema,
+  type NegativbefundAnlegenEin,
+  type NegativbefundAendernEin,
+  type NegativbefundLoeschenEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -119,6 +125,9 @@ import { quelleAendern } from './quelle-aendern'
 import { zitatAnlegen } from './zitat-anlegen'
 import { zitatAendern } from './zitat-aendern'
 import { zitatLoeschen } from './zitat-loeschen'
+import { negativbefundAnlegen } from './negativbefund-anlegen'
+import { negativbefundAendern } from './negativbefund-aendern'
+import { negativbefundLoeschen } from './negativbefund-loeschen'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -174,6 +183,9 @@ interface BefehlKarte {
   'zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
   'zitat.aendern': { ein: ZitatAendernEin; aus: null }
   'zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
+  'negativbefund.anlegen': { ein: NegativbefundAnlegenEin; aus: { readonly id: string } }
+  'negativbefund.aendern': { ein: NegativbefundAendernEin; aus: null }
+  'negativbefund.loeschen': { ein: NegativbefundLoeschenEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -395,5 +407,23 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.zitat_geloescht',
     handler: zitatLoeschen,
+  },
+  'negativbefund.anlegen': {
+    schema: negativbefundAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.negativbefund_angelegt',
+    handler: negativbefundAnlegen,
+  },
+  'negativbefund.aendern': {
+    schema: negativbefundAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.negativbefund_geaendert',
+    handler: negativbefundAendern,
+  },
+  'negativbefund.loeschen': {
+    schema: negativbefundLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.negativbefund_geloescht',
+    handler: negativbefundLoeschen,
   },
 }
