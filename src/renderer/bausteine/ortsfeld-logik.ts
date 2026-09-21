@@ -77,3 +77,32 @@ export function ortsfeldNeuAnlegenEin(text: string): OrtAnlegenEin {
 export function ortsfeldHierarchieText(politischeKette: readonly string[]): string {
   return politischeKette.join(' · ')
 }
+
+/** Ein i18n-Schlüssel (`felder.json`) + dessen Interpolationswerte für den Geltungszeitraum eines
+ * Treffers (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+ * Vorschlag, z. B. "bis 1945"/"ab 1945") — die Fallunterscheidung (nur Ende offen / nur Anfang
+ * offen / beide gesetzt) lebt hier statt in JSX, analog `zeileText()` (`ortsfeld.tsx`). */
+export type OrtsfeldGeltungszeitraum =
+  | { readonly schluessel: 'ortsfeld_geltung_bis'; readonly werte: { readonly jahr: number } }
+  | { readonly schluessel: 'ortsfeld_geltung_ab'; readonly werte: { readonly jahr: number } }
+  | { readonly schluessel: 'ortsfeld_geltung_zwischen'; readonly werte: { readonly von: number; readonly bis: number } }
+
+/**
+ * Baut den Geltungszeitraum-Hinweis EINES Treffers aus `gueltigVonJahr`/`gueltigBisJahr`
+ * (`OrtTreffer`, bereits vom Hauptprozess über `src/core/ort/zeitbezug.ts::geltungszeitraumJahre`
+ * berechnet — KEIN zweiter Auflösungsweg hier). `undefined`, wenn beide Grenzen offen sind
+ * (unbegrenzt gültig) — der Aufrufer (`ortsfeld.tsx`) zeigt dann keinen Zusatz.
+ */
+export function ortsfeldGeltungszeitraum(treffer: OrtTreffer): OrtsfeldGeltungszeitraum | undefined {
+  const { gueltigVonJahr, gueltigBisJahr } = treffer
+  if (gueltigVonJahr !== undefined && gueltigBisJahr !== undefined) {
+    return { schluessel: 'ortsfeld_geltung_zwischen', werte: { von: gueltigVonJahr, bis: gueltigBisJahr } }
+  }
+  if (gueltigBisJahr !== undefined) {
+    return { schluessel: 'ortsfeld_geltung_bis', werte: { jahr: gueltigBisJahr } }
+  }
+  if (gueltigVonJahr !== undefined) {
+    return { schluessel: 'ortsfeld_geltung_ab', werte: { jahr: gueltigVonJahr } }
+  }
+  return undefined
+}

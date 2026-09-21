@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { Ortsfeld } from '../../src/renderer/bausteine/ortsfeld'
 import {
+  ortsfeldGeltungszeitraum,
   ortsfeldHierarchieText,
   ortsfeldNaechsterIndex,
   ortsfeldNeuAnlegenEin,
@@ -87,6 +88,27 @@ describe('ortsfeld-logik (docs/71 §3.2, AP-1.13 PR-C)', () => {
   it('ortsfeldHierarchieText: leere Kette -> leere Zeichenkette', () => {
     expect(ortsfeldHierarchieText([])).toBe('')
   })
+
+  // AP-1.16 PR-C (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+  // Vorschlag, z. B. "bis 1945"/"ab 1945").
+  it('ortsfeldGeltungszeitraum: nur gueltigBisJahr -> "ortsfeld_geltung_bis"', () => {
+    expect(ortsfeldGeltungszeitraum(treffer({ gueltigBisJahr: 1945 }))).toEqual({ schluessel: 'ortsfeld_geltung_bis', werte: { jahr: 1945 } })
+  })
+
+  it('ortsfeldGeltungszeitraum: nur gueltigVonJahr -> "ortsfeld_geltung_ab"', () => {
+    expect(ortsfeldGeltungszeitraum(treffer({ gueltigVonJahr: 1945 }))).toEqual({ schluessel: 'ortsfeld_geltung_ab', werte: { jahr: 1945 } })
+  })
+
+  it('ortsfeldGeltungszeitraum: beide Grenzen -> "ortsfeld_geltung_zwischen"', () => {
+    expect(ortsfeldGeltungszeitraum(treffer({ gueltigVonJahr: 1900, gueltigBisJahr: 1945 }))).toEqual({
+      schluessel: 'ortsfeld_geltung_zwischen',
+      werte: { von: 1900, bis: 1945 },
+    })
+  })
+
+  it('ortsfeldGeltungszeitraum: ohne Grenzen (unbegrenzt gültig) -> undefined', () => {
+    expect(ortsfeldGeltungszeitraum(treffer())).toBeUndefined()
+  })
 })
 
 describe('Ortsfeld (docs/71 §3.2, AP-1.13 PR-C)', () => {
@@ -159,5 +181,32 @@ describe('Ortsfeld (docs/71 §3.2, AP-1.13 PR-C)', () => {
   it('ohne politischeKette (leer): KEINE Hierarchiezeile', () => {
     const markup = renderToStaticMarkup(<Ortsfeld text="Marienw" zustand="bereit" treffer={[treffer()]} hervorgehobenerIndex={null} {...OHNE_AKTION} />)
     expect(markup).not.toContain('·')
+  })
+
+  // AP-1.16 PR-C (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+  // Vorschlag). Die Tests hier prüfen den i18n-SCHLÜSSEL (`t()` interpoliert in dieser
+  // Testumgebung ohne initialisierte i18next-Instanz nicht, analog `datumsfeld.test.tsx`), nicht
+  // den übersetzten Text — die tatsächliche Übersetzung "bis 1945" prüft `felder.json` selbst.
+  it('mit gueltigBisJahr: rendert die Geltungszeitraum-Zeile rechts neben dem Treffernamen (Schlüssel "ortsfeld_geltung_bis")', () => {
+    const einTreffer = treffer({ anzeigename: 'Marienwerder', gueltigBisJahr: 1945 })
+    const markup = renderToStaticMarkup(
+      <Ortsfeld text="Marienw" zustand="bereit" treffer={[einTreffer]} hervorgehobenerIndex={null} {...OHNE_AKTION} />,
+    )
+    expect(markup).toContain('wz-ortsfeld__zeile-geltung')
+    expect(markup).toContain('ortsfeld_geltung_bis')
+  })
+
+  it('mit gueltigVonJahr: rendert die Geltungszeitraum-Zeile (Schlüssel "ortsfeld_geltung_ab")', () => {
+    const einTreffer = treffer({ anzeigename: 'Kwidzyn', gueltigVonJahr: 1945 })
+    const markup = renderToStaticMarkup(
+      <Ortsfeld text="Marienw" zustand="bereit" treffer={[einTreffer]} hervorgehobenerIndex={null} {...OHNE_AKTION} />,
+    )
+    expect(markup).toContain('wz-ortsfeld__zeile-geltung')
+    expect(markup).toContain('ortsfeld_geltung_ab')
+  })
+
+  it('ohne Geltungsgrenzen (unbegrenzt gültig): KEIN Geltungszeitraum-Zusatz', () => {
+    const markup = renderToStaticMarkup(<Ortsfeld text="Marienw" zustand="bereit" treffer={[treffer()]} hervorgehobenerIndex={null} {...OHNE_AKTION} />)
+    expect(markup).not.toContain('wz-ortsfeld__zeile-geltung')
   })
 })

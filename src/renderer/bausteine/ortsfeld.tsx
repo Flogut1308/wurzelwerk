@@ -2,7 +2,14 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { OrtTreffer } from '../../shared/schemata/ort-suche'
 import { Eingabekoerper } from './eingabekoerper'
-import { ortsfeldHierarchieText, ortsfeldNaechsterIndex, ortsfeldZeileAktivieren, ortsfeldZeilenAufbauen, type OrtsfeldZeile } from './ortsfeld-logik'
+import {
+  ortsfeldGeltungszeitraum,
+  ortsfeldHierarchieText,
+  ortsfeldNaechsterIndex,
+  ortsfeldZeileAktivieren,
+  ortsfeldZeilenAufbauen,
+  type OrtsfeldZeile,
+} from './ortsfeld-logik'
 import { Text } from './text'
 import './ortsfeld.css'
 
@@ -50,6 +57,13 @@ export interface OrtsfeldProps {
  * Zeile erscheint nur, wenn die Kette nicht leer ist (kein `jdn` übergeben -> immer leer, s.
  * `OrtTreffer`-Kopfkommentar). Die KIRCHLICHE Kette bleibt der Detailansicht (`abfrage:ort.detail`)
  * vorbehalten — dieser Vorschlag zeigt nur EINE Kette, s. docs/80_Offene_Fragen.md.
+ *
+ * §3.2 verlangt außerdem ("Zwingend"): der zeitliche Geltungsbereich des Anzeigenamens steht
+ * RECHTS neben jedem Vorschlag ("bis 1945"/"ab 1945"). Auch das kommt bereits berechnet vom
+ * Hauptprozess (`OrtTreffer.gueltigVonJahr`/`gueltigBisJahr`,
+ * `src/core/ort/zeitbezug.ts::geltungszeitraumJahre`) — `ortsfeldGeltungszeitraum` wählt hier nur
+ * den passenden i18n-Schlüssel. Kein Zusatz, wenn der Name unbegrenzt gültig ist (beide Grenzen
+ * offen).
  */
 export function Ortsfeld({
   text,
@@ -99,6 +113,15 @@ export function Ortsfeld({
     return zeile.art === 'treffer' ? zeile.treffer.id : zeile.art
   }
 
+  /** Geltungszeitraum-Text rechts neben dem Treffer (docs/71 §3.2 "Zwingend": "bis 1945"/
+   * "ab 1945") — `undefined`, wenn `ortsfeldGeltungszeitraum` keinen Zusatz liefert (unbegrenzt
+   * gültig oder die feste Schlusszeile). */
+  function zeileGeltungText(zeile: OrtsfeldZeile): string | undefined {
+    if (zeile.art !== 'treffer') return undefined
+    const geltung = ortsfeldGeltungszeitraum(zeile.treffer)
+    return geltung === undefined ? undefined : t(geltung.schluessel, geltung.werte)
+  }
+
   return (
     <div className="wz-ortsfeld" onKeyDown={tastendruck}>
       <Eingabekoerper
@@ -142,6 +165,13 @@ export function Ortsfeld({
                   </Text>
                 ) : null}
               </span>
+              {zeileGeltungText(zeile) === undefined ? null : (
+                <span className="wz-ortsfeld__zeile-geltung">
+                  <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                    {zeileGeltungText(zeile)}
+                  </Text>
+                </span>
+              )}
             </li>
           ))}
         </ul>
