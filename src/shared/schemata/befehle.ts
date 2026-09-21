@@ -716,8 +716,9 @@ export const archivAendernEinSchema: z.ZodType<ArchivAendernEin> = z.object({
 // wiederverwendet (dieselben `CHECK`-Klauseln, s. Kopfkommentar dort), `Datumswert`/
 // `datumswertSchema` aus `./import-v1` (dieselbe Vertragsform wie bei `ereignis.anlegen`/
 // `aendern`, s. Importkommentar oben). Bewusst KEIN `quelle.loeschen` in diesem PR (Kaskaden-
-// Entscheidung offen, analog `ort.loeschen`, docs/80_Offene_Fragen.md). Kein Zitat-Schreibbefehl
-// hier (PR-A3) — `zitatIdsSchema` oben bleibt für Aussagen, nicht für Quellen.
+// Entscheidung offen, analog `ort.loeschen`, docs/80_Offene_Fragen.md). Die Zitat-Schreibbefehle
+// (`zitat.anlegen`/`aendern`/`loeschen`) folgen weiter unten (PR-A3) — `zitatIdsSchema` oben
+// bleibt für Aussagen, nicht für Quellen.
 // -----------------------------------------------------------------------------------------------
 
 /** Nutzlast von `befehl:quelle.anlegen`. */
@@ -794,4 +795,93 @@ export const quelleAendernEinSchema: z.ZodType<QuelleAendernEin> = z.object({
   form: QuelleFormEnum.optional(),
   unmittelbarkeit: UnmittelbarkeitEnum.optional(),
   audioMediumId: z.string().optional(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// zitat.anlegen / zitat.aendern / zitat.loeschen (AP-1.17 PR-A3, docs/schema/0002_kern.sql §2.7) —
+// manuelle Zitatverwaltung: `quelleId` ist Pflicht (NOT NULL + `ON DELETE CASCADE` in der
+// Tabelle), alle anderen Spalten sind optionale Freitext-/Verweisfelder, inklusive des
+// `zugriffsdatum`-Blocks (analog `gespraechsdatum` bei `quelle`, `Datumswert`/`datumswertSchema`
+// aus `./import-v1`, dieselbe Vertragsform). `konfidenz` ist — anders als beim Importvertrag
+// (`belegSchema`, Pflicht) — optional, weil ein von Hand erfasstes Zitat zunächst ohne
+// Einschätzung stehen können muss; die Spalte selbst ist nullable (docs/schema/0002_kern.sql).
+// `zitat.aendern` editiert ALLE editierbaren Spalten in einem Schritt, kein Teil-Patch (analog
+// `QuelleAendernEin`) — ein weggelassenes optionales Feld wird beim Schreiben zu `NULL`.
+// `zitat.loeschen` gibt es hier, anders als `quelle.loeschen`/`archiv.loeschen`/`ort.loeschen`
+// (Kaskaden-Entscheidung dort weiterhin offen) — ein Zitat ist ein unselbstständiges Detail einer
+// Quelle, seine Löschung kaskadiert DB-seitig nur auf seine eigenen `aussage_zitat`-Verknüpfungen
+// und `persona`-Zuordnungen (docs/80_Offene_Fragen.md §29).
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:zitat.anlegen`. */
+export interface ZitatAnlegenEin {
+  readonly quelleId: string
+  readonly seite?: string | undefined
+  readonly eintragsnummer?: string | undefined
+  readonly band?: string | undefined
+  readonly jahr?: number | undefined
+  readonly zugriffsdatum?: Datumswert | undefined
+  readonly zeitmarkeSekunden?: number | undefined
+  readonly digitalisatUrl?: string | undefined
+  readonly transkript?: string | undefined
+  readonly uebersetzung?: string | undefined
+  readonly konfidenz?: z.infer<typeof KonfidenzSchema> | undefined
+  readonly mediumId?: string | undefined
+}
+
+export const zitatAnlegenEinSchema: z.ZodType<ZitatAnlegenEin> = z.object({
+  quelleId: z.string(),
+  seite: z.string().optional(),
+  eintragsnummer: z.string().optional(),
+  band: z.string().optional(),
+  jahr: z.number().int().optional(),
+  zugriffsdatum: datumswertSchema.optional(),
+  zeitmarkeSekunden: z.number().optional(),
+  digitalisatUrl: z.string().optional(),
+  transkript: z.string().optional(),
+  uebersetzung: z.string().optional(),
+  konfidenz: KonfidenzSchema.optional(),
+  mediumId: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:zitat.aendern` — alle editierbaren Spalten (s. Abschnittskommentar oben). */
+export interface ZitatAendernEin {
+  readonly id: string
+  readonly quelleId: string
+  readonly seite?: string | undefined
+  readonly eintragsnummer?: string | undefined
+  readonly band?: string | undefined
+  readonly jahr?: number | undefined
+  readonly zugriffsdatum?: Datumswert | undefined
+  readonly zeitmarkeSekunden?: number | undefined
+  readonly digitalisatUrl?: string | undefined
+  readonly transkript?: string | undefined
+  readonly uebersetzung?: string | undefined
+  readonly konfidenz?: z.infer<typeof KonfidenzSchema> | undefined
+  readonly mediumId?: string | undefined
+}
+
+export const zitatAendernEinSchema: z.ZodType<ZitatAendernEin> = z.object({
+  id: z.string(),
+  quelleId: z.string(),
+  seite: z.string().optional(),
+  eintragsnummer: z.string().optional(),
+  band: z.string().optional(),
+  jahr: z.number().int().optional(),
+  zugriffsdatum: datumswertSchema.optional(),
+  zeitmarkeSekunden: z.number().optional(),
+  digitalisatUrl: z.string().optional(),
+  transkript: z.string().optional(),
+  uebersetzung: z.string().optional(),
+  konfidenz: KonfidenzSchema.optional(),
+  mediumId: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:zitat.loeschen`. */
+export interface ZitatLoeschenEin {
+  readonly id: string
+}
+
+export const zitatLoeschenEinSchema: z.ZodType<ZitatLoeschenEin> = z.object({
+  id: z.string(),
 })

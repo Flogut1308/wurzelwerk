@@ -3,6 +3,7 @@
 // `person-repo.ts`-Kopf). Name "beleg-repo" (nicht "quelle-repo"), weil dieses Modul beide Seiten
 // eines Belegs trägt: die Quelle UND den konkreten Zitatnachweis (56_Import_Vertrag.md §2.3).
 import type { Tx } from './basis'
+import { datumSpalten } from '../import/datum-spalten'
 import type { DatumSpaltengruppe } from '../import/datum-spalten'
 
 function datumSpaltenParameter(praefix: string, gruppe: DatumSpaltengruppe): Record<string, string | number | null> {
@@ -189,9 +190,15 @@ export function quelleAktualisieren(tx: Tx, ein: QuelleAktualisierenEin): void {
   })
 }
 
+/** Alle Spalten von `zitat` OHNE Präfix (docs/schema/0002_kern.sql §2.7), wenn der Aufrufer den
+ * `zugriffsdatum_*`-Block nicht setzt (Importpfad, `src/main/import/schreiben.ts` — der
+ * Importvertrag kennt `zugriffsdatum`/`medium_id` nicht, s. History dieses Kommentars). */
+const LEERE_ZUGRIFFSDATUM_SPALTEN: DatumSpaltengruppe = datumSpalten(undefined)
+
 /** Nutzlast von `zitatEinfuegen()`: alle `$defs/Beleg`-Spalten (56_Import_Vertrag.md §2.3) +
- * `quelle_id`. `zugriffsdatum_*`/`medium_id` (docs/schema/0002_kern.sql §2.7) sind im Vertrag
- * nicht vorgesehen und bleiben darum `NULL`. */
+ * `quelle_id`. `zugriffsdatum`/`mediumId` sind bewusst optional (Default: alle Spalten `NULL`) —
+ * der Importvertrag kennt beide Felder nicht und lässt sie weg (56_Import_Vertrag.md §2.3), die
+ * manuelle Zitatverwaltung (AP-1.17 PR-A3, `../befehle/zitat-anlegen.ts`) setzt sie. */
 export interface ZitatEinfuegenEin {
   readonly id: string
   readonly quelleId: string
@@ -199,11 +206,13 @@ export interface ZitatEinfuegenEin {
   readonly eintragsnummer: string | null
   readonly band: string | null
   readonly jahr: number | null
+  readonly zugriffsdatum?: DatumSpaltengruppe | undefined
   readonly zeitmarkeSekunden: number | null
   readonly transkript: string | null
   readonly uebersetzung: string | null
   readonly digitalisatUrl: string | null
-  readonly konfidenz: number
+  readonly konfidenz: number | null
+  readonly mediumId?: string | null | undefined
   readonly erstelltAm: number
   readonly geaendertAm: number
 }
@@ -211,14 +220,21 @@ export interface ZitatEinfuegenEin {
 /** Legt eine `zitat`-Zeile an (benannte Parameter, CLAUDE.md §6). `zeitmarke_sekunden` ist die
  * 0005-Spalte (AP-1.3c, A-16). */
 export function zitatEinfuegen(tx: Tx, ein: ZitatEinfuegenEin): void {
+  const zugriffsdatum = ein.zugriffsdatum ?? LEERE_ZUGRIFFSDATUM_SPALTEN
   tx.prepare(
     `INSERT INTO zitat (
-       id, quelle_id, seite, eintragsnummer, band, jahr, zeitmarke_sekunden, digitalisat_url,
-       transkript, uebersetzung, konfidenz, erstellt_am, geaendert_am
+       id, quelle_id, seite, eintragsnummer, band, jahr,
+       zugriffsdatum_kalender, zugriffsdatum_modifikator, zugriffsdatum_praezision, zugriffsdatum_wert1,
+       zugriffsdatum_wert2, zugriffsdatum_originaltext, zugriffsdatum_sort_von, zugriffsdatum_sort_bis,
+       zugriffsdatum_zweitkalender, zugriffsdatum_zweitwert, zugriffsdatum_doppeljahr,
+       zeitmarke_sekunden, digitalisat_url, transkript, uebersetzung, konfidenz, medium_id, erstellt_am, geaendert_am
      )
      VALUES (
-       @id, @quelleId, @seite, @eintragsnummer, @band, @jahr, @zeitmarkeSekunden, @digitalisatUrl,
-       @transkript, @uebersetzung, @konfidenz, @erstelltAm, @geaendertAm
+       @id, @quelleId, @seite, @eintragsnummer, @band, @jahr,
+       @zugriffsdatumKalender, @zugriffsdatumModifikator, @zugriffsdatumPraezision, @zugriffsdatumWert1,
+       @zugriffsdatumWert2, @zugriffsdatumOriginaltext, @zugriffsdatumSortVon, @zugriffsdatumSortBis,
+       @zugriffsdatumZweitkalender, @zugriffsdatumZweitwert, @zugriffsdatumDoppeljahr,
+       @zeitmarkeSekunden, @digitalisatUrl, @transkript, @uebersetzung, @konfidenz, @mediumId, @erstelltAm, @geaendertAm
      )`,
   ).run({
     id: ein.id,
@@ -227,12 +243,115 @@ export function zitatEinfuegen(tx: Tx, ein: ZitatEinfuegenEin): void {
     eintragsnummer: ein.eintragsnummer,
     band: ein.band,
     jahr: ein.jahr,
+    ...datumSpaltenParameter('zugriffsdatum', zugriffsdatum),
     zeitmarkeSekunden: ein.zeitmarkeSekunden,
     digitalisatUrl: ein.digitalisatUrl,
     transkript: ein.transkript,
     uebersetzung: ein.uebersetzung,
     konfidenz: ein.konfidenz,
+    mediumId: ein.mediumId ?? null,
     erstelltAm: ein.erstelltAm,
     geaendertAm: ein.geaendertAm,
   })
+}
+
+/** Spalten von `zitat` (docs/schema/0002_kern.sql §2.7), für `zitatLesen()` (AP-0.22-Vergleich vor
+ * `zitat.aendern`, AP-1.17 PR-A3). */
+export interface ZitatZeile {
+  readonly id: string
+  readonly quelle_id: string
+  readonly seite: string | null
+  readonly eintragsnummer: string | null
+  readonly band: string | null
+  readonly jahr: number | null
+  readonly zugriffsdatum_kalender: string | null
+  readonly zugriffsdatum_modifikator: string | null
+  readonly zugriffsdatum_praezision: string | null
+  readonly zugriffsdatum_wert1: string | null
+  readonly zugriffsdatum_wert2: string | null
+  readonly zugriffsdatum_originaltext: string | null
+  readonly zugriffsdatum_sort_von: number | null
+  readonly zugriffsdatum_sort_bis: number | null
+  readonly zugriffsdatum_zweitkalender: string | null
+  readonly zugriffsdatum_zweitwert: string | null
+  readonly zugriffsdatum_doppeljahr: string | null
+  readonly zeitmarke_sekunden: number | null
+  readonly digitalisat_url: string | null
+  readonly transkript: string | null
+  readonly uebersetzung: string | null
+  readonly konfidenz: number | null
+  readonly medium_id: string | null
+}
+
+/** Liest eine `zitat`-Zeile (Spalten explizit, CLAUDE.md §6). `undefined`, wenn `id` nicht existiert. */
+export function zitatLesen(tx: Tx, id: string): ZitatZeile | undefined {
+  return tx
+    .prepare<{ readonly id: string }, ZitatZeile>(
+      `SELECT id, quelle_id, seite, eintragsnummer, band, jahr,
+              zugriffsdatum_kalender, zugriffsdatum_modifikator, zugriffsdatum_praezision, zugriffsdatum_wert1,
+              zugriffsdatum_wert2, zugriffsdatum_originaltext, zugriffsdatum_sort_von, zugriffsdatum_sort_bis,
+              zugriffsdatum_zweitkalender, zugriffsdatum_zweitwert, zugriffsdatum_doppeljahr,
+              zeitmarke_sekunden, digitalisat_url, transkript, uebersetzung, konfidenz, medium_id
+       FROM zitat WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+/** Nutzlast von `zitatAktualisieren()`: alle editierbaren Spalten (s. `ZitatZeile`) + der vom
+ * Handler gesetzte `geaendert_am`-Zeitstempel (D-3, AP-1.17 PR-A3). */
+export interface ZitatAktualisierenEin {
+  readonly id: string
+  readonly quelleId: string
+  readonly seite: string | null
+  readonly eintragsnummer: string | null
+  readonly band: string | null
+  readonly jahr: number | null
+  readonly zugriffsdatum: DatumSpaltengruppe
+  readonly zeitmarkeSekunden: number | null
+  readonly transkript: string | null
+  readonly uebersetzung: string | null
+  readonly digitalisatUrl: string | null
+  readonly konfidenz: number | null
+  readonly mediumId: string | null
+  readonly geaendertAm: number
+}
+
+/** Aktualisiert alle editierbaren Spalten einer `zitat`-Zeile in einem `UPDATE` (AP-1.17 PR-A3). */
+export function zitatAktualisieren(tx: Tx, ein: ZitatAktualisierenEin): void {
+  tx.prepare(
+    `UPDATE zitat SET
+       quelle_id = @quelleId, seite = @seite, eintragsnummer = @eintragsnummer, band = @band, jahr = @jahr,
+       zugriffsdatum_kalender = @zugriffsdatumKalender, zugriffsdatum_modifikator = @zugriffsdatumModifikator,
+       zugriffsdatum_praezision = @zugriffsdatumPraezision, zugriffsdatum_wert1 = @zugriffsdatumWert1,
+       zugriffsdatum_wert2 = @zugriffsdatumWert2, zugriffsdatum_originaltext = @zugriffsdatumOriginaltext,
+       zugriffsdatum_sort_von = @zugriffsdatumSortVon, zugriffsdatum_sort_bis = @zugriffsdatumSortBis,
+       zugriffsdatum_zweitkalender = @zugriffsdatumZweitkalender, zugriffsdatum_zweitwert = @zugriffsdatumZweitwert,
+       zugriffsdatum_doppeljahr = @zugriffsdatumDoppeljahr,
+       zeitmarke_sekunden = @zeitmarkeSekunden, transkript = @transkript, uebersetzung = @uebersetzung,
+       digitalisat_url = @digitalisatUrl, konfidenz = @konfidenz, medium_id = @mediumId,
+       geaendert_am = @geaendertAm
+     WHERE id = @id`,
+  ).run({
+    id: ein.id,
+    quelleId: ein.quelleId,
+    seite: ein.seite,
+    eintragsnummer: ein.eintragsnummer,
+    band: ein.band,
+    jahr: ein.jahr,
+    ...datumSpaltenParameter('zugriffsdatum', ein.zugriffsdatum),
+    zeitmarkeSekunden: ein.zeitmarkeSekunden,
+    transkript: ein.transkript,
+    uebersetzung: ein.uebersetzung,
+    digitalisatUrl: ein.digitalisatUrl,
+    konfidenz: ein.konfidenz,
+    mediumId: ein.mediumId,
+    geaendertAm: ein.geaendertAm,
+  })
+}
+
+/** Löscht eine `zitat`-Zeile (AP-1.17 PR-A3). `aussage_zitat`/`persona` referenzieren `zitat.id`
+ * mit `ON DELETE CASCADE` (docs/schema/0002_kern.sql §2.7 + §2.15) — DB-seitig, keine zusätzliche
+ * Aufräumung hier nötig. */
+export function zitatLoeschen(tx: Tx, id: string): void {
+  tx.prepare(`DELETE FROM zitat WHERE id = @id`).run({ id })
 }

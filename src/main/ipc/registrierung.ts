@@ -35,6 +35,9 @@ import {
   archivAendernEinSchema,
   quelleAnlegenEinSchema,
   quelleAendernEinSchema,
+  zitatAnlegenEinSchema,
+  zitatAendernEinSchema,
+  zitatLoeschenEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
@@ -289,4 +292,12 @@ export function ipcRegistrierung(): void {
   registriere('befehl:quelle.anlegen', quelleAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.anlegen', ein))
   registriere('befehl:quelle.aendern', quelleAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.aendern', ein))
   registriere('abfrage:quelle.detail', quelleDetailEinSchema, (ein) => quelleDetail(offenesProjektDatenbank(), ein))
+
+  // AP-1.17 PR-A3: manuelle Zitatverwaltung — Anlegen/Ändern/Löschen (schreibend, über den
+  // Befehlsbus). Anders als `quelle.loeschen`/`archiv.loeschen`/`ort.loeschen` gibt es hier ein
+  // `befehl:zitat.loeschen` (Begründung: Abschnittskommentar `zitat.anlegen` in
+  // `src/shared/schemata/befehle.ts`).
+  registriere('befehl:zitat.anlegen', zitatAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.anlegen', ein))
+  registriere('befehl:zitat.aendern', zitatAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.aendern', ein))
+  registriere('befehl:zitat.loeschen', zitatLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'zitat.loeschen', ein))
 }
