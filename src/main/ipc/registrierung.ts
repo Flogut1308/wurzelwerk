@@ -31,17 +31,21 @@ import {
   ortszugehoerigkeitLoeschenEinSchema,
   ortExterneIdAnlegenEinSchema,
   ortExterneIdLoeschenEinSchema,
+  archivAnlegenEinSchema,
+  archivAendernEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
 import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
 import { ortDetailEinSchema } from '../../shared/schemata/ort-detail'
+import { archivSucheEinSchema } from '../../shared/schemata/archiv-suche'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
 import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { ortDetail } from '../abfragen/ort-detail'
 import { ortSuche } from '../abfragen/ort-suche'
+import { archivSuche } from '../abfragen/archiv-suche'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
 import { pruefhinweise } from '../abfragen/pruefhinweise'
@@ -267,4 +271,11 @@ export function ipcRegistrierung(): void {
   )
   registriere('befehl:ort-externe-id.anlegen', ortExterneIdAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort-externe-id.anlegen', ein))
   registriere('befehl:ort-externe-id.loeschen', ortExterneIdLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort-externe-id.loeschen', ein))
+
+  // AP-1.17 PR-A1 (B-07): manuelle Archivverwaltung — Suche (lesend, `abfrage:`) + Anlegen/Ändern
+  // (schreibend, über den Befehlsbus). Bewusst KEIN `befehl:archiv.loeschen` (Kaskaden-Entscheidung
+  // offen, docs/80_Offene_Fragen.md, analog `ort.loeschen`).
+  registriere('abfrage:archiv.suche', archivSucheEinSchema, (ein) => archivSuche(offenesProjektDatenbank(), ein))
+  registriere('befehl:archiv.anlegen', archivAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'archiv.anlegen', ein))
+  registriere('befehl:archiv.aendern', archivAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'archiv.aendern', ein))
 }

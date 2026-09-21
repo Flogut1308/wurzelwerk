@@ -656,3 +656,49 @@ export const ortExterneIdLoeschenEinSchema: z.ZodType<OrtExterneIdLoeschenEin> =
   ortId: z.string(),
   system: ExterneIdSystemEnum,
 })
+
+// -----------------------------------------------------------------------------------------------
+// archiv.anlegen / archiv.aendern (AP-1.17 PR-A1, B-07, docs/schema/0002_kern.sql §2.7) — manuelle
+// Archivverwaltung: EIN Stammsatz mit `name` (Pflicht, NOT NULL in der Tabelle), optionalem `ortId`
+// (FK, ON DELETE SET NULL) und den freien Feldern `kontakt`/`url`/`notiz`. `archiv.aendern` editiert
+// ALLE editierbaren Spalten in einem Schritt, kein Teil-Patch (analog `OrtAendernEin`/
+// `NameAendernEin`) — ein weggelassenes optionales Feld wird beim Schreiben zu `NULL`. Bewusst KEIN
+// `archiv.loeschen` in diesem PR (Kaskaden-Entscheidung offen, analog `ort.loeschen`,
+// docs/80_Offene_Fragen.md).
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:archiv.anlegen`. */
+export interface ArchivAnlegenEin {
+  readonly name: string
+  readonly ortId?: string | undefined
+  readonly kontakt?: string | undefined
+  readonly url?: string | undefined
+  readonly notiz?: string | undefined
+}
+
+export const archivAnlegenEinSchema: z.ZodType<ArchivAnlegenEin> = z.object({
+  name: z.string().min(1),
+  ortId: z.string().optional(),
+  kontakt: z.string().optional(),
+  url: z.string().optional(),
+  notiz: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:archiv.aendern` — alle editierbaren Spalten (s. Abschnittskommentar oben). */
+export interface ArchivAendernEin {
+  readonly id: string
+  readonly name: string
+  readonly ortId?: string | undefined
+  readonly kontakt?: string | undefined
+  readonly url?: string | undefined
+  readonly notiz?: string | undefined
+}
+
+export const archivAendernEinSchema: z.ZodType<ArchivAendernEin> = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  ortId: z.string().optional(),
+  kontakt: z.string().optional(),
+  url: z.string().optional(),
+  notiz: z.string().optional(),
+})
