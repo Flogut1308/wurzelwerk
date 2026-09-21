@@ -89,3 +89,16 @@ export function useOrtSuche(ein: Ein<'abfrage:ort.suche'>, optionen?: AbfrageOpt
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:ort.detail` (55_Architektur.md §5, AP-1.16 PR-C) — die Orte-Pflege-Ansicht
+ * (`src/renderer/ansichten/orte/ort-bearbeiten.tsx`). Dieselbe Key-Strategie und Invalidierung wie
+ * `usePersonDetail`.
+ */
+export function useOrtDetail(ein: Ein<'abfrage:ort.detail'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:ort.detail'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:ort.detail', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:ort.detail', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}

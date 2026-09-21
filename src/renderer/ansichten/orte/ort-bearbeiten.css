@@ -1,0 +1,48 @@
+/*
+ * `OrtBearbeitenAnsicht`/`OrteBearbeitenInhalt` — AP-1.16 PR-C, Orte-Pflege-Ansicht. Dasselbe
+ * Feldsystem-Raster wie `profil-bearbeiten-namen.css` (mehrere Formularfelder nebeneinander,
+ * umbrechend, je Zeile in einer eigenen Karte mit feinem Rahmen) — keine neue visuelle Sprache
+ * (CLAUDE.md §14).
+ */
+
+.wz-ort-bearbeiten__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-ort-bearbeiten__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-ort-bearbeiten__zeile {
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+.wz-ort-bearbeiten__felder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-ort-bearbeiten__felder > * {
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+.wz-ort-bearbeiten__neu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+  border-radius: var(--wz-radius-standard);
+}
