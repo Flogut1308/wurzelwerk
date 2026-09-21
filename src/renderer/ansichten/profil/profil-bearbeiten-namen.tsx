@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NameTypEnum, SchriftEnum } from '../../../shared/schemata/name'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
@@ -82,15 +82,26 @@ interface NamenFelderProps {
  * und als Ganzes debounced committet (`useEntwurfMitVerzoegertemCommit`, das auch auf eine von
  * außen geänderte `name`-Referenz synchronisiert — Undo, `ereignis:datenGeaendert`), nicht
  * feldweise. `typ`/`schrift` sind Auswahlfelder ohne Tippgeschwindigkeit — die committen sofort
- * bei Änderung (kein Grund, auf eine Ruhephase zu warten), aktualisieren aber denselben Entwurf. */
+ * bei Änderung (kein Grund, auf eine Ruhephase zu warten), aktualisieren aber denselben Entwurf.
+ *
+ * **Bugfix (AP-1.15 PR-A, entdeckt über `ablauf-05-ereignis-erfassen.spec.ts`):**
+ * `namenEintragAusPersonDetailName(name)` MUSS über `useMemo` an `name` gebunden sein. Der
+ * Sync-Zweig von `useEntwurfMitVerzoegertemCommit` vergleicht seinen `wert`-Parameter bewusst über
+ * Referenzgleichheit (Kopfkommentar `profil-bearbeiten-debounce.ts`) — ein bei JEDEM Aufruf frisch
+ * gebautes, nicht memoisiertes Objekt wäre bei JEDEM Render „von außen geändert", auch ohne dass
+ * sich `name` selbst geändert hat. Das übernimmt den frischen Wert per `setEntwurf`, was den
+ * nächsten Render mit wiederum einem neuen `wert` auslöst: eine sich selbst tragende
+ * Render-Schleife, sobald IRGENDEIN unabhängiger Schreibvorgang (z. B. `ereignis.anlegen`) einen
+ * Rerender auslöst, während eine Person mit bestehendem Namen im Bearbeiten-Zustand offen ist
+ * (`test/einheit/profil-bearbeiten-namen-rerender.test.tsx`). */
 function NamenFelder({ name }: NamenFelderProps) {
   const { t } = useTranslation('profil')
   const nameAendern = useNameAendern()
   const nameLoeschen = useNameLoeschen()
 
-  const [eintrag, setEintrag] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(
-    namenEintragAusPersonDetailName(name),
-    (naechster) => nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster)),
+  const wert = useMemo(() => namenEintragAusPersonDetailName(name), [name])
+  const [eintrag, setEintrag] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, (naechster) =>
+    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster)),
   )
 
   function sofortAendern(naechster: NamenEintragWerte): void {
