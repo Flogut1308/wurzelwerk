@@ -48,7 +48,16 @@ const kanaele: readonly Kanal[] = [
   'abfrage:person.detail',
   'abfrage:pruefhinweise',
   'befehl:ort.anlegen',
+  'befehl:ort.aendern',
   'abfrage:ort.suche',
+  'befehl:ortsname.anlegen',
+  'befehl:ortsname.aendern',
+  'befehl:ortsname.loeschen',
+  'befehl:ortszugehoerigkeit.anlegen',
+  'befehl:ortszugehoerigkeit.aendern',
+  'befehl:ortszugehoerigkeit.loeschen',
+  'befehl:ort-externe-id.anlegen',
+  'befehl:ort-externe-id.loeschen',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 

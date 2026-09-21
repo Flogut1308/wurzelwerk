@@ -51,6 +51,24 @@ import {
   type AussageLoeschenEin,
   ortAnlegenEinSchema,
   type OrtAnlegenEin,
+  ortAendernEinSchema,
+  type OrtAendernEin,
+  ortsnameAnlegenEinSchema,
+  ortsnameAendernEinSchema,
+  ortsnameLoeschenEinSchema,
+  type OrtsnameAnlegenEin,
+  type OrtsnameAendernEin,
+  type OrtsnameLoeschenEin,
+  ortszugehoerigkeitAnlegenEinSchema,
+  ortszugehoerigkeitAendernEinSchema,
+  ortszugehoerigkeitLoeschenEinSchema,
+  type OrtszugehoerigkeitAnlegenEin,
+  type OrtszugehoerigkeitAendernEin,
+  type OrtszugehoerigkeitLoeschenEin,
+  ortExterneIdAnlegenEinSchema,
+  ortExterneIdLoeschenEinSchema,
+  type OrtExterneIdAnlegenEin,
+  type OrtExterneIdLoeschenEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -71,6 +89,15 @@ import { beteiligungLoeschen } from './beteiligung-loeschen'
 import { aussageAnlegen } from './aussage-anlegen'
 import { aussageLoeschen } from './aussage-loeschen'
 import { ortAnlegen } from './ort-anlegen'
+import { ortAendern } from './ort-aendern'
+import { ortsnameAnlegen } from './ortsname-anlegen'
+import { ortsnameAendern } from './ortsname-aendern'
+import { ortsnameLoeschen } from './ortsname-loeschen'
+import { ortszugehoerigkeitAnlegen } from './ortszugehoerigkeit-anlegen'
+import { ortszugehoerigkeitAendern } from './ortszugehoerigkeit-aendern'
+import { ortszugehoerigkeitLoeschen } from './ortszugehoerigkeit-loeschen'
+import { ortExterneIdAnlegen } from './ort-externe-id-anlegen'
+import { ortExterneIdLoeschen } from './ort-externe-id-loeschen'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -110,6 +137,15 @@ interface BefehlKarte {
   'aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
   'ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
+  'ort.aendern': { ein: OrtAendernEin; aus: null }
+  'ortsname.anlegen': { ein: OrtsnameAnlegenEin; aus: { readonly id: string } }
+  'ortsname.aendern': { ein: OrtsnameAendernEin; aus: null }
+  'ortsname.loeschen': { ein: OrtsnameLoeschenEin; aus: null }
+  'ortszugehoerigkeit.anlegen': { ein: OrtszugehoerigkeitAnlegenEin; aus: { readonly id: string } }
+  'ortszugehoerigkeit.aendern': { ein: OrtszugehoerigkeitAendernEin; aus: null }
+  'ortszugehoerigkeit.loeschen': { ein: OrtszugehoerigkeitLoeschenEin; aus: null }
+  'ort-externe-id.anlegen': { ein: OrtExterneIdAnlegenEin; aus: null }
+  'ort-externe-id.loeschen': { ein: OrtExterneIdLoeschenEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -235,5 +271,59 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.ort_angelegt',
     handler: ortAnlegen,
+  },
+  'ort.aendern': {
+    schema: ortAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ort_geaendert',
+    handler: ortAendern,
+  },
+  'ortsname.anlegen': {
+    schema: ortsnameAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortsname_angelegt',
+    handler: ortsnameAnlegen,
+  },
+  'ortsname.aendern': {
+    schema: ortsnameAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortsname_geaendert',
+    handler: ortsnameAendern,
+  },
+  'ortsname.loeschen': {
+    schema: ortsnameLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortsname_geloescht',
+    handler: ortsnameLoeschen,
+  },
+  'ortszugehoerigkeit.anlegen': {
+    schema: ortszugehoerigkeitAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortszugehoerigkeit_angelegt',
+    handler: ortszugehoerigkeitAnlegen,
+  },
+  'ortszugehoerigkeit.aendern': {
+    schema: ortszugehoerigkeitAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortszugehoerigkeit_geaendert',
+    handler: ortszugehoerigkeitAendern,
+  },
+  'ortszugehoerigkeit.loeschen': {
+    schema: ortszugehoerigkeitLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ortszugehoerigkeit_geloescht',
+    handler: ortszugehoerigkeitLoeschen,
+  },
+  'ort-externe-id.anlegen': {
+    schema: ortExterneIdAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ort_externe_id_angelegt',
+    handler: ortExterneIdAnlegen,
+  },
+  'ort-externe-id.loeschen': {
+    schema: ortExterneIdLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.ort_externe_id_geloescht',
+    handler: ortExterneIdLoeschen,
   },
 }

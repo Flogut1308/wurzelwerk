@@ -22,6 +22,15 @@ import {
   aussageAnlegenEinSchema,
   aussageLoeschenEinSchema,
   ortAnlegenEinSchema,
+  ortAendernEinSchema,
+  ortsnameAnlegenEinSchema,
+  ortsnameAendernEinSchema,
+  ortsnameLoeschenEinSchema,
+  ortszugehoerigkeitAnlegenEinSchema,
+  ortszugehoerigkeitAendernEinSchema,
+  ortszugehoerigkeitLoeschenEinSchema,
+  ortExterneIdAnlegenEinSchema,
+  ortExterneIdLoeschenEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
@@ -236,4 +245,23 @@ export function ipcRegistrierung(): void {
   // `abfrage:`) + einfaches Anlegen (schreibend, über den Befehlsbus wie `person.anlegen` oben).
   registriere('abfrage:ort.suche', ortSucheEinSchema, (ein) => ortSuche(offenesProjektDatenbank(), ein))
   registriere('befehl:ort.anlegen', ortAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort.anlegen', ein))
+
+  // AP-1.16 PR-A: volle Ortsverwaltung — Stammfelder ändern, weitere Namen, Zugehörigkeitsketten
+  // (politisch/kirchlich), externe Kennungen. Dasselbe Muster wie oben, über den Befehlsbus.
+  // Bewusst KEIN `befehl:ort.loeschen` (Kaskaden-Entscheidung offen, docs/80_Offene_Fragen.md).
+  registriere('befehl:ort.aendern', ortAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort.aendern', ein))
+  registriere('befehl:ortsname.anlegen', ortsnameAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ortsname.anlegen', ein))
+  registriere('befehl:ortsname.aendern', ortsnameAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ortsname.aendern', ein))
+  registriere('befehl:ortsname.loeschen', ortsnameLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ortsname.loeschen', ein))
+  registriere('befehl:ortszugehoerigkeit.anlegen', ortszugehoerigkeitAnlegenEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'ortszugehoerigkeit.anlegen', ein),
+  )
+  registriere('befehl:ortszugehoerigkeit.aendern', ortszugehoerigkeitAendernEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'ortszugehoerigkeit.aendern', ein),
+  )
+  registriere('befehl:ortszugehoerigkeit.loeschen', ortszugehoerigkeitLoeschenEinSchema, (ein) =>
+    fuehreAus(offenesProjektDatenbank(), 'ortszugehoerigkeit.loeschen', ein),
+  )
+  registriere('befehl:ort-externe-id.anlegen', ortExterneIdAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort-externe-id.anlegen', ein))
+  registriere('befehl:ort-externe-id.loeschen', ortExterneIdLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ort-externe-id.loeschen', ein))
 }

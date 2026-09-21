@@ -18,6 +18,8 @@ import { PartnerschaftTypEnum, EndeGrundEnum } from './partnerschaft'
 import { EreignisTypEnum } from './ereignis'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { OrtTypEnum } from './ort'
+import { OrtszugehoerigkeitArtEnum } from './ortszugehoerigkeit'
+import { ExterneIdSystemEnum } from './ort-externe-id'
 import { type Datumswert, datumswertSchema } from './import-v1'
 
 /** Liste bestehender `zitat.id`-Werte, mit denen eine neue Aussage verknüpft wird (AP-1.12) —
@@ -483,4 +485,174 @@ export const ortAnlegenEinSchema: z.ZodType<OrtAnlegenEin> = z.object({
   name: z.string().min(1),
   typ: OrtTypEnum.optional(),
   notiz: z.string().optional(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// ort.aendern (AP-1.16 PR-A) — die Stammfelder, die `ort.anlegen` NICHT setzt (Koordinaten,
+// Existenzzeitraum) plus die dort schon gesetzten (`typ`, `notiz`). Analog zu
+// `name-repo.ts`/`NameAendernEin`: EIN Handler für ALLE editierbaren Felder zugleich, kein
+// Teil-Patch — ein weggelassenes Feld wird beim Schreiben zu `NULL` (s.
+// `src/main/befehle/ort-aendern.ts`). Bewusst KEIN `ort.loeschen` in diesem Arbeitspaket
+// (Kaskaden-Entscheidung offen, docs/80_Offene_Fragen.md).
+// -----------------------------------------------------------------------------------------------
+
+export interface OrtAendernEin {
+  readonly id: string
+  readonly typ?: z.infer<typeof OrtTypEnum> | undefined
+  readonly koordinatenLat?: number | undefined
+  readonly koordinatenLon?: number | undefined
+  readonly existiertVon?: number | undefined
+  readonly existiertBis?: number | undefined
+  readonly notiz?: string | undefined
+}
+
+export const ortAendernEinSchema: z.ZodType<OrtAendernEin> = z.object({
+  id: z.string(),
+  typ: OrtTypEnum.optional(),
+  koordinatenLat: z.number().optional(),
+  koordinatenLon: z.number().optional(),
+  existiertVon: z.number().int().optional(),
+  existiertBis: z.number().int().optional(),
+  notiz: z.string().optional(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// ortsname.anlegen / ortsname.aendern / ortsname.loeschen (AP-1.16 PR-A) — ein WEITERER Name
+// desselben Orts mit eigenem Gültigkeitszeitraum (`gueltigVon`/`gueltigBis`) und eigenem
+// `istBevorzugt`-Flag. Nutzerentscheidung dieser Abnahme (s. Auftrag): KEIN automatisches Demote
+// eines bisher bevorzugten Namens beim Anlegen/Ändern eines neuen bevorzugten Namens — mehrere
+// gleichzeitig `istBevorzugt = 1` markierte Namen sind in dieser Abnahme möglich, das Auflösen
+// bleibt der Anzeige (`gueltigerOrtsname`, `src/core/ort/zeitbezug.ts`) bzw. einem späteren
+// Arbeitspaket vorbehalten.
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:ortsname.anlegen`. */
+export interface OrtsnameAnlegenEin {
+  readonly ortId: string
+  readonly name: string
+  readonly sprache?: string | undefined
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+  readonly istBevorzugt?: 0 | 1 | undefined
+  readonly originalText?: string | undefined
+}
+
+export const ortsnameAnlegenEinSchema: z.ZodType<OrtsnameAnlegenEin> = z.object({
+  ortId: z.string(),
+  name: z.string().min(1),
+  sprache: z.string().optional(),
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+  istBevorzugt: BoolWert.optional(),
+  originalText: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:ortsname.aendern` — alle editierbaren Spalten außer `ort_id` (ein
+ * Ortsname wird nicht zwischen Orten verschoben; dafür gibt es `ortsname.loeschen` +
+ * `ortsname.anlegen`, analog `NameAendernEin`). */
+export interface OrtsnameAendernEin {
+  readonly id: string
+  readonly name: string
+  readonly sprache?: string | undefined
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+  readonly istBevorzugt?: 0 | 1 | undefined
+  readonly originalText?: string | undefined
+}
+
+export const ortsnameAendernEinSchema: z.ZodType<OrtsnameAendernEin> = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  sprache: z.string().optional(),
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+  istBevorzugt: BoolWert.optional(),
+  originalText: z.string().optional(),
+})
+
+export interface OrtsnameLoeschenEin {
+  readonly id: string
+}
+
+export const ortsnameLoeschenEinSchema: z.ZodType<OrtsnameLoeschenEin> = z.object({
+  id: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// ortszugehoerigkeit.anlegen / ortszugehoerigkeit.aendern / ortszugehoerigkeit.loeschen
+// (AP-1.16 PR-A) — EINE Kante `(ort_id, uebergeordnet_id, art)` der zeitabhängigen
+// Zugehörigkeitskette (politisch/kirchlich getrennt, s. `src/core/ort/zeitbezug.ts`).
+// `ort_id`/`uebergeordnet_id`/`art` ändert man nicht (das wäre fachlich eine andere Kante) —
+// `ortszugehoerigkeit.aendern` editiert darum NUR `gueltigVon`/`gueltigBis`, analog
+// `ElternschaftAendernEin`. Zyklusfreiheit prüft der Handler über
+// `src/core/ort/zyklus.ts::wuerdeZyklusErzeugen` (NUR gegen die bestehenden Kanten DERSELBEN
+// `art` — kein Zod-Refinement, weil das den gesamten bestehenden Graphen dieser `art` bräuchte,
+// den ein reines Schema nicht sieht).
+// -----------------------------------------------------------------------------------------------
+
+export interface OrtszugehoerigkeitAnlegenEin {
+  readonly ortId: string
+  readonly uebergeordnetId: string
+  readonly art: z.infer<typeof OrtszugehoerigkeitArtEnum>
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+}
+
+export const ortszugehoerigkeitAnlegenEinSchema: z.ZodType<OrtszugehoerigkeitAnlegenEin> = z.object({
+  ortId: z.string(),
+  uebergeordnetId: z.string(),
+  art: OrtszugehoerigkeitArtEnum,
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+})
+
+/** Nutzlast von `befehl:ortszugehoerigkeit.aendern` — NUR `gueltigVon`/`gueltigBis` (s.
+ * Abschnittskommentar oben). */
+export interface OrtszugehoerigkeitAendernEin {
+  readonly id: string
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+}
+
+export const ortszugehoerigkeitAendernEinSchema: z.ZodType<OrtszugehoerigkeitAendernEin> = z.object({
+  id: z.string(),
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+})
+
+export interface OrtszugehoerigkeitLoeschenEin {
+  readonly id: string
+}
+
+export const ortszugehoerigkeitLoeschenEinSchema: z.ZodType<OrtszugehoerigkeitLoeschenEin> = z.object({
+  id: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// ort-externe-id.anlegen / ort-externe-id.loeschen (AP-1.16 PR-A) — `ort_externe_id` hat KEIN
+// eigenes `id` (Verknüpfungstabelle, Primärschlüssel `(ort_id, system)`, s.
+// `docs/schema/0002_kern.sql` §2.4) — darum kein `ort-externe-id.aendern` (ein geänderter `wert`
+// bei gleichbleibendem `(ortId, system)` ist `loeschen` + `anlegen`, kein drittes Verb nötig).
+// -----------------------------------------------------------------------------------------------
+
+export interface OrtExterneIdAnlegenEin {
+  readonly ortId: string
+  readonly system: z.infer<typeof ExterneIdSystemEnum>
+  readonly wert: string
+}
+
+export const ortExterneIdAnlegenEinSchema: z.ZodType<OrtExterneIdAnlegenEin> = z.object({
+  ortId: z.string(),
+  system: ExterneIdSystemEnum,
+  wert: z.string().min(1),
+})
+
+export interface OrtExterneIdLoeschenEin {
+  readonly ortId: string
+  readonly system: z.infer<typeof ExterneIdSystemEnum>
+}
+
+export const ortExterneIdLoeschenEinSchema: z.ZodType<OrtExterneIdLoeschenEin> = z.object({
+  ortId: z.string(),
+  system: ExterneIdSystemEnum,
 })
