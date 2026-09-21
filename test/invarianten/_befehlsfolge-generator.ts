@@ -97,6 +97,22 @@
 //     GARANTIERTER Demote-Treffer statt eines Zufallstreffers. Gelöschte Subjekte werden aus
 //     `zustand.aussageTripel` entfernt (dieselben Filter wie bei `zustand.aussagen`), damit nie ein
 //     `NICHT_GEFUNDEN_*`-Wurf auf ein inzwischen kaskadiert/manuell gelöschtes Subjekt entsteht.
+//
+// AP-1.15 PR-B ERWEITERUNG: `beteiligung.loeschen` (AP-1.15 PR-A, `src/main/befehle/beteiligung-
+// loeschen.ts`) kommt als eigene Aktion dazu (s. `AktionBeteiligungLoeschen`). Der Generator führt
+// dafür `zustand.beteiligungen` (Typ `BeteiligungInfo`) — jede von `ereignisAnlegen` real angelegte
+// Beteiligung wird über eine rohe `SELECT`-Abfrage (`beteiligungIdLesen()`, Muster identisch zu
+// `existenzAussageIdLesen()`) mit ihrer echten `id` nachgetragen, weil `ereignis.anlegen` selbst nur
+// die `ereignisId` zurückgibt. `beteiligungLoeschen` wählt daraus ein EXISTIERENDES Ziel (Index-
+// modulo-Länge, dasselbe No-op-Muster wie überall sonst) und entfernt es sowohl aus
+// `zustand.beteiligungen` als auch aus der `personIds`-Liste des betroffenen `zustand.ereignisse`-
+// Eintrags (die einzige Beteiligung, die diese Person an dieses Ereignis band, ist jetzt weg — s.
+// `personIstGebunden()`). Bewusst abgebildet: das zugehörige `ereignis` bleibt bestehen, auch mit 0
+// Beteiligungen — Variante A laut `BeteiligungLoeschenEin`-Kommentar (`src/shared/schemata/
+// befehle.ts`) löscht ausdrücklich NUR die Beteiligungszeile, nicht das Ereignis. `ereignisLoeschen`
+// räumt dafür jetzt zusätzlich alle noch offenen `zustand.beteiligungen`-Einträge des gelöschten
+// Ereignisses ab (CASCADE, `ereignis-repo.ts`), sonst könnte ein späteres `beteiligungLoeschen` einen
+// bereits kaskadiert gelöschten `id` referenzieren.
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -241,6 +257,19 @@ export interface AktionEreignisLoeschen {
   readonly ereignisZielRoh: number
 }
 
+/**
+ * AP-1.15 PR-B ERWEITERUNG: `beteiligung.loeschen` — wählt eine EXISTIERENDE Beteiligung (über
+ * `zustand.beteiligungen`, s. dortiger Typkommentar) statt eine `personId`/`ereignisId` direkt zu
+ * referenzieren. `beteiligung.loeschen` (`src/shared/schemata/befehle.ts`) nimmt ausschließlich die
+ * `id` der Beteiligungszeile selbst entgegen (Variante A, s. Kommentar an `BeteiligungLoeschenEin`)
+ * — das zugehörige `ereignis` bleibt bestehen, auch wenn danach keine Beteiligung mehr übrig ist
+ * (der Generator bildet genau diesen "0 Beteiligungen"-Fall ab, s. `aktionAusfuehren()` unten).
+ */
+export interface AktionBeteiligungLoeschen {
+  readonly art: 'beteiligungLoeschen'
+  readonly beteiligungZielRoh: number
+}
+
 /** Genau eines von `wertText`/`wertZahl` (nie `wertRefId`, s. Kopfkommentar) — als eigene
  * diskriminierte Union statt zweier optionaler Felder, damit `aussageAnlegenEinBauen()` unten nie
  * versehentlich beide gleichzeitig setzen kann (das wäre ein Zod-`superRefine`-Fehlschlag,
@@ -299,6 +328,7 @@ export type Aktion =
   | AktionEreignisAnlegen
   | AktionEreignisAendern
   | AktionEreignisLoeschen
+  | AktionBeteiligungLoeschen
   | AktionAussageAnlegen
   | AktionAussageLoeschen
   | AktionAussageFaktAendern
@@ -437,6 +467,10 @@ function ereignisLoeschenAktionArbitrary(): fc.Arbitrary<AktionEreignisLoeschen>
   return fc.nat().map((ereignisZielRoh): AktionEreignisLoeschen => ({ art: 'ereignisLoeschen', ereignisZielRoh }))
 }
 
+function beteiligungLoeschenAktionArbitrary(): fc.Arbitrary<AktionBeteiligungLoeschen> {
+  return fc.nat().map((beteiligungZielRoh): AktionBeteiligungLoeschen => ({ art: 'beteiligungLoeschen', beteiligungZielRoh }))
+}
+
 function aussageWertArbitrary(): fc.Arbitrary<AktionAussageWert> {
   return fc.oneof(
     fc.string().map((wert): AktionAussageWert => ({ art: 'text', wert })),
@@ -516,6 +550,7 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: ereignisAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ereignisAendernAktionArbitrary() },
     { weight: 1, arbitrary: ereignisLoeschenAktionArbitrary() },
+    { weight: 1, arbitrary: beteiligungLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
@@ -555,6 +590,19 @@ interface EreignisInfo {
   readonly personIds: readonly string[]
 }
 
+/**
+ * AP-1.15 PR-B ERWEITERUNG: eine angelegte `beteiligung`-Zeile — `ereignisId`/`personId` werden für
+ * die Zustandspflege nach `beteiligung.loeschen` gebraucht (s. dortiger Fall in
+ * `aktionAusfuehren()`: die gelöschte Beteiligung fällt aus `zustand.beteiligungen`, UND die
+ * `personId` fällt aus `zustand.ereignisse[].personIds` — das RESTRICT auf `beteiligung.person_id`
+ * (s. Kopfkommentar `personIstGebunden()`) gilt nur, solange die Beteiligung selbst noch existiert).
+ */
+interface BeteiligungInfo {
+  readonly id: string
+  readonly ereignisId: string
+  readonly personId: string
+}
+
 /** Deckungsgleich mit `SubjektTypEnum` (`src/shared/schemata/gemeinsam.ts`) MINUS `'ort'` — es
  * gibt in diesem Arbeitspaket keinen `ort.anlegen`-Befehl, den der Generator referenzieren könnte
  * (s. Kopfkommentar). */
@@ -581,12 +629,22 @@ export interface Zustand {
   elternschaften: ElternschaftInfo[]
   partnerschaften: PartnerschaftInfo[]
   ereignisse: EreignisInfo[]
+  beteiligungen: BeteiligungInfo[]
   aussagen: AussageInfo[]
   aussageTripel: AussageTripelInfo[]
 }
 
 export function neuerZustand(): Zustand {
-  return { personIds: [], namen: [], elternschaften: [], partnerschaften: [], ereignisse: [], aussagen: [], aussageTripel: [] }
+  return {
+    personIds: [],
+    namen: [],
+    elternschaften: [],
+    partnerschaften: [],
+    ereignisse: [],
+    beteiligungen: [],
+    aussagen: [],
+    aussageTripel: [],
+  }
 }
 
 /** Löst `zielRoh` gegen die aktuell lebenden Personen auf — `undefined`, wenn die Liste (noch) leer ist. */
@@ -658,6 +716,31 @@ function existenzAussageIdLesen(db: Tx, subjektTyp: AussageSubjektKind, subjektI
     .get({ subjektTyp, subjektId })
   if (zeile === undefined) {
     throw new Error(`existenzAussageIdLesen(): keine Existenz-Aussage für ${subjektTyp}/${subjektId} gefunden — unerreichbar.`)
+  }
+  return zeile.id
+}
+
+interface BeteiligungIdZeile {
+  readonly id: string
+}
+
+/**
+ * AP-1.15 PR-B ERWEITERUNG: liest die `id` der `beteiligung`-Zeile, die `ereignis.anlegen` selbst
+ * anlegt (`ereignisRepo.beteiligungEinfuegen()`, `ereignis-anlegen.ts`) — direkt gegen `Tx`, s.
+ * Modul-Kommentar (analog `existenzAussageIdLesen()`). Der Generator legt pro `ereignisAnlegen`-
+ * Aktion genau EINE Beteiligung an (eine `personId`, s. `ereignisAnlegenAktionArbitrary()`),
+ * `ereignisId` + `personId` identifizieren diese Zeile darum eindeutig. Unerreichbar, dass keine
+ * Zeile gefunden wird: der Handler schreibt sie in genau derselben Transaktion, aus der `ereignisId`
+ * gerade zurückkam.
+ */
+function beteiligungIdLesen(db: Tx, ereignisId: string, personId: string): string {
+  const zeile = db
+    .prepare<{ readonly ereignisId: string; readonly personId: string }, BeteiligungIdZeile>(
+      `SELECT id FROM beteiligung WHERE ereignis_id = @ereignisId AND person_id = @personId ORDER BY id LIMIT 1`,
+    )
+    .get({ ereignisId, personId })
+  if (zeile === undefined) {
+    throw new Error(`beteiligungIdLesen(): keine Beteiligung für ${ereignisId}/${personId} gefunden — unerreichbar.`)
   }
   return zeile.id
 }
@@ -930,6 +1013,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         beschreibung: aktion.beschreibung,
       })
       zustand.ereignisse.push({ id, personIds: [personId] })
+      zustand.beteiligungen.push({ id: beteiligungIdLesen(db, id, personId), ereignisId: id, personId })
       zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'ereignis', id), subjektTyp: 'ereignis', subjektId: id })
       return
     }
@@ -950,8 +1034,31 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'ereignis.loeschen', { id: ziel.id })
       zustand.ereignisse = zustand.ereignisse.filter((e) => e.id !== ziel.id)
+      // `ereignis-repo.ts` Kommentar "CASCADE räumt `beteiligung` ab" — jede noch offene Beteiligung
+      // dieses Ereignisses verschwindet mit, `zustand.beteiligungen` muss das nachvollziehen (sonst
+      // würde ein späteres `beteiligung.loeschen` einen bereits kaskadiert gelöschten `id` referenzieren).
+      zustand.beteiligungen = zustand.beteiligungen.filter((b) => b.ereignisId !== ziel.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'ereignis' && a.subjektId === ziel.id))
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'ereignis' && t.subjektId === ziel.id))
+      return
+    }
+
+    case 'beteiligungLoeschen': {
+      const ziel = zielAusListe(zustand.beteiligungen, aktion.beteiligungZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'beteiligung.loeschen', { id: ziel.id })
+      zustand.beteiligungen = zustand.beteiligungen.filter((b) => b.id !== ziel.id)
+      // Das zugehörige `ereignis` bleibt bestehen — auch mit 0 Beteiligungen (Variante A, s.
+      // Typkommentar `AktionBeteiligungLoeschen`). `personIstGebunden()` prüft `beteiligung.person_id`
+      // (RESTRICT) über `zustand.ereignisse[].personIds` (s. dortiger Kopfkommentar) — die gelöschte
+      // `personId` muss darum aus DIESEM Ereignis-Eintrag verschwinden, sonst bliebe die Person dort
+      // fälschlich weiter als "gebunden" markiert, obwohl die einzige Beteiligung, die sie band, gerade
+      // gelöscht wurde.
+      zustand.ereignisse = zustand.ereignisse.map((e) =>
+        e.id === ziel.ereignisId ? { id: e.id, personIds: e.personIds.filter((p) => p !== ziel.personId) } : e,
+      )
       return
     }
 
