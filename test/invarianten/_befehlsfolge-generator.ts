@@ -113,6 +113,47 @@
 // räumt dafür jetzt zusätzlich alle noch offenen `zustand.beteiligungen`-Einträge des gelöschten
 // Ereignisses ab (CASCADE, `ereignis-repo.ts`), sonst könnte ein späteres `beteiligungLoeschen` einen
 // bereits kaskadiert gelöschten `id` referenzieren.
+//
+// AP-1.16 PR-B ERWEITERUNG: ALLE Ort-Schreibbefehle (`src/main/befehle/ort-anlegen.ts` bis
+// `ort-externe-id-loeschen.ts`, AP-1.13 PR-C + AP-1.16 PR-A) kommen dazu — `ort.anlegen` war in
+// AP-1.13 PR-C bewusst zurückgestellt (Kopfkommentar dort: "AP-1.16 vorbehalten"), holt der
+// Generator jetzt nach. Vier neue getrackte Listen (`zustand.ortIds`/`ortsnamen`/
+// `ortszugehoerigkeiten`/`ortExterneIds`), dasselbe Index-modulo-Länge-oder-No-op-Muster wie
+// überall sonst:
+//
+// - `ort.anlegen` legt selbst (im Handler, NICHT im Generator) einen primären `ortsname` mit an
+//   (analog `ort-anlegen.ts`-Kopfkommentar) — dessen `id` liest der Generator über eine rohe
+//   `SELECT`-Abfrage nach (`ortsnameIdLesen()`, Muster identisch zu `beteiligungIdLesen()`) und
+//   trägt ihn in `zustand.ortsnamen` nach, damit er ein gültiges `ortsname.aendern`/`.loeschen`-Ziel
+//   wird — genau wie die versteckte Existenz-Aussage bei `elternschaft`/`partnerschaft`/`ereignis`.
+// - KEIN `ort.loeschen`-Befehl existiert (Kaskaden-Entscheidung offen laut Schema-Kommentar) — damit
+//   entfällt jede Kaskaden-Nachpflege für `ort_id`, wenn ein Ort selbst gelöscht würde; `ortsname`/
+//   `ortszugehoerigkeit`/`ort_externe_id` werden nur über ihre EIGENEN `loeschen`-Befehle entfernt.
+// - `ortszugehoerigkeit.anlegen`: die beiden Orte werden über `zweiVerschiedeneAusListe()` (bereits
+//   generisch über `string[]`, unverändert wiederverwendet) IMMER verschieden gewählt UND vorab mit
+//   der ECHTEN Produktivfunktion `wuerdeZyklusErzeugen()` (`src/core/ort/zyklus.ts` — eigener
+//   Import-Alias `ortWuerdeZyklusErzeugen`, weil `src/core/graph/zyklus.ts` bereits eine
+//   gleichnamige Funktion für den Elternschaftsgraphen importiert) NUR gegen die bestehenden Kanten
+//   DERSELBEN `art` (politisch/kirchlich getrennt, wie der Handler selbst prüft) geprüft — ein
+//   Kandidat, der einen Zyklus schließen würde, wird als No-op übersprungen. Die Namenskollision
+//   zwischen dem Aktions-Diskriminator `art` (`'ortszugehoerigkeitAnlegen'`) und dem fachlichen Feld
+//   `art` (`'politisch' | 'kirchlich'`) löst `AktionOrtszugehoerigkeitAnlegen` über das Feld
+//   `zugehoerigkeitArt` statt `art`.
+// - `ort-externe-id.anlegen`: `ort_externe_id` hat den zusammengesetzten Primärschlüssel
+//   `(ort_id, system)` (kein eigenes `id`, s. Schema-Kommentar) — ein zweiter Aufruf mit derselben
+//   Kombination würde `KONFLIKT_ORT_EXTERNE_ID_DUPLIKAT` werfen. `zustand.ortExterneIds` trackt jede
+//   angelegte Kombination; ein Kandidat, dessen `(ortId, system)` bereits existiert, wird als No-op
+//   übersprungen (dasselbe Vermeidungsmuster wie beim Zyklus oben, statt sich auf den Wurf zu
+//   verlassen, den `db.transaction()` ohnehin zurückrollen würde).
+// - Alle übrigen Felder (Koordinaten, Gültigkeitszeiträume, `typ`, `notiz`, …) sind in JEDER
+//   betroffenen `Ein`-Nutzlast optional — der Generator setzt sie trotzdem IMMER auf einen
+//   konkreten Wert (nie `undefined`), das bleibt schema-konform und erspart das bedingte Spreaden,
+//   das `exactOptionalPropertyTypes` sonst an mehreren Stellen erzwingen würde (anders als bei
+//   `AktionAussageAnlegen.istBevorzugt` oben, wo "Feld weglassen" selbst ein zu deckender Fall ist).
+// - KEINE Anbindung an `AussageSubjektKind`/`aussageSubjektPools()`: `ort` bleibt dort bewusst
+//   ausgeschlossen (Kommentar dort weiterhin gültig für DIESES Arbeitspaket) — `ort.anlegen`
+//   schreibt keine Existenz-Aussage (`ort-anlegen.ts`-Kopfkommentar: "kein belegbares Fachprädikat"),
+//   eine `aussage.anlegen`-Anbindung an Orte ist kein Bestandteil dieses Auftrags.
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -120,6 +161,9 @@ import { ElternschaftTypEnum } from '../../src/shared/schemata/elternschaft'
 import { PartnerschaftTypEnum, EndeGrundEnum } from '../../src/shared/schemata/partnerschaft'
 import { EreignisTypEnum } from '../../src/shared/schemata/ereignis'
 import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
+import { OrtTypEnum } from '../../src/shared/schemata/ort'
+import { OrtszugehoerigkeitArtEnum } from '../../src/shared/schemata/ortszugehoerigkeit'
+import { ExterneIdSystemEnum } from '../../src/shared/schemata/ort-externe-id'
 import type {
   PersonAnlegenEin,
   PersonFeldSetzenEin,
@@ -128,10 +172,14 @@ import type {
   PartnerschaftAnlegenEin,
   EreignisAnlegenEin,
   AussageAnlegenEin,
+  OrtAnlegenEin,
+  OrtszugehoerigkeitAnlegenEin,
+  OrtExterneIdAnlegenEin,
 } from '../../src/shared/schemata/befehle'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
+import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
 
 /**
  * Verteilendes `Omit` (`T extends unknown ? ... : never` erzwingt die Verteilung über jedes
@@ -312,6 +360,94 @@ export interface AktionAussageFaktAendern {
   readonly konfidenz: number
 }
 
+// -----------------------------------------------------------------------------------------------
+// AP-1.16 PR-B: Aktionstypen für die Ort-Befehle (s. Kopfkommentar für die Designentscheidungen).
+// -----------------------------------------------------------------------------------------------
+
+type OrtTyp = NonNullable<OrtAnlegenEin['typ']>
+type OrtszugehoerigkeitArt = OrtszugehoerigkeitAnlegenEin['art']
+type ExterneIdSystem = OrtExterneIdAnlegenEin['system']
+
+export interface AktionOrtAnlegen {
+  readonly art: 'ortAnlegen'
+  readonly name: string
+  readonly typ: OrtTyp
+  readonly notiz: string
+}
+
+export interface AktionOrtAendern {
+  readonly art: 'ortAendern'
+  readonly ortZielRoh: number
+  readonly typ: OrtTyp
+  readonly koordinatenLat: number
+  readonly koordinatenLon: number
+  readonly existiertVon: number
+  readonly existiertBis: number
+  readonly notiz: string
+}
+
+export interface AktionOrtsnameAnlegen {
+  readonly art: 'ortsnameAnlegen'
+  readonly ortZielRoh: number
+  readonly name: string
+  readonly sprache: string
+  readonly gueltigVon: number
+  readonly gueltigBis: number
+  readonly istBevorzugt: 0 | 1
+  readonly originalText: string
+}
+
+export interface AktionOrtsnameAendern {
+  readonly art: 'ortsnameAendern'
+  readonly ortsnameZielRoh: number
+  readonly name: string
+  readonly sprache: string
+  readonly gueltigVon: number
+  readonly gueltigBis: number
+  readonly istBevorzugt: 0 | 1
+  readonly originalText: string
+}
+
+export interface AktionOrtsnameLoeschen {
+  readonly art: 'ortsnameLoeschen'
+  readonly ortsnameZielRoh: number
+}
+
+/** `zugehoerigkeitArt` statt `art`, um die Kollision mit dem Aktions-Diskriminator `art`
+ * (`'ortszugehoerigkeitAnlegen'`) zu vermeiden — s. Kopfkommentar. */
+export interface AktionOrtszugehoerigkeitAnlegen {
+  readonly art: 'ortszugehoerigkeitAnlegen'
+  readonly ortZielRohA: number
+  readonly ortZielRohB: number
+  readonly zugehoerigkeitArt: OrtszugehoerigkeitArt
+  readonly gueltigVon: number
+  readonly gueltigBis: number
+}
+
+export interface AktionOrtszugehoerigkeitAendern {
+  readonly art: 'ortszugehoerigkeitAendern'
+  readonly ortszugehoerigkeitZielRoh: number
+  readonly gueltigVon: number
+  readonly gueltigBis: number
+}
+
+export interface AktionOrtszugehoerigkeitLoeschen {
+  readonly art: 'ortszugehoerigkeitLoeschen'
+  readonly ortszugehoerigkeitZielRoh: number
+}
+
+export interface AktionOrtExterneIdAnlegen {
+  readonly art: 'ortExterneIdAnlegen'
+  readonly ortZielRoh: number
+  readonly system: ExterneIdSystem
+  readonly wert: string
+}
+
+export interface AktionOrtExterneIdLoeschen {
+  readonly art: 'ortExterneIdLoeschen'
+  readonly ortExterneIdZielRoh: number
+}
+
 export type Aktion =
   | AktionAnlegen
   | AktionFeldSetzen
@@ -332,6 +468,16 @@ export type Aktion =
   | AktionAussageAnlegen
   | AktionAussageLoeschen
   | AktionAussageFaktAendern
+  | AktionOrtAnlegen
+  | AktionOrtAendern
+  | AktionOrtsnameAnlegen
+  | AktionOrtsnameAendern
+  | AktionOrtsnameLoeschen
+  | AktionOrtszugehoerigkeitAnlegen
+  | AktionOrtszugehoerigkeitAendern
+  | AktionOrtszugehoerigkeitLoeschen
+  | AktionOrtExterneIdAnlegen
+  | AktionOrtExterneIdLoeschen
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -516,6 +662,117 @@ function aussageFaktAendernAktionArbitrary(): fc.Arbitrary<AktionAussageFaktAend
     .map((r): AktionAussageFaktAendern => ({ art: 'aussageFaktAendern', ...r }))
 }
 
+// -----------------------------------------------------------------------------------------------
+// AP-1.16 PR-B: Arbitraries für die Ort-Befehle (s. Kopfkommentar für die Designentscheidungen).
+// Jedes Feld bekommt IMMER einen konkreten Wert (nie `undefined`) — jedes betroffene `*Ein`
+// erlaubt das ebenfalls, weil alle diese Felder dort optional sind (s. `src/shared/schemata/
+// befehle.ts`); ein weggelassenes Feld wäre GENAUSO schema-konform, würde aber das bedingte
+// Spreaden erzwingen, das `AktionAussageAnlegen.istBevorzugt` oben aus einem anderen Grund braucht
+// (dort ist "Feld weglassen" selbst ein zu deckender Fall). `name`/`wert` (bei
+// `ort.anlegen`/`ortsname.anlegen`/`.aendern`/`ort-externe-id.anlegen`) nutzen `minLength: 1` —
+// die jeweiligen Schemata erzwingen `z.string().min(1)`.
+// -----------------------------------------------------------------------------------------------
+
+function ortAnlegenAktionArbitrary(): fc.Arbitrary<AktionOrtAnlegen> {
+  return fc
+    .record({
+      name: fc.string({ minLength: 1 }),
+      typ: fc.constantFrom(...OrtTypEnum.options),
+      notiz: fc.string(),
+    })
+    .map((r): AktionOrtAnlegen => ({ art: 'ortAnlegen', ...r }))
+}
+
+function ortAendernAktionArbitrary(): fc.Arbitrary<AktionOrtAendern> {
+  return fc
+    .record({
+      ortZielRoh: fc.nat(),
+      typ: fc.constantFrom(...OrtTypEnum.options),
+      koordinatenLat: fc.double({ min: -90, max: 90, noNaN: true }),
+      koordinatenLon: fc.double({ min: -180, max: 180, noNaN: true }),
+      existiertVon: fc.integer(),
+      existiertBis: fc.integer(),
+      notiz: fc.string(),
+    })
+    .map((r): AktionOrtAendern => ({ art: 'ortAendern', ...r }))
+}
+
+function ortsnameAnlegenAktionArbitrary(): fc.Arbitrary<AktionOrtsnameAnlegen> {
+  return fc
+    .record({
+      ortZielRoh: fc.nat(),
+      name: fc.string({ minLength: 1 }),
+      sprache: fc.string(),
+      gueltigVon: fc.integer(),
+      gueltigBis: fc.integer(),
+      istBevorzugt: fc.constantFrom<0 | 1>(0, 1),
+      originalText: fc.string(),
+    })
+    .map((r): AktionOrtsnameAnlegen => ({ art: 'ortsnameAnlegen', ...r }))
+}
+
+function ortsnameAendernAktionArbitrary(): fc.Arbitrary<AktionOrtsnameAendern> {
+  return fc
+    .record({
+      ortsnameZielRoh: fc.nat(),
+      name: fc.string({ minLength: 1 }),
+      sprache: fc.string(),
+      gueltigVon: fc.integer(),
+      gueltigBis: fc.integer(),
+      istBevorzugt: fc.constantFrom<0 | 1>(0, 1),
+      originalText: fc.string(),
+    })
+    .map((r): AktionOrtsnameAendern => ({ art: 'ortsnameAendern', ...r }))
+}
+
+function ortsnameLoeschenAktionArbitrary(): fc.Arbitrary<AktionOrtsnameLoeschen> {
+  return fc.nat().map((ortsnameZielRoh): AktionOrtsnameLoeschen => ({ art: 'ortsnameLoeschen', ortsnameZielRoh }))
+}
+
+function ortszugehoerigkeitAnlegenAktionArbitrary(): fc.Arbitrary<AktionOrtszugehoerigkeitAnlegen> {
+  return fc
+    .record({
+      ortZielRohA: fc.nat(),
+      ortZielRohB: fc.nat(),
+      zugehoerigkeitArt: fc.constantFrom(...OrtszugehoerigkeitArtEnum.options),
+      gueltigVon: fc.integer(),
+      gueltigBis: fc.integer(),
+    })
+    .map((r): AktionOrtszugehoerigkeitAnlegen => ({ art: 'ortszugehoerigkeitAnlegen', ...r }))
+}
+
+function ortszugehoerigkeitAendernAktionArbitrary(): fc.Arbitrary<AktionOrtszugehoerigkeitAendern> {
+  return fc
+    .record({
+      ortszugehoerigkeitZielRoh: fc.nat(),
+      gueltigVon: fc.integer(),
+      gueltigBis: fc.integer(),
+    })
+    .map((r): AktionOrtszugehoerigkeitAendern => ({ art: 'ortszugehoerigkeitAendern', ...r }))
+}
+
+function ortszugehoerigkeitLoeschenAktionArbitrary(): fc.Arbitrary<AktionOrtszugehoerigkeitLoeschen> {
+  return fc
+    .nat()
+    .map((ortszugehoerigkeitZielRoh): AktionOrtszugehoerigkeitLoeschen => ({ art: 'ortszugehoerigkeitLoeschen', ortszugehoerigkeitZielRoh }))
+}
+
+function ortExterneIdAnlegenAktionArbitrary(): fc.Arbitrary<AktionOrtExterneIdAnlegen> {
+  return fc
+    .record({
+      ortZielRoh: fc.nat(),
+      system: fc.constantFrom(...ExterneIdSystemEnum.options),
+      wert: fc.string({ minLength: 1 }),
+    })
+    .map((r): AktionOrtExterneIdAnlegen => ({ art: 'ortExterneIdAnlegen', ...r }))
+}
+
+function ortExterneIdLoeschenAktionArbitrary(): fc.Arbitrary<AktionOrtExterneIdLoeschen> {
+  return fc
+    .nat()
+    .map((ortExterneIdZielRoh): AktionOrtExterneIdLoeschen => ({ art: 'ortExterneIdLoeschen', ortExterneIdZielRoh }))
+}
+
 /**
  * Arbitrary für eine einzelne `Aktion`. Gewichte: `anlegen` (Person) bleibt mit Abstand am
  * höchsten (3), weil praktisch jede neue Aktion — die eigenen `person.*`-Aktionen ausgenommen —
@@ -554,6 +811,16 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
+    { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortAendernAktionArbitrary() },
+    { weight: 2, arbitrary: ortsnameAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
+    { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
+    { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
   )
 }
 
@@ -562,9 +829,16 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
  * DECKUNG"): fast-checks eingebaute Größenheuristik hält die generierten Längen über weite Teile
  * der 300 Läufe klein, eine zu kurze Folge lässt `aussageFaktAendern` (Gewicht 3 von 28) selten
  * zweimal in DERSELBEN Folge fallen — ohne `minLength` feuerte der Demote-Pfad nur in 5 von 300
- * Läufen, mit `minLength: 15` deutlich öfter (Belegzahl im PR-Bericht). */
+ * Läufen, mit `minLength: 15` deutlich öfter (Belegzahl im PR-Bericht).
+ *
+ * AP-1.16 PR-B: `minLength: 18` (statt weiterhin `15`) — die zehn neuen Ort-Aktionen (Gesamtgewicht
+ * 15) verdünnen JEDES bestehende Gewicht in `aktionArbitrary()` (Gesamtgewicht jetzt 44 statt 29),
+ * darunter auch `aussageFaktAendern` (3/44 statt 3/29). Die leicht angehobene Mindestlänge gleicht
+ * das für die Demote-Deckung wieder etwas aus, ohne `numRuns` zu verändern (CLAUDE.md §13:
+ * Determinismus/Gate-Stärke ist Pflicht, nicht die Stellschraube einer Loop) — belegte
+ * Trefferzahlen für Demote UND für jede neue Ort-Aktion stehen im PR-Bericht. */
 export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(), { minLength: 15, maxLength: 40 })
+  return fc.array(aktionArbitrary(), { minLength: 18, maxLength: 40 })
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
@@ -603,9 +877,11 @@ interface BeteiligungInfo {
   readonly personId: string
 }
 
-/** Deckungsgleich mit `SubjektTypEnum` (`src/shared/schemata/gemeinsam.ts`) MINUS `'ort'` — es
- * gibt in diesem Arbeitspaket keinen `ort.anlegen`-Befehl, den der Generator referenzieren könnte
- * (s. Kopfkommentar). */
+/** Deckungsgleich mit `SubjektTypEnum` (`src/shared/schemata/gemeinsam.ts`) MINUS `'ort'` — AP-1.16
+ * PR-B bringt zwar `ort.anlegen` als Aktion (s. Kopfkommentar), aber `ort.anlegen` schreibt KEINE
+ * Existenz-Aussage (`ort-anlegen.ts`-Kopfkommentar: "ein Ort selbst ist kein belegbares
+ * Fachprädikat […], sondern ein Stammdatensatz") — eine `aussage.anlegen`-Anbindung an Orte bleibt
+ * darum außerhalb dieses Arbeitspakets, `'ort'` fehlt hier weiterhin bewusst. */
 type AussageSubjektKind = 'person' | 'name' | 'elternschaft' | 'partnerschaft' | 'ereignis'
 
 interface AussageInfo {
@@ -622,6 +898,33 @@ interface AussageTripelInfo {
   readonly praedikat: string
 }
 
+/** Ein angelegter `ortsname` — sowohl der vom Handler `ort.anlegen` selbst mit angelegte primäre
+ * Name (`ortsnameIdLesen()` liest seine `id` nach, s. Kopfkommentar) als auch jeder per
+ * `ortsname.anlegen` zusätzlich angelegte weitere Name. `ortId` wird hier nicht für eine Kaskade
+ * gebraucht (`ort.loeschen` existiert nicht, s. Kopfkommentar) — bewusst trotzdem mitgeführt,
+ * analog `NameInfo.personId`, falls ein späteres Arbeitspaket `ort.loeschen` nachzieht. */
+interface OrtsnameInfo {
+  readonly id: string
+  readonly ortId: string
+}
+
+/** Eine angelegte `ortszugehoerigkeit`-Kante — `art` wird für die NACH-`art`-getrennte
+ * Zyklusprüfung in `ortszugehoerigkeitAnlegen` gebraucht (s. Kopfkommentar). */
+interface OrtszugehoerigkeitInfo {
+  readonly id: string
+  readonly ortId: string
+  readonly uebergeordnetId: string
+  readonly art: OrtszugehoerigkeitArt
+}
+
+/** Eine angelegte `ort_externe_id`-Zeile — KEIN eigenes `id` (zusammengesetzter Primärschlüssel
+ * `(ort_id, system)`, s. Kopfkommentar), darum trackt der Generator das Paar direkt statt einer
+ * generierten `id`. */
+interface OrtExterneIdInfo {
+  readonly ortId: string
+  readonly system: ExterneIdSystem
+}
+
 /** Mutabler Modellzustand einer einzelnen Eigenschaftslauf-Ausführung (kein Vertrags-/Ergebnistyp — bewusst kein `readonly`, analog `ModellZustand` in `_modell-abgeleitet.ts`). */
 export interface Zustand {
   personIds: string[]
@@ -632,6 +935,10 @@ export interface Zustand {
   beteiligungen: BeteiligungInfo[]
   aussagen: AussageInfo[]
   aussageTripel: AussageTripelInfo[]
+  ortIds: string[]
+  ortsnamen: OrtsnameInfo[]
+  ortszugehoerigkeiten: OrtszugehoerigkeitInfo[]
+  ortExterneIds: OrtExterneIdInfo[]
 }
 
 export function neuerZustand(): Zustand {
@@ -644,6 +951,10 @@ export function neuerZustand(): Zustand {
     beteiligungen: [],
     aussagen: [],
     aussageTripel: [],
+    ortIds: [],
+    ortsnamen: [],
+    ortszugehoerigkeiten: [],
+    ortExterneIds: [],
   }
 }
 
@@ -741,6 +1052,28 @@ function beteiligungIdLesen(db: Tx, ereignisId: string, personId: string): strin
     .get({ ereignisId, personId })
   if (zeile === undefined) {
     throw new Error(`beteiligungIdLesen(): keine Beteiligung für ${ereignisId}/${personId} gefunden — unerreichbar.`)
+  }
+  return zeile.id
+}
+
+interface OrtsnameIdZeile {
+  readonly id: string
+}
+
+/**
+ * AP-1.16 PR-B: liest die `id` des primären `ortsname`, den `ort.anlegen` selbst mit anlegt
+ * (`ortRepo.ortsnameEinfuegen()`, `ort-anlegen.ts`) — direkt gegen `Tx`, s. Modul-Kommentar (analog
+ * `beteiligungIdLesen()`). `ort.anlegen` legt pro Aufruf GENAU EINEN Ortsnamen zu einem GERADE ERST
+ * angelegten Ort an, `ortId` identifiziert diese Zeile darum eindeutig. Unerreichbar, dass keine
+ * Zeile gefunden wird: der Handler schreibt sie in genau derselben Transaktion, aus der `ortId`
+ * gerade zurückkam.
+ */
+function ortsnameIdLesen(db: Tx, ortId: string): string {
+  const zeile = db
+    .prepare<{ readonly ortId: string }, OrtsnameIdZeile>(`SELECT id FROM ortsname WHERE ort_id = @ortId ORDER BY id LIMIT 1`)
+    .get({ ortId })
+  if (zeile === undefined) {
+    throw new Error(`ortsnameIdLesen(): kein Ortsname für ${ortId} gefunden — unerreichbar.`)
   }
   return zeile.id
 }
@@ -1136,6 +1469,148 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       })
       zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
       zustand.aussageTripel.push({ subjektTyp: pool.kind, subjektId, praedikat: aktion.praedikat })
+      return
+    }
+
+    case 'ortAnlegen': {
+      const { id } = fuehreAus(db, 'ort.anlegen', { name: aktion.name, typ: aktion.typ, notiz: aktion.notiz })
+      zustand.ortIds.push(id)
+      // `ort.anlegen` legt selbst einen primären `ortsname` an (s. Kopfkommentar) — dessen echte
+      // `id` liest der Generator nach, damit sie ein gültiges `ortsname.aendern`/`.loeschen`-Ziel
+      // wird (analog `existenzAussageIdLesen()`/`beteiligungIdLesen()`).
+      const ortsnameId = ortsnameIdLesen(db, id)
+      zustand.ortsnamen.push({ id: ortsnameId, ortId: id })
+      return
+    }
+
+    case 'ortAendern': {
+      const ortId = zielAusListe(zustand.ortIds, aktion.ortZielRoh)
+      if (ortId === undefined) {
+        return
+      }
+      fuehreAus(db, 'ort.aendern', {
+        id: ortId,
+        typ: aktion.typ,
+        koordinatenLat: aktion.koordinatenLat,
+        koordinatenLon: aktion.koordinatenLon,
+        existiertVon: aktion.existiertVon,
+        existiertBis: aktion.existiertBis,
+        notiz: aktion.notiz,
+      })
+      return
+    }
+
+    case 'ortsnameAnlegen': {
+      const ortId = zielAusListe(zustand.ortIds, aktion.ortZielRoh)
+      if (ortId === undefined) {
+        return
+      }
+      const { id } = fuehreAus(db, 'ortsname.anlegen', {
+        ortId,
+        name: aktion.name,
+        sprache: aktion.sprache,
+        gueltigVon: aktion.gueltigVon,
+        gueltigBis: aktion.gueltigBis,
+        istBevorzugt: aktion.istBevorzugt,
+        originalText: aktion.originalText,
+      })
+      zustand.ortsnamen.push({ id, ortId })
+      return
+    }
+
+    case 'ortsnameAendern': {
+      const ziel = zielAusListe(zustand.ortsnamen, aktion.ortsnameZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'ortsname.aendern', {
+        id: ziel.id,
+        name: aktion.name,
+        sprache: aktion.sprache,
+        gueltigVon: aktion.gueltigVon,
+        gueltigBis: aktion.gueltigBis,
+        istBevorzugt: aktion.istBevorzugt,
+        originalText: aktion.originalText,
+      })
+      return
+    }
+
+    case 'ortsnameLoeschen': {
+      const ziel = zielAusListe(zustand.ortsnamen, aktion.ortsnameZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'ortsname.loeschen', { id: ziel.id })
+      zustand.ortsnamen = zustand.ortsnamen.filter((n) => n.id !== ziel.id)
+      return
+    }
+
+    case 'ortszugehoerigkeitAnlegen': {
+      const paar = zweiVerschiedeneAusListe(zustand.ortIds, aktion.ortZielRohA, aktion.ortZielRohB)
+      if (paar === undefined) {
+        return
+      }
+      const [ortId, uebergeordnetId] = paar
+      const kanten: readonly Ortskante[] = zustand.ortszugehoerigkeiten
+        .filter((z) => z.art === aktion.zugehoerigkeitArt)
+        .map((z) => ({ ortId: z.ortId, uebergeordnetId: z.uebergeordnetId }))
+      if (ortWuerdeZyklusErzeugen(kanten, { ortId, uebergeordnetId })) {
+        return
+      }
+      const { id } = fuehreAus(db, 'ortszugehoerigkeit.anlegen', {
+        ortId,
+        uebergeordnetId,
+        art: aktion.zugehoerigkeitArt,
+        gueltigVon: aktion.gueltigVon,
+        gueltigBis: aktion.gueltigBis,
+      })
+      zustand.ortszugehoerigkeiten.push({ id, ortId, uebergeordnetId, art: aktion.zugehoerigkeitArt })
+      return
+    }
+
+    case 'ortszugehoerigkeitAendern': {
+      const ziel = zielAusListe(zustand.ortszugehoerigkeiten, aktion.ortszugehoerigkeitZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'ortszugehoerigkeit.aendern', { id: ziel.id, gueltigVon: aktion.gueltigVon, gueltigBis: aktion.gueltigBis })
+      return
+    }
+
+    case 'ortszugehoerigkeitLoeschen': {
+      const ziel = zielAusListe(zustand.ortszugehoerigkeiten, aktion.ortszugehoerigkeitZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'ortszugehoerigkeit.loeschen', { id: ziel.id })
+      zustand.ortszugehoerigkeiten = zustand.ortszugehoerigkeiten.filter((z) => z.id !== ziel.id)
+      return
+    }
+
+    case 'ortExterneIdAnlegen': {
+      const ortId = zielAusListe(zustand.ortIds, aktion.ortZielRoh)
+      if (ortId === undefined) {
+        return
+      }
+      // `(ortId, system)` ist der zusammengesetzte Primärschlüssel (s. Kopfkommentar) — ein
+      // Kandidat mit einer bereits vergebenen Kombination würde `KONFLIKT_ORT_EXTERNE_ID_DUPLIKAT`
+      // werfen, bleibt darum (wie der Zyklus-Fall oben) ein bewusster No-op statt eines Wurfs.
+      const bestehtSchon = zustand.ortExterneIds.some((e) => e.ortId === ortId && e.system === aktion.system)
+      if (bestehtSchon) {
+        return
+      }
+      fuehreAus(db, 'ort-externe-id.anlegen', { ortId, system: aktion.system, wert: aktion.wert })
+      zustand.ortExterneIds.push({ ortId, system: aktion.system })
+      return
+    }
+
+    case 'ortExterneIdLoeschen': {
+      const ziel = zielAusListe(zustand.ortExterneIds, aktion.ortExterneIdZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
+      zustand.ortExterneIds = zustand.ortExterneIds.filter((e) => !(e.ortId === ziel.ortId && e.system === ziel.system))
       return
     }
 
