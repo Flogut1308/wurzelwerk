@@ -1,9 +1,14 @@
 // AP-1.14a: „kein Speichern-Knopf — Notiz/Textfelder committen bei Blur/Debounce" (Auftrag §
 // Umfang). Ein React-Hook, darum bewusst NICHT in `profil-bearbeiten-logik.ts` (das Modul bleibt
-// React-/DOM-frei, analog `filterleiste-logik.ts`) — wie `befehl-hooks.ts` selbst hängt dieser
-// Code an React-Hook-Regeln und braucht eine echte Render-Umgebung, ist darum bewusst NICHT über
-// Vitest getestet (Modul-Kommentar `befehl-hooks.ts`), nur über `pnpm typen`/`pnpm lint`.
-import { useEffect, useState } from 'react'
+// React-/DOM-frei, analog `filterleiste-logik.ts`).
+//
+// hueter-Auflage AP-1.14a #1 (stiller Datenverlust): der Debounce-Effekt selbst bleibt bewusst
+// NICHT über Vitest getestet (s. `befehl-hooks.ts`-Modulkommentar — Hook-Regeln, keine
+// DOM-Testbibliothek im Projekt), aber der Flush-beim-Unmount UNTEN braucht eine echte
+// Mount-/Unmount-Lebensdauer, die kein `renderToStaticMarkup` liefert — dafür
+// `test/einheit/profil-bearbeiten-debounce.test.tsx` (jsdom nur in dieser einen Testdatei, s.
+// dortiger Kopfkommentar).
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Hält einen lokalen Entwurfswert (jeder Tastendruck/jede Feldänderung aktualisiert ihn sofort,
@@ -26,6 +31,23 @@ import { useEffect, useState } from 'react'
  * aufruft, wäre eine kaskadierende Zustandsänderung; stattdessen wird der Entwurf noch WÄHREND des
  * Renderns zurückgesetzt, sobald sich `wert` gegenüber dem zuletzt gesehenen Wert unterscheidet
  * (kein sichtbares Zwischenbild mit dem alten Entwurf).
+ *
+ * **Flush beim Unmount (hueter-Auflage AP-1.14a #1):** ohne Fix committete diese Funktion NUR über
+ * den `setTimeout`-Ablauf; die Effekt-Aufräumung war ein reines `clearTimeout` OHNE Commit. Wer
+ * tippt und binnen `verzoegerungMs` „Fertig"/„Schließen" klickt (`ProfilAnsicht` hängt den
+ * Bearbeiten-Zweig dabei aus), verlor die letzte Eingabe still — die Fußzeile verspricht aber
+ * „sofort gespeichert". `ausstehendRef` trägt darum den zuletzt GEPLANTEN (noch nicht committeten)
+ * Entwurf; ein zweiter Effekt mit LEERER Abhängigkeitsliste läuft nur beim echten Aus-Hängen dieser
+ * Hook-Instanz (nicht bei jeder Debounce-Zurücksetzung zwischen Tastendrücken, die ihre eigene
+ * Cleanup im ERSTEN Effekt hat) und committet einen noch offenen Entwurf nach.
+ *
+ * **`aufCommit` über einen Ref (Nebenbefund des hueter-Reviews):** der Aufrufer reicht typischerweise
+ * eine bei jedem Render neu erzeugte Inline-Funktion (`(wert) => feldSetzen.mutate(...)`,
+ * `profil-bearbeiten-grunddaten.tsx`). Stünde `aufCommit` in der Abhängigkeitsliste des
+ * Debounce-Effekts, würde JEDES Elternrerender während der Wartezeit (z. B. eine fremde
+ * Query-Invalidierung) den laufenden Timer verwerfen und einen neuen `verzoegerungMs`-Timer
+ * starten — im ungünstigen Fall verschiebt sich der Commit immer weiter nach hinten. Der Ref hält
+ * stattdessen nur die JEWEILS aktuelle Funktion vor, ohne den Timer zurückzusetzen.
  */
 export function useEntwurfMitVerzoegertemCommit<T>(
   wert: T,
@@ -35,16 +57,49 @@ export function useEntwurfMitVerzoegertemCommit<T>(
   const [entwurf, setEntwurf] = useState(wert)
   const [vorherigerWert, setVorherigerWert] = useState(wert)
 
+  const aufCommitRef = useRef(aufCommit)
+  // Zuweisung NACH dem Rendern (Effekt statt Render-Körper) — ein Ref-Schreibzugriff während des
+  // Renderns ist ein Lint-/Compiler-Fehler (`react-hooks/refs`, `pnpm lint`); ohne Abhängigkeitsliste
+  // läuft dieser Effekt nach JEDEM Commit, lange bevor der `setTimeout` unten fällig wird.
+  useEffect(() => {
+    aufCommitRef.current = aufCommit
+  })
+
+  // Zuletzt GEPLANTER, noch nicht committeter Entwurf — `null`, solange kein Timer aussteht.
+  // Gelesen ausschließlich vom Unmount-Flush-Effekt unten, geschrieben vom Debounce-Effekt.
+  const ausstehendRef = useRef<{ entwurf: T } | null>(null)
+
   if (wert !== vorherigerWert) {
     setVorherigerWert(wert)
     setEntwurf(wert)
   }
 
   useEffect(() => {
-    if (entwurf === wert) return
-    const timer = setTimeout(() => aufCommit(entwurf), verzoegerungMs)
+    if (entwurf === wert) {
+      ausstehendRef.current = null
+      return
+    }
+    ausstehendRef.current = { entwurf }
+    const timer = setTimeout(() => {
+      ausstehendRef.current = null
+      aufCommitRef.current(entwurf)
+    }, verzoegerungMs)
     return () => clearTimeout(timer)
-  }, [entwurf, wert, verzoegerungMs, aufCommit])
+  }, [entwurf, wert, verzoegerungMs])
+
+  useEffect(() => {
+    return () => {
+      const ausstehend = ausstehendRef.current
+      if (ausstehend !== null) {
+        ausstehendRef.current = null
+        aufCommitRef.current(ausstehend.entwurf)
+      }
+    }
+    // Bewusst leere Abhängigkeitsliste: dieser Effekt soll NUR beim Aus-Hängen DIESER
+    // Hook-Instanz aufräumen (der Flush-Fall), nicht bei jeder `entwurf`/`wert`-Änderung
+    // zwischendurch — die läuft bereits über den ERSTEN Effekt. `ausstehendRef`/`aufCommitRef`
+    // sind Refs (stabile Identität), kein Zustand, der hier fehlen könnte.
+  }, [])
 
   return [entwurf, setEntwurf] as const
 }
