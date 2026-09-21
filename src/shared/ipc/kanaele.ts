@@ -59,6 +59,23 @@ const kanaele: readonly Kanal[] = [
   'befehl:ortszugehoerigkeit.loeschen',
   'befehl:ort-externe-id.anlegen',
   'befehl:ort-externe-id.loeschen',
+  // AP-1.17c1-Nachbesserung: diese 13 Kanäle waren in `registrierung.ts` bedient, aber nie hier
+  // eingetragen — der Preload wies jeden Aufruf mit `IPC_UNBEKANNTER_KANAL` zurück, unabhängig
+  // vom Handler (s. `test/einheit/kanaele-vollstaendigkeit.test.ts`). Damit war die gesamte
+  // Quellen-/Zitat-/Archiv-/Negativbefund-Pflege aus dem Renderer heraus unerreichbar.
+  'befehl:archiv.anlegen',
+  'befehl:archiv.aendern',
+  'abfrage:archiv.suche',
+  'befehl:quelle.anlegen',
+  'befehl:quelle.aendern',
+  'abfrage:quelle.detail',
+  'befehl:zitat.anlegen',
+  'befehl:zitat.aendern',
+  'befehl:zitat.loeschen',
+  'befehl:negativbefund.anlegen',
+  'befehl:negativbefund.aendern',
+  'befehl:negativbefund.loeschen',
+  'abfrage:negativbefund.liste',
 ]
 export const ALLE_KANAELE: readonly string[] = kanaele
 
