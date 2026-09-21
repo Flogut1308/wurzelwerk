@@ -59,13 +59,33 @@
     "titel": "Beleg nicht gefunden",
     "was_tun": "Den Beleg aus der Auswahl entfernen. Ist das Zitat tatsächlich gelöscht, einen neuen Beleg auswählen."
   },
+  "NICHT_GEFUNDEN_ORTSNAME": {
+    "titel": "Ortsname nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Ortsname tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_ORTSZUGEHOERIGKEIT": {
+    "titel": "Zugehörigkeit nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Zugehörigkeit tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
+  "NICHT_GEFUNDEN_ORT_EXTERNE_ID": {
+    "titel": "Externe Kennung nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die externe Kennung tatsächlich entfernt, die Auswahl aufheben und neu beginnen."
+  },
   "KONFLIKT_ZYKLUS": {
     "titel": "Verwandtschaft würde einen Zyklus erzeugen",
     "was_tun": "Die Elternschaft nicht anlegen — eine Person kann nicht ihr eigener Vorfahre sein. Die Beziehung prüfen und korrigieren."
   },
+  "KONFLIKT_ZYKLUS_ORT": {
+    "titel": "Zugehörigkeit würde einen Zyklus erzeugen",
+    "was_tun": "Die Zugehörigkeit nicht anlegen — ein Ort kann nicht sein eigener Übergeordneter sein. Die Zugehörigkeitskette prüfen und korrigieren."
+  },
   "KONFLIKT_BEREITS_VORHANDEN": {
     "titel": "Eintrag bereits vorhanden",
     "was_tun": "Den bestehenden Eintrag verwenden statt einen neuen anzulegen, oder den vorhandenen Eintrag zuerst entfernen."
+  },
+  "KONFLIKT_ORT_EXTERNE_ID_DUPLIKAT": {
+    "titel": "Externe Kennung bereits vorhanden",
+    "was_tun": "Die bestehende externe Kennung für dieses System verwenden, oder sie zuerst entfernen, bevor eine neue angelegt wird."
   },
   "BEFEHL_VERSCHACHTELT": {
     "titel": "Befehl bereits in Bearbeitung",

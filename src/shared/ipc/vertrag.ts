@@ -21,6 +21,15 @@ import type {
   AussageAnlegenEin,
   AussageLoeschenEin,
   OrtAnlegenEin,
+  OrtAendernEin,
+  OrtsnameAnlegenEin,
+  OrtsnameAendernEin,
+  OrtsnameLoeschenEin,
+  OrtszugehoerigkeitAnlegenEin,
+  OrtszugehoerigkeitAendernEin,
+  OrtszugehoerigkeitLoeschenEin,
+  OrtExterneIdAnlegenEin,
+  OrtExterneIdLoeschenEin,
 } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
@@ -317,7 +326,16 @@ export interface Vertrag {
   'abfrage:person.detail': { ein: PersonDetailEin; aus: PersonDetailAus }
   'abfrage:pruefhinweise': { ein: null; aus: PruefhinweiseAus }
   'befehl:ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
+  'befehl:ort.aendern': { ein: OrtAendernEin; aus: null }
   'abfrage:ort.suche': { ein: OrtSucheEin; aus: OrtSucheAus }
+  'befehl:ortsname.anlegen': { ein: OrtsnameAnlegenEin; aus: { readonly id: string } }
+  'befehl:ortsname.aendern': { ein: OrtsnameAendernEin; aus: null }
+  'befehl:ortsname.loeschen': { ein: OrtsnameLoeschenEin; aus: null }
+  'befehl:ortszugehoerigkeit.anlegen': { ein: OrtszugehoerigkeitAnlegenEin; aus: { readonly id: string } }
+  'befehl:ortszugehoerigkeit.aendern': { ein: OrtszugehoerigkeitAendernEin; aus: null }
+  'befehl:ortszugehoerigkeit.loeschen': { ein: OrtszugehoerigkeitLoeschenEin; aus: null }
+  'befehl:ort-externe-id.anlegen': { ein: OrtExterneIdAnlegenEin; aus: null }
+  'befehl:ort-externe-id.loeschen': { ein: OrtExterneIdLoeschenEin; aus: null }
 }
 
 export type Kanal = keyof Vertrag

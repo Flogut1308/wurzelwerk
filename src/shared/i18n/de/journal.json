@@ -18,5 +18,14 @@
   "aussage_angelegt": "Aussage angelegt",
   "aussage_geloescht": "Aussage gelöscht",
   "ort_angelegt": "Ort angelegt",
+  "ort_geaendert": "Ort geändert",
+  "ortsname_angelegt": "Ortsname angelegt",
+  "ortsname_geaendert": "Ortsname geändert",
+  "ortsname_geloescht": "Ortsname gelöscht",
+  "ortszugehoerigkeit_angelegt": "Ortszugehörigkeit angelegt",
+  "ortszugehoerigkeit_geaendert": "Ortszugehörigkeit geändert",
+  "ortszugehoerigkeit_geloescht": "Ortszugehörigkeit gelöscht",
+  "ort_externe_id_angelegt": "Externe Kennung angelegt",
+  "ort_externe_id_geloescht": "Externe Kennung gelöscht",
   "aufgeraeumt": "Journal aufgeräumt"
 }
