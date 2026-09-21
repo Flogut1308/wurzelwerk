@@ -159,3 +159,29 @@ export function aktualisieren(tx: Tx, ein: EreignisAktualisierenEin): void {
 export function loeschen(tx: Tx, id: string): void {
   tx.prepare('DELETE FROM ereignis WHERE id = @id').run({ id })
 }
+
+/** Spalten von `beteiligung` (docs/schema/0002_kern.sql §2.5), für `beteiligungLesen()` (AP-1.15
+ * PR-A, Existenzprüfung vor `beteiligung.loeschen`). */
+export interface BeteiligungZeile {
+  readonly id: string
+  readonly ereignis_id: string
+  readonly person_id: string
+  readonly rolle: string
+  readonly reihenfolge: number | null
+}
+
+/** Liest eine `beteiligung`-Zeile. `undefined`, wenn `id` nicht existiert. */
+export function beteiligungLesen(tx: Tx, id: string): BeteiligungZeile | undefined {
+  return tx
+    .prepare<{ readonly id: string }, BeteiligungZeile>(
+      `SELECT id, ereignis_id, person_id, rolle, reihenfolge FROM beteiligung WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+/** Löscht NUR eine `beteiligung`-Zeile (AP-1.15 PR-A, Variante A) — das zugehörige `ereignis`
+ * bleibt bestehen, auch wenn danach keine `beteiligung`-Zeile mehr übrig ist (s. Kommentar an
+ * `BeteiligungLoeschenEin`, `src/shared/schemata/befehle.ts`). */
+export function beteiligungLoeschen(tx: Tx, id: string): void {
+  tx.prepare('DELETE FROM beteiligung WHERE id = @id').run({ id })
+}

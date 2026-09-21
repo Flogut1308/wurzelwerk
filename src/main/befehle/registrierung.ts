@@ -43,6 +43,8 @@ import {
   type EreignisAnlegenEin,
   type EreignisAendernEin,
   type EreignisLoeschenEin,
+  beteiligungLoeschenEinSchema,
+  type BeteiligungLoeschenEin,
   aussageAnlegenEinSchema,
   aussageLoeschenEinSchema,
   type AussageAnlegenEin,
@@ -65,6 +67,7 @@ import { partnerschaftLoeschen } from './partnerschaft-loeschen'
 import { ereignisAnlegen } from './ereignis-anlegen'
 import { ereignisAendern } from './ereignis-aendern'
 import { ereignisLoeschen } from './ereignis-loeschen'
+import { beteiligungLoeschen } from './beteiligung-loeschen'
 import { aussageAnlegen } from './aussage-anlegen'
 import { aussageLoeschen } from './aussage-loeschen'
 import { ortAnlegen } from './ort-anlegen'
@@ -103,6 +106,7 @@ interface BefehlKarte {
   'ereignis.anlegen': { ein: EreignisAnlegenEin; aus: { readonly id: string } }
   'ereignis.aendern': { ein: EreignisAendernEin; aus: null }
   'ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
+  'beteiligung.loeschen': { ein: BeteiligungLoeschenEin; aus: null }
   'aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
   'ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
@@ -207,6 +211,12 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.ereignis_geloescht',
     handler: ereignisLoeschen,
+  },
+  'beteiligung.loeschen': {
+    schema: beteiligungLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.beteiligung_geloescht',
+    handler: beteiligungLoeschen,
   },
   'aussage.anlegen': {
     schema: aussageAnlegenEinSchema,

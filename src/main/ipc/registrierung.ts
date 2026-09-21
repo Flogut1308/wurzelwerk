@@ -18,6 +18,7 @@ import {
   ereignisAnlegenEinSchema,
   ereignisAendernEinSchema,
   ereignisLoeschenEinSchema,
+  beteiligungLoeschenEinSchema,
   aussageAnlegenEinSchema,
   aussageLoeschenEinSchema,
   ortAnlegenEinSchema,
@@ -154,6 +155,7 @@ export function ipcRegistrierung(): void {
   registriere('befehl:ereignis.anlegen', ereignisAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.anlegen', ein))
   registriere('befehl:ereignis.aendern', ereignisAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.aendern', ein))
   registriere('befehl:ereignis.loeschen', ereignisLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'ereignis.loeschen', ein))
+  registriere('befehl:beteiligung.loeschen', beteiligungLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'beteiligung.loeschen', ein))
 
   registriere('befehl:aussage.anlegen', aussageAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.anlegen', ein))
   registriere('befehl:aussage.loeschen', aussageLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.loeschen', ein))

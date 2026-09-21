@@ -17,6 +17,7 @@ import type {
   EreignisAnlegenEin,
   EreignisAendernEin,
   EreignisLoeschenEin,
+  BeteiligungLoeschenEin,
   AussageAnlegenEin,
   AussageLoeschenEin,
   OrtAnlegenEin,
@@ -297,6 +298,7 @@ export interface Vertrag {
   'befehl:ereignis.anlegen': { ein: EreignisAnlegenEin; aus: { readonly id: string } }
   'befehl:ereignis.aendern': { ein: EreignisAendernEin; aus: null }
   'befehl:ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
+  'befehl:beteiligung.loeschen': { ein: BeteiligungLoeschenEin; aus: null }
   'befehl:aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'befehl:aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
   'befehl:journal.undo': { ein: null; aus: UndoErgebnis }

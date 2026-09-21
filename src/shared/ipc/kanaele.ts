@@ -32,6 +32,7 @@ const kanaele: readonly Kanal[] = [
   'befehl:ereignis.anlegen',
   'befehl:ereignis.aendern',
   'befehl:ereignis.loeschen',
+  'befehl:beteiligung.loeschen',
   'befehl:aussage.anlegen',
   'befehl:aussage.loeschen',
   'befehl:journal.undo',

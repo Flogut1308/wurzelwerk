@@ -378,6 +378,20 @@ export const ereignisLoeschenEinSchema: z.ZodType<EreignisLoeschenEin> = z.objec
   id: z.string(),
 })
 
+/** Nutzlast von `befehl:beteiligung.loeschen` (AP-1.15 PR-A, Variante A): entfernt NUR die
+ * Teilnahme EINER Person an EINEM Ereignis (`beteiligung`-Zeile) — das `ereignis` selbst bleibt
+ * bestehen (auch wenn danach keine `beteiligung`-Zeile mehr übrig ist; ein Ereignis ohne
+ * Beteiligte gezielt aufzuräumen ist außerhalb dieses Umfangs, s. `docs/80_Offene_Fragen.md`
+ * §27). Kein `beteiligung.anlegen` in diesem Arbeitspaket: mehrere Beteiligte werden beim
+ * Neu-Anlegen über `ereignis.anlegen`/`beteiligungen` gesammelt geschrieben. */
+export interface BeteiligungLoeschenEin {
+  readonly id: string
+}
+
+export const beteiligungLoeschenEinSchema: z.ZodType<BeteiligungLoeschenEin> = z.object({
+  id: z.string(),
+})
+
 // -----------------------------------------------------------------------------------------------
 // aussage.anlegen / aussage.loeschen (AP-1.12) — KEIN aussage.aendern (Nutzerentscheidung): ein
 // geänderter Fakt ist eine neue bevorzugte Aussage, die die alte bevorzugte Aussage zum selben
