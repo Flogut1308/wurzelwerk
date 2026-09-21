@@ -77,6 +77,12 @@ import {
   quelleAendernEinSchema,
   type QuelleAnlegenEin,
   type QuelleAendernEin,
+  zitatAnlegenEinSchema,
+  zitatAendernEinSchema,
+  zitatLoeschenEinSchema,
+  type ZitatAnlegenEin,
+  type ZitatAendernEin,
+  type ZitatLoeschenEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -110,6 +116,9 @@ import { archivAnlegen } from './archiv-anlegen'
 import { archivAendern } from './archiv-aendern'
 import { quelleAnlegen } from './quelle-anlegen'
 import { quelleAendern } from './quelle-aendern'
+import { zitatAnlegen } from './zitat-anlegen'
+import { zitatAendern } from './zitat-aendern'
+import { zitatLoeschen } from './zitat-loeschen'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -162,6 +171,9 @@ interface BefehlKarte {
   'archiv.aendern': { ein: ArchivAendernEin; aus: null }
   'quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
   'quelle.aendern': { ein: QuelleAendernEin; aus: null }
+  'zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
+  'zitat.aendern': { ein: ZitatAendernEin; aus: null }
+  'zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -365,5 +377,23 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.quelle_geaendert',
     handler: quelleAendern,
+  },
+  'zitat.anlegen': {
+    schema: zitatAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.zitat_angelegt',
+    handler: zitatAnlegen,
+  },
+  'zitat.aendern': {
+    schema: zitatAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.zitat_geaendert',
+    handler: zitatAendern,
+  },
+  'zitat.loeschen': {
+    schema: zitatLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.zitat_geloescht',
+    handler: zitatLoeschen,
   },
 }

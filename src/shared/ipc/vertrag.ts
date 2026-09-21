@@ -34,6 +34,9 @@ import type {
   ArchivAendernEin,
   QuelleAnlegenEin,
   QuelleAendernEin,
+  ZitatAnlegenEin,
+  ZitatAendernEin,
+  ZitatLoeschenEin,
 } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
@@ -350,6 +353,9 @@ export interface Vertrag {
   'befehl:quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
   'befehl:quelle.aendern': { ein: QuelleAendernEin; aus: null }
   'abfrage:quelle.detail': { ein: QuelleDetailEin; aus: QuelleDetailAus }
+  'befehl:zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
+  'befehl:zitat.aendern': { ein: ZitatAendernEin; aus: null }
+  'befehl:zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
 }
 
 export type Kanal = keyof Vertrag
