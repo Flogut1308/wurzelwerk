@@ -154,6 +154,58 @@
 //   ausgeschlossen (Kommentar dort weiterhin gültig für DIESES Arbeitspaket) — `ort.anlegen`
 //   schreibt keine Existenz-Aussage (`ort-anlegen.ts`-Kopfkommentar: "kein belegbares Fachprädikat"),
 //   eine `aussage.anlegen`-Anbindung an Orte ist kein Bestandteil dieses Auftrags.
+//
+// AP-1.17 PR-B ERWEITERUNG: die zwölf Quellen-/Zitat-/Archiv-/Negativbefund-Schreibbefehle
+// (`src/main/befehle/archiv-anlegen.ts` bis `negativbefund-loeschen.ts`, AP-1.17 PR-A1..A4) kommen
+// dazu — vier neue getrackte Listen (`zustand.archivIds`/`quelleIds`/`zitatIds`/
+// `negativbefundIds`), dasselbe Index-modulo-Länge-oder-No-op-Muster wie überall sonst. Bewusste
+// Vereinfachungen:
+//
+// - Nur die im Auftrag genannten Felder werden mit generierten Werten belegt (`archiv`: `name`/
+//   `kontakt`/`url`/`notiz`; `quelle`: `typ`/`titel`/`autor`/`notiz`/optional `archivId`; `zitat`:
+//   `quelleId`/`seite`/`transkript`/`konfidenz`; `negativbefund`: `gesuchtePersonId`/optional
+//   `quelleId`/`gesuchtesPraedikat`/`zeitraumVon`/`zeitraumBis`/`beschreibung`). Alle übrigen
+//   optionalen Felder aus `src/shared/schemata/befehle.ts` (`quelle.archivId` ausgenommen —
+//   s. unten — sowie `quelle.informantPersonId`/`audioMediumId`, `zitat.mediumId`,
+//   `archiv.ortId`, `quelle.gespraechsdatum`/`zitat.zugriffsdatum`) bleiben unbelegt (schema-
+//   konformes Weglassen, analog dem `ortId`/`Datumswert`-Verzicht bei `ereignis`/`partnerschaft`/
+//   `aussage`, s. Kopfkommentar oben) — sie würden je eine weitere getrackte Liste
+//   (`medienIds`/zusätzliche Personenreferenzen) brauchen, ohne zusätzlichen Erkenntnisgewinn für
+//   DIESE Invariante (Undo-Bitgleichheit, nicht Vollständigkeit des Belegpfads).
+// - `quelle.anlegen`/`quelle.aendern`: `archivId` ist die einzige Referenz auf eine ANDERE neue
+//   Liste (`zustand.archivIds`) — `wahlAufloesen()` (s. unten) bildet das GENAUSO ab wie
+//   `istBevorzugt` bei `AktionAussageAnlegen` (immer vorhandener Schlüssel mit `undefined` als
+//   möglichem Wert statt eines optionalen Schlüssels, `exactOptionalPropertyTypes`): ein
+//   `fc.option()`-Index, der ENTWEDER `nil` ist ODER — bei nichtleerer `archivIds`-Liste — ein
+//   bestehendes Archiv referenziert. Ist `archivIds` (noch) leer, macht `wahlAufloesen()` daraus
+//   ebenfalls `undefined` (kein separater No-op-Fall nötig — beide Schemata lassen `archivId`
+//   weg, das bleibt immer schema-konform, NIE ein Grund, die ganze Aktion zu verwerfen).
+// - `negativbefund.anlegen`/`.aendern`: dieselbe `wahlAufloesen()`-Machart für das optionale
+//   `quelleId` gegen `zustand.quelleIds`. `gesuchtePersonId` ist dagegen PFLICHT — eine leere
+//   `zustand.personIds`-Liste macht die ganze Aktion zum No-op (wie bei jeder anderen personId-
+//   referenzierenden Aktion, `zielId()`).
+// - `zitat.anlegen` braucht eine bestehende `quelleId` (PFLICHT im Schema) — ist `zustand.
+//   quelleIds` (noch) leer, ist die Aktion ein bewusster No-op (kein `fuehreAus()`-Aufruf), exakt
+//   das Muster, das `ortszugehoerigkeit.anlegen` gegen eine zu kurze `ortIds`-Liste bereits nutzt.
+//   `zitat.aendern` braucht ZUSÄTZLICH eine (nicht notwendigerweise dieselbe) bestehende `quelleId`
+//   für das PFLICHT-Feld `quelleId` in `ZitatAendernEin` — beide Ziele werden unabhängig
+//   aufgelöst, beide No-op-Fälle einzeln geprüft.
+// - `negativbefund` ist — anders als `quelle`/`zitat`/`archiv` — an eine Person gebunden mit
+//   `ON DELETE CASCADE` auf `gesuchte_person_id` (docs/schema/0002_kern.sql §2.7, Kommentar dort:
+//   "personengebundene Forschungsnotiz, analog `diagnose.person_id`"). Ein `person.loeschen` nimmt
+//   darum jeden `negativbefund` mit, dessen `gesuchtePersonId` die gelöschte Person war —
+//   `NegativbefundInfo` trackt diese `personId` extra (analog `NameInfo.personId`), der
+//   `'loeschen'`-Fall filtert `zustand.negativbefundIds` genauso wie `zustand.namen`, sonst würde
+//   ein späteres `negativbefund.aendern`/`.loeschen` einen bereits kaskadiert gelöschten Datensatz
+//   referenzieren. `quelle_id` auf `negativbefund` ist dagegen `ON DELETE SET NULL`, aber KEIN
+//   `quelle.loeschen`-Befehl existiert (Kaskaden-Entscheidung offen, analog `ort.loeschen`) — damit
+//   entfällt jede SET-NULL-Nachpflege für DIESES Arbeitspaket. `archiv_id` auf `quelle` ist ebenso
+//   `ON DELETE SET NULL`, aber auch hier existiert kein `archiv.loeschen` — keine Nachpflege nötig.
+// - KEIN `quelle.loeschen`/`archiv.loeschen`: beide Kaskaden-Entscheidungen sind laut
+//   Abschnittskommentar in `src/shared/schemata/befehle.ts` bewusst offen (analog `ort.loeschen`).
+//   `zustand.archivIds`/`quelleIds` bleiben darum reine `string[]` ohne Löschpfad von außen —
+//   anders als `zustand.zitatIds` (`zitat.loeschen` existiert) und `zustand.negativbefundIds`
+//   (eigener Löschbefehl UND CASCADE über `person.loeschen`, s. oben).
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -164,6 +216,7 @@ import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
 import { OrtTypEnum } from '../../src/shared/schemata/ort'
 import { OrtszugehoerigkeitArtEnum } from '../../src/shared/schemata/ortszugehoerigkeit'
 import { ExterneIdSystemEnum } from '../../src/shared/schemata/ort-externe-id'
+import { QuelleTypEnum } from '../../src/shared/schemata/quelle'
 import type {
   PersonAnlegenEin,
   PersonFeldSetzenEin,
@@ -175,6 +228,7 @@ import type {
   OrtAnlegenEin,
   OrtszugehoerigkeitAnlegenEin,
   OrtExterneIdAnlegenEin,
+  QuelleAnlegenEin,
 } from '../../src/shared/schemata/befehle'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import type { Tx } from '../../src/main/repositories/basis'
@@ -448,6 +502,103 @@ export interface AktionOrtExterneIdLoeschen {
   readonly ortExterneIdZielRoh: number
 }
 
+// -----------------------------------------------------------------------------------------------
+// AP-1.17 PR-B: Aktionstypen für die Archiv-/Quelle-/Zitat-/Negativbefund-Befehle (s.
+// Kopfkommentar für die Designentscheidungen).
+// -----------------------------------------------------------------------------------------------
+
+type QuelleTyp = QuelleAnlegenEin['typ']
+
+export interface AktionArchivAnlegen {
+  readonly art: 'archivAnlegen'
+  readonly name: string
+  readonly kontakt: string
+  readonly url: string
+  readonly notiz: string
+}
+
+export interface AktionArchivAendern {
+  readonly art: 'archivAendern'
+  readonly archivZielRoh: number
+  readonly name: string
+  readonly kontakt: string
+  readonly url: string
+  readonly notiz: string
+}
+
+/** `archivWahlRoh` löst `wahlAufloesen()` gegen `zustand.archivIds` auf (s. Kopfkommentar) —
+ * `undefined` bleibt schema-konform weglassbar (`QuelleAnlegenEin.archivId` ist optional). */
+export interface AktionQuelleAnlegen {
+  readonly art: 'quelleAnlegen'
+  readonly typ: QuelleTyp
+  readonly titel: string
+  readonly autor: string
+  readonly notiz: string
+  readonly archivWahlRoh: number | undefined
+}
+
+export interface AktionQuelleAendern {
+  readonly art: 'quelleAendern'
+  readonly quelleZielRoh: number
+  readonly typ: QuelleTyp
+  readonly titel: string
+  readonly autor: string
+  readonly notiz: string
+  readonly archivWahlRoh: number | undefined
+}
+
+/** `quelleZielRoh` braucht eine bereits bestehende `quelleId` (Pflichtfeld) — leere
+ * `zustand.quelleIds` macht die Aktion zum No-op (s. Kopfkommentar). */
+export interface AktionZitatAnlegen {
+  readonly art: 'zitatAnlegen'
+  readonly quelleZielRoh: number
+  readonly seite: string
+  readonly transkript: string
+  readonly konfidenz: number
+}
+
+export interface AktionZitatAendern {
+  readonly art: 'zitatAendern'
+  readonly zitatZielRoh: number
+  readonly quelleZielRoh: number
+  readonly seite: string
+  readonly transkript: string
+  readonly konfidenz: number
+}
+
+export interface AktionZitatLoeschen {
+  readonly art: 'zitatLoeschen'
+  readonly zitatZielRoh: number
+}
+
+/** `quelleWahlRoh` löst `wahlAufloesen()` gegen `zustand.quelleIds` auf (optionales Feld, s.
+ * Kopfkommentar) — `personZielRoh` referenziert die PFLICHT-`gesuchtePersonId` über `zielId()`. */
+export interface AktionNegativbefundAnlegen {
+  readonly art: 'negativbefundAnlegen'
+  readonly personZielRoh: number
+  readonly quelleWahlRoh: number | undefined
+  readonly gesuchtesPraedikat: string
+  readonly zeitraumVon: number
+  readonly zeitraumBis: number
+  readonly beschreibung: string
+}
+
+export interface AktionNegativbefundAendern {
+  readonly art: 'negativbefundAendern'
+  readonly negativbefundZielRoh: number
+  readonly personZielRoh: number
+  readonly quelleWahlRoh: number | undefined
+  readonly gesuchtesPraedikat: string
+  readonly zeitraumVon: number
+  readonly zeitraumBis: number
+  readonly beschreibung: string
+}
+
+export interface AktionNegativbefundLoeschen {
+  readonly art: 'negativbefundLoeschen'
+  readonly negativbefundZielRoh: number
+}
+
 export type Aktion =
   | AktionAnlegen
   | AktionFeldSetzen
@@ -478,6 +629,16 @@ export type Aktion =
   | AktionOrtszugehoerigkeitLoeschen
   | AktionOrtExterneIdAnlegen
   | AktionOrtExterneIdLoeschen
+  | AktionArchivAnlegen
+  | AktionArchivAendern
+  | AktionQuelleAnlegen
+  | AktionQuelleAendern
+  | AktionZitatAnlegen
+  | AktionZitatAendern
+  | AktionZitatLoeschen
+  | AktionNegativbefundAnlegen
+  | AktionNegativbefundAendern
+  | AktionNegativbefundLoeschen
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -773,6 +934,121 @@ function ortExterneIdLoeschenAktionArbitrary(): fc.Arbitrary<AktionOrtExterneIdL
     .map((ortExterneIdZielRoh): AktionOrtExterneIdLoeschen => ({ art: 'ortExterneIdLoeschen', ortExterneIdZielRoh }))
 }
 
+// -----------------------------------------------------------------------------------------------
+// AP-1.17 PR-B: Arbitraries für die Archiv-/Quelle-/Zitat-/Negativbefund-Befehle (s.
+// Kopfkommentar für die Designentscheidungen). `archivWahlRoh`/`quelleWahlRoh` nutzen
+// `fc.option(fc.nat(), { nil: undefined })` — derselbe "immer vorhandener Schlüssel mit
+// `undefined` als möglichem Wert"-Baustein wie `AktionAussageAnlegen.istBevorzugt`.
+// -----------------------------------------------------------------------------------------------
+
+function archivAnlegenAktionArbitrary(): fc.Arbitrary<AktionArchivAnlegen> {
+  return fc
+    .record({
+      name: fc.string({ minLength: 1 }),
+      kontakt: fc.string(),
+      url: fc.string(),
+      notiz: fc.string(),
+    })
+    .map((r): AktionArchivAnlegen => ({ art: 'archivAnlegen', ...r }))
+}
+
+function archivAendernAktionArbitrary(): fc.Arbitrary<AktionArchivAendern> {
+  return fc
+    .record({
+      archivZielRoh: fc.nat(),
+      name: fc.string({ minLength: 1 }),
+      kontakt: fc.string(),
+      url: fc.string(),
+      notiz: fc.string(),
+    })
+    .map((r): AktionArchivAendern => ({ art: 'archivAendern', ...r }))
+}
+
+function quelleAnlegenAktionArbitrary(): fc.Arbitrary<AktionQuelleAnlegen> {
+  return fc
+    .record({
+      typ: fc.constantFrom(...QuelleTypEnum.options),
+      titel: fc.string(),
+      autor: fc.string(),
+      notiz: fc.string(),
+      archivWahlRoh: fc.option(fc.nat(), { nil: undefined }),
+    })
+    .map((r): AktionQuelleAnlegen => ({ art: 'quelleAnlegen', ...r }))
+}
+
+function quelleAendernAktionArbitrary(): fc.Arbitrary<AktionQuelleAendern> {
+  return fc
+    .record({
+      quelleZielRoh: fc.nat(),
+      typ: fc.constantFrom(...QuelleTypEnum.options),
+      titel: fc.string(),
+      autor: fc.string(),
+      notiz: fc.string(),
+      archivWahlRoh: fc.option(fc.nat(), { nil: undefined }),
+    })
+    .map((r): AktionQuelleAendern => ({ art: 'quelleAendern', ...r }))
+}
+
+function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
+  return fc
+    .record({
+      quelleZielRoh: fc.nat(),
+      seite: fc.string(),
+      transkript: fc.string(),
+      konfidenz: fc.integer({ min: 1, max: 4 }),
+    })
+    .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
+}
+
+function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
+  return fc
+    .record({
+      zitatZielRoh: fc.nat(),
+      quelleZielRoh: fc.nat(),
+      seite: fc.string(),
+      transkript: fc.string(),
+      konfidenz: fc.integer({ min: 1, max: 4 }),
+    })
+    .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
+}
+
+function zitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionZitatLoeschen> {
+  return fc.nat().map((zitatZielRoh): AktionZitatLoeschen => ({ art: 'zitatLoeschen', zitatZielRoh }))
+}
+
+function negativbefundAnlegenAktionArbitrary(): fc.Arbitrary<AktionNegativbefundAnlegen> {
+  return fc
+    .record({
+      personZielRoh: fc.nat(),
+      quelleWahlRoh: fc.option(fc.nat(), { nil: undefined }),
+      gesuchtesPraedikat: fc.string(),
+      zeitraumVon: fc.integer(),
+      zeitraumBis: fc.integer(),
+      beschreibung: fc.string(),
+    })
+    .map((r): AktionNegativbefundAnlegen => ({ art: 'negativbefundAnlegen', ...r }))
+}
+
+function negativbefundAendernAktionArbitrary(): fc.Arbitrary<AktionNegativbefundAendern> {
+  return fc
+    .record({
+      negativbefundZielRoh: fc.nat(),
+      personZielRoh: fc.nat(),
+      quelleWahlRoh: fc.option(fc.nat(), { nil: undefined }),
+      gesuchtesPraedikat: fc.string(),
+      zeitraumVon: fc.integer(),
+      zeitraumBis: fc.integer(),
+      beschreibung: fc.string(),
+    })
+    .map((r): AktionNegativbefundAendern => ({ art: 'negativbefundAendern', ...r }))
+}
+
+function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefundLoeschen> {
+  return fc
+    .nat()
+    .map((negativbefundZielRoh): AktionNegativbefundLoeschen => ({ art: 'negativbefundLoeschen', negativbefundZielRoh }))
+}
+
 /**
  * Arbitrary für eine einzelne `Aktion`. Gewichte: `anlegen` (Person) bleibt mit Abstand am
  * höchsten (3), weil praktisch jede neue Aktion — die eigenen `person.*`-Aktionen ausgenommen —
@@ -783,7 +1059,9 @@ function ortExterneIdLoeschenAktionArbitrary(): fc.Arbitrary<AktionOrtExterneIdL
  * `aendern`/`loeschen` überhaupt etwas zu tun haben). `aussageFaktAendern` liegt bewusst bei 3
  * (höher als `aussageAnlegen`/`aussageLoeschen`) — sie ist der garantierte Demote-Pfad
  * (Kopfkommentar "DEMOTE-DECKUNG") und soll darum über eine Folge hinweg mehrfach feuern, nicht
- * nur einmal zufällig.
+ * nur einmal zufällig. AP-1.17 PR-B: `archivAnlegen`/`quelleAnlegen`/`zitatAnlegen`/
+ * `negativbefundAnlegen` liegen ebenfalls bei 2, ihre `aendern`/`loeschen`-Geschwister bei 1 —
+ * dasselbe Muster wie bei `name`/`elternschaft`/… oben.
  */
 function aktionArbitrary(): fc.Arbitrary<Aktion> {
   return fc.oneof(
@@ -821,6 +1099,16 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: archivAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: archivAendernAktionArbitrary() },
+    { weight: 2, arbitrary: quelleAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: quelleAendernAktionArbitrary() },
+    { weight: 2, arbitrary: zitatAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: zitatAendernAktionArbitrary() },
+    { weight: 1, arbitrary: zitatLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: negativbefundAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: negativbefundAendernAktionArbitrary() },
+    { weight: 1, arbitrary: negativbefundLoeschenAktionArbitrary() },
   )
 }
 
@@ -836,7 +1124,15 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
  * darunter auch `aussageFaktAendern` (3/44 statt 3/29). Die leicht angehobene Mindestlänge gleicht
  * das für die Demote-Deckung wieder etwas aus, ohne `numRuns` zu verändern (CLAUDE.md §13:
  * Determinismus/Gate-Stärke ist Pflicht, nicht die Stellschraube einer Loop) — belegte
- * Trefferzahlen für Demote UND für jede neue Ort-Aktion stehen im PR-Bericht. */
+ * Trefferzahlen für Demote UND für jede neue Ort-Aktion stehen im PR-Bericht.
+ *
+ * AP-1.17 PR-B: `minLength` bleibt bei `18` — die zwölf neuen Archiv-/Quelle-/Zitat-/
+ * Negativbefund-Aktionen (Gesamtgewicht 14) verdünnen `aussageFaktAendern` weiter (3/58 statt
+ * 3/44), eine temporäre Instrumentierung (NICHT committet, Muster identisch zum AP-1.16-PR-B-
+ * Bericht) über genau `{ seed: 20260910, numRuns: 300 }` zeigte aber weiterhin 86 Demote-Treffer
+ * (deutlich über der 5-Treffer-Schwelle, die ursprünglich zur Einführung von `minLength` führte)
+ * UND jede der zwölf neuen Aktionen real feuernd (nie 0) — belegte Trefferzahlen stehen im
+ * PR-Bericht. Eine weitere Anhebung von `minLength` war darum nicht nötig. */
 export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
   return fc.array(aktionArbitrary(), { minLength: 18, maxLength: 40 })
 }
@@ -925,6 +1221,14 @@ interface OrtExterneIdInfo {
   readonly system: ExterneIdSystem
 }
 
+/** Ein angelegter `negativbefund` — `personId` wird für die CASCADE-Bereinigung nach
+ * `person.loeschen` gebraucht (`gesuchte_person_id ... ON DELETE CASCADE`, s. Kopfkommentar,
+ * analog `NameInfo.personId`). */
+interface NegativbefundInfo {
+  readonly id: string
+  readonly personId: string
+}
+
 /** Mutabler Modellzustand einer einzelnen Eigenschaftslauf-Ausführung (kein Vertrags-/Ergebnistyp — bewusst kein `readonly`, analog `ModellZustand` in `_modell-abgeleitet.ts`). */
 export interface Zustand {
   personIds: string[]
@@ -939,6 +1243,10 @@ export interface Zustand {
   ortsnamen: OrtsnameInfo[]
   ortszugehoerigkeiten: OrtszugehoerigkeitInfo[]
   ortExterneIds: OrtExterneIdInfo[]
+  archivIds: string[]
+  quelleIds: string[]
+  zitatIds: string[]
+  negativbefundIds: NegativbefundInfo[]
 }
 
 export function neuerZustand(): Zustand {
@@ -955,6 +1263,10 @@ export function neuerZustand(): Zustand {
     ortsnamen: [],
     ortszugehoerigkeiten: [],
     ortExterneIds: [],
+    archivIds: [],
+    quelleIds: [],
+    zitatIds: [],
+    negativbefundIds: [],
   }
 }
 
@@ -979,6 +1291,19 @@ function zielAusListe<T>(liste: readonly T[], roh: number): T | undefined {
     throw new Error('zielAusListe(): unerreichbar — der Index liegt per Modulo innerhalb der Listenlänge.')
   }
   return element
+}
+
+/** AP-1.17 PR-B: löst eine OPTIONALE Referenz auf eine bestehende Liste auf — `undefined`, wenn
+ * entweder gar kein Wahl-Index generiert wurde (`fc.option()`s `nil`-Zweig, s.
+ * `AktionQuelleAnlegen.archivWahlRoh`/`AktionNegativbefundAnlegen.quelleWahlRoh`) ODER die
+ * Zielliste (noch) leer ist. Beide Fälle bleiben schema-konform (`archivId`/`quelleId` sind in
+ * jedem betroffenen `*Ein`-Schema optional) — kein separater No-op-Fall für die AUFRUFENDE Aktion
+ * nötig, anders als bei einer PFLICHT-Referenz (`zielId()`/`zielAusListe()`). */
+function wahlAufloesen(liste: readonly string[], wahlRoh: number | undefined): string | undefined {
+  if (wahlRoh === undefined) {
+    return undefined
+  }
+  return zielAusListe(liste, wahlRoh)
 }
 
 /** Wählt zwei VERSCHIEDENE Elemente aus `liste` (nie denselben Index zweimal) — `undefined`, wenn
@@ -1215,6 +1540,11 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
           !(t.subjektTyp === 'person' && t.subjektId === id) &&
           !(t.subjektTyp === 'name' && kaskadiertGeloeschteNamenIds.includes(t.subjektId)),
       )
+      // AP-1.17 PR-B: `negativbefund.gesuchte_person_id ... ON DELETE CASCADE` (s. Kopfkommentar)
+      // nimmt jeden `negativbefund` der gelöschten Person mit — `zustand.negativbefundIds` muss das
+      // nachvollziehen, sonst würde ein späteres `negativbefund.aendern`/`.loeschen` einen bereits
+      // kaskadiert gelöschten Datensatz referenzieren.
+      zustand.negativbefundIds = zustand.negativbefundIds.filter((n) => n.personId !== id)
       return
     }
 
@@ -1611,6 +1941,151 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
       zustand.ortExterneIds = zustand.ortExterneIds.filter((e) => !(e.ortId === ziel.ortId && e.system === ziel.system))
+      return
+    }
+
+    case 'archivAnlegen': {
+      const { id } = fuehreAus(db, 'archiv.anlegen', { name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      zustand.archivIds.push(id)
+      return
+    }
+
+    case 'archivAendern': {
+      const archivId = zielAusListe(zustand.archivIds, aktion.archivZielRoh)
+      if (archivId === undefined) {
+        return
+      }
+      fuehreAus(db, 'archiv.aendern', { id: archivId, name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      return
+    }
+
+    case 'quelleAnlegen': {
+      const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
+      const { id } = fuehreAus(db, 'quelle.anlegen', {
+        typ: aktion.typ,
+        titel: aktion.titel,
+        autor: aktion.autor,
+        notiz: aktion.notiz,
+        ...(archivId === undefined ? {} : { archivId }),
+      })
+      zustand.quelleIds.push(id)
+      return
+    }
+
+    case 'quelleAendern': {
+      const quelleId = zielAusListe(zustand.quelleIds, aktion.quelleZielRoh)
+      if (quelleId === undefined) {
+        return
+      }
+      const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
+      fuehreAus(db, 'quelle.aendern', {
+        id: quelleId,
+        typ: aktion.typ,
+        titel: aktion.titel,
+        autor: aktion.autor,
+        notiz: aktion.notiz,
+        ...(archivId === undefined ? {} : { archivId }),
+      })
+      return
+    }
+
+    case 'zitatAnlegen': {
+      const quelleId = zielAusListe(zustand.quelleIds, aktion.quelleZielRoh)
+      if (quelleId === undefined) {
+        return
+      }
+      const { id } = fuehreAus(db, 'zitat.anlegen', {
+        quelleId,
+        seite: aktion.seite,
+        transkript: aktion.transkript,
+        konfidenz: aktion.konfidenz,
+      })
+      zustand.zitatIds.push(id)
+      return
+    }
+
+    case 'zitatAendern': {
+      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
+      if (zitatId === undefined) {
+        return
+      }
+      const quelleId = zielAusListe(zustand.quelleIds, aktion.quelleZielRoh)
+      if (quelleId === undefined) {
+        return
+      }
+      fuehreAus(db, 'zitat.aendern', {
+        id: zitatId,
+        quelleId,
+        seite: aktion.seite,
+        transkript: aktion.transkript,
+        konfidenz: aktion.konfidenz,
+      })
+      return
+    }
+
+    case 'zitatLoeschen': {
+      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
+      if (zitatId === undefined) {
+        return
+      }
+      fuehreAus(db, 'zitat.loeschen', { id: zitatId })
+      zustand.zitatIds = zustand.zitatIds.filter((z) => z !== zitatId)
+      return
+    }
+
+    case 'negativbefundAnlegen': {
+      const personId = zielId(zustand, aktion.personZielRoh)
+      if (personId === undefined) {
+        return
+      }
+      const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
+      const { id } = fuehreAus(db, 'negativbefund.anlegen', {
+        gesuchtePersonId: personId,
+        gesuchtesPraedikat: aktion.gesuchtesPraedikat,
+        zeitraumVon: aktion.zeitraumVon,
+        zeitraumBis: aktion.zeitraumBis,
+        beschreibung: aktion.beschreibung,
+        ...(quelleId === undefined ? {} : { quelleId }),
+      })
+      zustand.negativbefundIds.push({ id, personId })
+      return
+    }
+
+    case 'negativbefundAendern': {
+      const ziel = zielAusListe(zustand.negativbefundIds, aktion.negativbefundZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      const personId = zielId(zustand, aktion.personZielRoh)
+      if (personId === undefined) {
+        return
+      }
+      const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
+      fuehreAus(db, 'negativbefund.aendern', {
+        id: ziel.id,
+        gesuchtePersonId: personId,
+        gesuchtesPraedikat: aktion.gesuchtesPraedikat,
+        zeitraumVon: aktion.zeitraumVon,
+        zeitraumBis: aktion.zeitraumBis,
+        beschreibung: aktion.beschreibung,
+        ...(quelleId === undefined ? {} : { quelleId }),
+      })
+      // Die Zeile bleibt an `personId` (dem NEU angegebenen Ziel) gebunden — `negativbefund.aendern`
+      // erlaubt genau das (die editierbaren Spalten umfassen `gesuchtePersonId` selbst, s.
+      // Abschnittskommentar `src/shared/schemata/befehle.ts`). `zustand.negativbefundIds` muss diese
+      // neue Bindung nachführen, sonst würde ein späteres `person.loeschen` auf das ALTE
+      // `ziel.personId` fälschlich noch diesen (inzwischen umgehängten) Negativbefund kaskadieren.
+      zustand.negativbefundIds = zustand.negativbefundIds.map((n) => (n.id === ziel.id ? { id: n.id, personId } : n))
+      return
+    }
+
+    case 'negativbefundLoeschen': {
+      const ziel = zielAusListe(zustand.negativbefundIds, aktion.negativbefundZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'negativbefund.loeschen', { id: ziel.id })
+      zustand.negativbefundIds = zustand.negativbefundIds.filter((n) => n.id !== ziel.id)
       return
     }
 
