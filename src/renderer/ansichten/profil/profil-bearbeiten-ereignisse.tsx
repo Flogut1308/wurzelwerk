@@ -20,6 +20,7 @@ import {
   EREIGNIS_ENTWURF_LEER,
   ereignisAnlegenEinAusEntwurf,
   ereignisEntwurfAbsendbar,
+  ereignisEntwurfJdn,
   ereignisPersonSucheEin,
   weitererBeteiligterLeer,
   type EreignisEntwurfWerte,
@@ -198,7 +199,11 @@ function EreignisNeuFormular({ personId }: { readonly personId: string }) {
   const naechsterSchluessel = useRef(0)
 
   const ortSucheAktiv = ortSuchtext.trim() !== ''
-  const ortSucheAbfrage = useOrtSuche({ text: ortSuchtext }, { enabled: ortSucheAktiv })
+  // `jdn` aus dem Ereignis-Datumstext (AP-1.16 PR-C) — die Ortsfeld-Hierarchiezeile (docs/71 §3.2)
+  // braucht einen konkreten Gültigkeitszeitpunkt; ohne auflösbares Datum bleibt sie leer (kein
+  // `jdn`, `exactOptionalPropertyTypes` verbietet ein explizites `jdn: undefined`).
+  const ereignisJdn = ereignisEntwurfJdn(entwurf.datumText)
+  const ortSucheAbfrage = useOrtSuche({ text: ortSuchtext, ...(ereignisJdn === undefined ? {} : { jdn: ereignisJdn }) }, { enabled: ortSucheAktiv })
   const ortZustand: OrtsfeldZustand = ortSucheAktiv ? (ortSucheAbfrage.isPending ? 'laedt' : 'bereit') : 'leer'
   const ortTreffer = ortSucheAbfrage.data?.treffer ?? []
 
