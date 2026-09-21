@@ -12,12 +12,22 @@
 // sie eingeführt wurden — ein stiller, vollständiger Funktionsausfall der Quellen-/Zitat-/
 // Archiv-/Negativbefund-Pflege, den kein bestehender Test bemerkte (die einzige Vollständigkeits-
 // prüfung, `dialoge.test.ts`, deckt nur die beiden Dialog-Kanäle ab).
+//
+// Nachtrag: diese Liste war selbst nur eine Handpflege-Liste der bekannten 13 — sie hätte KEINE
+// künftig fehlende Kanäle gefangen. Der eigentliche Wächter ist jetzt der Compile-Zeit-
+// Vollständigkeitsbeweis in `src/shared/ipc/kanaele.ts` (`FehlendeKanaele`/`_kanaeleVollstaendig`):
+// er lässt `pnpm typen` fehlschlagen, sobald IRGENDEIN in `Vertrag` deklarierter Kanal in der
+// Weißliste fehlt. Er deckte beim Einbau sofort drei weitere, bis dahin unbemerkte Fälle derselben
+// Bugklasse auf (`befehl:schnappschuss.erzeugen`, `abfrage:schnappschuss.liste`,
+// `befehl:schnappschuss.wiederherstellen`) — die diese hartkodierte Liste nie erfasst hätte.
+// Dieser Test bleibt als Dokumentation des ursprünglichen Vorfalls (die 16 real gefundenen
+// Kanäle) erhalten, ist aber nicht mehr die Vollständigkeitsprüfung.
 import { describe, expect, it } from 'vitest'
 import { ALLE_KANAELE } from '../../src/shared/ipc/kanaele'
 
-// Genau die Kanäle aus `vertrag.ts` zwischen `befehl:ort-externe-id.loeschen` und
-// `abfrage:negativbefund.liste` (Archiv/Quelle/Zitat/Negativbefund, AP-1.17/AP-1.18) — alle wurden
-// beim Anlegen ihrer Handler in `registrierung.ts` nicht in die Preload-Weißliste übernommen.
+// Alle real gefundenen, zuvor fehlenden Kanäle: die ursprünglichen 13 (Archiv/Quelle/Zitat/
+// Negativbefund, AP-1.17/AP-1.18) plus die drei vom Compile-Zeit-Guard aufgedeckten
+// Schnappschuss-Kanäle.
 const ERWARTETE_KANAELE = [
   'befehl:archiv.anlegen',
   'befehl:archiv.aendern',
@@ -32,9 +42,12 @@ const ERWARTETE_KANAELE = [
   'befehl:negativbefund.aendern',
   'befehl:negativbefund.loeschen',
   'abfrage:negativbefund.liste',
+  'befehl:schnappschuss.erzeugen',
+  'abfrage:schnappschuss.liste',
+  'befehl:schnappschuss.wiederherstellen',
 ] as const
 
-describe('ALLE_KANAELE (Preload-Weißliste) — Archiv/Quelle/Zitat/Negativbefund', () => {
+describe('ALLE_KANAELE (Preload-Weißliste) — real gefundene, zuvor fehlende Kanäle', () => {
   it.each(ERWARTETE_KANAELE)('enthält "%s" (in registrierung.ts bedient, s. Kopfkommentar)', (kanal) => {
     expect(ALLE_KANAELE).toContain(kanal)
   })
