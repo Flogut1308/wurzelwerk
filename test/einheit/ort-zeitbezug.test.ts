@@ -5,7 +5,7 @@
 // stehen.
 import { describe, expect, it } from 'vitest'
 import { nachJdn } from '../../src/core/datum/kalender'
-import { gueltigerOrtsname, zugehoerigkeitsketteZuDatum } from '../../src/core/ort/zeitbezug'
+import { gueltigerOrtsname, hierarchieZuDatum, zugehoerigkeitsketteZuDatum } from '../../src/core/ort/zeitbezug'
 import type { OrtsnameEintrag, ZugehoerigkeitEintrag } from '../../src/core/ort/zeitbezug'
 
 // Kriegsende/Verwaltungswechsel als Testanker für den Namens- und Zugehörigkeitswechsel.
@@ -64,5 +64,43 @@ describe('zugehoerigkeitsketteZuDatum', () => {
 
     expect(politischeKette.map((eintrag) => eintrag.uebergeordnetId)).not.toContain('bistum-kulm')
     expect(kirchlicheKette.map((eintrag) => eintrag.uebergeordnetId)).toEqual(['bistum-kulm'])
+  })
+})
+
+// AP-1.16 PR-C (docs/71_Designsystem.md §3.2: "Kreis Marienwerder · Westpreußen · Preußen" — die
+// VOLLE, mehrstufige Kette). `hierarchieZuDatum` läuft ausschließlich über `zugehoerigkeitsketteZuDatum`
+// (KEIN zweiter Auflösungsweg) — Ort -> Kreis -> Provinz -> Staat, je Stufe erneut zum Datum
+// geprüft, damit ein Grenzwechsel auf JEDER Stufe unabhängig wirken kann.
+describe('hierarchieZuDatum', () => {
+  const kreisMarienwerder: readonly ZugehoerigkeitEintrag[] = [{ uebergeordnetId: 'westpreussen', art: 'politisch' }]
+  const westpreussen: readonly ZugehoerigkeitEintrag[] = [
+    { uebergeordnetId: 'deutsches-reich', art: 'politisch', gueltigBis: GRENZTAG },
+    { uebergeordnetId: 'polen', art: 'politisch', gueltigVon: GRENZTAG + 1 },
+  ]
+  const karte = new Map<string, readonly ZugehoerigkeitEintrag[]>([
+    ['kreis-marienwerder', kreisMarienwerder],
+    ['westpreussen', westpreussen],
+  ])
+
+  it('läuft mehrstufig nach oben: Kreis -> Provinz -> Staat', () => {
+    const kette = hierarchieZuDatum(karte, 'kreis-marienwerder', 'politisch', JDN_1900)
+    expect(kette).toEqual(['westpreussen', 'deutsches-reich'])
+  })
+
+  it('derselbe Startort liefert nach dem Grenzwechsel eine andere Stufe der Kette', () => {
+    const kette = hierarchieZuDatum(karte, 'kreis-marienwerder', 'politisch', JDN_1950)
+    expect(kette).toEqual(['westpreussen', 'polen'])
+  })
+
+  it('kein Eintrag für den Startort -> leere Kette', () => {
+    expect(hierarchieZuDatum(karte, 'unbekannter-ort', 'politisch', JDN_1900)).toEqual([])
+  })
+
+  it('bricht bei einem (eigentlich verhinderten) Zyklus defensiv ab statt endlos zu laufen', () => {
+    const zyklisch = new Map<string, readonly ZugehoerigkeitEintrag[]>([
+      ['a', [{ uebergeordnetId: 'b', art: 'politisch' }]],
+      ['b', [{ uebergeordnetId: 'a', art: 'politisch' }]],
+    ])
+    expect(hierarchieZuDatum(zyklisch, 'a', 'politisch', JDN_1900)).toEqual(['b'])
   })
 })

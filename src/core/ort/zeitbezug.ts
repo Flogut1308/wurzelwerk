@@ -56,3 +56,45 @@ export function zugehoerigkeitsketteZuDatum(
 ): readonly ZugehoerigkeitEintrag[] {
   return zugehoerigkeiten.filter((eintrag) => eintrag.art === art && istGueltigBei(eintrag.gueltigVon, eintrag.gueltigBis, jdn))
 }
+
+/** Maximale Stufenzahl von `hierarchieZuDatum()` — reine Absicherung gegen einen (eigentlich durch
+ * `src/core/ort/zyklus.ts::wuerdeZyklusErzeugen` schon verhinderten) Zyklus, keine fachliche
+ * Obergrenze der Ort-Hierarchie. */
+const HIERARCHIE_MAX_STUFEN = 50
+
+/**
+ * Baut die VOLLE, mehrstufige Zugehörigkeitskette EINER `art` zu einem Datum (docs/71_Designsystem.md
+ * §3.2: "Kreis Marienwerder · Westpreußen · Preußen") — läuft vom Ort `startOrtId` beliebig weit
+ * nach oben, solange `zugehoerigkeitenNachOrt` für den jeweils aktuellen Ort einen zum Datum
+ * gültigen Eintrag DIESER `art` liefert. Jede Stufe geht ausschließlich über
+ * `zugehoerigkeitsketteZuDatum()` (KEIN zweiter Auflösungsweg) — ein Grenzwechsel kann darum auf
+ * jeder Stufe unabhängig wirken (Kreis wechselt an einem anderen Tag als die Provinz).
+ *
+ * Liefert NUR die `uebergeordnetId`-Kette (nächster Vorfahre zuerst), OHNE `startOrtId` selbst.
+ * Leer, wenn `startOrtId` keinen Eintrag dieser `art` hat (kein Übergeordneter bekannt). Der
+ * Besucht-Schutz ist eine reine Absicherung — die Datenbank verhindert Zyklen bereits beim
+ * Schreiben (`ortszugehoerigkeit.anlegen`), diese Funktion setzt sich dem NICHT als zweite
+ * Zyklusprüfung entgegen, sondern bricht nur ab, statt endlos zu laufen.
+ */
+export function hierarchieZuDatum(
+  zugehoerigkeitenNachOrt: ReadonlyMap<string, readonly ZugehoerigkeitEintrag[]>,
+  startOrtId: string,
+  art: OrtszugehoerigkeitArt,
+  jdn: number,
+): readonly string[] {
+  const kette: string[] = []
+  const besucht = new Set<string>([startOrtId])
+  let aktuellerOrtId = startOrtId
+
+  for (let stufe = 0; stufe < HIERARCHIE_MAX_STUFEN; stufe += 1) {
+    const eintraege = zugehoerigkeitenNachOrt.get(aktuellerOrtId) ?? []
+    const treffer = zugehoerigkeitsketteZuDatum(eintraege, art, jdn)[0]
+    if (treffer === undefined) break
+    if (besucht.has(treffer.uebergeordnetId)) break
+    kette.push(treffer.uebergeordnetId)
+    besucht.add(treffer.uebergeordnetId)
+    aktuellerOrtId = treffer.uebergeordnetId
+  }
+
+  return kette
+}
