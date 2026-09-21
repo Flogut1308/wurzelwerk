@@ -69,6 +69,10 @@ import {
   ortExterneIdLoeschenEinSchema,
   type OrtExterneIdAnlegenEin,
   type OrtExterneIdLoeschenEin,
+  archivAnlegenEinSchema,
+  archivAendernEinSchema,
+  type ArchivAnlegenEin,
+  type ArchivAendernEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -98,6 +102,8 @@ import { ortszugehoerigkeitAendern } from './ortszugehoerigkeit-aendern'
 import { ortszugehoerigkeitLoeschen } from './ortszugehoerigkeit-loeschen'
 import { ortExterneIdAnlegen } from './ort-externe-id-anlegen'
 import { ortExterneIdLoeschen } from './ort-externe-id-loeschen'
+import { archivAnlegen } from './archiv-anlegen'
+import { archivAendern } from './archiv-aendern'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -146,6 +152,8 @@ interface BefehlKarte {
   'ortszugehoerigkeit.loeschen': { ein: OrtszugehoerigkeitLoeschenEin; aus: null }
   'ort-externe-id.anlegen': { ein: OrtExterneIdAnlegenEin; aus: null }
   'ort-externe-id.loeschen': { ein: OrtExterneIdLoeschenEin; aus: null }
+  'archiv.anlegen': { ein: ArchivAnlegenEin; aus: { readonly id: string } }
+  'archiv.aendern': { ein: ArchivAendernEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -325,5 +333,17 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.ort_externe_id_geloescht',
     handler: ortExterneIdLoeschen,
+  },
+  'archiv.anlegen': {
+    schema: archivAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.archiv_angelegt',
+    handler: archivAnlegen,
+  },
+  'archiv.aendern': {
+    schema: archivAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.archiv_geaendert',
+    handler: archivAendern,
   },
 }
