@@ -400,6 +400,10 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
         await expect(profil).toBeVisible()
         await expect(profil.getByRole('heading', { name: 'Walter Wruck', level: 1 })).toBeVisible()
+        // Der „Bearbeiten"-Umschalter in der Kopfzeile erscheint erst, sobald die Profildaten
+        // geladen sind (`abfrage.isSuccess`, `profil-ansicht.tsx`). Ohne diesen Wait konnte die
+        // Aufnahme entstehen, bevor der Knopf gemalt war — ein nichtdeterministisches Golden.
+        await expect(profil.getByRole('button', { name: 'Bearbeiten', exact: true })).toBeVisible()
       })
 
       test.afterAll(async () => {

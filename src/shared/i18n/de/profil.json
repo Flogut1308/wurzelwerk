@@ -117,5 +117,53 @@
   "praedikat_militaerdienst": "Militärdienst",
   "praedikat_auswanderung": "Auswanderung",
   "praedikat_vermoegen": "Vermögen",
-  "praedikat_mitgliedschaft": "Mitgliedschaft"
+  "praedikat_mitgliedschaft": "Mitgliedschaft",
+
+  "bearbeiten": "Bearbeiten",
+  "fertig": "Fertig",
+  "bearbeitungsstatus_hinweis": "Änderungen werden sofort gespeichert.",
+
+  "abschnitt_namen_bearbeiten": "Namen",
+  "name_vornamen_beschriftung": "Vorname(n)",
+  "name_nachname_beschriftung": "Nachname",
+  "name_praefix_beschriftung": "Präfix (von, van, …)",
+  "name_titel_vor_beschriftung": "Titel (vorangestellt)",
+  "name_zusatz_nach_beschriftung": "Namenszusatz (nachgestellt)",
+  "name_rufname_beschriftung": "Rufname",
+  "name_typ_beschriftung": "Namenstyp",
+  "name_schrift_beschriftung": "Schrift",
+  "name_entfernen": "Name entfernen",
+  "name_hinzufuegen": "Name hinzufügen",
+  "name_neu_ueberschrift": "Neuen Namen erfassen",
+  "name_liste_leer": "Noch kein Name erfasst.",
+
+  "schrift_unbestimmt": "nicht angegeben",
+  "schrift_latn": "Lateinisch",
+  "schrift_cyrl": "Kyrillisch",
+
+  "name_typ_geburtsname": "Geburtsname",
+  "name_typ_ehename": "Ehename",
+  "name_typ_vulgo": "Vulgo-/Hausname",
+  "name_typ_latinisiert": "Latinisiert",
+  "name_typ_transliteriert": "Transliteriert",
+  "name_typ_ordensname": "Ordensname",
+  "name_typ_beruf": "Berufsname",
+  "name_typ_aka": "Auch bekannt als",
+  "name_typ_sonstiges": "Sonstiges",
+
+  "abschnitt_grunddaten_bearbeiten": "Grunddaten",
+  "geschlecht_beschriftung": "Geschlecht",
+  "geschlecht_m": "Männlich",
+  "geschlecht_f": "Weiblich",
+  "geschlecht_u": "Unbekannt",
+  "geschlecht_x": "Divers",
+
+  "notiz_beschriftung": "Notiz",
+
+  "platzhalter_kennzeichen_beschriftung": "Platzhalterperson",
+  "platzhalter_grund_beschriftung": "Grund",
+  "platzhalter_grund_unbekannt": "Unbekannt",
+  "platzhalter_grund_unehelich": "Unehelich",
+  "platzhalter_grund_nicht_identifiziert": "Nicht identifiziert",
+  "platzhalter_grund_forschungsluecke": "Forschungslücke"
 }

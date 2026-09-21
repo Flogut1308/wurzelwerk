@@ -30,6 +30,23 @@
   background: var(--wz-flaeche-erhoben);
 }
 
+.wz-profil-ansicht__kopfzeile-aktionen {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+/* Speicherstatus-Hinweis (S-20: „kein Speichern-Knopf — die Fußzeile zeigt den Speicherstatus"),
+ * §14-Vermerk `docs/80_Offene_Fragen.md` §26: aus vorhandenen Bausteinen zusammengesetzt (`Text`
+ * in einer `<footer>`), `aria-live` auf der Fußzeile selbst statt eines eigenen unsichtbaren
+ * Statusknotens (analog `.wz-profil-ansicht__statusregion`, hier aber sichtbar). */
+.wz-profil-ansicht__fusszeile {
+  flex: 0 0 auto;
+  padding: var(--wz-abstand-12) var(--wz-abstand-24);
+  border-top: 1px solid var(--wz-rahmen-fein);
+  background: var(--wz-flaeche-erhoben);
+}
+
 .wz-profil-ansicht__inhalt {
   display: flex;
   flex-direction: column;

@@ -58,6 +58,27 @@ export function usePersonLoeschen(): UseMutationResult<null, AppFehler, Ein<'bef
   })
 }
 
+/** `befehl:name.anlegen` (AP-1.12, AP-1.14a: erster Konsument — die Kernfelder-Schreibmaske). */
+export function useNameAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:name.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:name.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:name.anlegen', ein)),
+  })
+}
+
+/** `befehl:name.aendern` (AP-1.12, AP-1.14a). */
+export function useNameAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:name.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:name.aendern'>) => ergebnisEntpacken(aufrufen('befehl:name.aendern', ein)),
+  })
+}
+
+/** `befehl:name.loeschen` (AP-1.12, AP-1.14a). */
+export function useNameLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:name.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:name.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:name.loeschen', ein)),
+  })
+}
+
 /** `befehl:ort.anlegen` (AP-1.13 PR-C, docs/71 §3.2) — die feste Schlusszeile des `Ortsfeld`s. */
 export function useOrtAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ort.anlegen'>> {
   return useMutation({

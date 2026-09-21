@@ -1,0 +1,9 @@
+/*
+ * `GrunddatenBearbeitenAbschnitt` — AP-1.14a, S-20 Kernfelder.
+ */
+
+.wz-profil-bearbeiten-grunddaten__kennzeichen {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}

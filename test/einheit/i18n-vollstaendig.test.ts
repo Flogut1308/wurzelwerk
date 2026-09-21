@@ -9,16 +9,22 @@ import {
   PRAEDIKAT_SCHLUESSEL,
   beteiligungRolleSchluessel,
   ereignisTypSchluessel,
+  geschlechtSchluessel,
   gesundheitArtSchluessel,
   kantentypSchluessel,
+  nameTypSchluessel,
+  platzhalterGrundSchluessel,
   quelleTypSchluessel,
   richtungSchluessel,
+  schriftSchluessel,
   unmittelbarkeitSchluessel,
 } from '../../src/renderer/ansichten/profil/profil-schluessel'
 import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../src/shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../src/shared/schemata/ereignis'
+import { NameTypEnum, SchriftEnum } from '../../src/shared/schemata/name'
 import { PartnerschaftTypEnum } from '../../src/shared/schemata/partnerschaft'
+import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { PersonDetailBeziehungRichtungEnum, PersonDetailGesundheitArtEnum } from '../../src/shared/schemata/person-detail'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../src/shared/schemata/quelle'
 
@@ -100,6 +106,11 @@ describe('i18n-Ressourcen für den profil-Namespace (AP-1.7 PR-B)', () => {
     for (const typ of QuelleTypEnum.options) schluessel.add(quelleTypSchluessel(typ))
     for (const unmittelbarkeit of UnmittelbarkeitEnum.options) schluessel.add(unmittelbarkeitSchluessel(unmittelbarkeit))
     for (const wert of Object.values(PRAEDIKAT_SCHLUESSEL)) schluessel.add(wert)
+    // AP-1.14a: Kernfelder-Schreibmaske.
+    for (const typ of NameTypEnum.options) schluessel.add(nameTypSchluessel(typ))
+    for (const schrift of SchriftEnum.options) schluessel.add(schriftSchluessel(schrift))
+    for (const geschlecht of GeschlechtEnum.options) schluessel.add(geschlechtSchluessel(geschlecht))
+    for (const grund of PlatzhalterGrundEnum.options) schluessel.add(platzhalterGrundSchluessel(grund))
     return schluessel
   }
 
