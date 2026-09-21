@@ -21,6 +21,7 @@ import { OrtTypEnum } from './ort'
 import { OrtszugehoerigkeitArtEnum } from './ortszugehoerigkeit'
 import { ExterneIdSystemEnum } from './ort-externe-id'
 import { type Datumswert, datumswertSchema } from './import-v1'
+import { InformationsartEnum, QuelleArtEnum, QuelleFormEnum, QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 
 /** Liste bestehender `zitat.id`-Werte, mit denen eine neue Aussage verknüpft wird (AP-1.12) —
  * bewusst NUR Kennungen, keine `quelle`/`zitat`-Anlage in diesem Arbeitspaket (das bleibt dem
@@ -701,4 +702,96 @@ export const archivAendernEinSchema: z.ZodType<ArchivAendernEin> = z.object({
   kontakt: z.string().optional(),
   url: z.string().optional(),
   notiz: z.string().optional(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// quelle.anlegen / quelle.aendern (AP-1.17 PR-A2, docs/schema/0002_kern.sql §2.7 + §2.15
+// „mündlich") — manuelle Quellenverwaltung: `typ` ist Pflicht (NOT NULL + CHECK in der Tabelle),
+// alle anderen Spalten sind optionale Freitext-/Verweisfelder, inklusive des „mündlich"-Blocks
+// (`informantPersonId`/`gespraechsdatum`/`form`/`unmittelbarkeit`/`audioMediumId`) — der Block ist
+// bewusst NICHT auf `typ === 'muendlich'` beschränkt, dieselbe Freiheit wie der Importvertrag
+// (56_Import_Vertrag.md §2.15) lässt ihn bei jedem `typ` zu. `quelle.aendern` editiert ALLE
+// editierbaren Spalten in einem Schritt, kein Teil-Patch (analog `ArchivAendernEin`) — ein
+// weggelassenes optionales Feld wird beim Schreiben zu `NULL`. Enums werden aus `./quelle`
+// wiederverwendet (dieselben `CHECK`-Klauseln, s. Kopfkommentar dort), `Datumswert`/
+// `datumswertSchema` aus `./import-v1` (dieselbe Vertragsform wie bei `ereignis.anlegen`/
+// `aendern`, s. Importkommentar oben). Bewusst KEIN `quelle.loeschen` in diesem PR (Kaskaden-
+// Entscheidung offen, analog `ort.loeschen`, docs/80_Offene_Fragen.md). Kein Zitat-Schreibbefehl
+// hier (PR-A3) — `zitatIdsSchema` oben bleibt für Aussagen, nicht für Quellen.
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:quelle.anlegen`. */
+export interface QuelleAnlegenEin {
+  readonly typ: z.infer<typeof QuelleTypEnum>
+  readonly titel?: string | undefined
+  readonly autor?: string | undefined
+  readonly verlag?: string | undefined
+  readonly jahr?: number | undefined
+  readonly art?: z.infer<typeof QuelleArtEnum> | undefined
+  readonly informationsart?: z.infer<typeof InformationsartEnum> | undefined
+  readonly archivId?: string | undefined
+  readonly signatur?: string | undefined
+  readonly notiz?: string | undefined
+  readonly informantPersonId?: string | undefined
+  readonly gespraechsdatum?: Datumswert | undefined
+  readonly form?: z.infer<typeof QuelleFormEnum> | undefined
+  readonly unmittelbarkeit?: z.infer<typeof UnmittelbarkeitEnum> | undefined
+  readonly audioMediumId?: string | undefined
+}
+
+export const quelleAnlegenEinSchema: z.ZodType<QuelleAnlegenEin> = z.object({
+  typ: QuelleTypEnum,
+  titel: z.string().optional(),
+  autor: z.string().optional(),
+  verlag: z.string().optional(),
+  jahr: z.number().int().optional(),
+  art: QuelleArtEnum.optional(),
+  informationsart: InformationsartEnum.optional(),
+  archivId: z.string().optional(),
+  signatur: z.string().optional(),
+  notiz: z.string().optional(),
+  informantPersonId: z.string().optional(),
+  gespraechsdatum: datumswertSchema.optional(),
+  form: QuelleFormEnum.optional(),
+  unmittelbarkeit: UnmittelbarkeitEnum.optional(),
+  audioMediumId: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:quelle.aendern` — alle editierbaren Spalten (s. Abschnittskommentar oben). */
+export interface QuelleAendernEin {
+  readonly id: string
+  readonly typ: z.infer<typeof QuelleTypEnum>
+  readonly titel?: string | undefined
+  readonly autor?: string | undefined
+  readonly verlag?: string | undefined
+  readonly jahr?: number | undefined
+  readonly art?: z.infer<typeof QuelleArtEnum> | undefined
+  readonly informationsart?: z.infer<typeof InformationsartEnum> | undefined
+  readonly archivId?: string | undefined
+  readonly signatur?: string | undefined
+  readonly notiz?: string | undefined
+  readonly informantPersonId?: string | undefined
+  readonly gespraechsdatum?: Datumswert | undefined
+  readonly form?: z.infer<typeof QuelleFormEnum> | undefined
+  readonly unmittelbarkeit?: z.infer<typeof UnmittelbarkeitEnum> | undefined
+  readonly audioMediumId?: string | undefined
+}
+
+export const quelleAendernEinSchema: z.ZodType<QuelleAendernEin> = z.object({
+  id: z.string(),
+  typ: QuelleTypEnum,
+  titel: z.string().optional(),
+  autor: z.string().optional(),
+  verlag: z.string().optional(),
+  jahr: z.number().int().optional(),
+  art: QuelleArtEnum.optional(),
+  informationsart: InformationsartEnum.optional(),
+  archivId: z.string().optional(),
+  signatur: z.string().optional(),
+  notiz: z.string().optional(),
+  informantPersonId: z.string().optional(),
+  gespraechsdatum: datumswertSchema.optional(),
+  form: QuelleFormEnum.optional(),
+  unmittelbarkeit: UnmittelbarkeitEnum.optional(),
+  audioMediumId: z.string().optional(),
 })

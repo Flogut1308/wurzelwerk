@@ -32,6 +32,8 @@ import type {
   OrtExterneIdLoeschenEin,
   ArchivAnlegenEin,
   ArchivAendernEin,
+  QuelleAnlegenEin,
+  QuelleAendernEin,
 } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
@@ -39,6 +41,7 @@ import type { PruefhinweiseAus } from '../schemata/pruefhinweise'
 import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
 import type { OrtDetailAus, OrtDetailEin } from '../schemata/ort-detail'
 import type { ArchivSucheAus, ArchivSucheEin } from '../schemata/archiv-suche'
+import type { QuelleDetailAus, QuelleDetailEin } from '../schemata/quelle-detail'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -344,6 +347,9 @@ export interface Vertrag {
   'befehl:archiv.anlegen': { ein: ArchivAnlegenEin; aus: { readonly id: string } }
   'befehl:archiv.aendern': { ein: ArchivAendernEin; aus: null }
   'abfrage:archiv.suche': { ein: ArchivSucheEin; aus: ArchivSucheAus }
+  'befehl:quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
+  'befehl:quelle.aendern': { ein: QuelleAendernEin; aus: null }
+  'abfrage:quelle.detail': { ein: QuelleDetailEin; aus: QuelleDetailAus }
 }
 
 export type Kanal = keyof Vertrag

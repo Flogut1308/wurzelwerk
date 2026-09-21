@@ -22,7 +22,9 @@ function datumSpaltenParameter(praefix: string, gruppe: DatumSpaltengruppe): Rec
 }
 
 /** Nutzlast von `quelleEinfuegen()`: alle Spalten von `quelle` (docs/schema/0002_kern.sql §2.7 +
- * §2.15 „mündlich"), außer `archiv_id` (kein Vertragsfeld für `archiv[]` in AP-1.3d). */
+ * §2.15 „mündlich"). `archivId` kam erst mit AP-1.17 PR-A2 hinzu (der Nutzer-Befehl `quelle.
+ * anlegen` erlaubt ein Archiv, der Import-Pfad — `src/main/import/schreiben.ts` — setzt weiterhin
+ * `null`, kein Vertragsfeld für `archiv[]` im Importvertrag). */
 export interface QuelleEinfuegenEin {
   readonly id: string
   readonly typ: string
@@ -32,6 +34,7 @@ export interface QuelleEinfuegenEin {
   readonly jahr: number | null
   readonly art: string | null
   readonly informationsart: string | null
+  readonly archivId: string | null
   readonly signatur: string | null
   readonly notiz: string | null
   readonly informantPersonId: string | null
@@ -47,14 +50,14 @@ export interface QuelleEinfuegenEin {
 export function quelleEinfuegen(tx: Tx, ein: QuelleEinfuegenEin): void {
   tx.prepare(
     `INSERT INTO quelle (
-       id, typ, titel, autor, verlag, jahr, art, informationsart, signatur, notiz, informant_person_id,
+       id, typ, titel, autor, verlag, jahr, art, informationsart, archiv_id, signatur, notiz, informant_person_id,
        gespraechsdatum_kalender, gespraechsdatum_modifikator, gespraechsdatum_praezision, gespraechsdatum_wert1,
        gespraechsdatum_wert2, gespraechsdatum_originaltext, gespraechsdatum_sort_von, gespraechsdatum_sort_bis,
        gespraechsdatum_zweitkalender, gespraechsdatum_zweitwert, gespraechsdatum_doppeljahr,
        form, unmittelbarkeit, audio_medium_id, erstellt_am, geaendert_am
      )
      VALUES (
-       @id, @typ, @titel, @autor, @verlag, @jahr, @art, @informationsart, @signatur, @notiz, @informantPersonId,
+       @id, @typ, @titel, @autor, @verlag, @jahr, @art, @informationsart, @archivId, @signatur, @notiz, @informantPersonId,
        @gespraechsdatumKalender, @gespraechsdatumModifikator, @gespraechsdatumPraezision, @gespraechsdatumWert1,
        @gespraechsdatumWert2, @gespraechsdatumOriginaltext, @gespraechsdatumSortVon, @gespraechsdatumSortBis,
        @gespraechsdatumZweitkalender, @gespraechsdatumZweitwert, @gespraechsdatumDoppeljahr,
@@ -69,6 +72,7 @@ export function quelleEinfuegen(tx: Tx, ein: QuelleEinfuegenEin): void {
     jahr: ein.jahr,
     art: ein.art,
     informationsart: ein.informationsart,
+    archivId: ein.archivId,
     signatur: ein.signatur,
     notiz: ein.notiz,
     informantPersonId: ein.informantPersonId,
@@ -77,6 +81,110 @@ export function quelleEinfuegen(tx: Tx, ein: QuelleEinfuegenEin): void {
     unmittelbarkeit: ein.unmittelbarkeit,
     audioMediumId: ein.audioMediumId,
     erstelltAm: ein.erstelltAm,
+    geaendertAm: ein.geaendertAm,
+  })
+}
+
+/** Spalten von `quelle` (docs/schema/0002_kern.sql §2.7 + §2.15), für `quelleLesen()` (AP-0.22-
+ * Vergleich vor `quelle.aendern`) UND für `abfrage:quelle.detail` (AP-1.17 PR-A2). */
+export interface QuelleZeile {
+  readonly id: string
+  readonly typ: string
+  readonly titel: string | null
+  readonly autor: string | null
+  readonly verlag: string | null
+  readonly jahr: number | null
+  readonly art: string | null
+  readonly informationsart: string | null
+  readonly archiv_id: string | null
+  readonly signatur: string | null
+  readonly notiz: string | null
+  readonly informant_person_id: string | null
+  readonly gespraechsdatum_kalender: string | null
+  readonly gespraechsdatum_modifikator: string | null
+  readonly gespraechsdatum_praezision: string | null
+  readonly gespraechsdatum_wert1: string | null
+  readonly gespraechsdatum_wert2: string | null
+  readonly gespraechsdatum_originaltext: string | null
+  readonly gespraechsdatum_sort_von: number | null
+  readonly gespraechsdatum_sort_bis: number | null
+  readonly gespraechsdatum_zweitkalender: string | null
+  readonly gespraechsdatum_zweitwert: string | null
+  readonly gespraechsdatum_doppeljahr: string | null
+  readonly form: string | null
+  readonly unmittelbarkeit: string | null
+  readonly audio_medium_id: string | null
+}
+
+/** Liest eine `quelle`-Zeile (Spalten explizit, CLAUDE.md §6). `undefined`, wenn `id` nicht existiert. */
+export function quelleLesen(tx: Tx, id: string): QuelleZeile | undefined {
+  return tx
+    .prepare<{ readonly id: string }, QuelleZeile>(
+      `SELECT id, typ, titel, autor, verlag, jahr, art, informationsart, archiv_id, signatur, notiz,
+              informant_person_id, gespraechsdatum_kalender, gespraechsdatum_modifikator, gespraechsdatum_praezision,
+              gespraechsdatum_wert1, gespraechsdatum_wert2, gespraechsdatum_originaltext, gespraechsdatum_sort_von,
+              gespraechsdatum_sort_bis, gespraechsdatum_zweitkalender, gespraechsdatum_zweitwert, gespraechsdatum_doppeljahr,
+              form, unmittelbarkeit, audio_medium_id
+       FROM quelle WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+/** Nutzlast von `quelleAktualisieren()`: alle editierbaren Spalten (s. `QuelleZeile`) + der vom
+ * Handler gesetzte `geaendert_am`-Zeitstempel (D-3). */
+export interface QuelleAktualisierenEin {
+  readonly id: string
+  readonly typ: string
+  readonly titel: string | null
+  readonly autor: string | null
+  readonly verlag: string | null
+  readonly jahr: number | null
+  readonly art: string | null
+  readonly informationsart: string | null
+  readonly archivId: string | null
+  readonly signatur: string | null
+  readonly notiz: string | null
+  readonly informantPersonId: string | null
+  readonly gespraechsdatum: DatumSpaltengruppe
+  readonly form: string | null
+  readonly unmittelbarkeit: string | null
+  readonly audioMediumId: string | null
+  readonly geaendertAm: number
+}
+
+/** Aktualisiert alle editierbaren Spalten einer `quelle`-Zeile in einem `UPDATE`. */
+export function quelleAktualisieren(tx: Tx, ein: QuelleAktualisierenEin): void {
+  tx.prepare(
+    `UPDATE quelle SET
+       typ = @typ, titel = @titel, autor = @autor, verlag = @verlag, jahr = @jahr, art = @art,
+       informationsart = @informationsart, archiv_id = @archivId, signatur = @signatur, notiz = @notiz,
+       informant_person_id = @informantPersonId,
+       gespraechsdatum_kalender = @gespraechsdatumKalender, gespraechsdatum_modifikator = @gespraechsdatumModifikator,
+       gespraechsdatum_praezision = @gespraechsdatumPraezision, gespraechsdatum_wert1 = @gespraechsdatumWert1,
+       gespraechsdatum_wert2 = @gespraechsdatumWert2, gespraechsdatum_originaltext = @gespraechsdatumOriginaltext,
+       gespraechsdatum_sort_von = @gespraechsdatumSortVon, gespraechsdatum_sort_bis = @gespraechsdatumSortBis,
+       gespraechsdatum_zweitkalender = @gespraechsdatumZweitkalender, gespraechsdatum_zweitwert = @gespraechsdatumZweitwert,
+       gespraechsdatum_doppeljahr = @gespraechsdatumDoppeljahr,
+       form = @form, unmittelbarkeit = @unmittelbarkeit, audio_medium_id = @audioMediumId,
+       geaendert_am = @geaendertAm
+     WHERE id = @id`,
+  ).run({
+    id: ein.id,
+    typ: ein.typ,
+    titel: ein.titel,
+    autor: ein.autor,
+    verlag: ein.verlag,
+    jahr: ein.jahr,
+    art: ein.art,
+    informationsart: ein.informationsart,
+    archivId: ein.archivId,
+    signatur: ein.signatur,
+    notiz: ein.notiz,
+    informantPersonId: ein.informantPersonId,
+    ...datumSpaltenParameter('gespraechsdatum', ein.gespraechsdatum),
+    form: ein.form,
+    unmittelbarkeit: ein.unmittelbarkeit,
+    audioMediumId: ein.audioMediumId,
     geaendertAm: ein.geaendertAm,
   })
 }
