@@ -73,6 +73,10 @@ import {
   archivAendernEinSchema,
   type ArchivAnlegenEin,
   type ArchivAendernEin,
+  quelleAnlegenEinSchema,
+  quelleAendernEinSchema,
+  type QuelleAnlegenEin,
+  type QuelleAendernEin,
 } from '../../shared/schemata/befehle'
 import { personAnlegen } from './person-anlegen'
 import { personFeldSetzen } from './person-feld-setzen'
@@ -104,6 +108,8 @@ import { ortExterneIdAnlegen } from './ort-externe-id-anlegen'
 import { ortExterneIdLoeschen } from './ort-externe-id-loeschen'
 import { archivAnlegen } from './archiv-anlegen'
 import { archivAendern } from './archiv-aendern'
+import { quelleAnlegen } from './quelle-anlegen'
+import { quelleAendern } from './quelle-aendern'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -154,6 +160,8 @@ interface BefehlKarte {
   'ort-externe-id.loeschen': { ein: OrtExterneIdLoeschenEin; aus: null }
   'archiv.anlegen': { ein: ArchivAnlegenEin; aus: { readonly id: string } }
   'archiv.aendern': { ein: ArchivAendernEin; aus: null }
+  'quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
+  'quelle.aendern': { ein: QuelleAendernEin; aus: null }
 }
 
 export type BefehlName = keyof BefehlKarte
@@ -345,5 +353,17 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.archiv_geaendert',
     handler: archivAendern,
+  },
+  'quelle.anlegen': {
+    schema: quelleAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.quelle_angelegt',
+    handler: quelleAnlegen,
+  },
+  'quelle.aendern': {
+    schema: quelleAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.quelle_geaendert',
+    handler: quelleAendern,
   },
 }

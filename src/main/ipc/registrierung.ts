@@ -33,12 +33,15 @@ import {
   ortExterneIdLoeschenEinSchema,
   archivAnlegenEinSchema,
   archivAendernEinSchema,
+  quelleAnlegenEinSchema,
+  quelleAendernEinSchema,
 } from '../../shared/schemata/befehle'
 import { personListeEinSchema, sucheEinSchema } from '../../shared/schemata/person-liste'
 import { personDetailEinSchema } from '../../shared/schemata/person-detail'
 import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
 import { ortDetailEinSchema } from '../../shared/schemata/ort-detail'
 import { archivSucheEinSchema } from '../../shared/schemata/archiv-suche'
+import { quelleDetailEinSchema } from '../../shared/schemata/quelle-detail'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
 import type { Ein } from '../../shared/ipc/vertrag'
@@ -46,6 +49,7 @@ import { journalVerlauf } from '../abfragen/journal-verlauf'
 import { ortDetail } from '../abfragen/ort-detail'
 import { ortSuche } from '../abfragen/ort-suche'
 import { archivSuche } from '../abfragen/archiv-suche'
+import { quelleDetail } from '../abfragen/quelle-detail'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
 import { pruefhinweise } from '../abfragen/pruefhinweise'
@@ -278,4 +282,11 @@ export function ipcRegistrierung(): void {
   registriere('abfrage:archiv.suche', archivSucheEinSchema, (ein) => archivSuche(offenesProjektDatenbank(), ein))
   registriere('befehl:archiv.anlegen', archivAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'archiv.anlegen', ein))
   registriere('befehl:archiv.aendern', archivAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'archiv.aendern', ein))
+
+  // AP-1.17 PR-A2: manuelle Quellenverwaltung — Anlegen/Ändern (schreibend, über den Befehlsbus)
+  // + Detail (lesend, `abfrage:`). Bewusst KEIN `befehl:quelle.loeschen` (Kaskaden-Entscheidung
+  // offen, docs/80_Offene_Fragen.md, analog `ort.loeschen`/`archiv.loeschen`).
+  registriere('befehl:quelle.anlegen', quelleAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.anlegen', ein))
+  registriere('befehl:quelle.aendern', quelleAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.aendern', ein))
+  registriere('abfrage:quelle.detail', quelleDetailEinSchema, (ein) => quelleDetail(offenesProjektDatenbank(), ein))
 }

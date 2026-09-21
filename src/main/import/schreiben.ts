@@ -332,6 +332,10 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       jahr: q.jahr ?? null,
       art: q.art ?? null,
       informationsart: q.informationsart ?? null,
+      // AP-1.17 PR-A2: `archiv_id` kam mit dieser Spalte in `QuelleEinfuegenEin` hinzu — der
+      // Importvertrag (56_Import_Vertrag.md §2.3) hat kein `archiv[]`-Feld für `quelle`, darum hier
+      // immer `null` (Kopfkommentar `beleg-repo.ts::QuelleEinfuegenEin`).
+      archivId: null,
       signatur: q.signatur ?? null,
       notiz: q.notiz ?? null,
       informantPersonId: q.informant_person !== undefined ? aufloesen(q.informant_person) : null,
