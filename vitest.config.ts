@@ -4,13 +4,17 @@ import { defineConfig } from 'vitest/config'
 // (vitest.budget.config.ts).
 export const basisTest = {
   environment: 'node' as const,
-  // Globale Zeitgrenze pro Test/Hook: 20 s statt Vitest-Default 5 s. Die VACUUM-INTO-schweren
-  // Schnappschuss-/Aufbewahrungs-Tests (AP-0.11) und die historischen Migrationstests kopieren
-  // ganze SQLite-Dateien und liefen auf dem Windows-CI-Runner belegt 7-13 s — der Default riss
-  // dort nichtdeterministisch (CLAUDE.md §13: eine nichtdeterministisch rote Prüfung wird von der
-  // Loop "wegoptimiert"). 20 s gibt klare Marge, ohne echte Hänger zu verdecken (AP-0.25).
-  testTimeout: 20000,
-  hookTimeout: 20000,
+  // Globale Zeitgrenze pro Test/Hook: 60 s statt Vitest-Default 5 s. Die VACUUM-INTO-schweren
+  // Schnappschuss-/Aufbewahrungs-/Undo-Tests (AP-0.11, AP-1.5) und die historischen Migrationstests
+  // kopieren ganze SQLite-Dateien; auf einem ausgelasteten Windows-CI-Runner steigt ihre Laufzeit
+  // belegt um das ~4-fache (undo-bitgleich 64 s statt ~15 s), wodurch `import-undo-klein` und
+  // `undo-nach-neustart` bei 20 s nichtdeterministisch rissen (belegt AP-1.15, mehrere kette-ui-Läufe;
+  // CLAUDE.md §13: eine nichtdeterministisch rote Prüfung wird von der Loop "wegoptimiert"). 60 s gibt
+  // klare Marge über die beobachteten Lastspitzen, ohne echte Hänger unangemessen zu verdecken. Die
+  // schwersten Property-/Großimport-Tests behalten eigene, höhere Per-Test-Timeouts
+  // (`undo-bitgleich` 180 s, `import-undo-gross` 60 s) — die decken den Fall ab, wo selbst 60 s nicht reichen.
+  testTimeout: 60000,
+  hookTimeout: 60000,
   coverage: {
     provider: 'v8' as const,
     include: ['src/**'],
