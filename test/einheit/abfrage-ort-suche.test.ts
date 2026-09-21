@@ -7,8 +7,13 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { nachJdn } from '../../src/core/datum/kalender'
 import { ortSuche } from '../../src/main/abfragen/ort-suche'
 import type { OrtSucheEin } from '../../src/shared/schemata/ort-suche'
+
+// Kriegsende/Verwaltungswechsel als präziser Testanker (wie test/einheit/ort-zeitbezug.test.ts) —
+// keine "magischen" Tageszahlen im Test (AP-1.16 PR-C).
+const GRENZTAG_1945 = nachJdn(1945, 5, 8, 'gregorian')
 
 function ortAnlegen(db: Database.Database, typ: string | null = null): string {
   const ortId = uuidv7()
@@ -152,6 +157,43 @@ describe('abfrage:ort.suche (AP-1.13 PR-C)', () => {
 
       const ergebnis = ortSuche(db, sucheEingabe({ text: 'marienwerder', jdn: 2433283 }))
       expect(ergebnis.treffer[0]?.politischeKette).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  // AP-1.16 PR-C (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+  // Vorschlag). Grobe JDN-Grenzwerte wie im Testfall oben (2433282 ≈ 1.1.1950, 2415021 ≈ 1.1.1900).
+  it('trägt den Geltungszeitraum des angezeigten Namens (Marienwerder bis 1945 / Kwidzyn ab 1945)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'stadt')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', gueltigBis: GRENZTAG_1945, istBevorzugt: 0 })
+      ortsnameAnlegen(db, ortId, { name: 'Kwidzyn', gueltigVon: GRENZTAG_1945 + 1, istBevorzugt: 1 })
+
+      const ohneJdn = ortSuche(db, sucheEingabe({ text: 'wid' }))
+      expect(ohneJdn.treffer[0]?.anzeigename).toBe('Kwidzyn')
+      expect(ohneJdn.treffer[0]?.gueltigVonJahr).toBe(1945)
+      expect(ohneJdn.treffer[0]?.gueltigBisJahr).toBeUndefined()
+
+      const mit1900 = ortSuche(db, sucheEingabe({ text: 'wid', jdn: 2415021 }))
+      expect(mit1900.treffer[0]?.anzeigename).toBe('Marienwerder')
+      expect(mit1900.treffer[0]?.gueltigBisJahr).toBe(1945)
+      expect(mit1900.treffer[0]?.gueltigVonJahr).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ohne Geltungsgrenzen (unbegrenzt gültig): weder gueltigVonJahr noch gueltigBisJahr gesetzt', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'stadt')
+      ortsnameAnlegen(db, ortId, { name: 'Berlin', istBevorzugt: 1 })
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'berlin' }))
+      expect(ergebnis.treffer[0]?.gueltigVonJahr).toBeUndefined()
+      expect(ergebnis.treffer[0]?.gueltigBisJahr).toBeUndefined()
     } finally {
       db.close()
     }

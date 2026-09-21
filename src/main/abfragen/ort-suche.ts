@@ -8,7 +8,7 @@
 // (`src/core/ort/zeitbezug.ts::gueltigerOrtsname`, bereits geprüfter Kern-Code, keine zweite
 // Implementierung). Die volle Ortsverwaltung bleibt AP-1.16 (docs/80_Offene_Fragen.md).
 import type Database from 'better-sqlite3'
-import { gueltigerOrtsname, hierarchieZuDatum, type OrtsnameEintrag, type ZugehoerigkeitEintrag } from '../../core/ort/zeitbezug'
+import { geltungszeitraumJahre, gueltigerOrtsname, hierarchieZuDatum, type OrtsnameEintrag, type ZugehoerigkeitEintrag } from '../../core/ort/zeitbezug'
 import { OrtTypEnum } from '../../shared/schemata/ort'
 import type { OrtSucheAus, OrtSucheEin, OrtTreffer } from '../../shared/schemata/ort-suche'
 import * as ortRepo from '../repositories/ort-repo'
@@ -112,21 +112,33 @@ export function ortSuche(db: Database.Database, ein: OrtSucheEin): OrtSucheAus {
   // `src/main/abfragen/person-detail.ts`: `ort.typ` ist bereits per `CHECK`-Klausel gesichert
   // (docs/schema/0002_kern.sql §2.4), das `parse()` macht daraus einen geprüften Zod-Typ statt
   // einer bloßen Behauptung.
-  function anzeigenameZuJdn(ortId: string): string {
+  // Der zum Anzeigen gewählte `OrtsnameEintrag` (Fallback `namen[0]` wie zuvor, falls kein Eintrag
+  // zu `jdn` passt) — liefert sowohl den Namen ALS AUCH dessen Geltungszeitraum, damit beide
+  // garantiert zum selben Eintrag gehören (AP-1.16 PR-C, docs/71 §3.2).
+  function gueltigerNameZuJdn(ortId: string): OrtsnameEintrag | undefined {
     const namen = namenJeOrt.get(ortId) ?? []
-    const gueltiger = gueltigerOrtsname(namen, jdn)
-    return gueltiger?.name ?? namen[0]?.name ?? ''
+    return gueltigerOrtsname(namen, jdn) ?? namen[0]
+  }
+
+  function anzeigenameZuJdn(ortId: string): string {
+    return gueltigerNameZuJdn(ortId)?.name ?? ''
   }
 
   const treffer: OrtTreffer[] = orte.map((ort) => {
-    const anzeigename = anzeigenameZuJdn(ort.id)
+    const gueltigerName = gueltigerNameZuJdn(ort.id)
+    const anzeigename = gueltigerName?.name ?? ''
     const politischeKette = (ketteJeOrt.get(ort.id) ?? [])
       .map((uebergeordnetId) => anzeigenameZuJdn(uebergeordnetId))
       .filter((name) => name !== '')
+    // Geltungszeitraum VON `anzeigename` (docs/71 §3.2, "bis 1945"/"ab 1945") — ausschließlich
+    // über `geltungszeitraumJahre()` (`src/core/ort/zeitbezug.ts`), KEIN zweiter Auflösungsweg.
+    const geltung = gueltigerName === undefined ? {} : geltungszeitraumJahre(gueltigerName)
     return {
       id: ort.id,
       anzeigename,
       politischeKette,
+      ...(geltung.von === undefined ? {} : { gueltigVonJahr: geltung.von }),
+      ...(geltung.bis === undefined ? {} : { gueltigBisJahr: geltung.bis }),
       ...(ort.typ === null ? {} : { typ: OrtTypEnum.parse(ort.typ) }),
     }
   })

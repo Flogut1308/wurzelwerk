@@ -44,6 +44,14 @@ export interface OrtTreffer {
   readonly anzeigename: string
   readonly typ?: z.infer<typeof OrtTypEnum> | undefined
   readonly politischeKette: readonly string[]
+  /** Geltungszeitraum von `anzeigename` als Kalenderjahr (AP-1.16 PR-C, docs/71_Designsystem.md
+   * §3.2: "Zwingend" — der zeitliche Geltungsbereich steht rechts neben jedem Vorschlag, z. B.
+   * "bis 1945"/"ab 1945"). Bereits vom Hauptprozess aus dem gewählten `OrtsnameEintrag` berechnet
+   * (`src/core/ort/zeitbezug.ts::geltungszeitraumJahre`, KEIN zweiter Auflösungsweg im Renderer).
+   * `undefined` an einer Grenze = offen in diese Richtung (kein Zusatz auf dieser Seite); beide
+   * `undefined` = unbegrenzt gültig (keine Geltungszeitraum-Anzeige). */
+  readonly gueltigVonJahr?: number | undefined
+  readonly gueltigBisJahr?: number | undefined
 }
 
 export interface OrtSucheAus {
