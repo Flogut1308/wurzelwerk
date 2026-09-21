@@ -5,7 +5,7 @@
 // stehen.
 import { describe, expect, it } from 'vitest'
 import { nachJdn } from '../../src/core/datum/kalender'
-import { gueltigerOrtsname, hierarchieZuDatum, zugehoerigkeitsketteZuDatum } from '../../src/core/ort/zeitbezug'
+import { geltungszeitraumJahre, gueltigerOrtsname, hierarchieZuDatum, zugehoerigkeitsketteZuDatum } from '../../src/core/ort/zeitbezug'
 import type { OrtsnameEintrag, ZugehoerigkeitEintrag } from '../../src/core/ort/zeitbezug'
 
 // Kriegsende/Verwaltungswechsel als Testanker für den Namens- und Zugehörigkeitswechsel.
@@ -34,6 +34,27 @@ describe('gueltigerOrtsname', () => {
   it('liefert undefined, wenn kein Eintrag zum Datum passt', () => {
     const luecke: readonly OrtsnameEintrag[] = [{ name: 'Nur-1900', gueltigVon: JDN_1900, gueltigBis: JDN_1900 }]
     expect(gueltigerOrtsname(luecke, JDN_1950)).toBeUndefined()
+  })
+})
+
+// AP-1.16 PR-C (docs/71_Designsystem.md §3.2 "Zwingend": Geltungszeitraum rechts neben jedem
+// Ortsfeld-Vorschlag, z. B. "bis 1945"/"ab 1945"). GRENZTAG liegt am 8.5.1945 -> "bis 1945" bzw.
+// "ab 1945" bleibt korrekt (der Grenztag selbst zählt noch zum vorigen Jahr).
+describe('geltungszeitraumJahre', () => {
+  it('wandelt gueltigBis in ein Jahr, gueltigVon bleibt offen (undefined)', () => {
+    expect(geltungszeitraumJahre({ gueltigBis: GRENZTAG })).toEqual({ bis: 1945 })
+  })
+
+  it('wandelt gueltigVon in ein Jahr, gueltigBis bleibt offen (undefined)', () => {
+    expect(geltungszeitraumJahre({ gueltigVon: GRENZTAG + 1 })).toEqual({ von: 1945 })
+  })
+
+  it('wandelt beide Grenzen, wenn beide gesetzt sind', () => {
+    expect(geltungszeitraumJahre({ gueltigVon: JDN_1900, gueltigBis: JDN_1950 })).toEqual({ von: 1900, bis: 1950 })
+  })
+
+  it('ohne beide Grenzen: leeres Objekt (unbegrenzt gültig)', () => {
+    expect(geltungszeitraumJahre({})).toEqual({})
   })
 })
 

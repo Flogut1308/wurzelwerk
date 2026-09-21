@@ -3,6 +3,15 @@
 // die für den Zeitbezug relevanten Felder von `ortsname`/`ortszugehoerigkeit` ab, bewusst OHNE
 // DB-Felder (keine `id`, kein `ort_id`) — der Kern bleibt frei von Datenbank-Konzepten. `art`
 // spiegelt `OrtszugehoerigkeitArtEnum` (src/shared/schemata/ortszugehoerigkeit.ts).
+//
+// AP-1.16 PR-C (docs/71_Designsystem.md §3.2, "Zwingend": der zeitliche Geltungsbereich steht
+// rechts neben jedem Ortsfeld-Vorschlag, z. B. "bis 1945"/"ab 1945"): `geltungszeitraumJahre()`
+// wandelt die JDN-Grenzen EINES `OrtsnameEintrag` in Kalenderjahre — gregorianisch, über
+// `vonJdn()` (`src/core/datum/kalender.ts`), wie jede andere JDN->Kalender-Wandlung dieser
+// Codebasis (s. `src/renderer/ansichten/orte/ort-bearbeiten-logik.ts::jdnZuIsoText`). Das ist der
+// EINZIGE Ort, an dem ein Ortsname-Geltungszeitraum in ein Jahr gewandelt wird — kein zweiter
+// Auflösungsweg in `src/main/abfragen/ort-suche.ts` oder im Renderer.
+import { vonJdn } from '../datum/kalender'
 
 /** Deckt sich mit `OrtszugehoerigkeitArtEnum` (src/shared/schemata/ortszugehoerigkeit.ts). */
 export type OrtszugehoerigkeitArt = 'politisch' | 'kirchlich'
@@ -42,6 +51,25 @@ export function gueltigerOrtsname(namen: readonly OrtsnameEintrag[], jdn?: numbe
     return namen.find((eintrag) => eintrag.istBevorzugt === true)
   }
   return namen.find((eintrag) => istGueltigBei(eintrag.gueltigVon, eintrag.gueltigBis, jdn))
+}
+
+/** Geltungsgrenze (JDN, inklusiv) -> Kalenderjahr, gregorianisch (`vonJdn()`). Reine Arithmetik,
+ * s. Kopfkommentar. */
+function jdnZuJahr(jdn: number): number {
+  return vonJdn(jdn, 'gregorian').jahr
+}
+
+/** Geltungszeitraum EINES `OrtsnameEintrag` als Kalenderjahre statt JDN (docs/71_Designsystem.md
+ * §3.2: "bis 1945"/"ab 1945") — für die Anzeige rechts neben einem Ortsfeld-Vorschlag. `undefined`
+ * an einer Grenze bleibt `undefined` (offen in diese Richtung, keine Anzeige an dieser Seite). */
+export function geltungszeitraumJahre(eintrag: Pick<OrtsnameEintrag, 'gueltigVon' | 'gueltigBis'>): {
+  readonly von?: number
+  readonly bis?: number
+} {
+  return {
+    ...(eintrag.gueltigVon === undefined ? {} : { von: jdnZuJahr(eintrag.gueltigVon) }),
+    ...(eintrag.gueltigBis === undefined ? {} : { bis: jdnZuJahr(eintrag.gueltigBis) }),
+  }
 }
 
 /**
