@@ -165,5 +165,23 @@
   "platzhalter_grund_unbekannt": "Unbekannt",
   "platzhalter_grund_unehelich": "Unehelich",
   "platzhalter_grund_nicht_identifiziert": "Nicht identifiziert",
-  "platzhalter_grund_forschungsluecke": "Forschungslücke"
+  "platzhalter_grund_forschungsluecke": "Forschungslücke",
+
+  "abschnitt_ereignisse_bearbeiten": "Ereignisse",
+  "ereignisse_liste_leer": "Noch kein Ereignis erfasst.",
+  "ereignis_zeile_beteiligung_entfernen": "Beteiligung entfernen",
+  "ereignis_zeile_loeschen": "Ereignis löschen",
+  "ereignis_neu_ueberschrift": "Neues Ereignis erfassen",
+  "ereignis_neu_typ_beschriftung": "Art",
+  "ereignis_neu_datum_beschriftung": "Datum",
+  "ereignis_neu_ort_beschriftung": "Ort",
+  "ereignis_neu_konfidenz_beschriftung": "Konfidenz",
+  "ereignis_neu_weitere_beteiligte_ueberschrift": "Weitere Beteiligte",
+  "ereignis_neu_weiterer_beteiligter_hinzufuegen": "+ Beteiligten",
+  "ereignis_neu_weiterer_beteiligter_entfernen": "entfernen",
+  "ereignis_neu_weiterer_beteiligter_person_beschriftung": "Person",
+  "ereignis_neu_weiterer_beteiligter_rolle_beschriftung": "Rolle",
+  "ereignis_neu_weiterer_beteiligter_ausgewaehlt": "ausgewählt",
+  "ereignis_neu_weiterer_beteiligter_neu_angelegt": "Neu angelegt",
+  "ereignis_neu_hinzufuegen": "Ereignis anlegen"
 }

@@ -47,6 +47,10 @@
     "titel": "Ereignis nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist das Ereignis tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
   },
+  "NICHT_GEFUNDEN_BETEILIGUNG": {
+    "titel": "Beteiligung nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist die Beteiligung tatsächlich bereits entfernt, die Auswahl aufheben und neu beginnen."
+  },
   "NICHT_GEFUNDEN_AUSSAGE": {
     "titel": "Aussage nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist die Aussage tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."

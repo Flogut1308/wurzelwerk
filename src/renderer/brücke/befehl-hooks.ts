@@ -86,6 +86,30 @@ export function useOrtAnlegen(): UseMutationResult<{ readonly id: string }, AppF
   })
 }
 
+/** `befehl:ereignis.anlegen` (AP-1.12, AP-1.15 PR-A: erster Konsument — das Ereignis-Neu-Formular
+ * der Profil-Bearbeitungsseite schreibt ALLE gesammelten Beteiligten in EINEM Aufruf, Variante A). */
+export function useEreignisAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ereignis.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ereignis.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ereignis.anlegen', ein)),
+  })
+}
+
+/** `befehl:ereignis.loeschen` (AP-1.12, AP-1.15 PR-A) — löscht das gesamte Ereignis (alle
+ * Beteiligungen), anders als `useBeteiligungLoeschen` unten (nur die eigene Teilnahme). */
+export function useEreignisLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:ereignis.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ereignis.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:ereignis.loeschen', ein)),
+  })
+}
+
+/** `befehl:beteiligung.loeschen` (AP-1.15 PR-A, Variante A) — entfernt NUR die Teilnahme EINER
+ * Person an EINEM Ereignis; das Ereignis selbst bleibt bestehen. */
+export function useBeteiligungLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:beteiligung.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:beteiligung.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:beteiligung.loeschen', ein)),
+  })
+}
+
 /**
  * Invalidiert pauschal den gesamten `@tanstack/react-query`-Cache nach jedem `ereignis:
  * datenGeaendert`-Push (D-EREIGNIS: die Nutzlast trägt kein `betroffen`-Feld, es gibt also nichts

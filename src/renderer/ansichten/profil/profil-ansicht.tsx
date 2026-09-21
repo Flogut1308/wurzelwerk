@@ -18,6 +18,7 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Text } from '../../bausteine/text'
 import { BelegListe } from './beleg-liste'
+import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { beteiligungRolleSchluessel, ereignisTypSchluessel, gesundheitArtSchluessel, kantentypSchluessel, praedikatSchluessel, richtungSchluessel } from './profil-schluessel'
@@ -231,12 +232,15 @@ interface ProfilBearbeitenInhaltProps {
 }
 
 /**
- * Bearbeiten-Zweig der Profilseite (AP-1.14a, S-20 Kernfelder) — Namen + Grunddaten
- * (Geschlecht/Notiz/Platzhalter-Kennzeichen+Grund), alle über die AP-1.12-Befehle. **Lebensdaten
- * (Geburts-/Todesdatum) sind bewusst NICHT hier** — offene Datenmodellfrage, s.
- * `GrunddatenBearbeitenAbschnitt`-Kopfkommentar und `docs/80_Offene_Fragen.md` §26. Beziehungen/
- * Ereignisse/Gesundheit bleiben lesend (spätere Arbeitspakete) — der Kopf zeigt weiterhin den
- * Anzeigenamen, damit „wen bearbeite ich gerade" nie aus dem Blick gerät.
+ * Bearbeiten-Zweig der Profilseite (AP-1.14a S-20 Kernfelder + AP-1.15 PR-A Ereignisse) — Namen,
+ * Grunddaten (Geschlecht/Notiz/Platzhalter-Kennzeichen+Grund) und Ereignisse (Variante A: NUR
+ * `beteiligung.loeschen`/`ereignis.loeschen` an bestehenden Zeilen, ein festes Formular schreibt
+ * neue Ereignisse MIT allen Beteiligten in einem `ereignis.anlegen`-Aufruf), alle über die
+ * AP-1.12/AP-1.15-Befehle. **Lebensdaten (Geburts-/Todesdatum) sind bewusst NICHT Teil der
+ * Grunddaten** — offene Datenmodellfrage, s. `GrunddatenBearbeitenAbschnitt`-Kopfkommentar und
+ * `docs/80_Offene_Fragen.md` §26. Beziehungen/Gesundheit bleiben lesend (spätere Arbeitspakete) —
+ * der Kopf zeigt weiterhin den Anzeigenamen, damit „wen bearbeite ich gerade" nie aus dem Blick
+ * gerät.
  */
 function ProfilBearbeitenInhalt({ personId, daten }: ProfilBearbeitenInhaltProps) {
   return (
@@ -244,6 +248,7 @@ function ProfilBearbeitenInhalt({ personId, daten }: ProfilBearbeitenInhaltProps
       <ProfilKopf kopf={daten.kopf} />
       <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
       <GrunddatenBearbeitenAbschnitt personId={personId} kopf={daten.kopf} notiz={daten.notiz} />
+      <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
     </>
   )
 }

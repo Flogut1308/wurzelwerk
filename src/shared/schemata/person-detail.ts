@@ -135,9 +135,13 @@ export interface PersonDetailGrunddatenFeld {
 
 /** Ein Eintrag im Ereignis-Zeitstrahl — eine `ereignis`-Zeile, an der diese Person über
  * `beteiligung` teilnimmt. Chronologisch nach `datum_sort_von` sortiert, unbekannte Daten zuletzt
- * (analog `vergleicheZahlNullsLetzten` in `src/main/abfragen/person-liste.ts`). */
+ * (analog `vergleicheZahlNullsLetzten` in `src/main/abfragen/person-liste.ts`). `beteiligung_id`
+ * (AP-1.15 PR-A) ist die `beteiligung.id`-Zeile GENAU dieser Person an GENAU diesem Ereignis —
+ * `befehl:beteiligung.loeschen` braucht sie, um NUR die Teilnahme dieser Person zu entfernen,
+ * nicht das Ereignis selbst (das mit weiteren Beteiligten bestehen bleibt). */
 export interface PersonDetailEreignis {
   readonly ereignis_id: string
+  readonly beteiligung_id: string
   readonly typ: z.infer<typeof EreignisTypEnum>
   readonly rolle: z.infer<typeof BeteiligungRolleEnum>
   readonly datum_wert1: string | null

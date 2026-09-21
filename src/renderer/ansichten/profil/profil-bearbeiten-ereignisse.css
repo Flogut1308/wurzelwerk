@@ -1,0 +1,72 @@
+/*
+ * `EreignisseBearbeitenAbschnitt` — AP-1.15 PR-A. Dasselbe Karten-/Feldsystem-Muster wie
+ * `profil-bearbeiten-namen.css` (jede bestehende Zeile in einer eigenen Karte mit feinem Rahmen,
+ * das Neu-Formular in einer gestrichelten Karte) — Konsistenz mit dem bereits eingeführten
+ * Bearbeiten-Baustein derselben Seite.
+ */
+
+.wz-profil-bearbeiten-ereignisse__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-profil-bearbeiten-ereignisse__zeile {
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}
+
+.wz-profil-bearbeiten-ereignisse__zeile-inhalt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-profil-bearbeiten-ereignisse__zeile-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-profil-bearbeiten-ereignisse__zeile-aktionen {
+  display: flex;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-profil-bearbeiten-ereignisse__neu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+  border: 1px dashed var(--wz-rahmen-gestrichelt);
+  border-radius: var(--wz-radius-standard);
+}
+
+.wz-profil-bearbeiten-ereignisse__felder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-profil-bearbeiten-ereignisse__felder > * {
+  min-width: 200px;
+  flex: 1 1 200px;
+}
+
+.wz-profil-bearbeiten-ereignisse__beteiligter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+}

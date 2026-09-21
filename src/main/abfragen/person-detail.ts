@@ -365,6 +365,7 @@ function grunddatenBauen(
 
 interface EreignisZeile {
   readonly ereignis_id: string
+  readonly beteiligung_id: string
   readonly typ: string
   readonly rolle: string
   readonly datum_wert1: string | null
@@ -378,7 +379,7 @@ function ereignisseLaden(db: Database.Database, personId: string): readonly Erei
     .prepare<
       { readonly personId: string },
       EreignisZeile
-    >(`SELECT e.id AS ereignis_id, e.typ AS typ, b.rolle AS rolle, e.datum_wert1 AS datum_wert1,
+    >(`SELECT e.id AS ereignis_id, b.id AS beteiligung_id, e.typ AS typ, b.rolle AS rolle, e.datum_wert1 AS datum_wert1,
               e.datum_sort_von AS datum_sort_von, e.beschreibung AS beschreibung, go.name AS ort_name
        FROM beteiligung b
        JOIN ereignis e ON e.id = b.ereignis_id
@@ -412,6 +413,7 @@ function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readon
   })
   return sortiert.map((zeile) => ({
     ereignis_id: zeile.ereignis_id,
+    beteiligung_id: zeile.beteiligung_id,
     typ: EreignisTypEnum.parse(zeile.typ),
     rolle: BeteiligungRolleEnum.parse(zeile.rolle),
     datum_wert1: zeile.datum_wert1,
