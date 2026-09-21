@@ -45,6 +45,14 @@
   background: var(--wz-flaeche-hover);
 }
 
+/* Name + Hierarchiezeile (§3.2, AP-1.16 PR-C) untereinander, nicht nebeneinander — die Kette kann
+ * lang werden ("Kreis Marienwerder · Westpreußen · Preußen") und würde die Zeile sonst sprengen. */
+.wz-ortsfeld__zeile-inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
 .wz-ortsfeld__zeile--hervorgehoben,
 .wz-ortsfeld__zeile[aria-selected='true'] {
   background: var(--wz-flaeche-auswahl);

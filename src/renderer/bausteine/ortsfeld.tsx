@@ -2,7 +2,7 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { OrtTreffer } from '../../shared/schemata/ort-suche'
 import { Eingabekoerper } from './eingabekoerper'
-import { ortsfeldNaechsterIndex, ortsfeldZeileAktivieren, ortsfeldZeilenAufbauen, type OrtsfeldZeile } from './ortsfeld-logik'
+import { ortsfeldHierarchieText, ortsfeldNaechsterIndex, ortsfeldZeileAktivieren, ortsfeldZeilenAufbauen, type OrtsfeldZeile } from './ortsfeld-logik'
 import { Text } from './text'
 import './ortsfeld.css'
 
@@ -43,10 +43,13 @@ export interface OrtsfeldProps {
  * Pfeil-runter/-hoch bewegt `hervorgehobenerIndex` (mit Umlauf), Enter aktiviert die
  * hervorgehobene Zeile — EIN `onKeyDown`-Handler auf der Hülle genügt.
  *
- * SCOPE (CLAUDE.md §10): §3.2 zeigt je Vorschlag zusätzlich die volle zeitabhängige
- * Zugehörigkeitskette (politisch/kirchlich, z. B. "Kreis Marienwerder · Westpreußen · Preußen").
- * Diese Kette bleibt AP-1.16 vorbehalten — hier steht je Vorschlag NUR der bereits datumsgültig
- * berechnete Name (`OrtTreffer.anzeigename`), s. docs/80_Offene_Fragen.md.
+ * §3.2 zeigt je Vorschlag zusätzlich die zum Datum gültige POLITISCHE Zugehörigkeitskette
+ * (z. B. "Kreis Marienwerder · Westpreußen · Preußen", AP-1.16 PR-C) — bereits vom Hauptprozess
+ * aufgelöst (`OrtTreffer.politischeKette`, `src/core/ort/zeitbezug.ts::hierarchieZuDatum`), kein
+ * zweiter Auflösungsweg hier, nur die Verkettung zu EINER Zeile (`ortsfeldHierarchieText`). Die
+ * Zeile erscheint nur, wenn die Kette nicht leer ist (kein `jdn` übergeben -> immer leer, s.
+ * `OrtTreffer`-Kopfkommentar). Die KIRCHLICHE Kette bleibt der Detailansicht (`abfrage:ort.detail`)
+ * vorbehalten — dieser Vorschlag zeigt nur EINE Kette, s. docs/80_Offene_Fragen.md.
  */
 export function Ortsfeld({
   text,
@@ -131,7 +134,14 @@ export function Ortsfeld({
                 ortsfeldZeileAktivieren(zeile, { aufAusgewaehlt, aufNeuAnlegen })
               }}
             >
-              <Text rolle="koerper">{zeileText(zeile)}</Text>
+              <span className="wz-ortsfeld__zeile-inhalt">
+                <Text rolle="koerper">{zeileText(zeile)}</Text>
+                {zeile.art === 'treffer' && zeile.treffer.politischeKette.length > 0 ? (
+                  <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                    {ortsfeldHierarchieText(zeile.treffer.politischeKette)}
+                  </Text>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>

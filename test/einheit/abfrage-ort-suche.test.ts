@@ -38,6 +38,19 @@ function sucheEingabe(ueberschreibung: Partial<OrtSucheEin> & Pick<OrtSucheEin, 
   return { grenze: 20, ...ueberschreibung }
 }
 
+function zugehoerigkeitAnlegen(
+  db: Database.Database,
+  ortId: string,
+  uebergeordnetId: string,
+  art: 'politisch' | 'kirchlich',
+  optionen: { readonly gueltigVon?: number; readonly gueltigBis?: number } = {},
+): void {
+  db.prepare(
+    `INSERT INTO ortszugehoerigkeit (id, ort_id, uebergeordnet_id, art, gueltig_von, gueltig_bis)
+     VALUES (@id, @ortId, @uebergeordnetId, @art, @gueltigVon, @gueltigBis)`,
+  ).run({ id: uuidv7(), ortId, uebergeordnetId, art, gueltigVon: optionen.gueltigVon ?? null, gueltigBis: optionen.gueltigBis ?? null })
+}
+
 describe('abfrage:ort.suche (AP-1.13 PR-C)', () => {
   it('findet einen Ort über einen Teilstring seines Namens, unabhängig von Groß-/Kleinschreibung', () => {
     const db = frischeDatenbankMitAbgeleitetemSchema()
@@ -86,6 +99,59 @@ describe('abfrage:ort.suche (AP-1.13 PR-C)', () => {
 
       const ergebnis = ortSuche(db, sucheEingabe({ text: '' }))
       expect(ergebnis.treffer).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ohne jdn: politischeKette ist IMMER leer (kein eindeutiger Gültigkeitszeitpunkt)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch')
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marien' }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mit jdn: politischeKette trägt die MEHRSTUFIGE politische Kette, nächster Vorfahre zuerst (docs/71 §3.2)', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      const provinzId = ortAnlegen(db, 'provinz')
+      ortsnameAnlegen(db, provinzId, { name: 'Westpreußen', istBevorzugt: 1 })
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch')
+      zugehoerigkeitAnlegen(db, kreisId, provinzId, 'politisch')
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marienwerder', jdn: 2415021 }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual(['Kreis Marienwerder', 'Westpreußen'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mit jdn: eine zum Datum abgelaufene Zugehörigkeit erscheint NICHT in der Kette', () => {
+    const db = frischeDatenbankMitAbgeleitetemSchema()
+    try {
+      const ortId = ortAnlegen(db, 'dorf')
+      ortsnameAnlegen(db, ortId, { name: 'Marienwerder', istBevorzugt: 1 })
+      const kreisId = ortAnlegen(db, 'kreis')
+      ortsnameAnlegen(db, kreisId, { name: 'Kreis Marienwerder', istBevorzugt: 1 })
+      // Zugehörigkeit endet 1945 (JDN ≈ 2431182) — ein Abfragedatum danach (1950, JDN 2433283)
+      // liegt außerhalb, die Kette bleibt für diesen Ort leer.
+      zugehoerigkeitAnlegen(db, ortId, kreisId, 'politisch', { gueltigBis: 2431182 })
+
+      const ergebnis = ortSuche(db, sucheEingabe({ text: 'marienwerder', jdn: 2433283 }))
+      expect(ergebnis.treffer[0]?.politischeKette).toEqual([])
     } finally {
       db.close()
     }

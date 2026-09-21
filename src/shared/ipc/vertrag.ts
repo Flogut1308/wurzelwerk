@@ -35,6 +35,7 @@ import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../sche
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
 import type { PruefhinweiseAus } from '../schemata/pruefhinweise'
 import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
+import type { OrtDetailAus, OrtDetailEin } from '../schemata/ort-detail'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -328,6 +329,7 @@ export interface Vertrag {
   'befehl:ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
   'befehl:ort.aendern': { ein: OrtAendernEin; aus: null }
   'abfrage:ort.suche': { ein: OrtSucheEin; aus: OrtSucheAus }
+  'abfrage:ort.detail': { ein: OrtDetailEin; aus: OrtDetailAus }
   'befehl:ortsname.anlegen': { ein: OrtsnameAnlegenEin; aus: { readonly id: string } }
   'befehl:ortsname.aendern': { ein: OrtsnameAendernEin; aus: null }
   'befehl:ortsname.loeschen': { ein: OrtsnameLoeschenEin; aus: null }

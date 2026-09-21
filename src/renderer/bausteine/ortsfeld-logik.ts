@@ -68,3 +68,12 @@ export function ortsfeldZeileAktivieren(zeile: OrtsfeldZeile, aktionen: Ortsfeld
 export function ortsfeldNeuAnlegenEin(text: string): OrtAnlegenEin {
   return { name: text }
 }
+
+/** Verkettet `OrtTreffer.politischeKette` zu EINER Zeile ("Kreis Marienwerder · Westpreußen ·
+ * Preußen", §3.2) — der Trennpunkt lebt hier, in einer `.ts`-Datei, nicht als Zeichenkette in
+ * einem JSX-Kindknoten (react/jsx-no-literals, CLAUDE.md §4), analog `lebensdatenAnzeige()`
+ * (`lebensdaten-anzeige.ts`). Leere Kette -> leere Zeichenkette, der Aufrufer (`ortsfeld.tsx`)
+ * zeigt die Hierarchiezeile dann gar nicht erst. */
+export function ortsfeldHierarchieText(politischeKette: readonly string[]): string {
+  return politischeKette.join(' · ')
+}

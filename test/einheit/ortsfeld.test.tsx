@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { Ortsfeld } from '../../src/renderer/bausteine/ortsfeld'
 import {
+  ortsfeldHierarchieText,
   ortsfeldNaechsterIndex,
   ortsfeldNeuAnlegenEin,
   ortsfeldZeileAktivieren,
@@ -20,6 +21,7 @@ function treffer(ueberschreibung: Partial<OrtTreffer> = {}): OrtTreffer {
   return {
     id: 'o-1',
     anzeigename: 'Marienwerder',
+    politischeKette: [],
     ...ueberschreibung,
   }
 }
@@ -76,6 +78,14 @@ describe('ortsfeld-logik (docs/71 §3.2, AP-1.13 PR-C)', () => {
     const aufNeuAnlegen = () => mutate(ortsfeldNeuAnlegenEin('Kirchdorf'))
     ortsfeldZeileAktivieren({ art: 'neuAnlegen' }, { aufAusgewaehlt: vi.fn(), aufNeuAnlegen })
     expect(mutate).toHaveBeenCalledExactlyOnceWith({ name: 'Kirchdorf' })
+  })
+
+  it('ortsfeldHierarchieText: verkettet mit " · " (docs/71 §3.2 "Kreis Marienwerder · Westpreußen · Preußen")', () => {
+    expect(ortsfeldHierarchieText(['Kreis Marienwerder', 'Westpreußen', 'Preußen'])).toBe('Kreis Marienwerder · Westpreußen · Preußen')
+  })
+
+  it('ortsfeldHierarchieText: leere Kette -> leere Zeichenkette', () => {
+    expect(ortsfeldHierarchieText([])).toBe('')
   })
 })
 
@@ -136,5 +146,18 @@ describe('Ortsfeld (docs/71 §3.2, AP-1.13 PR-C)', () => {
     )
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(markup).not.toMatch(/rgb\(/)
+  })
+
+  it('mit politischeKette: zeigt die Hierarchiezeile unter dem Treffernamen (docs/71 §3.2)', () => {
+    const einTreffer = treffer({ anzeigename: 'Marienwerder', politischeKette: ['Kreis Marienwerder', 'Westpreußen', 'Preußen'] })
+    const markup = renderToStaticMarkup(
+      <Ortsfeld text="Marienw" zustand="bereit" treffer={[einTreffer]} hervorgehobenerIndex={null} {...OHNE_AKTION} />,
+    )
+    expect(markup).toContain('Kreis Marienwerder · Westpreußen · Preußen')
+  })
+
+  it('ohne politischeKette (leer): KEINE Hierarchiezeile', () => {
+    const markup = renderToStaticMarkup(<Ortsfeld text="Marienw" zustand="bereit" treffer={[treffer()]} hervorgehobenerIndex={null} {...OHNE_AKTION} />)
+    expect(markup).not.toContain('·')
   })
 })
