@@ -37,6 +37,9 @@ import type {
   ZitatAnlegenEin,
   ZitatAendernEin,
   ZitatLoeschenEin,
+  NegativbefundAnlegenEin,
+  NegativbefundAendernEin,
+  NegativbefundLoeschenEin,
 } from '../schemata/befehle'
 import type { PersonListeAus, PersonListeEin, SucheAus, SucheEin } from '../schemata/person-liste'
 import type { PersonDetailAus, PersonDetailEin } from '../schemata/person-detail'
@@ -45,6 +48,7 @@ import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
 import type { OrtDetailAus, OrtDetailEin } from '../schemata/ort-detail'
 import type { ArchivSucheAus, ArchivSucheEin } from '../schemata/archiv-suche'
 import type { QuelleDetailAus, QuelleDetailEin } from '../schemata/quelle-detail'
+import type { NegativbefundListeAus, NegativbefundListeEin } from '../schemata/negativbefund-liste'
 
 /**
  * Anbieter, unter deren Synchronisationsordnern ein Projekt liegen kann (ADR-002, AP-0.4).
@@ -356,6 +360,10 @@ export interface Vertrag {
   'befehl:zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
   'befehl:zitat.aendern': { ein: ZitatAendernEin; aus: null }
   'befehl:zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
+  'befehl:negativbefund.anlegen': { ein: NegativbefundAnlegenEin; aus: { readonly id: string } }
+  'befehl:negativbefund.aendern': { ein: NegativbefundAendernEin; aus: null }
+  'befehl:negativbefund.loeschen': { ein: NegativbefundLoeschenEin; aus: null }
+  'abfrage:negativbefund.liste': { ein: NegativbefundListeEin; aus: NegativbefundListeAus }
 }
 
 export type Kanal = keyof Vertrag

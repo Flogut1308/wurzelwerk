@@ -885,3 +885,63 @@ export interface ZitatLoeschenEin {
 export const zitatLoeschenEinSchema: z.ZodType<ZitatLoeschenEin> = z.object({
   id: z.string(),
 })
+
+/**
+ * Nutzlast von `befehl:negativbefund.anlegen` (AP-1.17 PR-A4, docs/schema/0002_kern.sql §2.7).
+ * Anders als `zitat`/`quelle` ist `negativbefund` eine eigenständige, personengebundene Tabelle —
+ * der Befund „an Ort X im Zeitraum Y wurde Person Z gesucht und NICHT gefunden". `gesuchtePersonId`
+ * ist Pflicht (FK → `person`, CASCADE); `quelleId` ist optional (FK → `quelle`, SET NULL), analog
+ * `zitat.quelleId`. `zeitraumVon`/`zeitraumBis` sind einfache `INTEGER`-Spalten (E-8), keine
+ * Datumsgruppe — `datumDerPruefung` ebenso eine einfache `TEXT`-Spalte.
+ */
+export interface NegativbefundAnlegenEin {
+  readonly gesuchtePersonId: string
+  readonly quelleId?: string | undefined
+  readonly gesuchtesPraedikat?: string | undefined
+  readonly zeitraumVon?: number | undefined
+  readonly zeitraumBis?: number | undefined
+  readonly beschreibung?: string | undefined
+  readonly datumDerPruefung?: string | undefined
+}
+
+export const negativbefundAnlegenEinSchema: z.ZodType<NegativbefundAnlegenEin> = z.object({
+  gesuchtePersonId: z.string(),
+  quelleId: z.string().optional(),
+  gesuchtesPraedikat: z.string().optional(),
+  zeitraumVon: z.number().int().optional(),
+  zeitraumBis: z.number().int().optional(),
+  beschreibung: z.string().optional(),
+  datumDerPruefung: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:negativbefund.aendern` — alle editierbaren Spalten (s. Abschnittskommentar oben). */
+export interface NegativbefundAendernEin {
+  readonly id: string
+  readonly gesuchtePersonId: string
+  readonly quelleId?: string | undefined
+  readonly gesuchtesPraedikat?: string | undefined
+  readonly zeitraumVon?: number | undefined
+  readonly zeitraumBis?: number | undefined
+  readonly beschreibung?: string | undefined
+  readonly datumDerPruefung?: string | undefined
+}
+
+export const negativbefundAendernEinSchema: z.ZodType<NegativbefundAendernEin> = z.object({
+  id: z.string(),
+  gesuchtePersonId: z.string(),
+  quelleId: z.string().optional(),
+  gesuchtesPraedikat: z.string().optional(),
+  zeitraumVon: z.number().int().optional(),
+  zeitraumBis: z.number().int().optional(),
+  beschreibung: z.string().optional(),
+  datumDerPruefung: z.string().optional(),
+})
+
+/** Nutzlast von `befehl:negativbefund.loeschen`. */
+export interface NegativbefundLoeschenEin {
+  readonly id: string
+}
+
+export const negativbefundLoeschenEinSchema: z.ZodType<NegativbefundLoeschenEin> = z.object({
+  id: z.string(),
+})

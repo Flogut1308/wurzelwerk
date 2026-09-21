@@ -79,6 +79,10 @@
     "titel": "Quelle nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist die Quelle tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
   },
+  "NICHT_GEFUNDEN_NEGATIVBEFUND": {
+    "titel": "Negativbefund nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Negativbefund tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
+  },
   "KONFLIKT_ZYKLUS": {
     "titel": "Verwandtschaft würde einen Zyklus erzeugen",
     "was_tun": "Die Elternschaft nicht anlegen — eine Person kann nicht ihr eigener Vorfahre sein. Die Beziehung prüfen und korrigieren."
