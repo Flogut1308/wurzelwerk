@@ -7,7 +7,9 @@ Lies ../Wissen/58_Laufplan.md und nimm AP-$0 (oder den obersten offenen). Lies d
 AP-Abschnitt in ../Wissen/57_Phase0_Arbeitspakete.md + genau die dort genannten Doc-Abschnitte + ../Wissen/CLAUDE.md.
 Routing: Planung/Schema/geschützter Prüfpfad -> planer (opus); normale Umsetzung ->
 umsetzer (opus); Mechanisches -> mechaniker (haiku); Review -> hueter (opus).
-opus = aktuelles Opus-Modell (Stand 23.09.2026: Opus 5.5). Beim Agent-Aufruf KEIN sonnet-Override.
+opus = aktuelles Opus-Modell (Stand 23.09.2026: Opus 5.5). Sonnet nur, wo die Tabelle
+"Modellrouting" in .claude/commands/kette-ui.md es für dieses Paket und diese Rolle nennt
+(dann model: "sonnet" beim Agent-Aufruf); sonst kein Override.
 1) Plan via planer. VARIANTE A: HALTE AN, zeig den Plan, warte auf "weiter".
 2) Branch ap/$0-<kurz>. Erst den roten Test, dann der Fix (CLAUDE.md §5).
    ROT-BELEG (via mechaniker, nicht via umsetzer): Basisstand + nur die neuen Testdateien,
