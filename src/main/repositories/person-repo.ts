@@ -5,6 +5,7 @@
 // aufgerufen vom Befehlsbus in `src/main/befehle/bus.ts`).
 import type { PersonAnlegenEin, PersonFeldSetzenEin } from '../../shared/schemata/befehle'
 import type { Tx } from './basis'
+import { mitHauptnameConstraintAus } from './name-form-repo'
 
 /** Spalten von `person` (docs/schema/0002_kern.sql + 0005_import_luecken.sql), für `lesen()`. */
 export interface PersonZeile {
@@ -112,9 +113,18 @@ export function feldSetzen(tx: Tx, ein: PersonFeldSetzenRepoEin): void {
   }
 }
 
-/** Löscht eine `person`-Zeile (CASCADE räumt `person_flach`/`name`/… über die Fremdschlüssel ab). */
+/** Löscht eine `person`-Zeile (CASCADE räumt `person_flach`/`name_form`/`name_part`/… über die
+ * Fremdschlüssel ab). Die „genau ein Hauptname"-Constraint-Trigger (`chk_name_form_hauptname_*`,
+ * 0006_namensformen.sql) werden dabei ausgesetzt: Löscht eine Person mit mehreren Namensformen, so
+ * durchläuft die CASCADE zwangsläufig einen Zwischenzustand, in dem noch Formen der Person existieren,
+ * aber (weil die bevorzugte schon weg ist) keine bevorzugte mehr — das würde `chk_name_form_hauptname_ad`
+ * sonst abbrechen. Am Transaktionsende hat die Person gar keine Form mehr, die Regel ist trivial erfüllt.
+ * Undo re-insertiert die Formen (INSERT feuert die Constraint-Trigger nicht) und setzt sie ebenfalls aus
+ * (src/main/journal/undo.ts) — der Ablauf bleibt undo-bitgleich (AP-1.33). */
 export function loeschen(tx: Tx, id: string): void {
-  tx.prepare('DELETE FROM person WHERE id = @id').run({ id })
+  mitHauptnameConstraintAus(tx, () => {
+    tx.prepare('DELETE FROM person WHERE id = @id').run({ id })
+  })
 }
 
 /** Liest eine `person`-Zeile (Spalten explizit, CLAUDE.md §6). `undefined`, wenn `id` nicht existiert. */

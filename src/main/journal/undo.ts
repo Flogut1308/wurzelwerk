@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
+import { mitHauptnameConstraintAus } from '../repositories/name-form-repo'
 import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from '../schnappschuss/dateiname'
 import { journalAn, journalAus } from './kontext'
@@ -139,16 +140,23 @@ export function undo(db: Database.Database): UndoErgebnis {
       db.pragma('defer_foreign_keys = ON') // Stolperstelle 1 (55_Architektur.md §4.9): wechselseitige Fremdschlüssel (z. B. ort.nachfolger_ort_id) innerhalb derselben Transaktion
       journalAus(db, 'undo: Rücknahme über den Undo-Algorithmus (55_Architektur.md §4.9) - das Undo protokolliert sich nicht selbst (Stolperstelle 2)')
       try {
-        for (const a of aenderungen(db, ziel.id, 'DESC')) {
-          const tabelle = alsBekannteTabelle(a.tabelle)
-          if (a.operation === 'insert') {
-            rohLoeschen(db, tabelle, a.datensatzId)
-          } else if (a.operation === 'delete') {
-            rohEinfuegen(db, tabelle, zeileAusJson(a.wertAltJson, 'undo', ziel.id))
-          } else {
-            rohErsetzen(db, tabelle, zeileAusJson(a.wertAltJson, 'undo', ziel.id))
+        // Stolperstelle 3 (AP-1.33): das zeilenweise Zurückschreiben durchläuft dieselben ungültigen
+        // Zwischenzustände wie der ursprüngliche Befehl (z. B. der Hauptname-Tausch: kurzzeitig zwei
+        // oder keine bevorzugte Form). Die „genau ein Hauptname"-Constraint-Trigger werden darum für
+        // die Dauer der Rücknahme ausgesetzt — analog `defer_foreign_keys` oben; der END-Zustand ist
+        // bitgleich der Vorher-Zustand und damit gültig.
+        mitHauptnameConstraintAus(db, () => {
+          for (const a of aenderungen(db, ziel.id, 'DESC')) {
+            const tabelle = alsBekannteTabelle(a.tabelle)
+            if (a.operation === 'insert') {
+              rohLoeschen(db, tabelle, a.datensatzId)
+            } else if (a.operation === 'delete') {
+              rohEinfuegen(db, tabelle, zeileAusJson(a.wertAltJson, 'undo', ziel.id))
+            } else {
+              rohErsetzen(db, tabelle, zeileAusJson(a.wertAltJson, 'undo', ziel.id))
+            }
           }
-        }
+        })
         statusSetzen(db, ziel.id, 'zurueckgenommen')
       } finally {
         journalAn(db)
@@ -180,16 +188,20 @@ export function redo(db: Database.Database): UndoErgebnis {
       db.pragma('defer_foreign_keys = ON') // Stolperstelle 1, s. undo() oben
       journalAus(db, 'redo: Wiederholung über den Undo-Algorithmus (55_Architektur.md §4.9) - protokolliert sich nicht selbst (Stolperstelle 2)')
       try {
-        for (const a of aenderungen(db, ziel.id, 'ASC')) {
-          const tabelle = alsBekannteTabelle(a.tabelle)
-          if (a.operation === 'insert') {
-            rohEinfuegen(db, tabelle, zeileAusJson(a.wertNeuJson, 'redo', ziel.id))
-          } else if (a.operation === 'delete') {
-            rohLoeschen(db, tabelle, a.datensatzId)
-          } else {
-            rohErsetzen(db, tabelle, zeileAusJson(a.wertNeuJson, 'redo', ziel.id))
+        // Stolperstelle 3 (AP-1.33), s. undo() oben: Constraint-Trigger „genau ein Hauptname" für die
+        // Dauer der Wiederholung aussetzen (Zwischenzustände des Hauptname-Tauschs).
+        mitHauptnameConstraintAus(db, () => {
+          for (const a of aenderungen(db, ziel.id, 'ASC')) {
+            const tabelle = alsBekannteTabelle(a.tabelle)
+            if (a.operation === 'insert') {
+              rohEinfuegen(db, tabelle, zeileAusJson(a.wertNeuJson, 'redo', ziel.id))
+            } else if (a.operation === 'delete') {
+              rohLoeschen(db, tabelle, a.datensatzId)
+            } else {
+              rohErsetzen(db, tabelle, zeileAusJson(a.wertNeuJson, 'redo', ziel.id))
+            }
           }
-        }
+        })
         statusSetzen(db, ziel.id, 'angewendet')
       } finally {
         journalAn(db)

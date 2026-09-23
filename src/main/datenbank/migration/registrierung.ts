@@ -39,10 +39,15 @@ export const MIGRATIONEN = [
     datei: '0005_import_luecken.sql',
     pruefsumme: 'sha256-59df1c7316fb8138b500dc3aa37d64f938861a97631fd2a8b5623c244f2adacf',
   },
+  {
+    version: 6,
+    datei: '0006_namensformen.sql',
+    pruefsumme: 'sha256-16ec62eede7f66f54bed365c789cf23cbbd9700933965f01985e947ca867b9ed',
+  },
 ] as const satisfies readonly MigrationEintrag[]
 
 /** Ziel von `PRAGMA user_version` nach vollständiger Migration — die höchste Version der Registry. */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /** sha256 über den rohen Byte-Inhalt einer Migrationsdatei, Format `sha256-<hexdigest>`. */
 export function pruefsummeBerechnen(inhalt: string | Buffer): string {

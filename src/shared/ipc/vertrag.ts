@@ -8,6 +8,7 @@ import type {
   NameAnlegenEin,
   NameAendernEin,
   NameLoeschenEin,
+  HauptnameWechselnEin,
   ElternschaftAnlegenEin,
   ElternschaftAendernEin,
   ElternschaftLoeschenEin,
@@ -316,6 +317,7 @@ export interface Vertrag {
   'befehl:name.anlegen': { ein: NameAnlegenEin; aus: { readonly id: string } }
   'befehl:name.aendern': { ein: NameAendernEin; aus: null }
   'befehl:name.loeschen': { ein: NameLoeschenEin; aus: null }
+  'befehl:hauptname.wechseln': { ein: HauptnameWechselnEin; aus: null }
   'befehl:elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'befehl:elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'befehl:elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }

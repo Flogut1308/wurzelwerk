@@ -281,8 +281,14 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       })
       zaehle('person')
 
-      const namenIds = (p.namen ?? []).map(() => neueId())
-      p.namen?.forEach((n, index) => {
+      const namen = p.namen ?? []
+      const namenIds = namen.map(() => neueId())
+      // AP-1.33: „genau ein Hauptname je Person" (0006_namensformen.sql). Der Importvertrag erlaubt
+      // 0..n als bevorzugt markierte Namen; hier wird GENAU EINE Form bevorzugt: die erste explizit
+      // markierte, sonst (keine markiert) die erste Namenszeile überhaupt.
+      const bevorzugtIndex = namen.findIndex((n) => n.ist_bevorzugt === true)
+      const hauptnameIndex = bevorzugtIndex >= 0 ? bevorzugtIndex : 0
+      namen.forEach((n, index) => {
         const nameId = namenIds[index]
         if (nameId === undefined) {
           // Defensiv (CLAUDE.md §4: kein `!`) — `namenIds` hat laut Konstruktion genau
@@ -290,28 +296,32 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
           throw new WurzelFehler('INTERN_UNERWARTET', `schreibeImport(): fehlende Name-ID an Index ${index} für Person "${p.id}".`)
         }
         const umschriftVonId = n.umschrift_von !== undefined ? (namenIds[n.umschrift_von] ?? null) : null
-        nameRepo.einfuegen(tx, {
-          id: nameId,
-          personId: id,
-          typ: n.typ ?? 'geburtsname',
-          schrift: n.schrift ?? null,
-          umschriftVon: umschriftVonId,
-          umschriftNorm: n.umschrift_norm ?? null,
-          vornamen: n.vornamen ?? null,
-          rufnameIndex: n.rufname_index ?? null,
-          rufnameText: n.rufname_text ?? null,
-          nachname: n.nachname ?? null,
-          praefix: n.praefix ?? null,
-          titelVor: n.titel_vor ?? null,
-          zusatzNach: n.zusatz_nach ?? null,
-          originalText: n.original_text ?? null,
-          sprache: n.sprache ?? null,
-          istBevorzugt: boolZuInt(n.ist_bevorzugt),
-          gueltigVon: n.gueltig_von ?? null,
-          gueltigBis: n.gueltig_bis ?? null,
-          erstelltAm,
-          geaendertAm: erstelltAm,
-        })
+        nameRepo.einfuegen(
+          tx,
+          {
+            id: nameId,
+            personId: id,
+            typ: n.typ ?? 'geburtsname',
+            schrift: n.schrift ?? null,
+            umschriftVon: umschriftVonId,
+            umschriftNorm: n.umschrift_norm ?? null,
+            vornamen: n.vornamen ?? null,
+            rufnameIndex: n.rufname_index ?? null,
+            rufnameText: n.rufname_text ?? null,
+            nachname: n.nachname ?? null,
+            praefix: n.praefix ?? null,
+            titelVor: n.titel_vor ?? null,
+            zusatzNach: n.zusatz_nach ?? null,
+            originalText: n.original_text ?? null,
+            sprache: n.sprache ?? null,
+            istBevorzugt: index === hauptnameIndex ? 1 : 0,
+            gueltigVon: n.gueltig_von ?? null,
+            gueltigBis: n.gueltig_bis ?? null,
+            erstelltAm,
+            geaendertAm: erstelltAm,
+          },
+          neueId,
+        )
         zaehle('name')
       })
     }

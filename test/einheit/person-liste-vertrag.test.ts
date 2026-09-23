@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { flacheNameEinfuegen } from '../hilfsmittel/name-schreiben'
 import { personListe } from '../../src/main/abfragen/person-liste'
 import type { PersonListeEin, PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
@@ -18,11 +19,7 @@ function grundeingabe(ueberschreibung: Partial<PersonListeEin> = {}): PersonList
 function personAnlegen(db: Database.Database, nachname: string): string {
   const personId = uuidv7()
   db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
-  db.prepare(`INSERT INTO name (id, person_id, typ, nachname, ist_bevorzugt) VALUES (@id, @personId, 'geburtsname', @nachname, 1)`).run({
-    id: uuidv7(),
-    personId,
-    nachname,
-  })
+  flacheNameEinfuegen(db, { personId, nachname })
   return personId
 }
 

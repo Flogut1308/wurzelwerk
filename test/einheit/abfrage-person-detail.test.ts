@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { flacheNameEinfuegen } from '../hilfsmittel/name-schreiben'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import type { PersonDetailGrunddatenFeld } from '../../src/shared/schemata/person-detail'
 
@@ -39,10 +40,7 @@ function personAnlegen(
     id: personId,
     istPlatzhalter: optionen.istPlatzhalter ?? 0,
   })
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, nachname, vornamen, ist_bevorzugt)
-     VALUES (@id, @personId, 'geburtsname', @nachname, @vornamen, 1)`,
-  ).run({ id: uuidv7(), personId, nachname: optionen.nachname, vornamen: optionen.vornamen })
+  flacheNameEinfuegen(db, { personId, nachname: optionen.nachname, vornamen: optionen.vornamen })
   return personId
 }
 

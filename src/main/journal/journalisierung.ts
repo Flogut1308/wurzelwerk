@@ -16,7 +16,8 @@
  */
 export const JOURNALISIERT = [
   'person',
-  'name',
+  'name_form',
+  'name_part',
   'ort',
   'ortsname',
   'ortszugehoerigkeit',

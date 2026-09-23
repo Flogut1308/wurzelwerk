@@ -26,6 +26,7 @@ const kanaele = [
   'befehl:name.anlegen',
   'befehl:name.aendern',
   'befehl:name.loeschen',
+  'befehl:hauptname.wechseln',
   'befehl:elternschaft.anlegen',
   'befehl:elternschaft.aendern',
   'befehl:elternschaft.loeschen',

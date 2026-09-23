@@ -37,7 +37,7 @@ describe('schreibeImport() — Grundabbildung (beispiel-1-einfach.json, AP-1.3d)
 
   it('legt die erwartete Zeilenzahl je Grundtabelle an', () => {
     expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM person')).toBe(3)
-    expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM name')).toBe(4) // karl(1) + emma(2) + helene(1)
+    expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM name_form')).toBe(4) // karl(1) + emma(2) + helene(1)
     expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM ort')).toBe(1)
     expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM ortsname')).toBe(1)
     expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM quelle')).toBe(1)

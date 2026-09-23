@@ -1,9 +1,11 @@
-import Database from 'better-sqlite3'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+// AP-1.33: über `oeffnen` statt `new Database` — die Migration 0006 (Namensformen) ruft `uuid7()`
+// beim Datenumzug auf, das nur `oeffnen` als SQL-Funktion registriert (src/main/datenbank/verbindung.ts).
+import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 /**
@@ -25,7 +27,7 @@ describe('main/datenbank/migration/laeufer — Prüfsummenschutz', () => {
   })
 
   it('eine manipulierte schema_migration.pruefsumme-Zeile verhindert weiteres Migrieren', () => {
-    const db = new Database(dbPfad)
+    const db = oeffnen(dbPfad)
     try {
       migrieren(db)
       db.prepare('UPDATE schema_migration SET pruefsumme = @wert WHERE version = @version').run({
@@ -48,7 +50,7 @@ describe('main/datenbank/migration/laeufer — Prüfsummenschutz', () => {
   })
 
   it('eine Registry-Prüfsumme, die nicht zum Datei-Inhalt passt, verhindert das Anwenden', () => {
-    const db = new Database(dbPfad)
+    const db = oeffnen(dbPfad)
     try {
       try {
         migrieren(db, {

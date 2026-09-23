@@ -40,18 +40,41 @@ function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   return db
 }
 
+// AP-1.33: `befehl:name.*` bleibt als flache Kompatibilitäts-Schnittstelle über name_form +
+// name_part bestehen (0006_namensformen.sql). `nameLesen` liest die Form und rekonstruiert
+// nachname/vornamen aus den Bestandteilen (analog src/main/repositories/name-repo.ts).
 function nameLesen(db: ReturnType<typeof oeffnen>, id: string): NameZeile | undefined {
-  return db
-    .prepare<{ readonly id: string }, NameZeile>(
-      'SELECT id, person_id, typ, nachname, vornamen, ist_bevorzugt, geaendert_am FROM name WHERE id = @id',
+  const form = db
+    .prepare<{ readonly id: string }, { readonly id: string; readonly person_id: string; readonly rolle: string | null; readonly umschrift_von: string | null; readonly ist_bevorzugt: 0 | 1; readonly geaendert_am: number | null }>(
+      'SELECT id, person_id, rolle, umschrift_von, ist_bevorzugt, geaendert_am FROM name_form WHERE id = @id',
     )
     .get({ id })
+  if (form === undefined) return undefined
+  const teil = (art: string): string | null => {
+    const werte = db
+      .prepare<{ readonly id: string; readonly art: string }, { readonly wert: string }>(
+        'SELECT wert FROM name_part WHERE name_form_id = @id AND art = @art ORDER BY sortier_index',
+      )
+      .all({ id, art })
+      .map((zeile) => zeile.wert)
+    return werte.length > 0 ? werte.join(' ') : null
+  }
+  return {
+    id: form.id,
+    person_id: form.person_id,
+    typ: form.rolle ?? (form.umschrift_von !== null ? 'transliteriert' : 'sonstiges'),
+    nachname: teil('nachname'),
+    vornamen: teil('vorname'),
+    ist_bevorzugt: form.ist_bevorzugt,
+    geaendert_am: form.geaendert_am,
+  }
 }
 
+// AP-1.33: die „Namenszeile" ist jetzt die `name_form` (Bestandteile liegen separat in `name_part`).
 function aenderungenFuerName(db: ReturnType<typeof oeffnen>, id: string): readonly AenderungZeile[] {
   return db
     .prepare<{ readonly id: string }, AenderungZeile>(
-      `SELECT operation FROM aenderung WHERE tabelle = 'name' AND datensatz_id = @id ORDER BY reihenfolge`,
+      `SELECT operation FROM aenderung WHERE tabelle = 'name_form' AND datensatz_id = @id ORDER BY reihenfolge`,
     )
     .all({ id })
 }
@@ -279,6 +302,60 @@ describe('name.loeschen (AP-1.12)', () => {
 
       redo(db)
       expect(nameLesen(db, id)).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('hauptname.wechseln (AP-1.33)', () => {
+  it('erste Form ist bevorzugt, zweite nicht; der Wechsel stellt um, Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id: formA } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
+      const { id: formB } = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', nachname: 'Schmidt' })
+      expect(nameLesen(db, formA)?.ist_bevorzugt).toBe(1) // erste Form
+      expect(nameLesen(db, formB)?.ist_bevorzugt).toBe(0) // zweite Form
+
+      fuehreAus(db, 'hauptname.wechseln', { personId, alt: formA, neu: formB })
+      expect(nameLesen(db, formA)?.ist_bevorzugt).toBe(0)
+      expect(nameLesen(db, formB)?.ist_bevorzugt).toBe(1)
+
+      undo(db)
+      expect(nameLesen(db, formA)?.ist_bevorzugt).toBe(1)
+      expect(nameLesen(db, formB)?.ist_bevorzugt).toBe(0)
+
+      redo(db)
+      expect(nameLesen(db, formA)?.ist_bevorzugt).toBe(0)
+      expect(nameLesen(db, formB)?.ist_bevorzugt).toBe(1)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('neu ist bereits bevorzugt → No-op (keine zweite Transaktion)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id: formA } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
+      const anzahlVorher = transaktionAnzahl(db)
+      fuehreAus(db, 'hauptname.wechseln', { personId, alt: formA, neu: formA })
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nicht existierende Zielform → NICHT_GEFUNDEN_NAME, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id: formA } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
+      const anzahlVorher = transaktionAnzahl(db)
+      const code = fehlerCode(() => fuehreAus(db, 'hauptname.wechseln', { personId, alt: formA, neu: 'nicht-vorhanden' }))
+      expect(code).toBe('NICHT_GEFUNDEN_NAME')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
     } finally {
       db.close()
     }

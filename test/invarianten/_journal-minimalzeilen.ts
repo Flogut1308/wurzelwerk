@@ -19,6 +19,7 @@ import { transaktionAnlegen } from '../../src/main/repositories/journal-repo'
 export interface Vorstufe {
   readonly transaktionId: string
   readonly personId: string
+  readonly nameFormId: string
   readonly ortId: string
   readonly partnerschaftId: string
   readonly ereignisId: string
@@ -42,6 +43,7 @@ export function vorstufeAnlegen(db: Database.Database): Vorstufe {
   const vorstufe: Vorstufe = {
     transaktionId: uuidv7(),
     personId: uuidv7(),
+    nameFormId: uuidv7(),
     ortId: uuidv7(),
     partnerschaftId: uuidv7(),
     ereignisId: uuidv7(),
@@ -58,6 +60,12 @@ export function vorstufeAnlegen(db: Database.Database): Vorstufe {
     armieren(db, vorstufe.transaktionId)
 
     db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: vorstufe.personId })
+    // Eine bevorzugte name_form je Vorstufen-Person (AP-1.33): Fremdschlüsselziel für die
+    // minimale name_part-Zeile, und erfüllt zugleich „genau ein Hauptname je Person".
+    db.prepare('INSERT INTO name_form (id, person_id, ist_bevorzugt) VALUES (@id, @personId, 1)').run({
+      id: vorstufe.nameFormId,
+      personId: vorstufe.personId,
+    })
     db.prepare('INSERT INTO ort (id) VALUES (@id)').run({ id: vorstufe.ortId })
     db.prepare("INSERT INTO partnerschaft (id, typ) VALUES (@id, 'ehe_zivil')").run({ id: vorstufe.partnerschaftId })
     db.prepare("INSERT INTO ereignis (id, typ) VALUES (@id, 'geburt')").run({ id: vorstufe.ereignisId })
@@ -103,10 +111,17 @@ export function minimalZeileFuer(tabelle: JournalisierteTabelle, v: Vorstufe): M
   switch (tabelle) {
     case 'person':
       return { sql: 'INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)', params: { id: uuidv7() } }
-    case 'name':
+    case 'name_form':
+      // Zweite Form der Vorstufen-Person, NICHT bevorzugt (die Vorstufe trägt bereits die
+      // bevorzugte) — der partielle UNIQUE-Index erlaubt beliebig viele nicht-bevorzugte.
       return {
-        sql: "INSERT INTO name (id, person_id, typ) VALUES (@id, @personId, 'geburtsname')",
+        sql: 'INSERT INTO name_form (id, person_id, ist_bevorzugt) VALUES (@id, @personId, 0)',
         params: { id: uuidv7(), personId: v.personId },
+      }
+    case 'name_part':
+      return {
+        sql: "INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index) VALUES (@id, @nameFormId, 'vorname', 'Test', 0, 0)",
+        params: { id: uuidv7(), nameFormId: v.nameFormId },
       }
     case 'ort':
       return { sql: 'INSERT INTO ort (id) VALUES (@id)', params: { id: uuidv7() } }

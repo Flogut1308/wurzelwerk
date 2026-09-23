@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import type Database from 'better-sqlite3'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { flacheNameEinfuegen } from '../hilfsmittel/name-schreiben'
 import { suche } from '../../src/main/abfragen/suche'
 import type { PersonListeFilter, SucheEin } from '../../src/shared/schemata/person-liste'
 
@@ -37,11 +38,7 @@ function personMitNamenAnlegen(
 ): string {
   const personId = uuidv7()
   db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-     VALUES (@id, @personId, 'geburtsname', @schrift, @nachname, @originalText)`,
-  ).run({
-    id: uuidv7(),
+  flacheNameEinfuegen(db, {
     personId,
     schrift: optionen.schrift ?? null,
     nachname: optionen.nachname,
@@ -51,10 +48,15 @@ function personMitNamenAnlegen(
 }
 
 function umschriftAnlegen(db: Database.Database, personId: string, kyrillischeId: string, nachname: string): void {
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, nachname, original_text)
-     VALUES (@id, @personId, 'transliteriert', 'latn', @umschriftVon, @nachname, @originalText)`,
-  ).run({ id: uuidv7(), personId, umschriftVon: kyrillischeId, nachname, originalText: nachname })
+  flacheNameEinfuegen(db, {
+    personId,
+    typ: 'transliteriert',
+    schrift: 'latn',
+    umschriftVon: kyrillischeId,
+    nachname,
+    originalText: nachname,
+    istBevorzugt: 0,
+  })
 }
 
 describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
@@ -78,11 +80,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const personId = uuidv7()
       db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
-      const kyrillischeId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-         VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-      ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
+      const kyrillischeId = flacheNameEinfuegen(db, { id: uuidv7(), personId, schrift: 'cyrl', nachname: 'Щербаков', originalText: 'Щербаков' })
       umschriftAnlegen(db, personId, kyrillischeId, 'Scerbakov')
 
       const ergebnis = suche(db, sucheEingabe({ text: 'Scerbakov' }))
@@ -100,11 +98,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const personId = uuidv7()
       db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
-      const kyrillischeId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-         VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-      ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
+      const kyrillischeId = flacheNameEinfuegen(db, { id: uuidv7(), personId, schrift: 'cyrl', nachname: 'Щербаков', originalText: 'Щербаков' })
       umschriftAnlegen(db, personId, kyrillischeId, 'Scerbakov')
 
       const ergebnis = suche(db, sucheEingabe({ text: 'Щербаков' }))
@@ -133,10 +127,7 @@ describe('abfrage:suche (AP-1.6 PR1, ADR-014)', () => {
     try {
       const passendeId = uuidv7()
       db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: passendeId })
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, nachname, vornamen, original_text)
-         VALUES (@id, @personId, 'geburtsname', 'Krause', 'Anna', 'Anna Krause')`,
-      ).run({ id: uuidv7(), personId: passendeId })
+      flacheNameEinfuegen(db, { personId: passendeId, nachname: 'Krause', vornamen: 'Anna', originalText: 'Anna Krause' })
       personMitNamenAnlegen(db, { nachname: 'Krause' })
 
       const ergebnis = suche(db, sucheEingabe({ text: 'Anna Krause' }))

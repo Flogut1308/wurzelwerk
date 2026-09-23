@@ -64,7 +64,7 @@ function seedeAugustWruck(db: ReturnType<typeof frischeDatenbankMitJournal>): st
       gueltigBis: null,
       erstelltAm: 1_600_000_000_000,
       geaendertAm: 1_600_000_000_000,
-    })
+    }, neueId)
     aussageRepo.einfuegen(db, {
       id: neueId(),
       subjektTyp: 'person',

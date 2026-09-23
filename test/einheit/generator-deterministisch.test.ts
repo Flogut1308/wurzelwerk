@@ -39,7 +39,7 @@ describe('generiere: Determinismus (AP-0.12-Abnahme)', () => {
     const db = generiere(200, 12345)
     try {
       const anzahlPersonen = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM person').get()
-      const anzahlNamen = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM name').get()
+      const anzahlNamen = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM name_form').get()
       const anzahlElternschaften = db
         .prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM elternschaft')
         .get()

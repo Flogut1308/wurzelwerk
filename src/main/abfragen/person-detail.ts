@@ -21,7 +21,8 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
-import { NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
+import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
+import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
 import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../shared/schemata/person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
@@ -63,43 +64,71 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
     .get({ personId })
 }
 
-interface NameZeile {
+interface FormZeile {
   readonly id: string
-  readonly typ: string
+  readonly rolle: string | null
+  readonly umschrift_von: string | null
   readonly schrift: string | null
-  readonly vornamen: string | null
-  readonly nachname: string | null
-  readonly praefix: string | null
-  readonly titel_vor: string | null
-  readonly zusatz_nach: string | null
-  readonly rufname_text: string | null
 }
 
-/** `name`-Zeilen dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — sortiert nach `ist_bevorzugt`
- * (bevorzugter Name zuerst), dann `id` als stabiler Tie-Break (analog `ereignisseSortierenUndWandeln`). */
+interface TeilZeile {
+  readonly name_form_id: string
+  readonly art: string
+  readonly wert: string
+  readonly ist_rufname: number
+  readonly sortier_index: number
+}
+
+/** `name_form`-Zeilen dieser Person (AP-1.14a Kernfelder-Schreibmaske; AP-1.33: Modell name_form/
+ * name_part) — read-only als FLACHE `PersonDetailName` rekonstruiert (dieselbe Rekonstruktion wie die
+ * Projektion, src/core/name/zerlegung.ts). Sortiert nach `ist_bevorzugt` (bevorzugte Form zuerst),
+ * dann `id` als stabiler Tie-Break. */
 function namenLaden(db: Database.Database, personId: string): readonly PersonDetailName[] {
-  const zeilen = db
+  const formen = db
     .prepare<
       { readonly personId: string },
-      NameZeile
-    >(`SELECT id AS id, typ AS typ, schrift AS schrift, vornamen AS vornamen, nachname AS nachname,
-              praefix AS praefix, titel_vor AS titel_vor, zusatz_nach AS zusatz_nach, rufname_text AS rufname_text
-       FROM name
+      FormZeile
+    >(`SELECT id AS id, rolle AS rolle, umschrift_von AS umschrift_von, schrift AS schrift
+       FROM name_form
        WHERE person_id = @personId
        ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id`,
     )
     .all({ personId })
-  return zeilen.map((zeile) => ({
-    id: zeile.id,
-    typ: NameTypEnum.parse(zeile.typ),
-    schrift: zeile.schrift === null ? null : SchriftEnum.parse(zeile.schrift),
-    vornamen: zeile.vornamen,
-    nachname: zeile.nachname,
-    praefix: zeile.praefix,
-    titel_vor: zeile.titel_vor,
-    zusatz_nach: zeile.zusatz_nach,
-    rufname_text: zeile.rufname_text,
-  }))
+  if (formen.length === 0) return []
+
+  const teileJeForm = new Map<string, GeladenerTeil[]>()
+  const teile = db
+    .prepare<
+      { readonly personId: string },
+      TeilZeile
+    >(`SELECT tp.name_form_id AS name_form_id, tp.art AS art, tp.wert AS wert,
+              tp.ist_rufname AS ist_rufname, tp.sortier_index AS sortier_index
+       FROM name_part tp
+       JOIN name_form fm ON fm.id = tp.name_form_id
+       WHERE fm.person_id = @personId`,
+    )
+    .all({ personId })
+  for (const zeile of teile) {
+    const liste = teileJeForm.get(zeile.name_form_id) ?? []
+    liste.push({ art: NamePartArtEnum.parse(zeile.art), wert: zeile.wert, istRufname: zeile.ist_rufname === 1, sortierIndex: zeile.sortier_index })
+    teileJeForm.set(zeile.name_form_id, liste)
+  }
+
+  return formen.map((form) => {
+    const flach = rekonstruiereFlach(teileJeForm.get(form.id) ?? [])
+    const typ = form.rolle ?? (form.umschrift_von !== null ? 'transliteriert' : 'sonstiges')
+    return {
+      id: form.id,
+      typ: NameTypEnum.parse(typ),
+      schrift: form.schrift === null ? null : SchriftEnum.parse(form.schrift),
+      vornamen: flach.vornamen,
+      nachname: flach.nachname,
+      praefix: flach.praefix,
+      titel_vor: flach.titelVor,
+      zusatz_nach: flach.zusatzNach,
+      rufname_text: flach.rufnameText,
+    }
+  })
 }
 
 interface AussageZeile {

@@ -56,6 +56,16 @@ const IMMER_GESCHUETZTE_PFADE = [/^test\/invarianten\//, /^test\/golden\//]
 // `test/golden/`-Treffer oben; Layout-/Logik-Goldens außerhalb von `bilder/` bleiben ausnahmslos
 // geschützt, ebenso `test/invarianten/` (unverändert).
 const BILDVERGLEICH_AUSNAHME = /^test\/golden\/bilder\//
+// ADR-030: schema-abgeleitete Prüfpfad-Helfer sind Eingabe-/Fixture-Bauer OHNE Zusicherung
+// (minimale INSERT-Zeile je journalisierter Tabelle bzw. der fast-check-Basisdaten-Generator für
+// abgeleitet-gleich). Sie folgen dem Schema mechanisch und wandern darum schema-bedingt (nur mit
+// einer Migration im selben Vergleich), nicht „immer". ENG begrenzt auf exakte Pfade, kein Muster —
+// jede Aufnahme braucht den Nachweis „Eingabe-Bauer, keine Zusicherung" (hueter-Review, ADR-030).
+const SCHEMA_ABGELEITETE_PRUEFPFAD_HELFER = new Set([
+  'test/invarianten/_journal-minimalzeilen.ts',
+  'test/invarianten/_modell-abgeleitet.ts',
+  'test/hilfsmittel/fixture-bauen.ts',
+])
 // Schema-bedingt geschützt: nur zulässig zusammen mit Produktivcode, wenn eine neue
 // docs/schema/00NN_*.sql-Migration im selben Vergleich steckt (AP-0.7-Nachtrag, erweitert um
 // test/migration/** und registrierung.ts, AP-0.25 PR-4).
@@ -108,11 +118,17 @@ export function pruefpfadAuswerten(
     zusaetzlicheGeschuetztePfade.filter((eintrag) => eintrag.modus === 'schema_bedingt').map((eintrag) => eintrag.datei),
   )
 
+  // ADR-030: ein schema-abgeleiteter Helfer wird NIE „immer" geschützt (auch nicht, wenn er über
+  // test/invarianten indirekt als 'immer' hereingereicht wird) — er ist ausschließlich schema-bedingt.
+  const istSchemaAbgeleiteterHelfer = (datei: string): boolean => SCHEMA_ABGELEITETE_PRUEFPFAD_HELFER.has(datei)
   const istImmerGeschuetzt = (datei: string): boolean =>
-    (IMMER_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) && !BILDVERGLEICH_AUSNAHME.test(datei)) ||
-    immerZusaetzlich.has(datei)
+    !istSchemaAbgeleiteterHelfer(datei) &&
+    ((IMMER_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) && !BILDVERGLEICH_AUSNAHME.test(datei)) ||
+      immerZusaetzlich.has(datei))
   const istSchemaBedingtGeschuetzt = (datei: string): boolean =>
-    SCHEMA_BEDINGT_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) || schemaBedingtZusaetzlich.has(datei)
+    SCHEMA_BEDINGT_GESCHUETZTE_PFADE.some((muster) => muster.test(datei)) ||
+    schemaBedingtZusaetzlich.has(datei) ||
+    istSchemaAbgeleiteterHelfer(datei)
 
   const schemaBedingtGeaendert = dateien.some((datei) => istSchemaBedingtGeschuetzt(datei))
 

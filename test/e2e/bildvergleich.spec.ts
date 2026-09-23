@@ -526,8 +526,13 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           // `abfrage:suche` aus (die Personenwähler-Sucheingabe startet vorbefüllt mit ihrem
           // Anzeigenamen, `quelle-bearbeiten.tsx`) — ohne diesen Wait wäre die Aufnahme von der
           // Ankunftszeit dieser Abfrage abhängig (nichtdeterministisches Golden, dieselbe
-          // Begründung wie der „Bearbeiten"-Wait bei „Profil" oben).
-          await expect(quelleSchublade.getByText('Erna Wruck')).toBeVisible()
+          // Begründung wie der „Bearbeiten"-Wait bei „Profil" oben). Seit AP-1.33 findet die Suche
+          // die Person zuverlässig über ihre zerlegte Namensform — der Treffer erscheint im
+          // Vorschlags-Listbox; auf die Listbox scopen, damit der Wait eindeutig das Suchergebnis
+          // (nicht das bereits sofort sichtbare „Ausgewählt: …"-Label) abwartet.
+          await expect(
+            quelleSchublade.getByRole('listbox', { name: 'Person suchen' }).getByText('Erna Wruck'),
+          ).toBeVisible()
         })
 
         test.afterAll(async () => {

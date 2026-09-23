@@ -2,9 +2,10 @@
 // `sqlite_master` ohne Trigger, Zeilen sortiert, Weißraum vereinheitlicht. Zweifacher Aufruf muss
 // bitgleich sein — die Sortierung und die Textnormalisierung machen den Abzug unabhängig von der
 // Einfüge-/Anwendungsreihenfolge und von Formatierungsdetails der Migrations-SQL.
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { oeffnen } from '../src/main/datenbank/verbindung'
 import { migrieren, type LaeufenOptionen } from '../src/main/datenbank/migration/laeufer'
 
 interface SchemaZeile {
@@ -33,7 +34,9 @@ export function schemaAbzugErstellen(db: Database.Database): string {
 
 /** Öffnet eine frische In-Memory-Datenbank, wendet Migrationen an und gibt ihren Abzug zurück. */
 export function schemaAbzugFrischerDatenbank(opts?: LaeufenOptionen): string {
-  const db = new Database(':memory:')
+  // oeffnen() registriert uuid7/suchnormalform/koelner_phonetik - seit Migration 0006 (AP-1.33)
+  // ruft eine Migration diese SQL-Funktionen schon zur Kompilierzeit ihrer Statements auf.
+  const db = oeffnen(':memory:')
   try {
     migrieren(db, opts)
     return schemaAbzugErstellen(db)

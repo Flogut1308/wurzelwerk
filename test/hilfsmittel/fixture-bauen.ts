@@ -33,6 +33,7 @@ import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { journalAus } from '../../src/main/journal/kontext'
 import { SeedPrng } from '../../src/core/zufall/seed-prng'
+import { montiereOriginalText, zerlegeName } from '../../src/core/name/zerlegung'
 
 /** Wie `Person`, aber ohne `id` — `schluessel` ist die lokale, fixture-interne Referenz. */
 export interface FixturePerson extends Omit<Person, 'id'> {
@@ -193,15 +194,20 @@ export function baueFixture(beschreibung: FixtureBeschreibung, seed: number | bi
      VALUES
        (@id, @geschlecht, @lebend_status, @privat, @notiz, @gesperrt_bis, @ist_platzhalter, @platzhalter_grund, @erstellt_am, @geaendert_am)`,
   )
-  const nameEinfuegen = db.prepare(
-    `INSERT INTO name
-       (id, person_id, typ, schrift, umschrift_von, umschrift_norm, vornamen, rufname_index, rufname_text,
-        nachname, praefix, titel_vor, zusatz_nach, original_text, sprache, ist_bevorzugt, gueltig_von,
-        gueltig_bis, erstellt_am, geaendert_am)
+  // AP-1.33: das flache `name` ist durch `name_form` + `name_part` ersetzt (0006_namensformen.sql).
+  // Die Fixture-Beschreibung bleibt flach (`FixtureNamenzeile`); `baueFixture` zerlegt sie hier mit
+  // derselben Logik wie die Migration (src/core/name/zerlegung.ts).
+  const nameFormEinfuegen = db.prepare(
+    `INSERT INTO name_form
+       (id, person_id, sprache, schrift, reihenfolge, rolle, rollen_notiz, ist_bevorzugt, umschrift_von,
+        umschrift_norm, konfidenz, sortier_index, gueltig_von, gueltig_bis, original_text, erstellt_am, geaendert_am)
      VALUES
-       (@id, @person_id, @typ, @schrift, @umschrift_von, @umschrift_norm, @vornamen, @rufname_index, @rufname_text,
-        @nachname, @praefix, @titel_vor, @zusatz_nach, @original_text, @sprache, @ist_bevorzugt, @gueltig_von,
-        @gueltig_bis, @erstellt_am, @geaendert_am)`,
+       (@id, @person_id, @sprache, @schrift, NULL, @rolle, NULL, @ist_bevorzugt, @umschrift_von,
+        @umschrift_norm, NULL, NULL, @gueltig_von, @gueltig_bis, @original_text, @erstellt_am, @geaendert_am)`,
+  )
+  const namePartEinfuegen = db.prepare(
+    `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+     VALUES (@id, @name_form_id, @art, @wert, @ist_rufname, @sortier_index, NULL, @erstellt_am, @geaendert_am)`,
   )
   const elternschaftEinfuegen = db.prepare(
     `INSERT INTO elternschaft (id, elternteil_id, kind_id, typ, konfidenz, notiz, erstellt_am, geaendert_am)
@@ -294,30 +300,72 @@ export function baueFixture(beschreibung: FixtureBeschreibung, seed: number | bi
       })
     }
 
-    for (const name of beschreibung.namen ?? []) {
+    // „Genau ein Hauptname je Person" (0006): pro Person genau eine bevorzugte Form — die erste
+    // explizit mit `ist_bevorzugt: 1` markierte, sonst die erste Namenszeile der Person.
+    const namenListe = beschreibung.namen ?? []
+    const hauptnameJePerson = new Map<string, string>()
+    for (const name of namenListe) {
+      if (name.ist_bevorzugt === 1 && !hauptnameJePerson.has(name.personSchluessel)) {
+        hauptnameJePerson.set(name.personSchluessel, name.schluessel)
+      }
+    }
+    for (const name of namenListe) {
+      if (!hauptnameJePerson.has(name.personSchluessel)) {
+        hauptnameJePerson.set(name.personSchluessel, name.schluessel)
+      }
+    }
+
+    for (const name of namenListe) {
       const zeitpunkt = zeit.naechster()
-      nameEinfuegen.run({
-        id: schluessel.aufloesen(name.schluessel),
+      const formId = schluessel.aufloesen(name.schluessel)
+      nameFormEinfuegen.run({
+        id: formId,
         person_id: schluessel.aufloesen(name.personSchluessel),
-        typ: name.typ,
+        sprache: name.sprache ?? null,
         schrift: name.schrift ?? null,
+        rolle: name.typ === 'transliteriert' ? null : name.typ,
+        ist_bevorzugt: hauptnameJePerson.get(name.personSchluessel) === name.schluessel ? 1 : 0,
         umschrift_von: name.umschriftVonSchluessel === undefined ? null : schluessel.aufloesen(name.umschriftVonSchluessel),
         umschrift_norm: name.umschrift_norm ?? null,
-        vornamen: name.vornamen ?? null,
-        rufname_index: name.rufname_index ?? null,
-        rufname_text: name.rufname_text ?? null,
-        nachname: name.nachname ?? null,
-        praefix: name.praefix ?? null,
-        titel_vor: name.titel_vor ?? null,
-        zusatz_nach: name.zusatz_nach ?? null,
-        original_text: name.original_text ?? null,
-        sprache: name.sprache ?? null,
-        ist_bevorzugt: name.ist_bevorzugt ?? null,
         gueltig_von: name.gueltig_von ?? null,
         gueltig_bis: name.gueltig_bis ?? null,
+        // AP-1.33: `original_text` montieren, wenn nicht gesetzt — der abgeleitete Trigger
+        // `abl_name_form_ai` indiziert die FTS-Normalform daraus (die name_part-Zeilen existieren zum
+        // Zeitpunkt des Form-Inserts noch nicht); s. `montiereOriginalText`.
+        original_text:
+          name.original_text ??
+          montiereOriginalText({
+            vornamen: name.vornamen,
+            rufnameIndex: name.rufname_index,
+            rufnameText: name.rufname_text,
+            nachname: name.nachname,
+            praefix: name.praefix,
+            titelVor: name.titel_vor,
+            zusatzNach: name.zusatz_nach,
+          }),
         erstellt_am: zeitpunkt,
         geaendert_am: zeitpunkt,
       })
+      for (const teil of zerlegeName({
+        vornamen: name.vornamen,
+        rufnameIndex: name.rufname_index,
+        rufnameText: name.rufname_text,
+        nachname: name.nachname,
+        praefix: name.praefix,
+        titelVor: name.titel_vor,
+        zusatzNach: name.zusatz_nach,
+      })) {
+        namePartEinfuegen.run({
+          id: prng.naechsteId(),
+          name_form_id: formId,
+          art: teil.art,
+          wert: teil.wert,
+          ist_rufname: teil.istRufname ? 1 : 0,
+          sortier_index: teil.sortierIndex,
+          erstellt_am: zeitpunkt,
+          geaendert_am: zeitpunkt,
+        })
+      }
     }
 
     for (const elternschaft of beschreibung.elternschaften ?? []) {

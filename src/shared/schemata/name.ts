@@ -6,6 +6,16 @@ export const NameTypEnum = z.enum(['geburtsname', 'ehename', 'vulgo', 'latinisie
 export const SchriftEnum = z.enum(['latn', 'cyrl'])
 export const UmschriftNormEnum = z.enum(['iso9', 'din1460', 'manuell'])
 
+// AP-1.33 (docs/schema/0006_namensformen.sql): das flache `name` wird in `name_form` (die Form/
+// Rolle eines Namens) + `name_part` (die einzelnen Bestandteile) zerlegt. `NameFormRolleEnum` ist
+// `NameTypEnum` OHNE 'transliteriert' — eine Umschrift ist in 0006 keine eigene Rolle mehr, sondern
+// wird über `umschrift_von`/`umschrift_norm` ausgedrückt (rolle IS NULL).
+export const NameFormRolleEnum = z.enum(['geburtsname', 'ehename', 'vulgo', 'latinisiert', 'ordensname', 'aka', 'beruf', 'sonstiges'])
+/** Anordnung der Bestandteile in der Anzeige einer Namensform (name_form.reihenfolge). */
+export const NameFormReihenfolgeEnum = z.enum(['vorname_zuerst', 'nachname_zuerst'])
+/** Art eines Namens-Bestandteils (name_part.art). */
+export const NamePartArtEnum = z.enum(['vorname', 'praefix', 'nachname', 'suffix', 'titel', 'vatersname'])
+
 export interface Name {
   readonly id: string
   readonly person_id: string

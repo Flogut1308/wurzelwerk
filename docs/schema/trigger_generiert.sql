@@ -405,25 +405,46 @@ BEGIN
   VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'medium_zuordnung', OLD.medium_id || '|' || OLD.subjekt_typ || '|' || OLD.subjekt_id, json_object('medium_id', OLD.medium_id, 'subjekt_typ', OLD.subjekt_typ, 'subjekt_id', OLD.subjekt_id, 'ist_titelbild', OLD.ist_titelbild, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), NULL, 'delete');
 END;
 
-CREATE TRIGGER jrn_name_ai AFTER INSERT ON name
+CREATE TRIGGER jrn_name_form_ai AFTER INSERT ON name_form
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name', NEW.id, NULL, json_object('id', NEW.id, 'person_id', NEW.person_id, 'typ', NEW.typ, 'schrift', NEW.schrift, 'umschrift_von', NEW.umschrift_von, 'umschrift_norm', NEW.umschrift_norm, 'vornamen', NEW.vornamen, 'rufname_index', NEW.rufname_index, 'rufname_text', NEW.rufname_text, 'nachname', NEW.nachname, 'praefix', NEW.praefix, 'titel_vor', NEW.titel_vor, 'zusatz_nach', NEW.zusatz_nach, 'original_text', NEW.original_text, 'sprache', NEW.sprache, 'ist_bevorzugt', NEW.ist_bevorzugt, 'gueltig_von', NEW.gueltig_von, 'gueltig_bis', NEW.gueltig_bis, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'insert');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_form', NEW.id, NULL, json_object('id', NEW.id, 'person_id', NEW.person_id, 'sprache', NEW.sprache, 'schrift', NEW.schrift, 'reihenfolge', NEW.reihenfolge, 'rolle', NEW.rolle, 'rollen_notiz', NEW.rollen_notiz, 'ist_bevorzugt', NEW.ist_bevorzugt, 'umschrift_von', NEW.umschrift_von, 'umschrift_norm', NEW.umschrift_norm, 'konfidenz', NEW.konfidenz, 'sortier_index', NEW.sortier_index, 'gueltig_von', NEW.gueltig_von, 'gueltig_bis', NEW.gueltig_bis, 'original_text', NEW.original_text, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'insert');
 END;
 
-CREATE TRIGGER jrn_name_au AFTER UPDATE ON name
+CREATE TRIGGER jrn_name_form_au AFTER UPDATE ON name_form
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name', OLD.id, json_object('id', OLD.id, 'person_id', OLD.person_id, 'typ', OLD.typ, 'schrift', OLD.schrift, 'umschrift_von', OLD.umschrift_von, 'umschrift_norm', OLD.umschrift_norm, 'vornamen', OLD.vornamen, 'rufname_index', OLD.rufname_index, 'rufname_text', OLD.rufname_text, 'nachname', OLD.nachname, 'praefix', OLD.praefix, 'titel_vor', OLD.titel_vor, 'zusatz_nach', OLD.zusatz_nach, 'original_text', OLD.original_text, 'sprache', OLD.sprache, 'ist_bevorzugt', OLD.ist_bevorzugt, 'gueltig_von', OLD.gueltig_von, 'gueltig_bis', OLD.gueltig_bis, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), json_object('id', NEW.id, 'person_id', NEW.person_id, 'typ', NEW.typ, 'schrift', NEW.schrift, 'umschrift_von', NEW.umschrift_von, 'umschrift_norm', NEW.umschrift_norm, 'vornamen', NEW.vornamen, 'rufname_index', NEW.rufname_index, 'rufname_text', NEW.rufname_text, 'nachname', NEW.nachname, 'praefix', NEW.praefix, 'titel_vor', NEW.titel_vor, 'zusatz_nach', NEW.zusatz_nach, 'original_text', NEW.original_text, 'sprache', NEW.sprache, 'ist_bevorzugt', NEW.ist_bevorzugt, 'gueltig_von', NEW.gueltig_von, 'gueltig_bis', NEW.gueltig_bis, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'update');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_form', OLD.id, json_object('id', OLD.id, 'person_id', OLD.person_id, 'sprache', OLD.sprache, 'schrift', OLD.schrift, 'reihenfolge', OLD.reihenfolge, 'rolle', OLD.rolle, 'rollen_notiz', OLD.rollen_notiz, 'ist_bevorzugt', OLD.ist_bevorzugt, 'umschrift_von', OLD.umschrift_von, 'umschrift_norm', OLD.umschrift_norm, 'konfidenz', OLD.konfidenz, 'sortier_index', OLD.sortier_index, 'gueltig_von', OLD.gueltig_von, 'gueltig_bis', OLD.gueltig_bis, 'original_text', OLD.original_text, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), json_object('id', NEW.id, 'person_id', NEW.person_id, 'sprache', NEW.sprache, 'schrift', NEW.schrift, 'reihenfolge', NEW.reihenfolge, 'rolle', NEW.rolle, 'rollen_notiz', NEW.rollen_notiz, 'ist_bevorzugt', NEW.ist_bevorzugt, 'umschrift_von', NEW.umschrift_von, 'umschrift_norm', NEW.umschrift_norm, 'konfidenz', NEW.konfidenz, 'sortier_index', NEW.sortier_index, 'gueltig_von', NEW.gueltig_von, 'gueltig_bis', NEW.gueltig_bis, 'original_text', NEW.original_text, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'update');
 END;
 
-CREATE TRIGGER jrn_name_ad AFTER DELETE ON name
+CREATE TRIGGER jrn_name_form_ad AFTER DELETE ON name_form
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name', OLD.id, json_object('id', OLD.id, 'person_id', OLD.person_id, 'typ', OLD.typ, 'schrift', OLD.schrift, 'umschrift_von', OLD.umschrift_von, 'umschrift_norm', OLD.umschrift_norm, 'vornamen', OLD.vornamen, 'rufname_index', OLD.rufname_index, 'rufname_text', OLD.rufname_text, 'nachname', OLD.nachname, 'praefix', OLD.praefix, 'titel_vor', OLD.titel_vor, 'zusatz_nach', OLD.zusatz_nach, 'original_text', OLD.original_text, 'sprache', OLD.sprache, 'ist_bevorzugt', OLD.ist_bevorzugt, 'gueltig_von', OLD.gueltig_von, 'gueltig_bis', OLD.gueltig_bis, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), NULL, 'delete');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_form', OLD.id, json_object('id', OLD.id, 'person_id', OLD.person_id, 'sprache', OLD.sprache, 'schrift', OLD.schrift, 'reihenfolge', OLD.reihenfolge, 'rolle', OLD.rolle, 'rollen_notiz', OLD.rollen_notiz, 'ist_bevorzugt', OLD.ist_bevorzugt, 'umschrift_von', OLD.umschrift_von, 'umschrift_norm', OLD.umschrift_norm, 'konfidenz', OLD.konfidenz, 'sortier_index', OLD.sortier_index, 'gueltig_von', OLD.gueltig_von, 'gueltig_bis', OLD.gueltig_bis, 'original_text', OLD.original_text, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), NULL, 'delete');
+END;
+
+CREATE TRIGGER jrn_name_part_ai AFTER INSERT ON name_part
+WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
+BEGIN
+  INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_part', NEW.id, NULL, json_object('id', NEW.id, 'name_form_id', NEW.name_form_id, 'art', NEW.art, 'wert', NEW.wert, 'ist_rufname', NEW.ist_rufname, 'sortier_index', NEW.sortier_index, 'feminine_variante', NEW.feminine_variante, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'insert');
+END;
+
+CREATE TRIGGER jrn_name_part_au AFTER UPDATE ON name_part
+WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
+BEGIN
+  INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_part', OLD.id, json_object('id', OLD.id, 'name_form_id', OLD.name_form_id, 'art', OLD.art, 'wert', OLD.wert, 'ist_rufname', OLD.ist_rufname, 'sortier_index', OLD.sortier_index, 'feminine_variante', OLD.feminine_variante, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), json_object('id', NEW.id, 'name_form_id', NEW.name_form_id, 'art', NEW.art, 'wert', NEW.wert, 'ist_rufname', NEW.ist_rufname, 'sortier_index', NEW.sortier_index, 'feminine_variante', NEW.feminine_variante, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'update');
+END;
+
+CREATE TRIGGER jrn_name_part_ad AFTER DELETE ON name_part
+WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
+BEGIN
+  INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'name_part', OLD.id, json_object('id', OLD.id, 'name_form_id', OLD.name_form_id, 'art', OLD.art, 'wert', OLD.wert, 'ist_rufname', OLD.ist_rufname, 'sortier_index', OLD.sortier_index, 'feminine_variante', OLD.feminine_variante, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), NULL, 'delete');
 END;
 
 CREATE TRIGGER jrn_negativbefund_ai AFTER INSERT ON negativbefund

@@ -1,11 +1,31 @@
-// AP-1.3d: einziges Repository, das `name`-SQL schreibt (CLAUDE.md §2). Kein `BEGIN`/`COMMIT`
-// hier (läuft in einer bereits offenen, armierten Transaktion, s. `person-repo.ts`-Kopf).
+// AP-1.33: FLACHE Kompatibilitäts-Schnittstelle über `name_form` + `name_part`. Nach dem harten
+// Schnitt (0006_namensformen.sql) gibt es keine `name`-Tabelle mehr; die flache Form
+// (vornamen/rufname_*/nachname/…) bleibt aber die Vertragsform des Imports (56_Import_Vertrag.md
+// §2.2, UNVERÄNDERT) und der bestehenden Namens-Schreibmaske im Renderer. Dieses Repository bildet
+// diese flache Form 1:1 auf `name_form` (Rolle/Sprache/Umschrift/Hauptname) + `name_part`
+// (zerlegte Bestandteile) ab — mit derselben Zerlegungslogik wie die Migration (src/core/name/
+// zerlegung.ts). SQL läuft über `name-form-repo`/`name-part-repo` (dort liegt das eigentliche SQL);
+// hier nur Orchestrierung + Rollen-/Bestandteil-Zuordnung. Kein `BEGIN`/`COMMIT` (armierte
+// Bus-Transaktion).
+import { montiereOriginalText, rekonstruiereFlach, zerlegeName, type FlacherName, type GeladenerTeil } from '../../core/name/zerlegung'
+import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from './basis'
+import * as nameFormRepo from './name-form-repo'
+import * as namePartRepo from './name-part-repo'
 
-/** Nutzlast von `einfuegen()`: alle Spalten von `name` (docs/schema/0002_kern.sql §2.2). Der
- * Vertrag kennt zusätzlich `nachname_unbekannt` (§3.3) — das Schema hat dafür KEINE Spalte
- * (`NULL` in `nachname` trägt dieselbe Information); der Orchestrator (`src/main/import/
- * schreiben.ts`) lässt das Feld darum bewusst weg, statt es hier zu verwerfen. */
+/** `typ` (flach, inkl. `'transliteriert'`) -> `name_form.rolle` (Umschrift -> `rolle IS NULL`). */
+function rolleAusTyp(typ: string): string | null {
+  return typ === 'transliteriert' ? null : typ
+}
+
+/** `name_form.rolle`/`umschrift_von` -> flacher `typ` (rolle IS NULL + umschrift_von gesetzt -> transliteriert). */
+function typAusForm(rolle: string | null, umschriftVon: string | null): string {
+  if (rolle !== null) return rolle
+  return umschriftVon !== null ? 'transliteriert' : 'sonstiges'
+}
+
+/** Nutzlast von `einfuegen()` — dieselben Felder wie die alte flache `name`-Zeile. `istBevorzugt` ist
+ * jetzt zwingend `0|1` (name_form.ist_bevorzugt ist NOT NULL, „genau ein Hauptname je Person"). */
 export interface NameEinfuegenEin {
   readonly id: string
   readonly personId: string
@@ -22,33 +42,15 @@ export interface NameEinfuegenEin {
   readonly zusatzNach: string | null
   readonly originalText: string | null
   readonly sprache: string | null
-  readonly istBevorzugt: 0 | 1 | null
+  readonly istBevorzugt: 0 | 1
   readonly gueltigVon: number | null
   readonly gueltigBis: number | null
   readonly erstelltAm: number
   readonly geaendertAm: number
 }
 
-/** Legt eine `name`-Zeile an (benannte Parameter, CLAUDE.md §6). */
-export function einfuegen(tx: Tx, ein: NameEinfuegenEin): void {
-  tx.prepare(
-    `INSERT INTO name (
-       id, person_id, typ, schrift, umschrift_von, umschrift_norm, vornamen, rufname_index, rufname_text,
-       nachname, praefix, titel_vor, zusatz_nach, original_text, sprache, ist_bevorzugt, gueltig_von, gueltig_bis,
-       erstellt_am, geaendert_am
-     )
-     VALUES (
-       @id, @personId, @typ, @schrift, @umschriftVon, @umschriftNorm, @vornamen, @rufnameIndex, @rufnameText,
-       @nachname, @praefix, @titelVor, @zusatzNach, @originalText, @sprache, @istBevorzugt, @gueltigVon, @gueltigBis,
-       @erstelltAm, @geaendertAm
-     )`,
-  ).run({
-    id: ein.id,
-    personId: ein.personId,
-    typ: ein.typ,
-    schrift: ein.schrift,
-    umschriftVon: ein.umschriftVon,
-    umschriftNorm: ein.umschriftNorm,
+function flachVon(ein: NameEinfuegenEin | NameAktualisierenEin): FlacherName {
+  return {
     vornamen: ein.vornamen,
     rufnameIndex: ein.rufnameIndex,
     rufnameText: ein.rufnameText,
@@ -56,18 +58,56 @@ export function einfuegen(tx: Tx, ein: NameEinfuegenEin): void {
     praefix: ein.praefix,
     titelVor: ein.titelVor,
     zusatzNach: ein.zusatzNach,
-    originalText: ein.originalText,
+  }
+}
+
+/** Legt eine Form (`name_form`) + ihre Bestandteile (`name_part`) an. `neueId` vergibt die
+ * `name_part`-IDs (D-3: der Aufrufer bringt die ID-Quelle mit — `neueId` im Betrieb, der Fixture-/
+ * Import-Seed im Test/Import). */
+export function einfuegen(tx: Tx, ein: NameEinfuegenEin, neueId: () => string): void {
+  // Form ZUERST (Eltern), Teile DANACH (Kinder) — die Journal-Reihenfolge (die Rücknahme löscht in
+  // umgekehrter Reihenfolge, `src/main/journal/undo.ts`) verlangt, dass die Kinder eine höhere
+  // `reihenfolge` tragen als ihr Elternteil, sonst kaskadiert das Löschen der Form beim Undo die
+  // Teile weg, bevor deren eigene Rücknahme sie erreicht. Damit `abl_name_form_ai` (das die
+  // FTS-Normalform beim Einfügen indiziert, BEVOR die Teile existieren) einen konsistenten Wert
+  // indiziert, wird `original_text` gesetzt (montiert, wenn der Aufrufer keinen mitbringt) — s.
+  // `montiereOriginalText` für die FTS-Begründung.
+  const flach = flachVon(ein)
+  nameFormRepo.einfuegen(tx, {
+    id: ein.id,
+    personId: ein.personId,
     sprache: ein.sprache,
+    schrift: ein.schrift,
+    reihenfolge: null,
+    rolle: rolleAusTyp(ein.typ),
+    rollenNotiz: null,
     istBevorzugt: ein.istBevorzugt,
+    umschriftVon: ein.umschriftVon,
+    umschriftNorm: ein.umschriftNorm,
+    konfidenz: null,
+    sortierIndex: null,
     gueltigVon: ein.gueltigVon,
     gueltigBis: ein.gueltigBis,
+    originalText: ein.originalText ?? montiereOriginalText(flach),
     erstelltAm: ein.erstelltAm,
     geaendertAm: ein.geaendertAm,
   })
+  for (const teil of zerlegeName(flach)) {
+    namePartRepo.einfuegen(tx, {
+      id: neueId(),
+      nameFormId: ein.id,
+      art: teil.art,
+      wert: teil.wert,
+      istRufname: teil.istRufname ? 1 : 0,
+      sortierIndex: teil.sortierIndex,
+      feminineVariante: null,
+      erstelltAm: ein.erstelltAm,
+      geaendertAm: ein.geaendertAm,
+    })
+  }
 }
 
-/** Spalten von `name` (docs/schema/0002_kern.sql §2.2), für `lesen()` (AP-1.12, AP-0.22-Vergleich
- * vor `name.aendern`). */
+/** Spalten der alten flachen `name`-Zeile — rekonstruiert aus `name_form` + `name_part`. */
 export interface NameZeile {
   readonly id: string
   readonly person_id: string
@@ -84,25 +124,66 @@ export interface NameZeile {
   readonly zusatz_nach: string | null
   readonly original_text: string | null
   readonly sprache: string | null
-  readonly ist_bevorzugt: 0 | 1 | null
+  readonly ist_bevorzugt: 0 | 1
   readonly gueltig_von: number | null
   readonly gueltig_bis: number | null
 }
 
-/** Liest eine `name`-Zeile (Spalten explizit, CLAUDE.md §6). `undefined`, wenn `id` nicht existiert. */
-export function lesen(tx: Tx, id: string): NameZeile | undefined {
-  return tx
-    .prepare<{ readonly id: string }, NameZeile>(
-      `SELECT id, person_id, typ, schrift, umschrift_von, umschrift_norm, vornamen, rufname_index, rufname_text,
-              nachname, praefix, titel_vor, zusatz_nach, original_text, sprache, ist_bevorzugt, gueltig_von, gueltig_bis
-       FROM name WHERE id = @id`,
-    )
-    .get({ id })
+function geladeneTeile(tx: Tx, formId: string): readonly GeladenerTeil[] {
+  return namePartRepo.teileFuerForm(tx, formId).map((teil) => ({
+    art: alsArt(teil.art),
+    wert: teil.wert,
+    istRufname: teil.ist_rufname === 1,
+    sortierIndex: teil.sortier_index,
+  }))
 }
 
-/** Nutzlast von `aktualisieren()`: alle editierbaren Spalten (ohne `person_id`, AP-1.12
- * Nutzerentscheidung: ein Name wandert nicht zwischen Personen) + der vom Handler gesetzte
- * `geaendert_am`-Zeitstempel (D-3). */
+/** Verengt `name_part.art` (roher DB-String) auf den Kern-Literaltyp — die Spalte ist per CHECK
+ * eingeschränkt (docs/schema/0006), aber die Rekonstruktion braucht den Literaltyp. */
+function alsArt(art: string): GeladenerTeil['art'] {
+  switch (art) {
+    case 'vorname':
+    case 'praefix':
+    case 'nachname':
+    case 'suffix':
+    case 'titel':
+    case 'vatersname':
+      return art
+    default:
+      // Unerreichbar: name_part.art ist per CHECK auf die sechs Werte eingeschränkt (docs/schema/0006).
+      throw new WurzelFehler('INTERN_UNERWARTET', `name-repo: unbekannte name_part.art "${art}".`)
+  }
+}
+
+/** Liest eine Form flach (rekonstruiert). `undefined`, wenn `id` nicht existiert. */
+export function lesen(tx: Tx, id: string): NameZeile | undefined {
+  const form = nameFormRepo.lesen(tx, id)
+  if (form === undefined) return undefined
+  const flach = rekonstruiereFlach(geladeneTeile(tx, id))
+  return {
+    id: form.id,
+    person_id: form.person_id,
+    typ: typAusForm(form.rolle, form.umschrift_von),
+    schrift: form.schrift,
+    umschrift_von: form.umschrift_von,
+    umschrift_norm: form.umschrift_norm,
+    vornamen: flach.vornamen,
+    rufname_index: flach.rufnameIndex,
+    rufname_text: flach.rufnameText,
+    nachname: flach.nachname,
+    praefix: flach.praefix,
+    titel_vor: flach.titelVor,
+    zusatz_nach: flach.zusatzNach,
+    original_text: form.original_text,
+    sprache: form.sprache,
+    ist_bevorzugt: form.ist_bevorzugt === 1 ? 1 : 0,
+    gueltig_von: form.gueltig_von,
+    gueltig_bis: form.gueltig_bis,
+  }
+}
+
+/** Nutzlast von `aktualisieren()` — wie `NameEinfuegenEin`, ohne `person_id` (ein Name wandert nicht
+ * zwischen Personen) und ohne `istBevorzugt` (Hauptname-Wechsel läuft über `name-form-repo`). */
 export interface NameAktualisierenEin {
   readonly id: string
   readonly typ: string
@@ -118,46 +199,50 @@ export interface NameAktualisierenEin {
   readonly zusatzNach: string | null
   readonly originalText: string | null
   readonly sprache: string | null
-  readonly istBevorzugt: 0 | 1 | null
   readonly gueltigVon: number | null
   readonly gueltigBis: number | null
   readonly geaendertAm: number
 }
 
-/** Aktualisiert alle editierbaren Spalten einer `name`-Zeile in einem `UPDATE` (anders als
- * `person.feldSetzen`: hier EIN Handler je Entität für ALLE Felder zugleich, AP-1.12). */
-export function aktualisieren(tx: Tx, ein: NameAktualisierenEin): void {
-  tx.prepare(
-    `UPDATE name SET
-       typ = @typ, schrift = @schrift, umschrift_von = @umschriftVon, umschrift_norm = @umschriftNorm,
-       vornamen = @vornamen, rufname_index = @rufnameIndex, rufname_text = @rufnameText, nachname = @nachname,
-       praefix = @praefix, titel_vor = @titelVor, zusatz_nach = @zusatzNach, original_text = @originalText,
-       sprache = @sprache, ist_bevorzugt = @istBevorzugt, gueltig_von = @gueltigVon, gueltig_bis = @gueltigBis,
-       geaendert_am = @geaendertAm
-     WHERE id = @id`,
-  ).run({
+/** Aktualisiert eine Form (Kopf-Spalten) und baut ihre Bestandteile vollständig neu auf (löschen +
+ * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt. */
+export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => string): void {
+  const flach = flachVon(ein)
+  nameFormRepo.aktualisieren(tx, {
     id: ein.id,
-    typ: ein.typ,
+    sprache: ein.sprache,
     schrift: ein.schrift,
+    reihenfolge: null,
+    rolle: rolleAusTyp(ein.typ),
+    rollenNotiz: null,
     umschriftVon: ein.umschriftVon,
     umschriftNorm: ein.umschriftNorm,
-    vornamen: ein.vornamen,
-    rufnameIndex: ein.rufnameIndex,
-    rufnameText: ein.rufnameText,
-    nachname: ein.nachname,
-    praefix: ein.praefix,
-    titelVor: ein.titelVor,
-    zusatzNach: ein.zusatzNach,
-    originalText: ein.originalText,
-    sprache: ein.sprache,
-    istBevorzugt: ein.istBevorzugt,
+    konfidenz: null,
+    sortierIndex: null,
     gueltigVon: ein.gueltigVon,
     gueltigBis: ein.gueltigBis,
+    originalText: ein.originalText ?? montiereOriginalText(flach),
     geaendertAm: ein.geaendertAm,
   })
+  namePartRepo.loescheFuerForm(tx, ein.id)
+  for (const teil of zerlegeName(flach)) {
+    namePartRepo.einfuegen(tx, {
+      id: neueId(),
+      nameFormId: ein.id,
+      art: teil.art,
+      wert: teil.wert,
+      istRufname: teil.istRufname ? 1 : 0,
+      sortierIndex: teil.sortierIndex,
+      feminineVariante: null,
+      erstelltAm: ein.geaendertAm,
+      geaendertAm: ein.geaendertAm,
+    })
+  }
 }
 
-/** Löscht eine `name`-Zeile (AP-1.12). */
+/** Löscht eine Form (name_part räumt sich per ON DELETE CASCADE ab). War es die bevorzugte Form einer
+ * Person mit weiteren Formen, rückt deterministisch die verbliebene Form mit der niedrigsten `id` als
+ * neue bevorzugte nach (undo-bitgleich, s. `name-form-repo.loeschenMitNachruecken`). */
 export function loeschen(tx: Tx, id: string): void {
-  tx.prepare('DELETE FROM name WHERE id = @id').run({ id })
+  nameFormRepo.loeschenMitNachruecken(tx, id)
 }

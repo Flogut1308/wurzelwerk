@@ -70,9 +70,11 @@ export function personFlachProjektionSql(filterSql: string): string {
   ) THEN 1 ELSE 0 END) AS hat_widerspruch
 FROM person p
 LEFT JOIN (
-  SELECT person_id, vornamen, nachname,
-    ROW_NUMBER() OVER (PARTITION BY person_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM name
+  SELECT nf.person_id AS person_id,
+    ${nameFormVornamenSql('nf.id')} AS vornamen,
+    ${nameFormNachnameSql('nf.id')} AS nachname,
+    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
+  FROM name_form nf
 ) bn ON bn.person_id = p.id AND bn.rang = 1
 LEFT JOIN (
   SELECT subjekt_id AS person_id,
@@ -104,16 +106,65 @@ LEFT JOIN (
 WHERE ${filterSql}`
 }
 
-/** `zeile` referenziert eine `name`-Zeile (z. B. `"NEW"`, `"OLD"` oder ein Alias wie `"n"`). */
+/**
+ * Rekonstruiert die Vornamen einer `name_form` als leerzeichengetrennten Text aus ihren
+ * `name_part`-Zeilen (art='vorname'), sortiert nach `sortier_index` (AP-1.33, Modell name_form/
+ * name_part statt der flachen `name.vornamen`-Spalte). `formIdSql` ist ein SQL-Ausdruck, der die
+ * `name_form.id` liefert (z. B. `"nf.id"`, `"NEW.id"`).
+ */
+export function nameFormVornamenSql(formIdSql: string): string {
+  return `(SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = ${formIdSql} AND art = 'vorname' ORDER BY sortier_index))`
+}
+
+/** Rekonstruiert den Nachnamen einer `name_form` aus ihren `name_part`-Zeilen (art='nachname'), sortiert nach `sortier_index` (AP-1.33). */
+export function nameFormNachnameSql(formIdSql: string): string {
+  return `(SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = ${formIdSql} AND art = 'nachname' ORDER BY sortier_index))`
+}
+
+/**
+ * SQL-Ausdruck für die `id` der BEVORZUGTEN Namensform einer Person — exakt dieselbe Wahl wie die
+ * `bn.rang = 1`-Auswahl in `personFlachProjektionSql` (`ist_bevorzugt = 1` zuerst, sonst die
+ * niedrigste `id`; deterministischer Fallback, kein "irgendein"). `personIdSql` ist ein SQL-Ausdruck,
+ * der die `person.id` liefert (z. B. `"person_flach.person_id"`). Liefert `NULL`, wenn die Person
+ * keine Namensform hat — dann fallen die Vor-/Nachnamen-Rekonstruktionen (`nameFormVornamenSql`/
+ * `nameFormNachnameSql`) über `name_form_id = NULL` auf `NULL` zurück, genau wie der `LEFT JOIN` in
+ * der vollen Projektion.
+ */
+export function bevorzugteFormIdSql(personIdSql: string): string {
+  return `(SELECT nf.id FROM name_form nf WHERE nf.person_id = ${personIdSql} ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1)`
+}
+
+/**
+ * Die drei NAMENSABGELEITETEN `person_flach`-Spalten (`anzeigename`, `sortier_nachname`,
+ * `sortier_vornamen`) als `SET`-Zuweisungen für ein `UPDATE person_flach` — zeichengleich zu den
+ * entsprechenden Ausdrücken in `personFlachProjektionSql`, aber OHNE die aussage-/ortsname-JOINs
+ * (AP-1.33 Perf, ADR-029: eine Namensänderung berührt nur diese drei Spalten; die übrigen bleiben
+ * unberührt). `personIdSql` referenziert die `person.id` der zu aktualisierenden `person_flach`-Zeile
+ * (z. B. `"person_flach.person_id"`). Vor-/Nachname der bevorzugten Form werden über
+ * `bevorzugteFormIdSql` gewählt — dieselbe Bevorzugungs-/Fallback-Regel wie die volle Projektion,
+ * darum bitgleich (test/invarianten/abgeleitet-gleich.test.ts).
+ */
+export function personFlachNamensSpaltenSetSql(personIdSql: string): string {
+  const formId = bevorzugteFormIdSql(personIdSql)
+  const vornamen = nameFormVornamenSql(formId)
+  const nachname = nameFormNachnameSql(formId)
+  return [
+    `anzeigename = TRIM(COALESCE(${vornamen}, '') || ' ' || COALESCE(${nachname}, ''))`,
+    `sortier_nachname = suchnormalform(COALESCE(${nachname}, ''))`,
+    `sortier_vornamen = suchnormalform(COALESCE(${vornamen}, ''))`,
+  ].join(',\n    ')
+}
+
+/** `zeile` referenziert eine `name_form`-Zeile (z. B. `"NEW"`, `"OLD"` oder ein Alias wie `"nf"`). */
 export function nameFtsOriginalSql(zeile: string): string {
   return `COALESCE(${zeile}.original_text, '')`
 }
 
-/** Dieselbe Sortiernormalform wie `person_flach` — hier für die `normalform`-Spalte von `suche_fts`. */
+/** Dieselbe Sortiernormalform wie `person_flach` — hier für die `normalform`-Spalte von `suche_fts`. `zeile` referenziert eine `name_form`-Zeile; Vor-/Nachname werden aus `name_part` rekonstruiert (AP-1.33). */
 export function nameFtsNormalformSql(zeile: string): string {
   return (
     `suchnormalform(COALESCE(${zeile}.original_text, ` +
-    `TRIM(COALESCE(${zeile}.vornamen, '') || ' ' || COALESCE(${zeile}.nachname, ''))))`
+    `TRIM(COALESCE(${nameFormVornamenSql(`${zeile}.id`)}, '') || ' ' || COALESCE(${nameFormNachnameSql(`${zeile}.id`)}, ''))))`
   )
 }
 
@@ -152,7 +203,7 @@ export interface NameFtsUmschriftOptionen {
  */
 export function nameFtsUmschriftSql(idSql: string, optionen?: NameFtsUmschriftOptionen): string {
   const ausschluss = optionen?.ausschlussIdSql !== undefined ? ` AND sib.id <> ${optionen.ausschlussIdSql}` : ''
-  const geschwister = `SELECT sib.id AS id, sib.original_text AS original_text FROM name sib WHERE sib.umschrift_von = ${idSql}${ausschluss}`
+  const geschwister = `SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = ${idSql}${ausschluss}`
   const virtuellerKandidat = optionen?.virtuellerKandidat
   const kandidaten =
     virtuellerKandidat === undefined
@@ -162,9 +213,9 @@ export function nameFtsUmschriftSql(idSql: string, optionen?: NameFtsUmschriftOp
   return `COALESCE((SELECT original_text FROM (${kandidaten}) ORDER BY id ASC LIMIT 1), '')`
 }
 
-/** `zeile` referenziert eine `name`-Zeile. Kein Code für Namen ohne Nachnamen (siehe Trigger-Body: dort ausgelassen). */
+/** `zeile` referenziert eine `name_part`-Zeile mit `art='nachname'` (AP-1.33: Phonetik bindet an den Nachnamens-Bestandteil, nicht mehr an die flache `name.nachname`-Spalte). */
 export function namePhonetikCodeSql(zeile: string): string {
-  return `koelner_phonetik(${zeile}.nachname)`
+  return `koelner_phonetik(${zeile}.wert)`
 }
 
 /** `zeile` referenziert eine `person`-Zeile. */

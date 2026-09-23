@@ -25,6 +25,9 @@
 // seite), statt eine zweite Filter-/Sortier-/Lade-Implementierung zu pflegen.
 import type Database from 'better-sqlite3'
 import { vergleicheNamen } from '../../core/liste/sortierung'
+// AP-1.33: bevorzugter Name je Person aus name_form + name_part rekonstruiert — dieselben SQL-
+// Bausteine wie die kanonische person_flach-Projektion (Bitgleichheit, kein zweiter Nachbau).
+import { nameFormNachnameSql, nameFormVornamenSql } from '../datenbank/abgeleitet-projektion'
 import { DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum } from '../../shared/schemata/gemeinsam'
 import type { PersonListeAus, PersonListeDatumsgruppe, PersonListeEin, PersonListeFilter, PersonListeZeile } from '../../shared/schemata/person-liste'
 import { PersonListeRichtungEnum, PersonListeSortierungEnum } from '../../shared/schemata/person-liste'
@@ -173,9 +176,11 @@ export function zeilenLaden(db: Database.Database, whereKlausel: string, paramet
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
        LEFT JOIN (
-         SELECT person_id, vornamen, nachname,
-           ROW_NUMBER() OVER (PARTITION BY person_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-         FROM name
+         SELECT nf.person_id AS person_id,
+           ${nameFormVornamenSql('nf.id')} AS vornamen,
+           ${nameFormNachnameSql('nf.id')} AS nachname,
+           ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
+         FROM name_form nf
        ) bn ON bn.person_id = pf.person_id AND bn.rang = 1
        LEFT JOIN (
          SELECT subjekt_id AS person_id, wert_text AS beruf,
