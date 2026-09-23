@@ -190,6 +190,35 @@ export function quelleAktualisieren(tx: Tx, ein: QuelleAktualisierenEin): void {
   })
 }
 
+/** Ein Treffer aus `quelleSuchen()` — nur die Spalten, die `src/main/abfragen/quelle-suche.ts`
+ * zur Trefferbildung braucht (AP-1.29 PR-A). Read-only, keine Transaktionsgrenze hier
+ * (CLAUDE.md §2). */
+export interface QuelleSucheZeile {
+  readonly id: string
+  readonly titel: string | null
+  readonly autor: string | null
+  readonly typ: string
+}
+
+/** Findet `quelle`-Zeilen, deren `titel` ODER `autor` `text` als Teilstring hat (groß-/klein-
+ * schreibungsunabhängig, `INSTR(LOWER(...))` statt `LIKE` — dieselbe Begründung wie
+ * `archiv-repo.ts::suchen`: `%`/`_` in einem Titel/Autornamen sollen keine Wildcard-Bedeutung
+ * bekommen, genealogische Daten sind zudem voller Apostrophe, CLAUDE.md §6). */
+export function quelleSuchen(tx: Tx, ein: { readonly text: string; readonly grenze: number }): readonly QuelleSucheZeile[] {
+  return tx
+    .prepare<
+      { readonly text: string; readonly grenze: number },
+      QuelleSucheZeile
+    >(`SELECT id, titel, autor, typ
+       FROM quelle
+       WHERE INSTR(LOWER(COALESCE(titel, '')), LOWER(@text)) > 0
+          OR INSTR(LOWER(COALESCE(autor, '')), LOWER(@text)) > 0
+       ORDER BY id
+       LIMIT @grenze`,
+    )
+    .all(ein)
+}
+
 /** Alle Spalten von `zitat` OHNE Präfix (docs/schema/0002_kern.sql §2.7), wenn der Aufrufer den
  * `zugriffsdatum_*`-Block nicht setzt (Importpfad, `src/main/import/schreiben.ts` — der
  * Importvertrag kennt `zugriffsdatum`/`medium_id` nicht, s. History dieses Kommentars). */

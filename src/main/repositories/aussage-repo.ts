@@ -82,6 +82,103 @@ export function bevorzugungAberkennen(tx: Tx, aussageId: string): void {
   tx.prepare('UPDATE aussage SET ist_bevorzugt = 0 WHERE id = @id').run({ id: aussageId })
 }
 
+/** Alle Spalten von `aussage` (docs/schema/0002_kern.sql §2.7 + docs/schema/0005_import_luecken.sql),
+ * für `lesen()` (AP-0.22-Vergleich vor `aussage.aendern`, AP-1.29 PR-A). */
+export interface AussageZeile {
+  readonly id: string
+  readonly subjekt_typ: string
+  readonly subjekt_id: string
+  readonly praedikat: string
+  readonly wert_text: string | null
+  readonly wert_zahl: number | null
+  readonly wert_ref_id: string | null
+  readonly datum_kalender: string | null
+  readonly datum_modifikator: string | null
+  readonly datum_praezision: string | null
+  readonly datum_wert1: string | null
+  readonly datum_wert2: string | null
+  readonly datum_originaltext: string | null
+  readonly datum_sort_von: number | null
+  readonly datum_sort_bis: number | null
+  readonly datum_zweitkalender: string | null
+  readonly datum_zweitwert: string | null
+  readonly datum_doppeljahr: string | null
+  readonly konfidenz: number | null
+  readonly ist_bevorzugt: 0 | 1 | null
+  readonly begruendung: string | null
+  readonly unsicherheit: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
+}
+
+/** Liest eine `aussage`-Zeile (Spalten explizit, CLAUDE.md §6). `undefined`, wenn `id` nicht existiert. */
+export function lesen(tx: Tx, id: string): AussageZeile | undefined {
+  return tx
+    .prepare<{ readonly id: string }, AussageZeile>(
+      `SELECT id, subjekt_typ, subjekt_id, praedikat, wert_text, wert_zahl, wert_ref_id,
+              datum_kalender, datum_modifikator, datum_praezision, datum_wert1, datum_wert2, datum_originaltext,
+              datum_sort_von, datum_sort_bis, datum_zweitkalender, datum_zweitwert, datum_doppeljahr,
+              konfidenz, ist_bevorzugt, begruendung, unsicherheit, gueltig_von, gueltig_bis
+       FROM aussage WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+/** Nutzlast von `aktualisieren()`: NUR die per `aussage.aendern` editierbaren Spalten (AP-1.29
+ * PR-A) — `subjekt_typ`/`subjekt_id`/`praedikat`/`ist_bevorzugt` fehlen bewusst (s.
+ * Abschnittskommentar `src/shared/schemata/befehle.ts`: Identität bzw. dem Anlegen-Pfad
+ * vorbehalten). */
+export interface AussageAktualisierenEin {
+  readonly id: string
+  readonly wertText: string | null
+  readonly wertZahl: number | null
+  readonly wertRefId: string | null
+  readonly datum: DatumSpaltengruppe
+  readonly konfidenz: number
+  readonly begruendung: string | null
+  readonly unsicherheit: string | null
+  readonly gueltigVon: number | null
+  readonly gueltigBis: number | null
+  readonly geaendertAm: number
+}
+
+/** Aktualisiert die editierbaren Spalten einer `aussage`-Zeile in einem `UPDATE` (AP-1.29 PR-A). */
+export function aktualisieren(tx: Tx, ein: AussageAktualisierenEin): void {
+  tx.prepare(
+    `UPDATE aussage SET
+       wert_text = @wertText, wert_zahl = @wertZahl, wert_ref_id = @wertRefId,
+       datum_kalender = @datumKalender, datum_modifikator = @datumModifikator, datum_praezision = @datumPraezision,
+       datum_wert1 = @datumWert1, datum_wert2 = @datumWert2, datum_originaltext = @datumOriginaltext,
+       datum_sort_von = @datumSortVon, datum_sort_bis = @datumSortBis,
+       datum_zweitkalender = @datumZweitkalender, datum_zweitwert = @datumZweitwert, datum_doppeljahr = @datumDoppeljahr,
+       konfidenz = @konfidenz, begruendung = @begruendung, unsicherheit = @unsicherheit,
+       gueltig_von = @gueltigVon, gueltig_bis = @gueltigBis, geaendert_am = @geaendertAm
+     WHERE id = @id`,
+  ).run({
+    id: ein.id,
+    wertText: ein.wertText,
+    wertZahl: ein.wertZahl,
+    wertRefId: ein.wertRefId,
+    datumKalender: ein.datum.kalender,
+    datumModifikator: ein.datum.modifikator,
+    datumPraezision: ein.datum.praezision,
+    datumWert1: ein.datum.wert1,
+    datumWert2: ein.datum.wert2,
+    datumOriginaltext: ein.datum.originaltext,
+    datumSortVon: ein.datum.sortVon,
+    datumSortBis: ein.datum.sortBis,
+    datumZweitkalender: ein.datum.zweitkalender,
+    datumZweitwert: ein.datum.zweitwert,
+    datumDoppeljahr: ein.datum.doppeljahr,
+    konfidenz: ein.konfidenz,
+    begruendung: ein.begruendung,
+    unsicherheit: ein.unsicherheit,
+    gueltigVon: ein.gueltigVon,
+    gueltigBis: ein.gueltigBis,
+    geaendertAm: ein.geaendertAm,
+  })
+}
+
 /** Nutzlast von `zitatVerknuepfen()`: alle Spalten von `aussage_zitat`
  * (docs/schema/0002_kern.sql §2.7, Verknüpfungstabelle ohne eigenes `id`). */
 export interface AussageZitatVerknuepfenEin {
@@ -102,6 +199,27 @@ export function zitatVerknuepfen(tx: Tx, ein: AussageZitatVerknuepfenEin): void 
     erstelltAm: ein.erstelltAm,
     geaendertAm: ein.geaendertAm,
   })
+}
+
+/** Prüft, ob eine `aussage_zitat`-Verknüpfung existiert (zusammengesetzter Primärschlüssel
+ * `(aussage_id, zitat_id)`, kein eigenes `id` — darum kein `datensatzExistiert()`, das nimmt einen
+ * skalaren `id`-Primärschlüssel an, analog `ort-repo.ts::ortExterneIdLesen`). Für die Duplikat-
+ * prüfung vor `aussage_zitat.anlegen` und die Existenzprüfung vor `aussage_zitat.loeschen`
+ * (AP-1.29 PR-A). */
+export function verknuepfungExistiert(tx: Tx, aussageId: string, zitatId: string): boolean {
+  const zeile = tx
+    .prepare<{ readonly aussageId: string; readonly zitatId: string }, { readonly vorhanden: number }>(
+      'SELECT 1 AS vorhanden FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId LIMIT 1',
+    )
+    .get({ aussageId, zitatId })
+  return zeile !== undefined
+}
+
+/** Löst eine `aussage_zitat`-Verknüpfung wieder — anders als `loeschen()`/`loeschenNachSubjekt()`
+ * bleiben die `aussage`- UND die `zitat`-Zeile dabei unberührt (`aussage_zitat.loeschen`,
+ * AP-1.29 PR-A). */
+export function zitatLoesen(tx: Tx, aussageId: string, zitatId: string): void {
+  tx.prepare('DELETE FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId').run({ aussageId, zitatId })
 }
 
 /** Löscht eine `aussage`-Zeile (`aussage.loeschen`, AP-1.12) — CASCADE räumt `aussage_zitat` ab. */

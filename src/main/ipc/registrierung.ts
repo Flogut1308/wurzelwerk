@@ -20,7 +20,10 @@ import {
   ereignisLoeschenEinSchema,
   beteiligungLoeschenEinSchema,
   aussageAnlegenEinSchema,
+  aussageAendernEinSchema,
   aussageLoeschenEinSchema,
+  aussageZitatAnlegenEinSchema,
+  aussageZitatLoeschenEinSchema,
   ortAnlegenEinSchema,
   ortAendernEinSchema,
   ortsnameAnlegenEinSchema,
@@ -48,6 +51,7 @@ import { ortSucheEinSchema } from '../../shared/schemata/ort-suche'
 import { ortDetailEinSchema } from '../../shared/schemata/ort-detail'
 import { archivSucheEinSchema } from '../../shared/schemata/archiv-suche'
 import { quelleDetailEinSchema } from '../../shared/schemata/quelle-detail'
+import { quelleSucheEinSchema } from '../../shared/schemata/quelle-suche'
 import { negativbefundListeEinSchema } from '../../shared/schemata/negativbefund-liste'
 import { importBerichtSpeichernEinSchema, importDateiWaehlenEinSchema } from '../../shared/schemata/import-dialog'
 import { schnappschussErzeugenEinSchema, schnappschussWiederherstellenEinSchema } from '../../shared/schemata/schnappschuss'
@@ -57,6 +61,7 @@ import { ortDetail } from '../abfragen/ort-detail'
 import { ortSuche } from '../abfragen/ort-suche'
 import { archivSuche } from '../abfragen/archiv-suche'
 import { quelleDetail } from '../abfragen/quelle-detail'
+import { quelleSuche } from '../abfragen/quelle-suche'
 import { negativbefundListe } from '../abfragen/negativbefund-liste'
 import { personDetail } from '../abfragen/person-detail'
 import { personListe } from '../abfragen/person-liste'
@@ -185,7 +190,10 @@ export function ipcRegistrierung(): void {
   registriere('befehl:beteiligung.loeschen', beteiligungLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'beteiligung.loeschen', ein))
 
   registriere('befehl:aussage.anlegen', aussageAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.anlegen', ein))
+  registriere('befehl:aussage.aendern', aussageAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.aendern', ein))
   registriere('befehl:aussage.loeschen', aussageLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.loeschen', ein))
+  registriere('befehl:aussage_zitat.anlegen', aussageZitatAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage_zitat.anlegen', ein))
+  registriere('befehl:aussage_zitat.loeschen', aussageZitatLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage_zitat.loeschen', ein))
 
   // `undo()`/`redo()` laufen NICHT über `fuehreAus()`/den Befehlsbus (55_Architektur.md §4.9,
   // Kopfkommentar `src/main/journal/undo.ts`) - die beiden Ereignisse, die der Bus sonst selbst
@@ -297,6 +305,7 @@ export function ipcRegistrierung(): void {
   registriere('befehl:quelle.anlegen', quelleAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.anlegen', ein))
   registriere('befehl:quelle.aendern', quelleAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'quelle.aendern', ein))
   registriere('abfrage:quelle.detail', quelleDetailEinSchema, (ein) => quelleDetail(offenesProjektDatenbank(), ein))
+  registriere('abfrage:quelle.suche', quelleSucheEinSchema, (ein) => quelleSuche(offenesProjektDatenbank(), ein))
 
   // AP-1.17 PR-A3: manuelle Zitatverwaltung — Anlegen/Ändern/Löschen (schreibend, über den
   // Befehlsbus). Anders als `quelle.loeschen`/`archiv.loeschen`/`ort.loeschen` gibt es hier ein

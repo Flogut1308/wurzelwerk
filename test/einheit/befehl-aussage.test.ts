@@ -1,7 +1,11 @@
 // AP-1.12: `aussage.anlegen`/`aussage.loeschen` über den echten Befehlsbus
-// (`src/main/befehle/bus.ts`) gegen eine migrierte `:memory:`-Datenbank. KEIN `aussage.aendern`
-// (Nutzerentscheidung) — "Fakt ändern" ist eine neue bevorzugte Aussage + Demote der alten
-// bevorzugten Aussage (geprüft unten). Muster identisch zu `test/einheit/befehl-person.test.ts`.
+// (`src/main/befehle/bus.ts`) gegen eine migrierte `:memory:`-Datenbank. "Fakt ändern" (neuer
+// bevorzugter Wert) bleibt weiter eine neue Aussage + Demote der alten bevorzugten Aussage
+// (geprüft unten, Nutzerentscheidung AP-1.12) — `aussage.aendern` (AP-1.29 PR-A, unten) patcht
+// dagegen NUR die Detailfelder EINER bestehenden Aussage (`wertText`/`wertZahl`/`wertRefId`/
+// `datum`/`konfidenz`/`begruendung`/`unsicherheit`/`gueltigVon`/`gueltigBis`), OHNE `istBevorzugt`
+// umzuschalten und OHNE Demote-Logik zu duplizieren. Muster identisch zu
+// `test/einheit/befehl-person.test.ts`.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -424,6 +428,154 @@ describe('aussage.loeschen (AP-1.12)', () => {
       redo(db)
       expect(aussageLesen(db, id)).toBeUndefined()
       expect(aussageZitatListe(db, id)).toHaveLength(0)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+interface AussageVollZeile {
+  readonly id: string
+  readonly subjekt_typ: string
+  readonly subjekt_id: string
+  readonly praedikat: string
+  readonly wert_text: string | null
+  readonly wert_zahl: number | null
+  readonly wert_ref_id: string | null
+  readonly konfidenz: number | null
+  readonly ist_bevorzugt: 0 | 1 | null
+  readonly begruendung: string | null
+  readonly unsicherheit: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
+}
+
+function aussageVollLesen(db: ReturnType<typeof oeffnen>, id: string): AussageVollZeile | undefined {
+  return db
+    .prepare<{ readonly id: string }, AussageVollZeile>(
+      `SELECT id, subjekt_typ, subjekt_id, praedikat, wert_text, wert_zahl, wert_ref_id, konfidenz, ist_bevorzugt,
+              begruendung, unsicherheit, gueltig_von, gueltig_bis
+       FROM aussage WHERE id = @id`,
+    )
+    .get({ id })
+}
+
+describe('aussage.aendern (AP-1.29 PR-A)', () => {
+  it('ändert wertText/konfidenz/begruendung/unsicherheit/gueltigVon/gueltigBis', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Bauer',
+        konfidenz: 2,
+      })
+
+      fuehreAus(db, 'aussage.aendern', {
+        id,
+        wertText: 'Schmied',
+        konfidenz: 4,
+        begruendung: 'Kirchenbucheintrag',
+        unsicherheit: 'Schrift schwer lesbar',
+        gueltigVon: 1700,
+        gueltigBis: 1750,
+      })
+
+      const nachher = aussageVollLesen(db, id)
+      expect(nachher?.wert_text).toBe('Schmied')
+      expect(nachher?.konfidenz).toBe(4)
+      expect(nachher?.begruendung).toBe('Kirchenbucheintrag')
+      expect(nachher?.unsicherheit).toBe('Schrift schwer lesbar')
+      expect(nachher?.gueltig_von).toBe(1700)
+      expect(nachher?.gueltig_bis).toBe(1750)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('rührt subjektTyp/subjektId/praedikat/istBevorzugt NICHT an', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Bauer',
+        konfidenz: 2,
+        istBevorzugt: 1,
+      })
+
+      fuehreAus(db, 'aussage.aendern', { id, wertText: 'Schmied', konfidenz: 3 })
+
+      const nachher = aussageVollLesen(db, id)
+      expect(nachher?.subjekt_typ).toBe('person')
+      expect(nachher?.subjekt_id).toBe(personId)
+      expect(nachher?.praedikat).toBe('beruf')
+      expect(nachher?.ist_bevorzugt).toBe(1) // unverändert - aussage.aendern schaltet istBevorzugt nicht um
+    } finally {
+      db.close()
+    }
+  })
+
+  it('No-op bei identischen Werten (AP-0.22, keine leere Transaktion)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 3,
+      })
+
+      fuehreAus(db, 'aussage.aendern', { id, wertText: 'Schmied', konfidenz: 3 })
+      const anzahlVorher = transaktionAnzahl(db)
+
+      fuehreAus(db, 'aussage.aendern', { id, wertText: 'Schmied', konfidenz: 3 })
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nicht existierende id → NICHT_GEFUNDEN_AUSSAGE, kein Schreibvorgang', () => {
+    const db = neueTestDatenbank()
+    try {
+      const anzahlVorher = transaktionAnzahl(db)
+      const code = fehlerCode(() => fuehreAus(db, 'aussage.aendern', { id: 'nicht-vorhanden', wertText: 'x', konfidenz: 2 }))
+      expect(code).toBe('NICHT_GEFUNDEN_AUSSAGE')
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo stellt den vorherigen Wert bitgleich wieder her, Redo die Änderung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Bauer',
+        konfidenz: 2,
+      })
+      const vorAendern = aussageVollLesen(db, id)
+
+      fuehreAus(db, 'aussage.aendern', { id, wertText: 'Schmied', konfidenz: 4 })
+      const nachAendern = aussageVollLesen(db, id)
+      expect(nachAendern).not.toEqual(vorAendern)
+
+      undo(db)
+      expect(aussageVollLesen(db, id)).toEqual(vorAendern)
+
+      redo(db)
+      expect(aussageVollLesen(db, id)).toEqual(nachAendern)
     } finally {
       db.close()
     }

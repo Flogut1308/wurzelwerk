@@ -75,6 +75,8 @@ AP-1.4b läuft außerhalb der Kette (eigene Sitzung, 18.09.2026).
 - **Ein Paket braucht ein Symbol, das es nicht gibt.** Nicht improvisieren, nicht Unicode, nicht
   Emoji (`71` §4.3) — vermerken und anhalten, wenn es tragend ist.
 - **Ein Paket will ein Referenzbild löschen** statt es zu erneuern.
+- **Ein Paket führt einen neuen Bildschirm ein, ohne ein neues Referenzbild mitzuliefern** —
+  anhalten.
 - Sonst gilt die vollständige Abbruchliste aus `nachzug.md` und `kette.md`.
 
 ## Modellrouting (ab Kette 3, Stand 23.09.2026) — je Paket und je Rolle

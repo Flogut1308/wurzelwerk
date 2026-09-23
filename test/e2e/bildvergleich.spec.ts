@@ -427,6 +427,78 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         await aufnahme(fenster, 'profil-dunkel', 'dunkel')
       })
 
+      // AP-1.29 PR-A: zwei bisher fehlende Bildmotive — „Person bearbeiten" (der
+      // Bearbeiten-Zweig der Profilseite, AP-1.14a/AP-1.15 PR-A) und „Orte" (die Orte-Pflege-
+      // Ansicht, AP-1.16 PR-C) — existierten als Bildschirme bereits vor diesem Paket, hatten aber
+      // (CLAUDE.md §14: „ein Paket führt einen neuen Bildschirm ein, ohne ein neues Referenzbild
+      // mitzuliefern") nie ein Referenzbild bekommen. Gemeinsamer Rahmen, weil beide NUR im
+      // Bearbeiten-Zweig der Profilseite erreichbar sind (`ProfilBearbeitenInhalt`,
+      // `profil-ansicht.tsx`) — „Orte" öffnet sich aus dem Ereignis-Neu-Formular DIESES Zweigs
+      // heraus (kein globaler Header-„Orte"-Eintrag, S-35/Phase 2/3). `beforeAll`/`afterAll`
+      // schalten EINMAL in den Bearbeiten-Modus und wieder zurück, damit die nachfolgenden
+      // Geschwister-Blöcke („Quelle bearbeiten"/„Negativbefund-Abschnitt", beide LESEN-Modus)
+      // unverändert weiterlaufen.
+      test.describe('Bearbeiten-Modus — Person bearbeiten und Orte', () => {
+        test.beforeAll(async () => {
+          test.setTimeout(60_000)
+          await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+          await expect(profil.getByRole('heading', { name: 'Namen', level: 2 })).toBeVisible()
+        })
+
+        test.afterAll(async () => {
+          await profil.getByRole('button', { name: 'Fertig', exact: true }).click()
+          // Zurück im LESEN-Modus — die feste Negativbefund-Formularüberschrift (nur dort gerendert,
+          // `ProfilInhalt`) belegt den Rückweg, bevor die nächsten Geschwister-Blöcke starten.
+          await expect(profil.getByRole('heading', { name: 'Negativbefunde', level: 2 })).toBeVisible()
+        })
+
+        test.describe('Person bearbeiten — vier Kombinationen', () => {
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-${kombination.theme}-${kombination.dichte}`, async () => {
+              // Order-Unabhängigkeit (PR #71, Nachzug): weist den bereits offenen Bearbeiten-Zweig
+              // selbst nach, unabhängig vom Ausgang seines Geschwisters.
+              await expect(profil.getByRole('heading', { name: 'Namen', level: 2 })).toBeVisible()
+              await aufnahme(fenster, `person-bearbeiten-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        // Kontextueller Einstieg (docs/80_Offene_Fragen.md), Muster `ablauf-06-ort-pflegen.spec.ts`
+        // (bewährte Locators: `.wz-ortsfeld input`/`.wz-ortsfeld__zeile--neuAnlegen` statt einer
+        // Rollen-Abfrage — das native `<input type="search">` bekäme sonst eine weniger stabile
+        // `searchbox`-Rolle über zwei Bibliotheksversionen hinweg).
+        test.describe('Orte — vier Kombinationen', () => {
+          let ortSchublade: ReturnType<typeof fenster.getByRole>
+
+          test.beforeAll(async () => {
+            test.setTimeout(60_000)
+            const ereignisFelder = profil.locator('.wz-profil-bearbeiten-ereignisse__felder')
+            await ereignisFelder.locator('.wz-ortsfeld input').fill('Bildvergleichsort')
+            const ortNeuAnlegenZeile = profil.locator('.wz-ortsfeld__zeile--neuAnlegen')
+            await expect(ortNeuAnlegenZeile).toBeVisible()
+            await ortNeuAnlegenZeile.click()
+            const ortBearbeitenLink = ereignisFelder.getByRole('button', { name: 'Ort bearbeiten', exact: true })
+            await expect(ortBearbeitenLink).toBeVisible()
+            await ortBearbeitenLink.click()
+            ortSchublade = fenster.getByRole('dialog', { name: 'Ort bearbeiten', exact: true })
+            await expect(ortSchublade).toBeVisible()
+          })
+
+          test.afterAll(async () => {
+            await ortSchublade.getByRole('button', { name: 'Schließen', exact: true }).click()
+            await expect(ortSchublade).toHaveCount(0)
+          })
+
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`orte-${kombination.theme}-${kombination.dichte}`, async () => {
+              // Order-Unabhängigkeit (PR #71, Nachzug): weist die geöffnete Schublade selbst nach.
+              await expect(ortSchublade).toBeVisible()
+              await aufnahme(fenster, `orte-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+      })
+
       // AP-1.17 PR-C1 (docs/80_Offene_Fragen.md §29): Motiv für die Quelle/Zitat/Archiv-Pflege-
       // Ansicht, erreicht über den kontextuellen „Quelle bearbeiten"-Link am Belegapparat (Walters
       // einziger Beleg, `beruf: Bergmann`, ist eine MÜNDLICHE Quelle mit Informant/Gesprächsdatum/

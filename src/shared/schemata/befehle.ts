@@ -396,10 +396,15 @@ export const beteiligungLoeschenEinSchema: z.ZodType<BeteiligungLoeschenEin> = z
 })
 
 // -----------------------------------------------------------------------------------------------
-// aussage.anlegen / aussage.loeschen (AP-1.12) — KEIN aussage.aendern (Nutzerentscheidung): ein
-// geänderter Fakt ist eine neue bevorzugte Aussage, die die alte bevorzugte Aussage zum selben
-// (subjektTyp, subjektId, praedikat) demotet (`src/main/befehle/aussage-anlegen.ts`, Muster
-// `bevorzugungAberkennen()` aus `src/main/import/schreiben.ts`).
+// aussage.anlegen / aussage.aendern / aussage.loeschen (AP-1.12, `aussage.aendern` AP-1.29 PR-A) —
+// `aussage.aendern` patcht NUR die Detailfelder eines bestehenden Fakts (`wertText`/`wertZahl`/
+// `wertRefId`/`datum`/`konfidenz`/`begruendung`/`unsicherheit`/`gueltigVon`/`gueltigBis`).
+// `subjektTyp`/`subjektId`/`praedikat` sind Identität, nicht editierbar — ein Wechsel wäre fachlich
+// eine andere Aussage (Löschen + Neuanlegen, analog `ElternschaftAendernEin`, das `elternteilId`/
+// `kindId` ebenfalls ausspart). `istBevorzugt` schaltet `aussage.aendern` bewusst NICHT um — die
+// Demote-Logik einer neuen bevorzugten Aussage (`bevorzugungAberkennen()`,
+// `src/main/befehle/aussage-anlegen.ts`) bleibt dem Anlegen-Pfad vorbehalten; ein bloßes Ändern von
+// Detailfeldern soll nicht nebenbei die Bevorzugung verschieben.
 // -----------------------------------------------------------------------------------------------
 
 /** `subjektTyp` OHNE `diagnose`/`risikofaktor` (M-08, DSGVO Art. 9) — deckungsgleich mit
@@ -456,12 +461,84 @@ export const aussageAnlegenEinSchema: z.ZodType<AussageAnlegenEin> = aussageAnle
   }
 })
 
+/** Nutzlast von `befehl:aussage.aendern` (AP-1.29 PR-A) — s. Abschnittskommentar oben:
+ * `subjektTyp`/`subjektId`/`praedikat`/`istBevorzugt` fehlen bewusst. Dieselbe „genau eines von
+ * wertText/wertZahl/wertRefId"-Regel wie beim Anlegen (Nutzerentscheidung AP-1.12) gilt weiter —
+ * ein geänderter Fakt hat weiterhin einen einzigen, eindeutigen Wert. */
+export interface AussageAendernEin {
+  readonly id: string
+  readonly wertText?: string | undefined
+  readonly wertZahl?: number | undefined
+  readonly wertRefId?: string | undefined
+  readonly datum?: Datumswert | undefined
+  readonly konfidenz: number
+  readonly begruendung?: string | undefined
+  readonly unsicherheit?: string | undefined
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+}
+
+const aussageAendernBasis = z.object({
+  id: z.string(),
+  wertText: z.string().optional(),
+  wertZahl: z.number().optional(),
+  wertRefId: z.string().optional(),
+  datum: datumswertSchema.optional(),
+  konfidenz: KonfidenzSchema,
+  begruendung: z.string().optional(),
+  unsicherheit: z.string().optional(),
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+})
+
+export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAendernBasis.superRefine((ein, ctx) => {
+  const gesetzteWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined)
+  if (gesetzteWerte.length !== 1) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['wertText'],
+      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht.',
+    })
+  }
+})
+
 export interface AussageLoeschenEin {
   readonly id: string
 }
 
 export const aussageLoeschenEinSchema: z.ZodType<AussageLoeschenEin> = z.object({
   id: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
+// aussage_zitat.anlegen / aussage_zitat.loeschen (AP-1.29 PR-A, docs/schema/0002_kern.sql §2.7) —
+// verknüpft/entkoppelt EINEN bestehenden Beleg (`zitat`) mit einer bestehenden `aussage`, OHNE die
+// `aussage`- oder `zitat`-Zeile selbst zu berühren. `aussage_zitat` hat KEIN eigenes `id`
+// (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, analog `ort_externe_id`) — darum
+// zwei Befehle statt drei: eine bestehende Verknüpfung ändert man nicht, man löst sie und legt eine
+// neue an.
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:aussage_zitat.anlegen`. */
+export interface AussageZitatAnlegenEin {
+  readonly aussageId: string
+  readonly zitatId: string
+}
+
+export const aussageZitatAnlegenEinSchema: z.ZodType<AussageZitatAnlegenEin> = z.object({
+  aussageId: z.string(),
+  zitatId: z.string(),
+})
+
+/** Nutzlast von `befehl:aussage_zitat.loeschen`. */
+export interface AussageZitatLoeschenEin {
+  readonly aussageId: string
+  readonly zitatId: string
+}
+
+export const aussageZitatLoeschenEinSchema: z.ZodType<AussageZitatLoeschenEin> = z.object({
+  aussageId: z.string(),
+  zitatId: z.string(),
 })
 
 // -----------------------------------------------------------------------------------------------

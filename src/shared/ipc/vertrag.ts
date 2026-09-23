@@ -19,7 +19,10 @@ import type {
   EreignisLoeschenEin,
   BeteiligungLoeschenEin,
   AussageAnlegenEin,
+  AussageAendernEin,
   AussageLoeschenEin,
+  AussageZitatAnlegenEin,
+  AussageZitatLoeschenEin,
   OrtAnlegenEin,
   OrtAendernEin,
   OrtsnameAnlegenEin,
@@ -48,6 +51,7 @@ import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
 import type { OrtDetailAus, OrtDetailEin } from '../schemata/ort-detail'
 import type { ArchivSucheAus, ArchivSucheEin } from '../schemata/archiv-suche'
 import type { QuelleDetailAus, QuelleDetailEin } from '../schemata/quelle-detail'
+import type { QuelleSucheAus, QuelleSucheEin } from '../schemata/quelle-suche'
 import type { NegativbefundListeAus, NegativbefundListeEin } from '../schemata/negativbefund-liste'
 
 /**
@@ -323,7 +327,10 @@ export interface Vertrag {
   'befehl:ereignis.loeschen': { ein: EreignisLoeschenEin; aus: null }
   'befehl:beteiligung.loeschen': { ein: BeteiligungLoeschenEin; aus: null }
   'befehl:aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
+  'befehl:aussage.aendern': { ein: AussageAendernEin; aus: null }
   'befehl:aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
+  'befehl:aussage_zitat.anlegen': { ein: AussageZitatAnlegenEin; aus: null }
+  'befehl:aussage_zitat.loeschen': { ein: AussageZitatLoeschenEin; aus: null }
   'befehl:journal.undo': { ein: null; aus: UndoErgebnis }
   'befehl:journal.redo': { ein: null; aus: UndoErgebnis }
   'abfrage:journal.verlauf': { ein: JournalVerlaufEin; aus: readonly VerlaufEintrag[] }
@@ -357,6 +364,7 @@ export interface Vertrag {
   'befehl:quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
   'befehl:quelle.aendern': { ein: QuelleAendernEin; aus: null }
   'abfrage:quelle.detail': { ein: QuelleDetailEin; aus: QuelleDetailAus }
+  'abfrage:quelle.suche': { ein: QuelleSucheEin; aus: QuelleSucheAus }
   'befehl:zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
   'befehl:zitat.aendern': { ein: ZitatAendernEin; aus: null }
   'befehl:zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
