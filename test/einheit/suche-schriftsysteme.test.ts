@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { v7 as uuidv7 } from 'uuid'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
+import { flacheNameEinfuegen } from '../hilfsmittel/name-schreiben'
 
 interface TrefferZeile {
   readonly rowid: number
@@ -20,17 +21,9 @@ describe('suche_fts: Schriftsystem-übergreifende Suche (AP-0.7, ADR-014)', () =
       const personId = uuidv7()
       db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
 
-      const kyrillischeId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-         VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-      ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
+      const kyrillischeId = flacheNameEinfuegen(db, { id: uuidv7(), personId, schrift: 'cyrl', nachname: 'Щербаков', originalText: 'Щербаков', istBevorzugt: 1 })
 
-      const umschriftId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, nachname, original_text)
-         VALUES (@id, @personId, 'transliteriert', 'latn', @umschriftVon, @nachname, @originalText)`,
-      ).run({ id: umschriftId, personId, umschriftVon: kyrillischeId, nachname: 'Scerbakov', originalText: 'Scerbakov' })
+      flacheNameEinfuegen(db, { id: uuidv7(), personId, typ: 'transliteriert', schrift: 'latn', umschriftVon: kyrillischeId, nachname: 'Scerbakov', originalText: 'Scerbakov', istBevorzugt: 0 })
 
       const kyrillischeQuelle = db
         .prepare<{ readonly quelleId: string }, { readonly rowid: number }>(
@@ -63,22 +56,17 @@ describe('suche_fts: Schriftsystem-übergreifende Suche (AP-0.7, ADR-014)', () =
       const personId = uuidv7()
       db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
 
-      const kyrillischeId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-         VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-      ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
+      const kyrillischeId = flacheNameEinfuegen(db, { id: uuidv7(), personId, schrift: 'cyrl', nachname: 'Щербаков', originalText: 'Щербаков', istBevorzugt: 1 })
 
-      const umschriftId = uuidv7()
-      db.prepare(
-        `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, nachname, original_text)
-         VALUES (@id, @personId, 'transliteriert', 'latn', @umschriftVon, @nachname, @originalText)`,
-      ).run({
-        id: umschriftId,
+      const umschriftId = flacheNameEinfuegen(db, {
+        id: uuidv7(),
         personId,
+        typ: 'transliteriert',
+        schrift: 'latn',
         umschriftVon: kyrillischeId,
         nachname: 'Shcherbakoff',
         originalText: 'Shcherbakoff',
+        istBevorzugt: 0,
       })
 
       const vorherTreffer = db
@@ -86,7 +74,7 @@ describe('suche_fts: Schriftsystem-übergreifende Suche (AP-0.7, ADR-014)', () =
         .all()
       expect(vorherTreffer.length).toBeGreaterThan(0)
 
-      db.prepare('DELETE FROM name WHERE id = @id').run({ id: umschriftId })
+      db.prepare('DELETE FROM name_form WHERE id = @id').run({ id: umschriftId })
 
       const treffer = db
         .prepare<[], TrefferZeile>("SELECT rowid FROM suche_fts WHERE suche_fts MATCH 'Shcherbakoff'")

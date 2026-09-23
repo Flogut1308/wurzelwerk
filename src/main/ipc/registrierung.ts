@@ -9,6 +9,7 @@ import {
   nameAnlegenEinSchema,
   nameAendernEinSchema,
   nameLoeschenEinSchema,
+  hauptnameWechselnEinSchema,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -175,6 +176,9 @@ export function ipcRegistrierung(): void {
   registriere('befehl:name.anlegen', nameAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.anlegen', ein))
   registriere('befehl:name.aendern', nameAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.aendern', ein))
   registriere('befehl:name.loeschen', nameLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'name.loeschen', ein))
+  // AP-1.33: bevorzugte Namensform umstellen (0006_namensformen.sql) — eigener Befehl, weil ein
+  // In-Place-Tausch am „genau ein Hauptname"-Constraint scheitert (s. `hauptname-wechseln.ts`).
+  registriere('befehl:hauptname.wechseln', hauptnameWechselnEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'hauptname.wechseln', ein))
 
   registriere('befehl:elternschaft.anlegen', elternschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.anlegen', ein))
   registriere('befehl:elternschaft.aendern', elternschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.aendern', ein))

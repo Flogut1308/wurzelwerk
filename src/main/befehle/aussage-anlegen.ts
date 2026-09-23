@@ -39,7 +39,9 @@ function subjektExistenzPruefen(tx: Tx, ein: Pick<AussageAnlegenEin, 'subjektTyp
       if (!datensatzExistiert(tx, 'ort', ein.subjektId)) throw new WurzelFehler('NICHT_GEFUNDEN_ORT')
       return
     case 'name':
-      if (!datensatzExistiert(tx, 'name', ein.subjektId)) throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+      // AP-1.33: subjekt_typ='name' verweist polymorph auf eine `name_form` (name_form.id = alte
+      // name.id, 0006_namensformen.sql).
+      if (!datensatzExistiert(tx, 'name_form', ein.subjektId)) throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
       return
   }
 }

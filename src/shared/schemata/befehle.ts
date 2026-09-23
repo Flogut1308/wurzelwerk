@@ -189,6 +189,28 @@ export const nameLoeschenEinSchema: z.ZodType<NameLoeschenEin> = z.object({
 })
 
 // -----------------------------------------------------------------------------------------------
+// hauptname.wechseln (AP-1.33, docs/schema/0006_namensformen.sql) — stellt in EINER Transaktion die
+// bevorzugte Namensform einer Person um (`alt` -> nicht bevorzugt, `neu` -> bevorzugt). Ein
+// In-Place-Tausch über `name.aendern` ist nicht möglich, weil der partielle UNIQUE-Index UND die
+// Constraint-Trigger „genau ein Hauptname je Person" beide sofort geprüft werden (jeder
+// Zwischenzustand verletzt genau einen der beiden); der Handler setzt die Constraint-Trigger für die
+// Umstellung aus (src/main/repositories/name-form-repo.ts::mitHauptnameConstraintAus).
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:hauptname.wechseln`. `alt`/`neu` sind `name_form.id`-Werte DERSELBEN Person. */
+export interface HauptnameWechselnEin {
+  readonly personId: string
+  readonly alt: string
+  readonly neu: string
+}
+
+export const hauptnameWechselnEinSchema: z.ZodType<HauptnameWechselnEin> = z.object({
+  personId: z.string(),
+  alt: z.string(),
+  neu: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
 // -----------------------------------------------------------------------------------------------
 

@@ -7,7 +7,8 @@ import { datensatzExistiert, type Tx } from '../repositories/basis'
 import * as nameRepo from '../repositories/name-repo'
 
 export function nameLoeschen(tx: Tx, ein: NameLoeschenEin): null {
-  if (!datensatzExistiert(tx, 'name', ein.id)) {
+  // AP-1.33: eine „Namenszeile" ist jetzt eine `name_form` (0006_namensformen.sql).
+  if (!datensatzExistiert(tx, 'name_form', ein.id)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
   }
   nameRepo.loeschen(tx, ein.id)

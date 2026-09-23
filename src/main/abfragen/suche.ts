@@ -46,7 +46,7 @@ function volltextPersonenIds(db: Database.Database, matchAusdruck: string): read
          bm25(suche_fts) AS rang
        FROM suche_fts
        JOIN suche_fts_quelle q ON q.rowid = suche_fts.rowid
-       LEFT JOIN name n ON q.quelle_typ = 'name' AND n.id = q.quelle_id
+       LEFT JOIN name_form n ON q.quelle_typ = 'name' AND n.id = q.quelle_id
        WHERE suche_fts MATCH @matchAusdruck
        ORDER BY rang ASC`,
     )
@@ -82,9 +82,10 @@ function phonetikPersonenIds(db: Database.Database, koelnerCodes: readonly strin
     .prepare<
       Record<string, string>,
       PhonetikZeile
-    >(`SELECT DISTINCT n.person_id AS person_id
+    >(`SELECT DISTINCT nf.person_id AS person_id
        FROM name_phonetik np
-       JOIN name n ON n.id = np.name_id
+       JOIN name_part tp ON tp.id = np.name_id
+       JOIN name_form nf ON nf.id = tp.name_form_id
        WHERE np.verfahren = 'koelner' AND np.code IN (${platzhalter})`,
     )
     .all(parameter)

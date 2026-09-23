@@ -91,7 +91,7 @@ describe('schreibeImport() — Kennungsauflösung (AP-1.3d, 56_Import_Vertrag.md
     expect(personenAnzahl?.anzahl).toBe(1) // keine zweite person-Zeile angelegt
 
     const namenAnzahl = db
-      .prepare<{ readonly id: string }, { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM name WHERE person_id = @id')
+      .prepare<{ readonly id: string }, { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM name_form WHERE person_id = @id')
       .get({ id: bestehendeId })
     expect(namenAnzahl?.anzahl).toBe(0) // kein neuer Name für die db:-Person angelegt
 

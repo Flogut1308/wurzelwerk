@@ -11,6 +11,17 @@ export type Schrift = 'latn' | 'cyrl'
 /** Deckt sich mit `UmschriftNormEnum`. */
 export type UmschriftNorm = 'iso9' | 'din1460' | 'manuell'
 
+/** Deckt sich mit `NameFormRolleEnum` (src/shared/schemata/name.ts) — `NameTyp` OHNE
+ * `transliteriert` (eine Umschrift ist in name_form keine eigene Rolle, sondern über
+ * `umschrift_von`/`umschrift_norm` ausgedrückt, `rolle IS NULL`, AP-1.33). */
+export type NameFormRolle = 'geburtsname' | 'ehename' | 'vulgo' | 'latinisiert' | 'ordensname' | 'aka' | 'beruf' | 'sonstiges'
+
+/** Deckt sich mit `NameFormReihenfolgeEnum`. */
+export type NameFormReihenfolge = 'vorname_zuerst' | 'nachname_zuerst'
+
+/** Deckt sich mit `NamePartArtEnum` (name_part.art). */
+export type NamePartArt = 'vorname' | 'praefix' | 'nachname' | 'suffix' | 'titel' | 'vatersname'
+
 /** Deckt sich mit `NameTypEnum`. */
 export type NameTyp =
   | 'geburtsname'

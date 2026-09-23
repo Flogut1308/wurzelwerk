@@ -169,9 +169,13 @@ describe('test/migration/import-luecken (AP-1.3c, ADR-026, docs/schema/0005_impo
       const db = oeffnen(dbPfad)
       try {
         expect(db.pragma('user_version', { simple: true })).toBe(4)
+        // AP-1.33: voller Aufstieg auf SCHEMA_VERSION (jetzt 6). Nicht auf v5 begrenzbar, weil
+        // `generierteTriggerAnwenden()` stets das aktuelle (v6-förmige) trigger_generiert.sql liest,
+        // das `name_form` referenziert — die hier geprüften 0005-Eigenschaften (Spalten/CHECK/Daten)
+        // überleben den weiteren 0006-Aufstieg unverändert.
         migrieren(db)
         expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
-        expect(SCHEMA_VERSION).toBe(5)
+        expect(SCHEMA_VERSION).toBe(6)
 
         expect(spaltenNamen(db, 'zitat')).toContain('zeitmarke_sekunden')
         expect(spaltenNamen(db, 'person')).toContain('unsicherheit')
@@ -256,9 +260,10 @@ describe('test/migration/import-luecken (AP-1.3c, ADR-026, docs/schema/0005_impo
         const risikofaktorAbzugVorher = spaltenAbzug(db, 'risikofaktor', RISIKOFAKTOR_SPALTEN, ['id'])
         const aussageAltspaltenAbzugVorher = spaltenAbzug(db, 'aussage', AUSSAGE_ALTSPALTEN, ['id'])
 
-        // Voller Aufstieg auf SCHEMA_VERSION (hier: 5) — dieselbe Verbindung, dieselbe MIGRATIONEN-Registry wie im Produktivpfad.
+        // Voller Aufstieg auf SCHEMA_VERSION (jetzt 6) — die 0005-Datenerhaltung (aussage_zitat/
+        // risikofaktor bitgleich) überlebt den weiteren 0006-Aufstieg, der `name` umstrukturiert.
         migrieren(db)
-        expect(db.pragma('user_version', { simple: true })).toBe(5)
+        expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
 
         // (1) Zeilenzahlen identisch.
         expect(zeilenzahl(db, 'aussage')).toBe(zeilenzahlVorher.aussage)

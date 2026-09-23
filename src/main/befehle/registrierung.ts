@@ -22,9 +22,11 @@ import {
   nameAnlegenEinSchema,
   nameAendernEinSchema,
   nameLoeschenEinSchema,
+  hauptnameWechselnEinSchema,
   type NameAnlegenEin,
   type NameAendernEin,
   type NameLoeschenEin,
+  type HauptnameWechselnEin,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -102,6 +104,7 @@ import { personLoeschen } from './person-loeschen'
 import { nameAnlegen } from './name-anlegen'
 import { nameAendern } from './name-aendern'
 import { nameLoeschen } from './name-loeschen'
+import { hauptnameWechseln } from './hauptname-wechseln'
 import { elternschaftAnlegen } from './elternschaft-anlegen'
 import { elternschaftAendern } from './elternschaft-aendern'
 import { elternschaftLoeschen } from './elternschaft-loeschen'
@@ -163,6 +166,7 @@ interface BefehlKarte {
   'name.anlegen': { ein: NameAnlegenEin; aus: { readonly id: string } }
   'name.aendern': { ein: NameAendernEin; aus: null }
   'name.loeschen': { ein: NameLoeschenEin; aus: null }
+  'hauptname.wechseln': { ein: HauptnameWechselnEin; aus: null }
   'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
@@ -245,6 +249,12 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.name_geloescht',
     handler: nameLoeschen,
+  },
+  'hauptname.wechseln': {
+    schema: hauptnameWechselnEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.hauptname_gewechselt',
+    handler: hauptnameWechseln,
   },
   'elternschaft.anlegen': {
     schema: elternschaftAnlegenEinSchema,

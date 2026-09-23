@@ -29,7 +29,9 @@ export const ALLE_TABELLEN = [
   'schema_migration',
   // 0002_kern.sql
   'person',
-  'name',
+  // AP-1.33 (0006_namensformen.sql): das flache `name` ist durch `name_form` + `name_part` ersetzt.
+  'name_form',
+  'name_part',
   'name_phonetik',
   'ort',
   'ortsname',

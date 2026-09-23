@@ -14,6 +14,7 @@ import {
   sucheFtsInhaltAbzug,
   verwaisteFtsEintraegeAnzahl,
 } from './_hilfen-abgeleitet'
+import { flacheNameEinfuegen } from '../hilfsmittel/name-schreiben'
 
 function personMitFremdschriftlichemNamenAnlegen(db: ReturnType<typeof frischeDatenbankMitAbgeleitetemSchema>): {
   readonly personId: string
@@ -23,17 +24,21 @@ function personMitFremdschriftlichemNamenAnlegen(db: ReturnType<typeof frischeDa
   const personId = uuidv7()
   db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)').run({ id: personId })
 
-  const kyrillischeId = uuidv7()
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-     VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-  ).run({ id: kyrillischeId, personId, nachname: 'Щербаков', originalText: 'Щербаков' })
-
-  const umschriftId = uuidv7()
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, nachname, original_text)
-     VALUES (@id, @personId, 'transliteriert', 'latn', @umschriftVon, @nachname, @originalText)`,
-  ).run({ id: umschriftId, personId, umschriftVon: kyrillischeId, nachname: 'Scherbakov', originalText: 'Scherbakov' })
+  // AP-1.33 (0006_namensformen.sql): „genau ein Hauptname je Person". Das kyrillische Original wird
+  // hier NICHT bevorzugt, die überlebende Umschrift schon — sonst verböte `chk_name_form_hauptname_ad`
+  // das Löschen der bevorzugten Original-Form, während die Umschrift-Geschwisterform bestehen bleibt
+  // (genau das Szenario, das dieser Test prüft). Die umschrift_von-Beziehung ist davon unberührt.
+  const kyrillischeId = flacheNameEinfuegen(db, { id: uuidv7(), personId, schrift: 'cyrl', nachname: 'Щербаков', originalText: 'Щербаков', istBevorzugt: 0 })
+  const umschriftId = flacheNameEinfuegen(db, {
+    id: uuidv7(),
+    personId,
+    typ: 'transliteriert',
+    schrift: 'latn',
+    umschriftVon: kyrillischeId,
+    nachname: 'Scherbakov',
+    originalText: 'Scherbakov',
+    istBevorzugt: 1,
+  })
 
   return { personId, kyrillischeId, umschriftId }
 }
@@ -44,7 +49,7 @@ describe('Bitgleichheit beim Löschen fremdschriftlicher Namen (hueter-Review AP
     try {
       const { kyrillischeId } = personMitFremdschriftlichemNamenAnlegen(db)
 
-      db.prepare('DELETE FROM name WHERE id = @id').run({ id: kyrillischeId })
+      db.prepare('DELETE FROM name_form WHERE id = @id').run({ id: kyrillischeId })
 
       // Die entscheidende Prüfung zuerst: keine Karteileiche im rohen FTS5-Index. Ein reiner
       // sucheFtsInhaltAbzug()-Vergleich allein hätte diesen Fehler NICHT gefangen (siehe
@@ -97,7 +102,7 @@ describe('Bitgleichheit beim Löschen fremdschriftlicher Namen (hueter-Review AP
     try {
       personMitFremdschriftlichemNamenAnlegen(db)
       const { kyrillischeId } = personMitFremdschriftlichemNamenAnlegen(db) // zweite, unabhängige Person/Namensgruppe
-      db.prepare('DELETE FROM name WHERE id = @id').run({ id: kyrillischeId })
+      db.prepare('DELETE FROM name_form WHERE id = @id').run({ id: kyrillischeId })
 
       const rohTreffer = db
         .prepare<[], { readonly rowid: number }>("SELECT rowid FROM suche_fts WHERE suche_fts MATCH 'scherbakov'")
