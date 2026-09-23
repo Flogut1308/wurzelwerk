@@ -399,6 +399,61 @@ export interface AktionAussageLoeschen {
   readonly aussageZielRoh: number
 }
 
+/**
+ * AP-1.29 PR-B ERWEITERUNG: `aussage.aendern` (`src/main/befehle/aussage-aendern.ts`,
+ * Koaleszenzschlüssel `aussage:<id>` — die generische Koaleszenz-Fallunterscheidung in
+ * `undo-bitgleich.test.ts` (Modul-Kommentar Punkt 2) deckt das bereits ab, ohne dass dieser
+ * Generator selbst etwas dafür tun muss). Wählt eine BESTEHENDE `aussage` aus `zustand.aussagen`
+ * (Index-modulo-Länge-oder-No-op, wie überall sonst) und patcht Wert/Konfidenz/Begründung/
+ * Unsicherheit/Gültigkeitszeitraum — GENAU wie bei `AktionAussageAnlegen` nie `wertRefId` (der
+ * Handler-Vertrag verlangt exakt eines von `wertText`/`wertZahl`/`wertRefId`, s.
+ * `aussageAendernEinSchema`-Kopfkommentar dort). KEIN `datum`: optional im Schema, derselbe
+ * Verzicht wie bei `aussage.anlegen`/`ereignis`/`partnerschaft` oben (Kopfkommentar dieser Datei) —
+ * `Datumswert` hat eine eigene mehrteilige `superRefine`-Gültigkeitslogik, die hier keinen
+ * zusätzlichen Mehrzeilen-Fall aufdeckt. `begruendung`/`unsicherheit`/`gueltigVon`/`gueltigBis`
+ * bekommen IMMER einen konkreten Wert (nie `undefined`) — analog `AktionOrtAendern` oben, jedes
+ * Feld ist im Schema optional, ein konkreter Wert bleibt genauso schema-konform und erspart das
+ * bedingte Spreaden.
+ */
+export interface AktionAussageAendern {
+  readonly art: 'aussageAendern'
+  readonly aussageZielRoh: number
+  readonly wert: AktionAussageWert
+  readonly konfidenz: number
+  readonly begruendung: string
+  readonly unsicherheit: string
+  readonly gueltigVon: number
+  readonly gueltigBis: number
+}
+
+/**
+ * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.anlegen` (`src/main/befehle/aussage-zitat-anlegen.ts`)
+ * — verknüpft eine BESTEHENDE `aussage` (`zustand.aussagen`) mit einem BESTEHENDEN `zitat`
+ * (`zustand.zitatIds`, AP-1.17 PR-B). Braucht BEIDE Listen nichtleer — leere `aussagen` ODER leere
+ * `zitatIds` machen die Aktion zum No-op (zwei No-op-Prüfungen statt einer, dasselbe Muster wie
+ * `zitatAendern` oben mit zwei unabhängigen Zielen). Eine bereits bestehende Kombination
+ * (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, s. Handler-Kommentar) würde
+ * `KONFLIKT_BEREITS_VORHANDEN` werfen — `zustand.aussageZitatVerknuepfungen` trackt jede angelegte
+ * Kombination, ein Kandidat mit bereits vergebener Kombination wird als No-op übersprungen
+ * (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen` oben).
+ */
+export interface AktionAussageZitatAnlegen {
+  readonly art: 'aussageZitatAnlegen'
+  readonly aussageZielRoh: number
+  readonly zitatZielRoh: number
+}
+
+/**
+ * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.loeschen` (`src/main/befehle/aussage-zitat-loeschen.ts`)
+ * — löst NUR die Verknüpfung, `aussage` UND `zitat` bleiben unberührt (Handler-Kommentar). Wählt
+ * eine EXISTIERENDE Verknüpfung aus `zustand.aussageZitatVerknuepfungen` (Index-modulo-Länge-oder-
+ * No-op, wie überall sonst).
+ */
+export interface AktionAussageZitatLoeschen {
+  readonly art: 'aussageZitatLoeschen'
+  readonly verknuepfungZielRoh: number
+}
+
 /** Garantiert (statt zufällig) den "Fakt ändern"-Demote-Pfad — s. Kopfkommentar dieser Datei
  * ("DEMOTE-DECKUNG"). Existiert bereits ein getrackter (subjektTyp, subjektId, praedikat)-Dreiklang
  * (`zustand.aussageTripel`), wiederholt diese Aktion GENAU DIESEN Dreiklang mit `istBevorzugt: 1`
@@ -619,6 +674,9 @@ export type Aktion =
   | AktionAussageAnlegen
   | AktionAussageLoeschen
   | AktionAussageFaktAendern
+  | AktionAussageAendern
+  | AktionAussageZitatAnlegen
+  | AktionAussageZitatLoeschen
   | AktionOrtAnlegen
   | AktionOrtAendern
   | AktionOrtsnameAnlegen
@@ -821,6 +879,35 @@ function aussageFaktAendernAktionArbitrary(): fc.Arbitrary<AktionAussageFaktAend
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionAussageFaktAendern => ({ art: 'aussageFaktAendern', ...r }))
+}
+
+/** AP-1.29 PR-B: s. Typkommentar `AktionAussageAendern`. */
+function aussageAendernAktionArbitrary(): fc.Arbitrary<AktionAussageAendern> {
+  return fc
+    .record({
+      aussageZielRoh: fc.nat(),
+      wert: aussageWertArbitrary(),
+      konfidenz: fc.integer({ min: 1, max: 4 }),
+      begruendung: fc.string(),
+      unsicherheit: fc.string(),
+      gueltigVon: fc.integer(),
+      gueltigBis: fc.integer(),
+    })
+    .map((r): AktionAussageAendern => ({ art: 'aussageAendern', ...r }))
+}
+
+/** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatAnlegen`. */
+function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAnlegen> {
+  return fc
+    .record({ aussageZielRoh: fc.nat(), zitatZielRoh: fc.nat() })
+    .map((r): AktionAussageZitatAnlegen => ({ art: 'aussageZitatAnlegen', ...r }))
+}
+
+/** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatLoeschen`. */
+function aussageZitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatLoeschen> {
+  return fc
+    .nat()
+    .map((verknuepfungZielRoh): AktionAussageZitatLoeschen => ({ art: 'aussageZitatLoeschen', verknuepfungZielRoh }))
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -1061,7 +1148,9 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * (Kopfkommentar "DEMOTE-DECKUNG") und soll darum über eine Folge hinweg mehrfach feuern, nicht
  * nur einmal zufällig. AP-1.17 PR-B: `archivAnlegen`/`quelleAnlegen`/`zitatAnlegen`/
  * `negativbefundAnlegen` liegen ebenfalls bei 2, ihre `aendern`/`loeschen`-Geschwister bei 1 —
- * dasselbe Muster wie bei `name`/`elternschaft`/… oben.
+ * dasselbe Muster wie bei `name`/`elternschaft`/… oben. AP-1.29 PR-B: `aussageAendern` liegt bei 2
+ * (analog den `aendern`-Geschwistern anderer Entitäten), `aussageZitatAnlegen` bei 2,
+ * `aussageZitatLoeschen` bei 1 — dasselbe Muster.
  */
 function aktionArbitrary(): fc.Arbitrary<Aktion> {
   return fc.oneof(
@@ -1089,6 +1178,9 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
+    { weight: 2, arbitrary: aussageAendernAktionArbitrary() },
+    { weight: 2, arbitrary: aussageZitatAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
     { weight: 2, arbitrary: ortsnameAnlegenAktionArbitrary() },
@@ -1132,9 +1224,24 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
  * Bericht) über genau `{ seed: 20260910, numRuns: 300 }` zeigte aber weiterhin 86 Demote-Treffer
  * (deutlich über der 5-Treffer-Schwelle, die ursprünglich zur Einführung von `minLength` führte)
  * UND jede der zwölf neuen Aktionen real feuernd (nie 0) — belegte Trefferzahlen stehen im
- * PR-Bericht. Eine weitere Anhebung von `minLength` war darum nicht nötig. */
+ * PR-Bericht. Eine weitere Anhebung von `minLength` war darum nicht nötig.
+ *
+ * AP-1.29 PR-B: `minLength`/`maxLength` von `18`/`40` auf `30`/`52` angehoben — anders als bei den
+ * bisherigen Erweiterungen reicht hier eine reine Gewichtsfrage nicht: `aussageZitatAnlegen`
+ * braucht eine bestehende `aussage` UND ein bestehendes `zitat` GLEICHZEITIG, `zitat` selbst
+ * braucht vorher eine bestehende `quelle` — eine Kette aus drei erfolgreichen `anlegen`-Schritten
+ * IN DER RICHTIGEN REIHENFOLGE innerhalb DERSELBEN Folge, nicht bloß irgendwann im Lauf. Eine
+ * temporäre Instrumentierung (NICHT committet, Muster identisch zu AP-1.16/AP-1.17 PR-B) über
+ * genau `{ seed: 20260910, numRuns: 300 }` zeigte bei `18`/`40` `aussageZitatLoeschen` als
+ * einzige neue Aktion bei 0 echten Treffern (die Kette `quelle.anlegen` → `zitat.anlegen` →
+ * `aussage_zitat.anlegen` → `aussage_zitat.loeschen` kam in keiner der 300 Folgen in dieser
+ * Reihenfolge lang genug vor) — ein klarer Verstoß gegen die "nie 0"-Anforderung. Mit `30`/`52`:
+ * `aussageAendern` 149, `aussageZitatAnlegen` 23, `aussageZitatLoeschen` 3 echte Treffer (alle
+ * über 0, `aussageZitatLoeschen` mit knappem, aber durch den festen Seed STABILEM Abstand).
+ * Laufzeit lokal weiterhin deutlich unter dem 180s-`it()`-Timeout (s. `undo-bitgleich.test.ts`,
+ * ~21s statt ~17s zuvor). */
 export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(), { minLength: 18, maxLength: 40 })
+  return fc.array(aktionArbitrary(), { minLength: 30, maxLength: 52 })
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
@@ -1229,6 +1336,14 @@ interface NegativbefundInfo {
   readonly personId: string
 }
 
+/** AP-1.29 PR-B: eine angelegte `aussage_zitat`-Verknüpfung — KEIN eigenes `id` (zusammengesetzter
+ * Primärschlüssel `(aussage_id, zitat_id)`, s. Kopfkommentar `AktionAussageZitatAnlegen`, analog
+ * `OrtExterneIdInfo`), darum trackt der Generator das Paar direkt statt einer generierten `id`. */
+interface AussageZitatVerknuepfungInfo {
+  readonly aussageId: string
+  readonly zitatId: string
+}
+
 /** Mutabler Modellzustand einer einzelnen Eigenschaftslauf-Ausführung (kein Vertrags-/Ergebnistyp — bewusst kein `readonly`, analog `ModellZustand` in `_modell-abgeleitet.ts`). */
 export interface Zustand {
   personIds: string[]
@@ -1239,6 +1354,7 @@ export interface Zustand {
   beteiligungen: BeteiligungInfo[]
   aussagen: AussageInfo[]
   aussageTripel: AussageTripelInfo[]
+  aussageZitatVerknuepfungen: AussageZitatVerknuepfungInfo[]
   ortIds: string[]
   ortsnamen: OrtsnameInfo[]
   ortszugehoerigkeiten: OrtszugehoerigkeitInfo[]
@@ -1259,6 +1375,7 @@ export function neuerZustand(): Zustand {
     beteiligungen: [],
     aussagen: [],
     aussageTripel: [],
+    aussageZitatVerknuepfungen: [],
     ortIds: [],
     ortsnamen: [],
     ortszugehoerigkeiten: [],
@@ -1621,8 +1738,18 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'elternschaft.loeschen', { id: ziel.id })
       zustand.elternschaften = zustand.elternschaften.filter((e) => e.id !== ziel.id)
+      // AP-1.29 PR-B: `aussageRepo.loeschenNachSubjekt` löscht ALLE `aussage`-Zeilen dieses Subjekts
+      // (nicht nur die Existenz-Aussage, s. Modul-Kommentar) — jede darauf `aussage_zitat`-verknüpfte
+      // Zeile kaskadiert mit (`ON DELETE CASCADE` auf `aussage_id`, s. Kopfkommentar
+      // `AktionAussageZitatAnlegen`). Die betroffenen `aussageId`s VOR dem Filtern merken.
+      const entfernteAussagenIds = zustand.aussagen
+        .filter((a) => a.subjektTyp === 'elternschaft' && a.subjektId === ziel.id)
+        .map((a) => a.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'elternschaft' && a.subjektId === ziel.id))
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'elternschaft' && t.subjektId === ziel.id))
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
+        (v) => !entfernteAussagenIds.includes(v.aussageId),
+      )
       return
     }
 
@@ -1659,8 +1786,16 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'partnerschaft.loeschen', { id: ziel.id })
       zustand.partnerschaften = zustand.partnerschaften.filter((p) => p.id !== ziel.id)
+      // AP-1.29 PR-B: s. Kommentar im `elternschaftLoeschen`-Fall — dieselbe CASCADE-Nachpflege für
+      // `aussage_zitat`.
+      const entfernteAussagenIds = zustand.aussagen
+        .filter((a) => a.subjektTyp === 'partnerschaft' && a.subjektId === ziel.id)
+        .map((a) => a.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'partnerschaft' && a.subjektId === ziel.id))
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'partnerschaft' && t.subjektId === ziel.id))
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
+        (v) => !entfernteAussagenIds.includes(v.aussageId),
+      )
       return
     }
 
@@ -1701,8 +1836,16 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       // dieses Ereignisses verschwindet mit, `zustand.beteiligungen` muss das nachvollziehen (sonst
       // würde ein späteres `beteiligung.loeschen` einen bereits kaskadiert gelöschten `id` referenzieren).
       zustand.beteiligungen = zustand.beteiligungen.filter((b) => b.ereignisId !== ziel.id)
+      // AP-1.29 PR-B: s. Kommentar im `elternschaftLoeschen`-Fall — dieselbe CASCADE-Nachpflege für
+      // `aussage_zitat`.
+      const entfernteAussagenIds = zustand.aussagen
+        .filter((a) => a.subjektTyp === 'ereignis' && a.subjektId === ziel.id)
+        .map((a) => a.id)
       zustand.aussagen = zustand.aussagen.filter((a) => !(a.subjektTyp === 'ereignis' && a.subjektId === ziel.id))
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'ereignis' && t.subjektId === ziel.id))
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
+        (v) => !entfernteAussagenIds.includes(v.aussageId),
+      )
       return
     }
 
@@ -1753,6 +1896,61 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'aussage.loeschen', { id: ziel.id })
       zustand.aussagen = zustand.aussagen.filter((a) => a.id !== ziel.id)
+      // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.aussage_id` (Kopfkommentar
+      // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieser Aussage verschwindet mit.
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter((v) => v.aussageId !== ziel.id)
+      return
+    }
+
+    case 'aussageAendern': {
+      const ziel = zielAusListe(zustand.aussagen, aktion.aussageZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'aussage.aendern', {
+        id: ziel.id,
+        konfidenz: aktion.konfidenz,
+        begruendung: aktion.begruendung,
+        unsicherheit: aktion.unsicherheit,
+        gueltigVon: aktion.gueltigVon,
+        gueltigBis: aktion.gueltigBis,
+        ...aussageWertFeld(aktion.wert),
+      })
+      return
+    }
+
+    case 'aussageZitatAnlegen': {
+      const aussage = zielAusListe(zustand.aussagen, aktion.aussageZielRoh)
+      if (aussage === undefined) {
+        return
+      }
+      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
+      if (zitatId === undefined) {
+        return
+      }
+      // Zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)` (Kopfkommentar) — ein Kandidat
+      // mit bereits vergebener Kombination würde `KONFLIKT_BEREITS_VORHANDEN` werfen, bleibt darum
+      // ein bewusster No-op (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen`).
+      const bestehtSchon = zustand.aussageZitatVerknuepfungen.some(
+        (v) => v.aussageId === aussage.id && v.zitatId === zitatId,
+      )
+      if (bestehtSchon) {
+        return
+      }
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussage.id, zitatId })
+      zustand.aussageZitatVerknuepfungen.push({ aussageId: aussage.id, zitatId })
+      return
+    }
+
+    case 'aussageZitatLoeschen': {
+      const ziel = zielAusListe(zustand.aussageZitatVerknuepfungen, aktion.verknuepfungZielRoh)
+      if (ziel === undefined) {
+        return
+      }
+      fuehreAus(db, 'aussage_zitat.loeschen', { aussageId: ziel.aussageId, zitatId: ziel.zitatId })
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
+        (v) => !(v.aussageId === ziel.aussageId && v.zitatId === ziel.zitatId),
+      )
       return
     }
 
@@ -2030,6 +2228,9 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       }
       fuehreAus(db, 'zitat.loeschen', { id: zitatId })
       zustand.zitatIds = zustand.zitatIds.filter((z) => z !== zitatId)
+      // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.zitat_id` (Kopfkommentar
+      // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieses Zitats verschwindet mit.
+      zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter((v) => v.zitatId !== zitatId)
       return
     }
 
