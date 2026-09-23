@@ -37,6 +37,7 @@ const kanaele = [
   'befehl:ereignis.loeschen',
   'befehl:beteiligung.loeschen',
   'befehl:aussage.anlegen',
+  'befehl:aussage.aendern',
   'befehl:aussage.loeschen',
   'befehl:journal.undo',
   'befehl:journal.redo',

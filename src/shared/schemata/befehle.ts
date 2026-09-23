@@ -396,10 +396,15 @@ export const beteiligungLoeschenEinSchema: z.ZodType<BeteiligungLoeschenEin> = z
 })
 
 // -----------------------------------------------------------------------------------------------
-// aussage.anlegen / aussage.loeschen (AP-1.12) — KEIN aussage.aendern (Nutzerentscheidung): ein
-// geänderter Fakt ist eine neue bevorzugte Aussage, die die alte bevorzugte Aussage zum selben
-// (subjektTyp, subjektId, praedikat) demotet (`src/main/befehle/aussage-anlegen.ts`, Muster
-// `bevorzugungAberkennen()` aus `src/main/import/schreiben.ts`).
+// aussage.anlegen / aussage.aendern / aussage.loeschen (AP-1.12, `aussage.aendern` AP-1.29 PR-A) —
+// `aussage.aendern` patcht NUR die Detailfelder eines bestehenden Fakts (`wertText`/`wertZahl`/
+// `wertRefId`/`datum`/`konfidenz`/`begruendung`/`unsicherheit`/`gueltigVon`/`gueltigBis`).
+// `subjektTyp`/`subjektId`/`praedikat` sind Identität, nicht editierbar — ein Wechsel wäre fachlich
+// eine andere Aussage (Löschen + Neuanlegen, analog `ElternschaftAendernEin`, das `elternteilId`/
+// `kindId` ebenfalls ausspart). `istBevorzugt` schaltet `aussage.aendern` bewusst NICHT um — die
+// Demote-Logik einer neuen bevorzugten Aussage (`bevorzugungAberkennen()`,
+// `src/main/befehle/aussage-anlegen.ts`) bleibt dem Anlegen-Pfad vorbehalten; ein bloßes Ändern von
+// Detailfeldern soll nicht nebenbei die Bevorzugung verschieben.
 // -----------------------------------------------------------------------------------------------
 
 /** `subjektTyp` OHNE `diagnose`/`risikofaktor` (M-08, DSGVO Art. 9) — deckungsgleich mit
@@ -446,6 +451,47 @@ const aussageAnlegenBasis = z.object({
  * Nutzer erfasste Aussage einen einzigen, eindeutigen Wert hat statt mehrerer gleichzeitig
  * belegter Werttypen. */
 export const aussageAnlegenEinSchema: z.ZodType<AussageAnlegenEin> = aussageAnlegenBasis.superRefine((ein, ctx) => {
+  const gesetzteWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined)
+  if (gesetzteWerte.length !== 1) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['wertText'],
+      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht.',
+    })
+  }
+})
+
+/** Nutzlast von `befehl:aussage.aendern` (AP-1.29 PR-A) — s. Abschnittskommentar oben:
+ * `subjektTyp`/`subjektId`/`praedikat`/`istBevorzugt` fehlen bewusst. Dieselbe „genau eines von
+ * wertText/wertZahl/wertRefId"-Regel wie beim Anlegen (Nutzerentscheidung AP-1.12) gilt weiter —
+ * ein geänderter Fakt hat weiterhin einen einzigen, eindeutigen Wert. */
+export interface AussageAendernEin {
+  readonly id: string
+  readonly wertText?: string | undefined
+  readonly wertZahl?: number | undefined
+  readonly wertRefId?: string | undefined
+  readonly datum?: Datumswert | undefined
+  readonly konfidenz: number
+  readonly begruendung?: string | undefined
+  readonly unsicherheit?: string | undefined
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+}
+
+const aussageAendernBasis = z.object({
+  id: z.string(),
+  wertText: z.string().optional(),
+  wertZahl: z.number().optional(),
+  wertRefId: z.string().optional(),
+  datum: datumswertSchema.optional(),
+  konfidenz: KonfidenzSchema,
+  begruendung: z.string().optional(),
+  unsicherheit: z.string().optional(),
+  gueltigVon: z.number().int().optional(),
+  gueltigBis: z.number().int().optional(),
+})
+
+export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAendernBasis.superRefine((ein, ctx) => {
   const gesetzteWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined)
   if (gesetzteWerte.length !== 1) {
     ctx.addIssue({

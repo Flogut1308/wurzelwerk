@@ -20,6 +20,7 @@ import {
   ereignisLoeschenEinSchema,
   beteiligungLoeschenEinSchema,
   aussageAnlegenEinSchema,
+  aussageAendernEinSchema,
   aussageLoeschenEinSchema,
   ortAnlegenEinSchema,
   ortAendernEinSchema,
@@ -185,6 +186,7 @@ export function ipcRegistrierung(): void {
   registriere('befehl:beteiligung.loeschen', beteiligungLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'beteiligung.loeschen', ein))
 
   registriere('befehl:aussage.anlegen', aussageAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.anlegen', ein))
+  registriere('befehl:aussage.aendern', aussageAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.aendern', ein))
   registriere('befehl:aussage.loeschen', aussageLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.loeschen', ein))
 
   // `undo()`/`redo()` laufen NICHT über `fuehreAus()`/den Befehlsbus (55_Architektur.md §4.9,
