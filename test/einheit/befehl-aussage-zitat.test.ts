@@ -221,7 +221,7 @@ describe('aussage_zitat.loeschen (AP-1.29 PR-A)', () => {
     }
   })
 
-  it('fehlende Verknüpfung (aussage und zitat bestehen, sind aber nicht verknüpft) → Fehler, kein Schreibvorgang', () => {
+  it('fehlende Verknüpfung (aussage und zitat bestehen, sind aber nicht verknüpft) → NICHT_GEFUNDEN_AUSSAGE_ZITAT, kein Schreibvorgang', () => {
     const db = neueTestDatenbank()
     try {
       const personId = neuePerson(db)
@@ -231,7 +231,7 @@ describe('aussage_zitat.loeschen (AP-1.29 PR-A)', () => {
 
       const code = fehlerCode(() => fuehreAus(db, 'aussage_zitat.loeschen', { aussageId, zitatId }))
 
-      expect(code).toBe('NICHT_GEFUNDEN_AUSSAGE')
+      expect(code).toBe('NICHT_GEFUNDEN_AUSSAGE_ZITAT')
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
     } finally {
       db.close()

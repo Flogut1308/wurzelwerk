@@ -59,6 +59,10 @@
     "titel": "Beleg nicht gefunden",
     "was_tun": "Den Beleg aus der Auswahl entfernen. Ist das Zitat tatsächlich gelöscht, einen neuen Beleg auswählen."
   },
+  "NICHT_GEFUNDEN_AUSSAGE_ZITAT": {
+    "titel": "Verknüpfung nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Beleg bereits von der Aussage gelöst, ist nichts weiter zu tun."
+  },
   "NICHT_GEFUNDEN_ORTSNAME": {
     "titel": "Ortsname nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist der Ortsname tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
