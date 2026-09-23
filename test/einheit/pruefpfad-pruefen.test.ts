@@ -179,3 +179,40 @@ describe('indirekt von test/invarianten importierte Helfer sind geschützt (AP-0
     expect(ergebnis.unzulaessigeVermischung).toBe(false)
   })
 })
+
+describe('ADR-030: schema-abgeleitete Prüfpfad-Helfer sind schema-bedingt, nicht immer', () => {
+  const HELFER = [
+    'test/invarianten/_journal-minimalzeilen.ts',
+    'test/invarianten/_modell-abgeleitet.ts',
+    'test/hilfsmittel/fixture-bauen.ts',
+  ] as const
+
+  for (const helfer of HELFER) {
+    it(`erlaubt ${helfer} zusammen mit Produktivcode, wenn eine docs/schema/00NN_*.sql-Migration dabei ist`, () => {
+      const ergebnis = pruefpfadAuswerten([helfer, 'src/main/repositories/name-form-repo.ts', 'docs/schema/0006_namensformen.sql'])
+      expect(ergebnis.unzulaessigeVermischung).toBe(false)
+    })
+
+    it(`meldet eine Vermischung, wenn ${helfer} sich OHNE Migrationsdatei mit Produktivcode ändert`, () => {
+      const ergebnis = pruefpfadAuswerten([helfer, 'src/main/repositories/name-form-repo.ts'])
+      expect(ergebnis.unzulaessigeVermischung).toBe(true)
+    })
+
+    it(`überschreibt auch den indirekt hereingereichten 'immer'-Modus von ${helfer} (mit Migration zulässig)`, () => {
+      const ergebnis = pruefpfadAuswerten(
+        [helfer, 'src/main/repositories/name-form-repo.ts', 'docs/schema/0006_namensformen.sql'],
+        [{ datei: helfer, modus: 'immer' }],
+      )
+      expect(ergebnis.unzulaessigeVermischung).toBe(false)
+    })
+  }
+
+  it('eine echte Invarianten-Zusicherung bleibt auch mit Migrationsdatei ausnahmslos gesperrt', () => {
+    const ergebnis = pruefpfadAuswerten([
+      'test/invarianten/abgeleitet-gleich.test.ts',
+      'src/main/datenbank/trigger.ts',
+      'docs/schema/0006_namensformen.sql',
+    ])
+    expect(ergebnis.unzulaessigeVermischung).toBe(true)
+  })
+})

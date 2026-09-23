@@ -1,8 +1,11 @@
 // AP-0.7 PR-C — Modell + fast-check-Arbitrary für den Invariantentest
 // `abgeleitet-gleich.test.ts` (geschützter Prüfpfad, CLAUDE.md §13/ADR-025). Kein Produktivcode:
-// dieser Helfer erzeugt nur Befehlsfolgen über den Basistabellen (`person`, `name`, `aussage`,
-// `ort`, `ortsname`, `zitat`) und führt sie gegen eine echte Datenbank aus — er behauptet nichts
-// über das Ergebnis, das tut ausschließlich die Testdatei selbst.
+// dieser Helfer erzeugt nur Befehlsfolgen über den Basistabellen (`person`, `name_form`/`name_part`,
+// `aussage`, `ort`, `ortsname`, `zitat`) und führt sie gegen eine echte Datenbank aus — er behauptet
+// nichts über das Ergebnis, das tut ausschließlich die Testdatei selbst. AP-1.33: das flache `name`
+// ist durch `name_form` (Form/Rolle/Umschrift/Hauptname) + `name_part` (zerlegte Bestandteile) ersetzt
+// (0006_namensformen.sql); die Namens-Aktionen legen entsprechend Form + Teile an und halten die
+// „genau ein Hauptname je Person"-Regel ein (erste Form bevorzugt, Nachrücken beim Löschen).
 //
 // Muster "Index modulo aktuelle Länge" (statt eines vollen fast-check-`commands`-Modells): jede
 // Aktion trägt rohe `fc.nat()`-Indizes; `indexInBereich` reduziert sie zur Ausführungszeit auf
@@ -14,6 +17,7 @@
 import type Database from 'better-sqlite3'
 import fc from 'fast-check'
 import { v7 as uuidv7 } from 'uuid'
+import { loeschenMitNachruecken as formLoeschenMitNachruecken, mitHauptnameConstraintAus } from '../../src/main/repositories/name-form-repo'
 
 /** Mutabler Modellzustand einer einzelnen Eigenschaftslauf-Ausführung (kein Vertrags-/Ergebnistyp — bewusst kein `readonly`, siehe Nutzung mit Reassign/`filter` unten). */
 export interface ModellZustand {
@@ -442,16 +446,83 @@ function personDeleteAusfuehren(db: Database.Database, zustand: ModellZustand, a
   if (personId === undefined) {
     return
   }
-  db.prepare('DELETE FROM person WHERE id = @id').run({ id: personId })
+  // Die „genau ein Hauptname"-Constraint-Trigger (chk_name_form_hauptname_*, 0006) werden ausgesetzt:
+  // die CASCADE über mehrere `name_form`-Zeilen durchläuft sonst einen Zwischenzustand „Formen, aber
+  // keine bevorzugte" und bräche ab — dieselbe Produktivlogik wie in `person-repo.loeschen`.
+  mitHauptnameConstraintAus(db, () => {
+    db.prepare('DELETE FROM person WHERE id = @id').run({ id: personId })
+  })
   zustand.personIds = zustand.personIds.filter((id) => id !== personId)
-  // CASCADE (0002_kern.sql: name.person_id ... ON DELETE CASCADE) hat die Namenszeilen dieser
-  // Person bereits real gelöscht — aus dem Modell entfernen, sonst würde eine spätere Aktion
-  // versuchen, `umschrift_von` auf eine nicht mehr existierende `name.id` zu setzen (FK-Verletzung).
+  // CASCADE (0006_namensformen.sql: name_form.person_id ... ON DELETE CASCADE) hat die Formen dieser
+  // Person bereits real gelöscht — aus dem Modell entfernen, sonst würde eine spätere Aktion versuchen,
+  // `umschrift_von` auf eine nicht mehr existierende `name_form.id` zu setzen (FK-Verletzung).
   zustand.namen = zustand.namen.filter((eintrag) => eintrag.personId !== personId)
   // `aussagen` bewusst NICHT gefiltert: aussage.subjekt_id ist polymorph OHNE Fremdschlüssel
   // (0002_kern.sql, E-7) — eine "verwaiste" Aussage nach dem Löschen ihrer Person ist gültiger
   // DB-Zustand und Teil der Testabdeckung (die Trigger müssen auch dafür robust bleiben, s.
   // abl_aussage_au/_ad: das Neuberechnen für eine nicht mehr existierende Person liefert 0 Zeilen).
+}
+
+/** Zerlegt einen Vornamen-String an Leerzeichen in nicht-leere Tokens — wie die Migration 0006. */
+function vornamenTokens(vornamen: string): readonly string[] {
+  return vornamen.split(/\s+/).filter((teil) => teil !== '')
+}
+
+interface FormEinfuegenModell {
+  readonly id: string
+  readonly personId: string
+  readonly typ: NameTyp
+  readonly schrift: Schrift | null
+  readonly umschriftVon: string | null
+  readonly originalText: string | null
+  readonly istBevorzugt: 0 | 1
+  readonly vornamen: string
+  readonly nachname: string
+}
+
+/**
+ * AP-1.33: eine „Namenszeile" ist jetzt eine `name_form` + ihre `name_part`-Zeilen (0006_namensformen.sql,
+ * das flache `name` ist per DROP entfernt). Diese Hilfe legt Form + Bestandteile (Vornamen einzeln nach
+ * `sortier_index`, Nachname als ein Teil) an — dieselbe Zerlegung wie die Migration/das name-repo, damit
+ * die aus `name_part` rekonstruierte FTS-Normalform beider Vergleichsseiten (Trigger vs. Neuaufbau)
+ * übereinstimmt. `rolle` = `typ` (Umschrift `'transliteriert'` -> `rolle IS NULL`, ausgedrückt über
+ * `umschrift_von`). `ist_bevorzugt` bestimmt der Aufrufer (erste Form je Person -> 1, sonst 0) — die
+ * „genau ein Hauptname"-Regel (partieller UNIQUE-Index + Constraint-Trigger, 0006) verlangt genau eine.
+ */
+function formEinfuegen(db: Database.Database, zustand: ModellZustand, ein: FormEinfuegenModell): void {
+  const rolle = ein.typ === 'transliteriert' ? null : ein.typ
+  db.prepare(
+    `INSERT INTO name_form (id, person_id, schrift, rolle, ist_bevorzugt, umschrift_von, original_text)
+     VALUES (@id, @personId, @schrift, @rolle, @istBevorzugt, @umschriftVon, @originalText)`,
+  ).run({
+    id: ein.id,
+    personId: ein.personId,
+    schrift: ein.schrift,
+    rolle,
+    istBevorzugt: ein.istBevorzugt,
+    umschriftVon: ein.umschriftVon,
+    originalText: ein.originalText,
+  })
+  let sortierIndex = 0
+  for (const wert of vornamenTokens(ein.vornamen)) {
+    db.prepare(
+      `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index)
+       VALUES (@id, @formId, 'vorname', @wert, 0, @sortierIndex)`,
+    ).run({ id: uuidv7(), formId: ein.id, wert, sortierIndex })
+    sortierIndex += 1
+  }
+  if (ein.nachname !== '') {
+    db.prepare(
+      `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index)
+       VALUES (@id, @formId, 'nachname', @wert, 0, 0)`,
+    ).run({ id: uuidv7(), formId: ein.id, wert: ein.nachname })
+  }
+  zustand.namen.push({ id: ein.id, personId: ein.personId })
+}
+
+/** `1`, wenn die Person noch keine Form trägt (die erste Form je Person ist die bevorzugte), sonst `0`. */
+function bevorzugtFuerNeueForm(zustand: ModellZustand, personId: string): 0 | 1 {
+  return zustand.namen.some((eintrag) => eintrag.personId === personId) ? 0 : 1
 }
 
 function nameInsertAusfuehren(db: Database.Database, zustand: ModellZustand, aktion: NameInsertAktion): void {
@@ -460,22 +531,17 @@ function nameInsertAusfuehren(db: Database.Database, zustand: ModellZustand, akt
   if (personId === undefined) {
     return
   }
-  const id = uuidv7()
-  const originalText = aktion.originalTextModus === 'text' ? aktion.originalText : null
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, vornamen, nachname, original_text, ist_bevorzugt)
-     VALUES (@id, @personId, @typ, @schrift, NULL, @vornamen, @nachname, @originalText, @istBevorzugt)`,
-  ).run({
-    id,
+  formEinfuegen(db, zustand, {
+    id: uuidv7(),
     personId,
     typ: aktion.typ,
     schrift: aktion.schrift,
+    umschriftVon: null,
+    originalText: aktion.originalTextModus === 'text' ? aktion.originalText : null,
+    istBevorzugt: bevorzugtFuerNeueForm(zustand, personId),
     vornamen: aktion.vornamen,
     nachname: aktion.nachname,
-    originalText,
-    istBevorzugt: aktion.istBevorzugt,
   })
-  zustand.namen.push({ id, personId })
 }
 
 function nameInsertUmschriftPaarAusfuehren(db: Database.Database, zustand: ModellZustand, aktion: NameInsertUmschriftPaarAktion): void {
@@ -485,24 +551,33 @@ function nameInsertUmschriftPaarAusfuehren(db: Database.Database, zustand: Model
     return
   }
   const originalId = uuidv7()
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, nachname, original_text)
-     VALUES (@id, @personId, 'geburtsname', 'cyrl', @nachname, @originalText)`,
-  ).run({ id: originalId, personId, nachname: aktion.originalNachname, originalText: aktion.originalText })
-  zustand.namen.push({ id: originalId, personId })
-
-  const umschriftId = uuidv7()
-  db.prepare(
-    `INSERT INTO name (id, person_id, typ, schrift, umschrift_von, nachname, original_text)
-     VALUES (@id, @personId, 'transliteriert', 'latn', @umschriftVon, @nachname, @originalText)`,
-  ).run({
-    id: umschriftId,
+  formEinfuegen(db, zustand, {
+    id: originalId,
     personId,
-    umschriftVon: originalId,
-    nachname: aktion.umschriftNachname,
-    originalText: aktion.umschriftText,
+    typ: 'geburtsname',
+    schrift: 'cyrl',
+    umschriftVon: null,
+    originalText: aktion.originalText,
+    istBevorzugt: bevorzugtFuerNeueForm(zustand, personId),
+    vornamen: '',
+    nachname: aktion.originalNachname,
   })
-  zustand.namen.push({ id: umschriftId, personId })
+  formEinfuegen(db, zustand, {
+    id: uuidv7(),
+    personId,
+    typ: 'transliteriert',
+    schrift: 'latn',
+    umschriftVon: originalId,
+    originalText: aktion.umschriftText,
+    // Die Umschrift-Form ist nie die erste Form der Person (die Original-Form wurde gerade eingefügt).
+    istBevorzugt: 0,
+    vornamen: '',
+    nachname: aktion.umschriftNachname,
+  })
+}
+
+interface BevorzugtZeile {
+  readonly id: string
 }
 
 function nameUpdateAusfuehren(db: Database.Database, zustand: ModellZustand, aktion: NameUpdateAktion): void {
@@ -529,11 +604,13 @@ function nameUpdateAusfuehren(db: Database.Database, zustand: ModellZustand, akt
     }
   }
 
+  // Kopf-Spalten der Form (original_text/umschrift_von). `ist_bevorzugt` NICHT hier: das ist NOT NULL
+  // und „genau ein Hauptname je Person"-gebunden (0006) — ein Hauptname-Wechsel läuft unten über den
+  // Constraint-Dance (erst demote, dann promote, mit ausgesetzten Constraint-Triggern).
   db.prepare(
-    `UPDATE name SET
+    `UPDATE name_form SET
        original_text = CASE @originalModus WHEN 'null' THEN NULL WHEN 'text' THEN @originalText ELSE original_text END,
-       umschrift_von = CASE @umschriftModus WHEN 'auf_null' THEN NULL WHEN 'zu_id' THEN @umschriftZielId ELSE umschrift_von END,
-       ist_bevorzugt = CASE @bevorzugtModus WHEN 'null' THEN NULL WHEN '0' THEN 0 WHEN '1' THEN 1 ELSE ist_bevorzugt END
+       umschrift_von = CASE @umschriftModus WHEN 'auf_null' THEN NULL WHEN 'zu_id' THEN @umschriftZielId ELSE umschrift_von END
      WHERE id = @id`,
   ).run({
     id: ziel.id,
@@ -541,8 +618,25 @@ function nameUpdateAusfuehren(db: Database.Database, zustand: ModellZustand, akt
     originalText: aktion.originalText,
     umschriftModus: umschriftModusSql,
     umschriftZielId,
-    bevorzugtModus: aktion.bevorzugtModus,
   })
+
+  // bevorzugtModus '1' -> diese Form zum Hauptnamen machen (die bisherige der Person herabstufen).
+  // '0'/'null'/'behalten' bleiben No-op: „keine bevorzugte" ist unter der 0006-Regel kein gültiger
+  // Zustand einer Person mit Formen (mit '1' bleibt das bevorzugt-Feld trotzdem variabel -> deckt die
+  // ist_bevorzugt-Sortierung in person_flach/den abl_*-Triggern ab).
+  if (aktion.bevorzugtModus === '1') {
+    const aktuell = db
+      .prepare<{ readonly personId: string }, BevorzugtZeile>(
+        'SELECT id FROM name_form WHERE person_id = @personId AND ist_bevorzugt = 1',
+      )
+      .get({ personId: ziel.personId })
+    if (aktuell !== undefined && aktuell.id !== ziel.id) {
+      mitHauptnameConstraintAus(db, () => {
+        db.prepare('UPDATE name_form SET ist_bevorzugt = 0 WHERE id = @id').run({ id: aktuell.id })
+        db.prepare('UPDATE name_form SET ist_bevorzugt = 1 WHERE id = @id').run({ id: ziel.id })
+      })
+    }
+  }
 }
 
 function nameDeleteAusfuehren(db: Database.Database, zustand: ModellZustand, aktion: NameDeleteAktion): void {
@@ -551,7 +645,9 @@ function nameDeleteAusfuehren(db: Database.Database, zustand: ModellZustand, akt
   if (ziel === undefined) {
     return
   }
-  db.prepare('DELETE FROM name WHERE id = @id').run({ id: ziel.id })
+  // War die Form die bevorzugte einer Person mit weiteren Formen, rückt die niedrigste `id` nach —
+  // dieselbe Produktivlogik wie `name.loeschen` (sonst bricht `chk_name_form_hauptname_ad` ab).
+  formLoeschenMitNachruecken(db, ziel.id)
   zustand.namen = zustand.namen.filter((eintrag) => eintrag.id !== ziel.id)
 }
 
