@@ -240,7 +240,9 @@ export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => s
   }
 }
 
-/** Löscht eine Form (name_part räumt sich per ON DELETE CASCADE ab). */
+/** Löscht eine Form (name_part räumt sich per ON DELETE CASCADE ab). War es die bevorzugte Form einer
+ * Person mit weiteren Formen, rückt deterministisch die verbliebene Form mit der niedrigsten `id` als
+ * neue bevorzugte nach (undo-bitgleich, s. `name-form-repo.loeschenMitNachruecken`). */
 export function loeschen(tx: Tx, id: string): void {
-  nameFormRepo.loeschen(tx, id)
+  nameFormRepo.loeschenMitNachruecken(tx, id)
 }

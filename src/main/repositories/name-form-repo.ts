@@ -136,6 +136,37 @@ export function loeschen(tx: Tx, id: string): void {
   tx.prepare('DELETE FROM name_form WHERE id = @id').run({ id })
 }
 
+/**
+ * Löscht eine Form und rückt, falls sie die bevorzugte einer Person mit weiteren Formen war, die
+ * verbliebene Form mit der niedrigsten `id` deterministisch als neue bevorzugte nach. Nötig, weil
+ * `chk_name_form_hauptname_ad` sonst abbricht: „eine Person mit Formen braucht immer eine bevorzugte".
+ * Löschen + Hochstufen laufen in DERSELBEN (armierten) Transaktion mit ausgesetzten Constraint-Triggern
+ * (`mitHauptnameConstraintAus` — der Zwischenzustand „keine bevorzugte" ist sonst verboten); der
+ * partielle UNIQUE-Index bleibt aktiv und sieht durch die Reihenfolge „erst löschen, dann hochstufen"
+ * nie zwei bevorzugte. Beide Schritte landen im Journal und sind darum undo-bitgleich (AP-1.33).
+ * Löscht man die letzte/einzige Form (Person ohne Form ist erlaubt) oder eine nicht bevorzugte Form,
+ * ist kein Nachrücken nötig.
+ */
+export function loeschenMitNachruecken(tx: Tx, id: string): void {
+  const form = lesen(tx, id)
+  if (form === undefined || form.ist_bevorzugt !== 1) {
+    loeschen(tx, id)
+    return
+  }
+  // formenFuerPerson sortiert bevorzugt-zuerst, dann nach `id`; nach dem Herausfiltern der (einzigen)
+  // bevorzugten Form bleiben nur `ist_bevorzugt = 0`-Formen, aufsteigend nach `id` — das erste ist die
+  // niedrigste `id`.
+  const nachfolger = formenFuerPerson(tx, form.person_id).find((f) => f.id !== id)
+  if (nachfolger === undefined) {
+    loeschen(tx, id)
+    return
+  }
+  mitHauptnameConstraintAus(tx, () => {
+    loeschen(tx, id)
+    tx.prepare('UPDATE name_form SET ist_bevorzugt = 1 WHERE id = @id').run({ id: nachfolger.id })
+  })
+}
+
 interface TriggerSqlZeile {
   readonly name: string
   readonly sql: string

@@ -185,17 +185,85 @@ END;`
 }
 
 /**
+ * Rekonstruiert einen Teil-`group_concat(wert, ' ')` über eine EXPLIZIT angegebene Zeilenquelle statt
+ * über die Live-`name_part`-Tabelle. Gebraucht in den `abl_name_part_*`-Triggern für die VORHER-
+ * Normalform: die Live-Zeilen tragen dort bereits den Nachher-Zustand, der für den `'delete'`-
+ * Sonderbefehl der contentless-FTS5-Tabelle nötige Vorher-Wert muss also rechnerisch gebildet werden.
+ * `zeilenSql` liefert die Spalten `wert` und `sortier_index` (die Ordnung entscheidet die Reihenfolge).
+ */
+function teilConcatAusQuelleSql(zeilenSql: string): string {
+  return `(SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (${zeilenSql}) ORDER BY sortier_index))`
+}
+
+/**
+ * `suche_fts.normalform` einer Form aus EXPLIZITEN Vor-/Nachnamen-Zeilenquellen (statt Live). Sonst
+ * identisch zu `nameFtsNormalformSql` — dieselbe COALESCE(original_text, TRIM(vornamen ' ' nachname))-
+ * Regel, damit VORHER-Rekonstruktion und Live-Neuberechnung bitgleich zusammenpassen.
+ */
+function formNormalformAusQuelleSql(formAlias: string, vornamenQuelleSql: string, nachnameQuelleSql: string): string {
+  return (
+    `suchnormalform(COALESCE(${formAlias}.original_text, ` +
+    `TRIM(COALESCE(${teilConcatAusQuelleSql(vornamenQuelleSql)}, '') || ' ' || COALESCE(${teilConcatAusQuelleSql(nachnameQuelleSql)}, ''))))`
+  )
+}
+
+/**
+ * FTS-Auffrischung der von einer `name_part`-Änderung betroffenen Form(en): eigene `suche_fts`-Zeile
+ * mit VORHER-Werten löschen (contentless FTS5 verlangt den exakten alten Inhalt), mit Live-Werten neu
+ * einfügen. `original`/`umschrift` hängen nicht an `name_part` (unverändert -> Live = alt); nur die aus
+ * den Bestandteilen rekonstruierte `normalform` driftet. `affectedFilterSql` wählt die Form(en) über den
+ * Alias `nf`; `vornamenVorherSql`/`nachnameVorherSql` liefern die Zeilenquelle des VORHER-Zustands.
+ * Existiert die Form nicht mehr (z. B. `name_part`-CASCADE beim Löschen der Form, deren eigene FTS-Zeile
+ * schon `abl_name_form_bd` abgeräumt hat), liefert der JOIN keine Zeile — der Block ist dann ein No-op.
+ */
+function namePartFtsAuffrischenSql(affectedFilterSql: string, vornamenVorherSql: string, nachnameVorherSql: string): string {
+  return [
+    `  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)`,
+    `    SELECT 'delete', q.rowid, ${nameFtsOriginalSql('nf')}, ${nameFtsUmschriftSql('nf.id')}, ${formNormalformAusQuelleSql('nf', vornamenVorherSql, nachnameVorherSql)}, '', ''`,
+    `    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id`,
+    `    WHERE ${affectedFilterSql};`,
+    `  INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)`,
+    `    SELECT q.rowid, ${nameFtsOriginalSql('nf')}, ${nameFtsUmschriftSql('nf.id')}, ${nameFtsNormalformSql('nf')}, '', ''`,
+    `    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id`,
+    `    WHERE ${affectedFilterSql};`,
+  ].join('\n')
+}
+
+/** Live-Zeilenquelle (`wert`, `sortier_index`) der Bestandteile einer Art (`vorname`/`nachname`) einer Form `nf`. */
+function partLiveQuelleSql(art: 'vorname' | 'nachname'): string {
+  return `SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = '${art}'`
+}
+
+/**
  * `abl_name_part_*` (AP-1.33): ein Bestandteil bestimmt die aus `name_part` rekonstruierten Vor-/
- * Nachnamen der besitzenden Person (person_flach) und - für `art='nachname'` - deren `name_phonetik`.
- * Die betroffene Person ergibt sich über name_part -> name_form -> person.
+ * Nachnamen der besitzenden Person (person_flach), deren `suche_fts.normalform` (die Form-Zeile trägt
+ * die aus den Bestandteilen rekonstruierte Normalform, sofern `original_text IS NULL`) und - für
+ * `art='nachname'` - deren `name_phonetik`. Die betroffene Person/Form ergibt sich über name_part ->
+ * name_form (-> person). Die VORHER-Normalform (für den FTS-`'delete'`) wird aus einer expliziten
+ * Zeilenquelle gebildet, weil die Live-`name_part`-Zeilen schon den Nachher-Zustand tragen:
+ *   - INSERT: Live OHNE die neue Zeile (`id <> NEW.id`).
+ *   - UPDATE: Live OHNE die neue Zeile, VEREINT mit der alten Zeile (falls sie zu dieser Form gehörte).
+ *   - DELETE: Live (die Zeile ist schon weg), VEREINT mit der gelöschten Zeile.
  */
 function ablNamePartTrigger(): string {
   const besitzerPerson = (nameFormIdSql: string): string =>
     `SELECT nf.person_id FROM name_form nf WHERE nf.id IN (${nameFormIdSql})`
 
+  // VORHER-Zeilenquellen je Trigger. Der virtuelle „alte" Datensatz (SELECT ohne FROM + WHERE) zählt
+  // nur, wenn er zu der gerade betrachteten Form `nf` gehörte (`OLD.name_form_id = nf.id`).
+  const altVirtuell = (art: 'vorname' | 'nachname'): string =>
+    `SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = '${art}' AND OLD.name_form_id = nf.id`
+  const vorherAi = (art: 'vorname' | 'nachname'): string =>
+    `SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = '${art}' AND id <> NEW.id`
+  const vorherAu = (art: 'vorname' | 'nachname'): string =>
+    `SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = '${art}' AND id <> NEW.id UNION ALL ${altVirtuell(art)}`
+  const vorherAd = (art: 'vorname' | 'nachname'): string =>
+    `${partLiveQuelleSql(art)} UNION ALL ${altVirtuell(art)}`
+
   return `CREATE TRIGGER abl_name_part_ai AFTER INSERT ON name_part
 BEGIN
 ${personFlachNeuBerechnenSql(besitzerPerson('NEW.name_form_id'))}
+${namePartFtsAuffrischenSql('nf.id = NEW.name_form_id', vorherAi('vorname'), vorherAi('nachname'))}
   INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
     WHERE NEW.art = 'nachname' AND NEW.wert <> '';
@@ -204,6 +272,7 @@ END;
 CREATE TRIGGER abl_name_part_au AFTER UPDATE ON name_part
 BEGIN
 ${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id, NEW.name_form_id'))}
+${namePartFtsAuffrischenSql('nf.id IN (OLD.name_form_id, NEW.name_form_id)', vorherAu('vorname'), vorherAu('nachname'))}
   DELETE FROM name_phonetik WHERE name_id = NEW.id AND verfahren = 'koelner';
   INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
@@ -213,6 +282,7 @@ END;
 CREATE TRIGGER abl_name_part_ad AFTER DELETE ON name_part
 BEGIN
 ${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id'))}
+${namePartFtsAuffrischenSql('nf.id = OLD.name_form_id', vorherAd('vorname'), vorherAd('nachname'))}
   -- name_phonetik räumt sich über ON DELETE CASCADE (FK auf name_part) selbst ab.
 END;`
 }

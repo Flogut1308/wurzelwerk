@@ -618,6 +618,14 @@ LEFT JOIN (
   FROM ortsname
 ) go ON go.ort_id = go_a.ort_id AND go.rang = 1
 WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (NEW.name_form_id));
+  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' AND id <> NEW.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' AND id <> NEW.id) ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id = NEW.name_form_id;
+  INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id = NEW.name_form_id;
   INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT NEW.id, 'koelner', koelner_phonetik(NEW.wert)
     WHERE NEW.art = 'nachname' AND NEW.wert <> '';
@@ -684,6 +692,14 @@ LEFT JOIN (
   FROM ortsname
 ) go ON go.ort_id = go_a.ort_id AND go.rang = 1
 WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id));
+  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' AND id <> NEW.id UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'vorname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' AND id <> NEW.id UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'nachname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id);
+  INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id);
   DELETE FROM name_phonetik WHERE name_id = NEW.id AND verfahren = 'koelner';
   INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT NEW.id, 'koelner', koelner_phonetik(NEW.wert)
@@ -751,6 +767,14 @@ LEFT JOIN (
   FROM ortsname
 ) go ON go.ort_id = go_a.ort_id AND go.rang = 1
 WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id));
+  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'vorname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'nachname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id = OLD.name_form_id;
+  INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
+    SELECT q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)), '')))), '', ''
+    FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
+    WHERE nf.id = OLD.name_form_id;
   -- name_phonetik räumt sich über ON DELETE CASCADE (FK auf name_part) selbst ab.
 END;
 
