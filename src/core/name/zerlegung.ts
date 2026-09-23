@@ -3,8 +3,10 @@
 // TypeScript, KEIN Node/SQL/shared-Import (CLAUDE.md §2). Die Zerlegungsregel ist wortgleich zur
 // Migration 0006 (docs/schema/0006_namensformen.sql §3): Vornamen an Leerzeichen splitten (0-basierter
 // `sortier_index`, `ist_rufname = pos == rufname_index`), Nachname/Präfix/Titel(→'titel')/Zusatz(→
-// 'suffix') je eine Zeile, `rufname_text` als zusätzlicher markierter Vorname NUR wenn er nicht schon
-// als Vorname-Token vorkommt UND noch kein Rufname markiert ist. Genutzt von `src/main/repositories/
+// 'suffix') je eine Zeile. Rufname (verlustfrei, Vorrang `rufname_index`): zeigt `rufname_index` auf
+// keinen vorhandenen Token, markiert `rufname_text` GENAU den gleichlautenden vorhandenen Vorname-
+// Token — und nur wenn es keinen solchen gibt, wird `rufname_text` als zusätzlicher markierter
+// Vorname angehängt. Genutzt von `src/main/repositories/
 // name-repo.ts` (flache Schreib-/Leseschnittstelle über name_form + name_part) und — als Prüfmaterial
 // über die Schichtgrenze — von `test/hilfsmittel/fixture-bauen.ts`.
 import type { NamePartArt } from './typen'
@@ -41,11 +43,31 @@ function tokens(text: string | null | undefined): readonly string[] {
  * Vornamen, dann Nachname/Präfix/Titel/Suffix, dann ein etwaiger zusätzlicher Rufname-Text).
  */
 export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
-  const teile: ZerlegterTeil[] = []
-
   const vornamen = tokens(flach.vornamen)
+
+  // Rufname-Position bestimmen (verlustfrei, Vorrang `rufname_index`): der partielle UNIQUE-Index
+  // `idx_name_part_ein_rufname` erlaubt höchstens einen `ist_rufname = 1` je Form.
+  //  1. Ein `rufname_index`, der auf einen vorhandenen Token zeigt, gewinnt.
+  //  2. Sonst (NULL oder außerhalb der Tokenzahl) UND `rufname_text` gleicht einem vorhandenen
+  //     Vorname-Token -> GENAU dieser Token wird markiert (statt gar keiner — sonst geht die
+  //     Rufname-Angabe verloren, hueter-Auflage AP-1.33).
+  //  3. Sonst, wenn `rufname_text` KEIN vorhandener Token ist -> als zusätzlicher Vorname anlegen.
+  const rufnameIndex = flach.rufnameIndex ?? -1
+  let rufnamePos = rufnameIndex >= 0 && rufnameIndex < vornamen.length ? rufnameIndex : -1
+  let zusatzRufname: string | null = null
+  const rufnameText = flach.rufnameText
+  if (rufnamePos < 0 && rufnameText !== null && rufnameText !== undefined && rufnameText !== '') {
+    const vorhandenerPos = vornamen.indexOf(rufnameText)
+    if (vorhandenerPos >= 0) {
+      rufnamePos = vorhandenerPos
+    } else {
+      zusatzRufname = rufnameText
+    }
+  }
+
+  const teile: ZerlegterTeil[] = []
   vornamen.forEach((wert, index) => {
-    teile.push({ art: 'vorname', wert, istRufname: index === (flach.rufnameIndex ?? -1), sortierIndex: index })
+    teile.push({ art: 'vorname', wert, istRufname: index === rufnamePos, sortierIndex: index })
   })
 
   const einzeln: readonly (readonly [NamePartArt, string | null | undefined])[] = [
@@ -60,13 +82,8 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
     }
   }
 
-  const rufnameText = flach.rufnameText
-  if (rufnameText !== null && rufnameText !== undefined && rufnameText !== '') {
-    const schonVorname = vornamen.includes(rufnameText)
-    const schonRufname = teile.some((teil) => teil.art === 'vorname' && teil.istRufname)
-    if (!schonVorname && !schonRufname) {
-      teile.push({ art: 'vorname', wert: rufnameText, istRufname: true, sortierIndex: vornamen.length })
-    }
+  if (zusatzRufname !== null) {
+    teile.push({ art: 'vorname', wert: zusatzRufname, istRufname: true, sortierIndex: vornamen.length })
   }
 
   return teile

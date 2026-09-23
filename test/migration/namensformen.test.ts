@@ -135,6 +135,7 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
     readonly ehenameId: string
     readonly sonstigesId: string
     readonly rufnameTextId: string
+    readonly rufnameKollisionId: string
     readonly geburtsnameId: string
   } {
     // Journal VOR jedem Insert entschärfen: person/name sind journalisiert, ihre jrn_*-Trigger
@@ -158,6 +159,7 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
     const ehenameId = uuidv7()
     const sonstigesId = uuidv7()
     const rufnameTextId = uuidv7()
+    const rufnameKollisionId = uuidv7()
     const geburtsnameId = uuidv7()
 
     // Ein Person je Rolle (damit "genau ein Hauptname" trivial hält), außer dem transliterierten
@@ -375,6 +377,28 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
         istBevorzugt: 1,
         gueltigVon: null,
       },
+      // Rufname als Text, der IST unter den Vornamen (Kollision, hueter-Auflage 1): rufname_index
+      // NULL, rufname_text='Hans' gleicht dem vorhandenen Vorname-Token -> GENAU dieser Token wird
+      // markiert, KEIN zweiter „Hans" entsteht (verlustfrei, sonst wäre die Rufname-Angabe verloren).
+      {
+        id: rufnameKollisionId,
+        personId: person('rufnameKollision'),
+        typ: 'geburtsname',
+        schrift: 'latn',
+        umschriftVon: null,
+        umschriftNorm: null,
+        vornamen: 'Hans Peter',
+        rufnameIndex: null,
+        rufnameText: 'Hans',
+        nachname: 'Weber',
+        praefix: null,
+        titelVor: null,
+        zusatzNach: null,
+        originalText: null,
+        sprache: 'de',
+        istBevorzugt: 1,
+        gueltigVon: null,
+      },
     ]
 
     const stmt = db.prepare(
@@ -386,7 +410,7 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
     }
     journalAn(db)
 
-    return { zeilen, cyrlId, translitId, ehenameId, sonstigesId, rufnameTextId, geburtsnameId }
+    return { zeilen, cyrlId, translitId, ehenameId, sonstigesId, rufnameTextId, rufnameKollisionId, geburtsnameId }
   }
 
   it('SCHEMA_VERSION ist 6 und der Aufstieg landet auf 6', () => {
@@ -494,6 +518,27 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
           "SELECT wert FROM name_part WHERE name_form_id = @formId AND art = 'vorname' AND ist_rufname = 1",
         )
         .all({ formId: rufnameTextId })
+      expect(rufname).toEqual([{ wert: 'Hans' }])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Rufname-Text, der IST unter den Vornamen, markiert genau diesen Token (kein zweiter Token, verlustfrei)', () => {
+    const db = oeffnen(dbPfad)
+    try {
+      const { rufnameKollisionId } = setzeFixture(db)
+      migrieren(db)
+
+      // vornamen='Hans Peter', rufname_index=NULL, rufname_text='Hans': genau ein „Hans"-Vorname …
+      expect(teilWerte(db, rufnameKollisionId, 'vorname')).toEqual(['Hans', 'Peter'])
+
+      // … und genau dieser vorhandene Token trägt ist_rufname=1 (kein zusätzlicher „Hans"-Teil).
+      const rufname = db
+        .prepare<{ readonly formId: string }, { readonly wert: string }>(
+          "SELECT wert FROM name_part WHERE name_form_id = @formId AND art = 'vorname' AND ist_rufname = 1",
+        )
+        .all({ formId: rufnameKollisionId })
       expect(rufname).toEqual([{ wert: 'Hans' }])
     } finally {
       db.close()

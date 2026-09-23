@@ -161,6 +161,23 @@ WHERE n.rufname_text IS NOT NULL AND n.rufname_text <> ''
   AND NOT EXISTS (SELECT 1 FROM name_part WHERE name_form_id = n.id AND art = 'vorname' AND wert = n.rufname_text)
   AND NOT EXISTS (SELECT 1 FROM name_part WHERE name_form_id = n.id AND art = 'vorname' AND ist_rufname = 1);
 
+-- (d) rufname_text gleicht einem BEREITS vorhandenen Vorname-Token, aber rufname_index hat KEINEN
+--     Rufname markiert (NULL oder außerhalb der Tokenzahl): GENAU diesen Token als ist_rufname
+--     markieren (verlustfrei — sonst ginge die Rufname-Angabe verloren; hueter-Auflage AP-1.33).
+--     Präzedenz: ein über rufname_index gesetzter Rufname bleibt (NOT EXISTS ist_rufname). Bei
+--     mehreren gleichlautenden Tokens genau den ersten (kleinster sortier_index), damit der
+--     partielle UNIQUE-Index idx_name_part_ein_rufname nie zwei markierte Tokens je Form sieht.
+UPDATE name_part SET ist_rufname = 1
+WHERE id IN (
+  SELECT (SELECT np.id FROM name_part np
+          WHERE np.name_form_id = n.id AND np.art = 'vorname' AND np.wert = n.rufname_text
+          ORDER BY np.sortier_index LIMIT 1)
+  FROM name n
+  WHERE n.rufname_text IS NOT NULL AND n.rufname_text <> ''
+    AND EXISTS (SELECT 1 FROM name_part WHERE name_form_id = n.id AND art = 'vorname' AND wert = n.rufname_text)
+    AND NOT EXISTS (SELECT 1 FROM name_part WHERE name_form_id = n.id AND art = 'vorname' AND ist_rufname = 1)
+);
+
 -- ================================================================================================
 -- 4. name_phonetik auf name_part umstellen (VOR DROP name; alte FK zeigte auf name)
 -- ================================================================================================
