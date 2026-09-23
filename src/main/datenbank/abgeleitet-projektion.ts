@@ -121,6 +121,40 @@ export function nameFormNachnameSql(formIdSql: string): string {
   return `(SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = ${formIdSql} AND art = 'nachname' ORDER BY sortier_index))`
 }
 
+/**
+ * SQL-Ausdruck für die `id` der BEVORZUGTEN Namensform einer Person — exakt dieselbe Wahl wie die
+ * `bn.rang = 1`-Auswahl in `personFlachProjektionSql` (`ist_bevorzugt = 1` zuerst, sonst die
+ * niedrigste `id`; deterministischer Fallback, kein "irgendein"). `personIdSql` ist ein SQL-Ausdruck,
+ * der die `person.id` liefert (z. B. `"person_flach.person_id"`). Liefert `NULL`, wenn die Person
+ * keine Namensform hat — dann fallen die Vor-/Nachnamen-Rekonstruktionen (`nameFormVornamenSql`/
+ * `nameFormNachnameSql`) über `name_form_id = NULL` auf `NULL` zurück, genau wie der `LEFT JOIN` in
+ * der vollen Projektion.
+ */
+export function bevorzugteFormIdSql(personIdSql: string): string {
+  return `(SELECT nf.id FROM name_form nf WHERE nf.person_id = ${personIdSql} ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1)`
+}
+
+/**
+ * Die drei NAMENSABGELEITETEN `person_flach`-Spalten (`anzeigename`, `sortier_nachname`,
+ * `sortier_vornamen`) als `SET`-Zuweisungen für ein `UPDATE person_flach` — zeichengleich zu den
+ * entsprechenden Ausdrücken in `personFlachProjektionSql`, aber OHNE die aussage-/ortsname-JOINs
+ * (AP-1.33 Perf, ADR-029: eine Namensänderung berührt nur diese drei Spalten; die übrigen bleiben
+ * unberührt). `personIdSql` referenziert die `person.id` der zu aktualisierenden `person_flach`-Zeile
+ * (z. B. `"person_flach.person_id"`). Vor-/Nachname der bevorzugten Form werden über
+ * `bevorzugteFormIdSql` gewählt — dieselbe Bevorzugungs-/Fallback-Regel wie die volle Projektion,
+ * darum bitgleich (test/invarianten/abgeleitet-gleich.test.ts).
+ */
+export function personFlachNamensSpaltenSetSql(personIdSql: string): string {
+  const formId = bevorzugteFormIdSql(personIdSql)
+  const vornamen = nameFormVornamenSql(formId)
+  const nachname = nameFormNachnameSql(formId)
+  return [
+    `anzeigename = TRIM(COALESCE(${vornamen}, '') || ' ' || COALESCE(${nachname}, ''))`,
+    `sortier_nachname = suchnormalform(COALESCE(${nachname}, ''))`,
+    `sortier_vornamen = suchnormalform(COALESCE(${vornamen}, ''))`,
+  ].join(',\n    ')
+}
+
 /** `zeile` referenziert eine `name_form`-Zeile (z. B. `"NEW"`, `"OLD"` oder ein Alias wie `"nf"`). */
 export function nameFtsOriginalSql(zeile: string): string {
   return `COALESCE(${zeile}.original_text, '')`

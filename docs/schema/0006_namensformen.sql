@@ -330,65 +330,11 @@ END;
 
 CREATE TRIGGER abl_name_form_ai AFTER INSERT ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id = NEW.person_id;
-INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id = NEW.person_id;
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (NEW.person_id);
   INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) VALUES ('name', NEW.id);
   INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
     VALUES (last_insert_rowid(), COALESCE(NEW.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = NEW.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(NEW.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = NEW.id AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = NEW.id AND art = 'nachname' ORDER BY sortier_index)), '')))), '', '');
@@ -405,65 +351,11 @@ END;
 
 CREATE TRIGGER abl_name_form_au AFTER UPDATE ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id IN (OLD.person_id, NEW.person_id);
-INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id IN (OLD.person_id, NEW.person_id);
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (OLD.person_id, NEW.person_id);
   -- Eigene FTS-Zeile: alten Stand löschen, neuen einfügen (Umschrift/Normalform live).
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', rowid, COALESCE(OLD.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = OLD.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(OLD.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = OLD.id AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = OLD.id AND art = 'nachname' ORDER BY sortier_index)), '')))), '', ''
@@ -503,65 +395,11 @@ END;
 
 CREATE TRIGGER abl_name_form_ad AFTER DELETE ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id = OLD.person_id;
-INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id = OLD.person_id;
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (OLD.person_id);
   -- name_part (und via CASCADE name_phonetik) räumen sich über ON DELETE CASCADE selbst ab; die
   -- eigene suche_fts-Zeile ist bereits in abl_name_form_bd abgeräumt.
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
@@ -576,65 +414,11 @@ END;
 
 CREATE TRIGGER abl_name_part_ai AFTER INSERT ON name_part
 BEGIN
-  DELETE FROM person_flach WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (NEW.name_form_id));
-  INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (NEW.name_form_id));
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (NEW.name_form_id));
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' AND id <> NEW.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' AND id <> NEW.id) ORDER BY sortier_index)), '')))), '', ''
     FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
@@ -650,65 +434,11 @@ END;
 
 CREATE TRIGGER abl_name_part_au AFTER UPDATE ON name_part
 BEGIN
-  DELETE FROM person_flach WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id));
-  INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id));
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id, NEW.name_form_id));
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' AND id <> NEW.id UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'vorname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' AND id <> NEW.id UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'nachname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '')))), '', ''
     FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id
@@ -725,65 +455,11 @@ END;
 
 CREATE TRIGGER abl_name_part_ad AFTER DELETE ON name_part
 BEGIN
-  DELETE FROM person_flach WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id));
-  INSERT INTO person_flach (person_id, anzeigename, sortier_nachname, sortier_vornamen, geburt_jahr, geburt_sort_von, geburt_ort_name, tod_jahr, tod_sort_von, konfidenz_min, hat_widerspruch)
-  SELECT
-  p.id AS person_id,
-  TRIM(COALESCE(bn.vornamen, '') || ' ' || COALESCE(bn.nachname, '')) AS anzeigename,
-  suchnormalform(COALESCE(bn.nachname, '')) AS sortier_nachname,
-  suchnormalform(COALESCE(bn.vornamen, '')) AS sortier_vornamen,
-  gb.jahr AS geburt_jahr,
-  gb.sort_von AS geburt_sort_von,
-  go.name AS geburt_ort_name,
-  td.jahr AS tod_jahr,
-  td.sort_von AS tod_sort_von,
-  (SELECT MIN(a.konfidenz) FROM aussage a WHERE a.subjekt_typ = 'person' AND a.subjekt_id = p.id) AS konfidenz_min,
-  (CASE WHEN EXISTS (
-    SELECT 1 FROM aussage a1
-    WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = p.id
-    GROUP BY a1.praedikat
-    HAVING COUNT(DISTINCT
-      COALESCE(a1.wert_text, '') || '|' || COALESCE(CAST(a1.wert_zahl AS TEXT), '') || '|' ||
-      COALESCE(a1.wert_ref_id, '') || '|' || COALESCE(a1.datum_wert1, '') || '|' || COALESCE(a1.datum_wert2, '')
-    ) >= 2
-    AND SUM(CASE WHEN a1.ist_bevorzugt = 1 THEN 1 ELSE 0 END) = 0
-  ) THEN 1 ELSE 0 END) AS hat_widerspruch
-FROM person p
-LEFT JOIN (
-  SELECT nf.person_id AS person_id,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' ORDER BY sortier_index)) AS vornamen,
-    (SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' ORDER BY sortier_index)) AS nachname,
-    ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-  FROM name_form nf
-) bn ON bn.person_id = p.id AND bn.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
-) gb ON gb.person_id = p.id AND gb.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id,
-    CASE WHEN datum_wert1 GLOB '[0-9][0-9][0-9][0-9]*' THEN CAST(SUBSTR(datum_wert1, 1, 4) AS INTEGER) ELSE NULL END AS jahr,
-    datum_sort_von AS sort_von,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
-) td ON td.person_id = p.id AND td.rang = 1
-LEFT JOIN (
-  SELECT subjekt_id AS person_id, wert_ref_id AS ort_id,
-    ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM aussage
-  WHERE subjekt_typ = 'person' AND praedikat = 'geburtsort'
-) go_a ON go_a.person_id = p.id AND go_a.rang = 1
-LEFT JOIN (
-  SELECT ort_id, name,
-    ROW_NUMBER() OVER (PARTITION BY ort_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-  FROM ortsname
-) go ON go.ort_id = go_a.ort_id AND go.rang = 1
-WHERE p.id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id));
+  UPDATE person_flach SET
+    anzeigename = TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_nachname = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'nachname' ORDER BY sortier_index)), '')),
+    sortier_vornamen = suchnormalform(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM name_part WHERE name_form_id = (SELECT nf.id FROM name_form nf WHERE nf.person_id = person_flach.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id LIMIT 1) AND art = 'vorname' ORDER BY sortier_index)), ''))
+  WHERE person_id IN (SELECT nf.person_id FROM name_form nf WHERE nf.id IN (OLD.name_form_id));
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', q.rowid, COALESCE(nf.original_text, ''), COALESCE((SELECT original_text FROM (SELECT sib.id AS id, sib.original_text AS original_text FROM name_form sib WHERE sib.umschrift_von = nf.id) ORDER BY id ASC LIMIT 1), ''), suchnormalform(COALESCE(nf.original_text, TRIM(COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'vorname' UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'vorname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '') || ' ' || COALESCE((SELECT group_concat(wert, ' ') FROM (SELECT wert FROM (SELECT wert, sortier_index FROM name_part WHERE name_form_id = nf.id AND art = 'nachname' UNION ALL SELECT OLD.wert AS wert, OLD.sortier_index AS sortier_index WHERE OLD.art = 'nachname' AND OLD.name_form_id = nf.id) ORDER BY sortier_index)), '')))), '', ''
     FROM name_form nf JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = nf.id

@@ -19,6 +19,7 @@ import {
   nameFtsOriginalSql,
   nameFtsUmschriftSql,
   namePhonetikCodeSql,
+  personFlachNamensSpaltenSetSql,
   personFlachProjektionSql,
   personNotizFtsSql,
   zitatTranskriptFtsSql,
@@ -40,6 +41,18 @@ function personFlachNeuBerechnenSql(personIdFilterSql: string): string {
     `  DELETE FROM person_flach WHERE person_id IN (${personIdFilterSql});`,
     `  ${personFlachEinfuegenSql(`p.id IN (${personIdFilterSql})`)}`,
   ].join('\n')
+}
+
+/**
+ * AP-1.33 (Perf): Aktualisiert NUR die drei namensabgeleiteten `person_flach`-Spalten
+ * (`anzeigename`/`sortier_nachname`/`sortier_vornamen`) der von `personIdFilterSql` beschriebenen
+ * Personen — statt `person_flach` per DELETE + voller Projektion (mit aussage-/ortsname-JOINs)
+ * neu zu bauen. Die `person_flach`-Zeile existiert zu diesem Zeitpunkt bereits (`abl_person_ai`
+ * legt sie beim Person-Insert an); eine Namensänderung berührt keine der übrigen Spalten, darum
+ * ein gezieltes UPDATE (bitgleich zur vollen Projektion: `personFlachNamensSpaltenSetSql`).
+ */
+function personFlachNamensSpaltenAktualisierenSql(personIdFilterSql: string): string {
+  return `  UPDATE person_flach SET\n    ${personFlachNamensSpaltenSetSql('person_flach.person_id')}\n  WHERE person_id IN (${personIdFilterSql});`
 }
 
 /**
@@ -119,8 +132,7 @@ function zielFtsAuffrischenSql(zielIdSql: string, wennSql: string, umschriftVorh
 function ablNameFormTrigger(): string {
   return `CREATE TRIGGER abl_name_form_ai AFTER INSERT ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id = NEW.person_id;
-${personFlachEinfuegenSql('p.id = NEW.person_id')}
+${personFlachNamensSpaltenAktualisierenSql('NEW.person_id')}
   INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) VALUES ('name', NEW.id);
   INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
     VALUES (last_insert_rowid(), ${nameFtsSpaltenwerteLiveSql('NEW')});
@@ -134,8 +146,7 @@ END;
 
 CREATE TRIGGER abl_name_form_au AFTER UPDATE ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id IN (OLD.person_id, NEW.person_id);
-${personFlachEinfuegenSql('p.id IN (OLD.person_id, NEW.person_id)')}
+${personFlachNamensSpaltenAktualisierenSql('OLD.person_id, NEW.person_id')}
   -- Eigene FTS-Zeile: alten Stand löschen, neuen einfügen (Umschrift/Normalform live).
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', rowid, ${nameFtsSpaltenwerteLiveSql('OLD')}
@@ -172,8 +183,7 @@ END;
 
 CREATE TRIGGER abl_name_form_ad AFTER DELETE ON name_form
 BEGIN
-  DELETE FROM person_flach WHERE person_id = OLD.person_id;
-${personFlachEinfuegenSql('p.id = OLD.person_id')}
+${personFlachNamensSpaltenAktualisierenSql('OLD.person_id')}
   -- name_part (und via CASCADE name_phonetik) räumen sich über ON DELETE CASCADE selbst ab; die
   -- eigene suche_fts-Zeile ist bereits in abl_name_form_bd abgeräumt.
 ${zielFtsAuffrischenSql(
@@ -262,7 +272,7 @@ function ablNamePartTrigger(): string {
 
   return `CREATE TRIGGER abl_name_part_ai AFTER INSERT ON name_part
 BEGIN
-${personFlachNeuBerechnenSql(besitzerPerson('NEW.name_form_id'))}
+${personFlachNamensSpaltenAktualisierenSql(besitzerPerson('NEW.name_form_id'))}
 ${namePartFtsAuffrischenSql('nf.id = NEW.name_form_id', vorherAi('vorname'), vorherAi('nachname'))}
   INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
@@ -271,7 +281,7 @@ END;
 
 CREATE TRIGGER abl_name_part_au AFTER UPDATE ON name_part
 BEGIN
-${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id, NEW.name_form_id'))}
+${personFlachNamensSpaltenAktualisierenSql(besitzerPerson('OLD.name_form_id, NEW.name_form_id'))}
 ${namePartFtsAuffrischenSql('nf.id IN (OLD.name_form_id, NEW.name_form_id)', vorherAu('vorname'), vorherAu('nachname'))}
   DELETE FROM name_phonetik WHERE name_id = NEW.id AND verfahren = 'koelner';
   INSERT INTO name_phonetik (name_id, verfahren, code)
@@ -281,7 +291,7 @@ END;
 
 CREATE TRIGGER abl_name_part_ad AFTER DELETE ON name_part
 BEGIN
-${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id'))}
+${personFlachNamensSpaltenAktualisierenSql(besitzerPerson('OLD.name_form_id'))}
 ${namePartFtsAuffrischenSql('nf.id = OLD.name_form_id', vorherAd('vorname'), vorherAd('nachname'))}
   -- name_phonetik räumt sich über ON DELETE CASCADE (FK auf name_part) selbst ab.
 END;`
