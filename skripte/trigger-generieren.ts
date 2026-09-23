@@ -9,10 +9,11 @@
 // `src/main/datenbank/trigger.ts` (`alleAbgeleitetenNeuAufbauen`) - beide importieren aus
 // `src/main/datenbank/abgeleitet-projektion.ts`. Das ist die Bitgleichheits-Garantie aus dem
 // AP-0.7-Auftrag: der einzige Unterschied ist der WHERE-Filter (eine Person vs. alle).
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { oeffnen } from '../src/main/datenbank/verbindung'
 import {
   nameFtsNormalformSql,
   nameFtsOriginalSql,
@@ -98,29 +99,32 @@ function zielFtsAuffrischenSql(zielIdSql: string, wennSql: string, umschriftVorh
   return [
     `  INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)`,
     `    SELECT 'delete', q.rowid, ${nameFtsSpaltenwerteSql('ziel', umschriftVorherSql)}`,
-    `    FROM name ziel JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = ziel.id`,
+    `    FROM name_form ziel JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = ziel.id`,
     `    WHERE ${wennSql} AND ziel.id = ${zielIdSql};`,
     `  INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)`,
     `    SELECT q.rowid, ${nameFtsSpaltenwerteLiveSql('ziel')}`,
-    `    FROM name ziel JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = ziel.id`,
+    `    FROM name_form ziel JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = ziel.id`,
     `    WHERE ${wennSql} AND ziel.id = ${zielIdSql};`,
   ].join('\n')
 }
 
-function ablNameTrigger(): string {
-  return `CREATE TRIGGER abl_name_ai AFTER INSERT ON name
+/**
+ * `abl_name_form_*` (AP-1.33): die Namensform trägt `original_text`, `umschrift_von` und die
+ * Person-Bindung. Vor-/Nachname für `person_flach`/`suche_fts.normalform` werden aus den
+ * zugehörigen `name_part`-Zeilen rekonstruiert (nameFtsNormalformSql / personFlachProjektionSql).
+ * Die `name_phonetik`-Pflege wandert in `abl_name_part_*` (Phonetik hängt am Nachnamens-Bestandteil).
+ * FTS-Normalform-Drift bei einer isolierten `name_part`-Änderung wird über den vollständigen
+ * Neuaufbau (src/main/datenbank/trigger.ts) bzw. eine spätere Stufe geschlossen.
+ */
+function ablNameFormTrigger(): string {
+  return `CREATE TRIGGER abl_name_form_ai AFTER INSERT ON name_form
 BEGIN
   DELETE FROM person_flach WHERE person_id = NEW.person_id;
 ${personFlachEinfuegenSql('p.id = NEW.person_id')}
-  INSERT INTO name_phonetik (name_id, verfahren, code)
-    SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
-    WHERE NEW.nachname IS NOT NULL AND NEW.nachname <> '';
   INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) VALUES ('name', NEW.id);
   INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
     VALUES (last_insert_rowid(), ${nameFtsSpaltenwerteLiveSql('NEW')});
-  -- Fan-out: dieser Eintrag ist selbst die Umschrift eines anderen - dessen FTS-Zeile auffrischen.
-  -- Vorher-Wert = Live-Abfrage ohne NEW (das existiert in der Tabelle schon, muss für den
-  -- "davor"-Zustand aber ausgeschlossen werden).
+  -- Fan-out: diese Form ist selbst die Umschrift einer anderen - deren FTS-Zeile auffrischen.
 ${zielFtsAuffrischenSql(
     'NEW.umschrift_von',
     'NEW.umschrift_von IS NOT NULL',
@@ -128,27 +132,17 @@ ${zielFtsAuffrischenSql(
   )}
 END;
 
-CREATE TRIGGER abl_name_au AFTER UPDATE ON name
+CREATE TRIGGER abl_name_form_au AFTER UPDATE ON name_form
 BEGIN
   DELETE FROM person_flach WHERE person_id IN (OLD.person_id, NEW.person_id);
 ${personFlachEinfuegenSql('p.id IN (OLD.person_id, NEW.person_id)')}
-  DELETE FROM name_phonetik WHERE name_id = NEW.id AND verfahren = 'koelner';
-  INSERT INTO name_phonetik (name_id, verfahren, code)
-    SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
-    WHERE NEW.nachname IS NOT NULL AND NEW.nachname <> '';
-  -- Eigene FTS-Zeile: alten Stand (OLD-Werte, Umschrift live - unabhängig von dieser Zeile selbst)
-  -- löschen, dann mit den neuen Werten (Umschrift live mit dem neuen Stand) neu einfügen.
+  -- Eigene FTS-Zeile: alten Stand löschen, neuen einfügen (Umschrift/Normalform live).
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', rowid, ${nameFtsSpaltenwerteLiveSql('OLD')}
     FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
   INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
     SELECT rowid, ${nameFtsSpaltenwerteLiveSql('NEW')}
     FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = NEW.id;
-  -- Fan-out beim alten Umschrift-Ziel (ziel = OLD.umschrift_von): läuft IMMER, wenn OLD überhaupt
-  -- ein Ziel hatte - deckt sowohl "Ziel geändert" als auch "Ziel gleich geblieben, aber
-  -- original_text dieser Zeile geändert" ab. Vorher-Wert: Live-Geschwistersuche ohne die (bereits
-  -- aktualisierte) eigene Zeile, dafür mit einem virtuellen Kandidaten aus OLD.* - das rekonstruiert
-  -- exakt den Stand vor diesem UPDATE.
 ${zielFtsAuffrischenSql(
     'OLD.umschrift_von',
     'OLD.umschrift_von IS NOT NULL',
@@ -157,10 +151,6 @@ ${zielFtsAuffrischenSql(
       virtuellerKandidat: { idSql: 'OLD.id', originalTextSql: 'OLD.original_text' },
     }),
   )}
-  -- Fan-out beim neuen Umschrift-Ziel (ziel = NEW.umschrift_von): nur wenn sich das Ziel
-  -- tatsächlich geändert hat - bei unverändertem Ziel deckt der Block oben denselben Fall schon ab
-  -- (zweimal denselben rowid löschen+einfügen würde den contentless-Index mit falschen
-  -- "Vorher"-Werten füttern, siehe Modul-Doku zu nameFtsUmschriftSql).
 ${zielFtsAuffrischenSql(
     'NEW.umschrift_von',
     "NEW.umschrift_von IS NOT NULL AND NEW.umschrift_von IS NOT OLD.umschrift_von",
@@ -168,41 +158,62 @@ ${zielFtsAuffrischenSql(
   )}
 END;
 
-CREATE TRIGGER abl_name_bd BEFORE DELETE ON name
+CREATE TRIGGER abl_name_form_bd BEFORE DELETE ON name_form
 BEGIN
-  -- Eigene FTS-Zeile abräumen: MUSS in BEFORE DELETE laufen, nicht in AFTER DELETE (hueter-Review
-  -- AP-0.7 PR-A, verifizierter Fund). Grund: docs/schema/0002_kern.sql deklariert
-  -- "umschrift_von TEXT REFERENCES name(id) ON DELETE SET NULL" - wenn OLD (dieser Eintrag) das
-  -- Ziel eines Umschrift-Geschwisters war, kappt SQLite dessen umschrift_von per Fremdschlüssel-
-  -- Aktion VOR dem AFTER-DELETE-Trigger von OLD (empirisch geprüft: die Aktion feuert sogar noch
-  -- vor der eigentlichen Entfernung von OLD aus der Tabelle). Eine Live-Geschwistersuche in AFTER
-  -- DELETE sähe die Beziehung dann bereits gekappt und läse fälschlich '' statt des tatsächlich
-  -- indizierten Werts - das echte Posting würde nie aus dem contentless-FTS5-Index subtrahiert
-  -- (Karteileiche). In BEFORE DELETE ist die Tabelle noch unangetastet: eine Live-Abfrage liefert
-  -- hier den korrekten, zuletzt indizierten Wert, ganz ohne virtuellen Kandidaten.
+  -- Eigene FTS-Zeile in BEFORE DELETE abräumen (die name_part-Zeilen dieser Form existieren hier
+  -- noch, die Normalform-Rekonstruktion liefert also den zuletzt indizierten Wert). Grund für
+  -- BEFORE statt AFTER wie beim alten abl_name_bd: umschrift_von REFERENCES name_form(id) ON DELETE
+  -- SET NULL würde einen Umschrift-Geschwisterbezug sonst vor dem AFTER-Trigger kappen.
   INSERT INTO suche_fts (suche_fts, rowid, original, umschrift, normalform, notiz, transkript)
     SELECT 'delete', rowid, ${nameFtsSpaltenwerteLiveSql('OLD')}
     FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
   DELETE FROM suche_fts_quelle WHERE quelle_typ = 'name' AND quelle_id = OLD.id;
 END;
 
-CREATE TRIGGER abl_name_ad AFTER DELETE ON name
+CREATE TRIGGER abl_name_form_ad AFTER DELETE ON name_form
 BEGIN
   DELETE FROM person_flach WHERE person_id = OLD.person_id;
 ${personFlachEinfuegenSql('p.id = OLD.person_id')}
-  -- name_phonetik räumt sich selbst über ON DELETE CASCADE ab (0002_kern.sql). Die eigene
-  -- suche_fts/suche_fts_quelle-Zeile ist bereits in abl_name_bd abgeräumt (siehe dort).
-  -- Fan-out: OLD war Umschrift-Geschwister eines anderen Originals. OLD existiert zum Zeitpunkt
-  -- dieses AFTER-DELETE-Triggers nicht mehr in der Tabelle - der virtuelle Kandidat aus OLD.*
-  -- rekonstruiert, was vorher indiziert war (keine Live-Ausschluss-Klausel nötig, OLD ist ja schon weg).
-  -- Läuft ins Leere (0 Zeilen), falls das Ziel selbst schon vorher gelöscht wurde (z. B. CASCADE
-  -- beim Löschen der ganzen Person) - dessen eigene FTS-Zeile ist dann bereits über dessen eigenen
-  -- abl_name_bd-Aufruf abgeräumt, dort ist nichts mehr aufzufrischen.
+  -- name_part (und via CASCADE name_phonetik) räumen sich über ON DELETE CASCADE selbst ab; die
+  -- eigene suche_fts-Zeile ist bereits in abl_name_form_bd abgeräumt.
 ${zielFtsAuffrischenSql(
     'OLD.umschrift_von',
     'OLD.umschrift_von IS NOT NULL',
     nameFtsUmschriftSql('ziel.id', { virtuellerKandidat: { idSql: 'OLD.id', originalTextSql: 'OLD.original_text' } }),
   )}
+END;`
+}
+
+/**
+ * `abl_name_part_*` (AP-1.33): ein Bestandteil bestimmt die aus `name_part` rekonstruierten Vor-/
+ * Nachnamen der besitzenden Person (person_flach) und - für `art='nachname'` - deren `name_phonetik`.
+ * Die betroffene Person ergibt sich über name_part -> name_form -> person.
+ */
+function ablNamePartTrigger(): string {
+  const besitzerPerson = (nameFormIdSql: string): string =>
+    `SELECT nf.person_id FROM name_form nf WHERE nf.id IN (${nameFormIdSql})`
+
+  return `CREATE TRIGGER abl_name_part_ai AFTER INSERT ON name_part
+BEGIN
+${personFlachNeuBerechnenSql(besitzerPerson('NEW.name_form_id'))}
+  INSERT INTO name_phonetik (name_id, verfahren, code)
+    SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
+    WHERE NEW.art = 'nachname' AND NEW.wert <> '';
+END;
+
+CREATE TRIGGER abl_name_part_au AFTER UPDATE ON name_part
+BEGIN
+${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id, NEW.name_form_id'))}
+  DELETE FROM name_phonetik WHERE name_id = NEW.id AND verfahren = 'koelner';
+  INSERT INTO name_phonetik (name_id, verfahren, code)
+    SELECT NEW.id, 'koelner', ${namePhonetikCodeSql('NEW')}
+    WHERE NEW.art = 'nachname' AND NEW.wert <> '';
+END;
+
+CREATE TRIGGER abl_name_part_ad AFTER DELETE ON name_part
+BEGIN
+${personFlachNeuBerechnenSql(besitzerPerson('OLD.name_form_id'))}
+  -- name_phonetik räumt sich über ON DELETE CASCADE (FK auf name_part) selbst ab.
 END;`
 }
 
@@ -280,11 +291,52 @@ BEGIN
 END;`
 }
 
-/** Der vollständige `abl_*`-Triggerblock, wortgleich bei jedem Aufruf (reine Funktion der Bausteine oben). */
+/**
+ * Alle vom Block erzeugten `abl_*`-Trigger, in Erzeugungsreihenfolge - Grundlage der
+ * `DROP TRIGGER IF EXISTS`-Präambel (s. u.).
+ */
+const ABL_TRIGGER_NAMEN = [
+  'abl_person_ai',
+  'abl_person_au',
+  'abl_person_ad',
+  'abl_name_form_ai',
+  'abl_name_form_au',
+  'abl_name_form_bd',
+  'abl_name_form_ad',
+  'abl_name_part_ai',
+  'abl_name_part_au',
+  'abl_name_part_ad',
+  'abl_aussage_ai',
+  'abl_aussage_au',
+  'abl_aussage_ad',
+  'abl_ortsname_ai',
+  'abl_ortsname_au',
+  'abl_ortsname_ad',
+  'abl_zitat_ai',
+  'abl_zitat_au',
+  'abl_zitat_ad',
+] as const
+
+/**
+ * Der vollständige `abl_*`-Triggerblock, wortgleich bei jedem Aufruf (reine Funktion der Bausteine
+ * oben). Seit AP-1.33 wird er in die JÜNGSTE Migration (`docs/schema/0006_namensformen.sql`)
+ * geschrieben, nicht mehr in `0003_abgeleitet.sql` (die eingefrorene, prüfsummen-registrierte
+ * Migration darf nicht mehr regeneriert werden). Die `DROP TRIGGER IF EXISTS`-Präambel ersetzt die
+ * in `0003` bereits angelegten `abl_person_*`/`abl_aussage_*`/`abl_ortsname_*`/`abl_zitat_*`-Trigger
+ * (deren Rümpfe noch das entfernte `name` lesen); `abl_name_*` sind schon durch `DROP TABLE name`
+ * in `0006` verschwunden, `abl_name_form_*`/`abl_name_part_*` sind neu.
+ */
 export function generierterTriggerBlock(): string {
-  return [ablPersonTrigger(), ablNameTrigger(), ablAussageTrigger(), ablOrtsnameTrigger(), ablZitatTrigger()].join(
-    '\n\n',
-  )
+  const praeambel = ABL_TRIGGER_NAMEN.map((name) => `DROP TRIGGER IF EXISTS ${name};`).join('\n')
+  return [
+    praeambel,
+    ablPersonTrigger(),
+    ablNameFormTrigger(),
+    ablNamePartTrigger(),
+    ablAussageTrigger(),
+    ablOrtsnameTrigger(),
+    ablZitatTrigger(),
+  ].join('\n\n')
 }
 
 /** Ersetzt den Text zwischen den Markierungskommentaren durch `block` (inklusive der Marker selbst). */
@@ -299,9 +351,12 @@ export function zwischenMarkierungenErsetzen(inhalt: string, block: string): str
   return `${vorher}${MARKER_ANFANG}\n${block}\n${MARKER_ENDE}${nachher}`
 }
 
-const ZIEL_DATEI = join('docs', 'schema', '0003_abgeleitet.sql')
+// AP-1.33 (Entscheidung B): Der abl-Block wandert in die JÜNGSTE Migration. `0003_abgeleitet.sql`
+// ist eingefroren/prüfsummen-registriert (CLAUDE.md §6) und wird NIE wieder regeneriert - sein
+// abl-Block bleibt als historischer Stand stehen, wird aber in `0006` per DROP/CREATE ersetzt.
+const ZIEL_DATEI = join('docs', 'schema', '0006_namensformen.sql')
 
-/** Schreibt den generierten Triggerblock in `docs/schema/0003_abgeleitet.sql` (CLI-Kern, testbar). */
+/** Schreibt den generierten Triggerblock in `docs/schema/0006_namensformen.sql` (CLI-Kern, testbar). */
 export function triggerGenerieren(zielPfad: string = ZIEL_DATEI): void {
   const bisheriger = readFileSync(zielPfad, 'utf8')
   const neuer = zwischenMarkierungenErsetzen(bisheriger, generierterTriggerBlock())
@@ -399,12 +454,13 @@ function spaltenUndPrimaerschluessel(
 /**
  * Der vollständige `jrn_*`-Triggerblock über alle Tabellen aus `JOURNALISIERT` (alphabetisch
  * sortiert, für Reproduzierbarkeit unabhängig von einer künftigen Umsortierung der Konstante).
- * Öffnet eine frische In-Memory-Datenbank und migriert sie (analog `skripte/schema-dump.ts`) - nur
- * um `PRAGMA table_info` je Tabelle zu lesen; `CREATE TRIGGER` ist reine DDL, dafür müssen `uuid7`
- * & Co. zum Erzeugungszeitpunkt nicht als SQL-Funktion registriert sein.
+ * Öffnet eine frische In-Memory-Datenbank über `oeffnen()` (registriert `uuid7`/`suchnormalform`/
+ * `koelner_phonetik`) und migriert sie. Seit Migration 0006 (AP-1.33) ruft eine Migration diese
+ * SQL-Funktionen bereits zur Kompilierzeit ihrer Datenumzugs-Statements auf - eine nackte
+ * `new Database(':memory:')` ohne registrierte Funktionen scheitert daran mit "no such function".
  */
 export function generierterJournalTriggerBlock(): string {
-  const db = new Database(':memory:')
+  const db = oeffnen(':memory:')
   try {
     migrieren(db)
     return JOURNALISIERT.slice()

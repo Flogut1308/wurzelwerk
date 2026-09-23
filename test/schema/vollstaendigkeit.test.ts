@@ -51,28 +51,40 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'geaendert_am',
     'unsicherheit', // docs/schema/0005_import_luecken.sql (AP-1.3c): $defs/Person.unsicherheit, IMP-206
   ],
-  name: [
+  // docs/schema/0006_namensformen.sql (AP-1.33): das flache `name` wurde in name_form (Form/Rolle)
+  // + name_part (Bestandteile) zerlegt und per DROP entfernt. name_form.id = alte name.id.
+  name_form: [
     'id',
     'person_id',
-    'typ',
+    'sprache',
     'schrift',
+    'reihenfolge',
+    'rolle',
+    'rollen_notiz',
+    'ist_bevorzugt',
     'umschrift_von',
     'umschrift_norm',
-    'vornamen',
-    'rufname_index',
-    'rufname_text',
-    'nachname',
-    'praefix',
-    'titel_vor',
-    'zusatz_nach',
-    'original_text',
-    'sprache',
-    'ist_bevorzugt',
+    'konfidenz',
+    'sortier_index',
     'gueltig_von',
     'gueltig_bis',
+    'original_text',
     'erstellt_am',
     'geaendert_am',
   ],
+  name_part: [
+    'id',
+    'name_form_id',
+    'art',
+    'wert',
+    'ist_rufname',
+    'sortier_index',
+    'feminine_variante',
+    'erstellt_am',
+    'geaendert_am',
+  ],
+  // docs/schema/0006_namensformen.sql (AP-1.33): FK-Ziel jetzt name_part(id) statt name(id);
+  // Spaltenmenge (name_id, verfahren, code, …) unverändert.
   name_phonetik: ['name_id', 'verfahren', 'code', 'erstellt_am', 'geaendert_am'],
   ort: [
     'id',

@@ -36,8 +36,8 @@ export function abgeleiteteNeuAufbauenInner(db: Database.Database): void {
 
   db.exec(`INSERT INTO name_phonetik (name_id, verfahren, code)
     SELECT n.id, 'koelner', ${namePhonetikCodeSql('n')}
-    FROM name AS n
-    WHERE n.nachname IS NOT NULL AND n.nachname <> ''`)
+    FROM name_part AS n
+    WHERE n.art = 'nachname' AND n.wert <> ''`)
 
   // Reihenfolge der drei Quellarten ist beliebig (rowid kommt aus suche_fts_quelle, unabhängig
   // von der Einfügereihenfolge über Tabellengrenzen) - wichtig ist nur: erst die Zuordnung
@@ -47,10 +47,10 @@ export function abgeleiteteNeuAufbauenInner(db: Database.Database): void {
     SELECT q.rowid, '', '', '', ${personNotizFtsSql('p')}, ''
     FROM person AS p JOIN suche_fts_quelle q ON q.quelle_typ = 'person_notiz' AND q.quelle_id = p.id`)
 
-  db.exec(`INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) SELECT 'name', id FROM name`)
+  db.exec(`INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) SELECT 'name', id FROM name_form`)
   db.exec(`INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)
     SELECT q.rowid, ${nameFtsOriginalSql('n')}, ${nameFtsUmschriftSql('n.id')}, ${nameFtsNormalformSql('n')}, '', ''
-    FROM name AS n JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = n.id`)
+    FROM name_form AS n JOIN suche_fts_quelle q ON q.quelle_typ = 'name' AND q.quelle_id = n.id`)
 
   db.exec(`INSERT INTO suche_fts_quelle (quelle_typ, quelle_id) SELECT 'zitat_transkript', id FROM zitat`)
   db.exec(`INSERT INTO suche_fts (rowid, original, umschrift, normalform, notiz, transkript)

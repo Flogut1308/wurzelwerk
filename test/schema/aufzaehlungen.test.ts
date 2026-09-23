@@ -20,7 +20,9 @@ import {
   IntensitaetEnum,
   KalenderEnum,
   LebendStatusEnum,
-  NameTypEnum,
+  NameFormReihenfolgeEnum,
+  NameFormRolleEnum,
+  NamePartArtEnum,
   OrtTypEnum,
   OrtszugehoerigkeitArtEnum,
   PartnerschaftTypEnum,
@@ -83,9 +85,13 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   { tabelle: 'person', spalte: 'geschlecht', zodEnum: GeschlechtEnum },
   { tabelle: 'person', spalte: 'lebend_status', zodEnum: LebendStatusEnum },
   { tabelle: 'person', spalte: 'platzhalter_grund', zodEnum: PlatzhalterGrundEnum },
-  { tabelle: 'name', spalte: 'typ', zodEnum: NameTypEnum },
-  { tabelle: 'name', spalte: 'schrift', zodEnum: SchriftEnum },
-  { tabelle: 'name', spalte: 'umschrift_norm', zodEnum: UmschriftNormEnum },
+  // docs/schema/0006_namensformen.sql (AP-1.33): `name` zerlegt in name_form (Form/Rolle) +
+  // name_part (Bestandteile). rolle = NameTypEnum OHNE 'transliteriert' (Umschrift -> rolle IS NULL).
+  { tabelle: 'name_form', spalte: 'schrift', zodEnum: SchriftEnum },
+  { tabelle: 'name_form', spalte: 'reihenfolge', zodEnum: NameFormReihenfolgeEnum },
+  { tabelle: 'name_form', spalte: 'rolle', zodEnum: NameFormRolleEnum },
+  { tabelle: 'name_form', spalte: 'umschrift_norm', zodEnum: UmschriftNormEnum },
+  { tabelle: 'name_part', spalte: 'art', zodEnum: NamePartArtEnum },
   { tabelle: 'name_phonetik', spalte: 'verfahren', zodEnum: VerfahrenEnum },
   { tabelle: 'ort', spalte: 'typ', zodEnum: OrtTypEnum },
   { tabelle: 'ortszugehoerigkeit', spalte: 'art', zodEnum: OrtszugehoerigkeitArtEnum },
@@ -135,6 +141,7 @@ const AUSSERHALB_AP_0_6: ReadonlySet<string> = new Set(['transaktion.art', 'tran
 
 /** Tabelle -> Spalte -> `CHECK (spalte BETWEEN 1 AND 4)` (Konfidenzskala, N.1/E-1/E-9, vier Stufen). */
 const KONFIDENZ_SPALTEN: readonly { readonly tabelle: string; readonly spalte: string }[] = [
+  { tabelle: 'name_form', spalte: 'konfidenz' }, // docs/schema/0006_namensformen.sql (AP-1.33): neu ggü. name
   { tabelle: 'elternschaft', spalte: 'konfidenz' },
   { tabelle: 'zitat', spalte: 'konfidenz' },
   { tabelle: 'aussage', spalte: 'konfidenz' },

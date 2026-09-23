@@ -137,6 +137,11 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
     readonly rufnameTextId: string
     readonly geburtsnameId: string
   } {
+    // Journal VOR jedem Insert entschärfen: person/name sind journalisiert, ihre jrn_*-Trigger
+    // (WHEN aktiv = 1) würden ohne armierte Transaktion an aenderung.transaktion_id NOT NULL
+    // scheitern. Muss vor den lazy person()-Inserts unten stehen.
+    journalAus(db, 'Testvorbereitung (AP-1.33): Fixture-Namen ohne armierte Transaktion einfügen.')
+
     const personIds = new Map<string, string>()
     const person = (schluessel: string): string => {
       let id = personIds.get(schluessel)
@@ -372,7 +377,6 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
       },
     ]
 
-    journalAus(db, 'Testvorbereitung (AP-1.33): Fixture-Namen ohne armierte Transaktion einfügen.')
     const stmt = db.prepare(
       'INSERT INTO name (id, person_id, typ, schrift, umschrift_von, umschrift_norm, vornamen, rufname_index, rufname_text, nachname, praefix, titel_vor, zusatz_nach, original_text, sprache, ist_bevorzugt, gueltig_von) ' +
         'VALUES (@id, @personId, @typ, @schrift, @umschriftVon, @umschriftNorm, @vornamen, @rufnameIndex, @rufnameText, @nachname, @praefix, @titelVor, @zusatzNach, @originalText, @sprache, @istBevorzugt, @gueltigVon)',
@@ -484,7 +488,7 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
       migrieren(db)
 
       // Johann Baptist bleiben Vornamen, Hans kommt als markierter Rufname hinzu.
-      expect(teilWerte(db, rufnameTextId, 'vorname').sort()).toEqual(['Baptist', 'Hans', 'Johann'])
+      expect([...teilWerte(db, rufnameTextId, 'vorname')].sort()).toEqual(['Baptist', 'Hans', 'Johann'])
       const rufname = db
         .prepare<{ readonly formId: string }, { readonly wert: string }>(
           "SELECT wert FROM name_part WHERE name_form_id = @formId AND art = 'vorname' AND ist_rufname = 1",
