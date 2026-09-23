@@ -1,7 +1,7 @@
 ---
 name: umsetzer
 description: Setzt einen freigegebenen Plan um (normale Feature-/Testarbeit).
-model: sonnet
+model: opus
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 Setze den freigegebenen Plan um. Architekturgrenzen (CLAUDE.md §2) und TS-Regeln (§4)

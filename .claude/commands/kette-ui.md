@@ -1,7 +1,7 @@
 ---
 description: Eine Kette von Oberflächenpaketen am Stück durchlaufen (mit Bildbeleg statt Blick je Paket)
 argument-hint: [abschnitt: 1, 2, 3a, 3b oder 4 — oder start-ap, z.B. 1.30]
-model: sonnet
+model: opus
 ---
 
 Du bist **Kettenführer**, nicht Umsetzer. Kein Produktivcode in diesem Lauf.
@@ -77,23 +77,32 @@ AP-1.4b läuft außerhalb der Kette (eigene Sitzung, 18.09.2026).
 - **Ein Paket will ein Referenzbild löschen** statt es zu erneuern.
 - Sonst gilt die vollständige Abbruchliste aus `nachzug.md` und `kette.md`.
 
-## Modellrouting
+## Modellrouting (ab Kette 3, Entscheidung 23.09.2026)
 
-| Paket | `planer` | `hueter` | Warum |
-|---|---|---|---|
-| 1.11, 1.13 | **opus** | sonnet | Setzen das Aussehen von allem Folgenden; ein Fehler multipliziert sich über die ganze Phase. |
-| 1.25 | sonnet | **opus** | Geschützter Prüfpfad (`test/golden/`), adversariales Gate mit Rot-Probe. |
-| 1.12 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert — geschützter Prüfpfad. |
-| 1.14, 1.19, 1.21 | **opus** | **opus** | Erste Schreibmaske · Gesundheitsdaten mit M-08-Sperre · Interview-Modus, der kein zweiter Schreibweg werden darf (ADR-010). |
-| 1.29 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert, zwei neue Referenzbilder — geschützter Prüfpfad. |
-| 1.30 | **opus** | **opus** | Ersetzt die Maske aus AP-1.14 und trägt alle Reiter; Koaleszenzschlüssel je Autosave-Befehl. |
-| 1.32 | sonnet | **opus** | Einziger Anlegeweg mit Dublettenprüfung — AP-1.22 hängt sich später daran. |
-| 1.31b, 1.31c | **opus** | sonnet | Dokumentansicht und Bestand setzen das Aussehen der ganzen Medienstrecke. |
-| 1.33, 1.34, 1.31a | — | — | **Nicht in der Kette** — Migrationen, einzeln über `/ap` (opus/opus). |
-| alle übrigen | sonnet | sonnet | |
-| Mechanisches | `mechaniker` (haiku) | — | Doku-Abgleich, Laufplan, Gate-Ausgaben. |
+**Alles, was plant, baut, prüft oder führt, läuft auf Opus.** Die frühere Tabelle „pro Paket"
+(Kette 1/2, mit Sonnet für einfache Pakete) ist abgelöst; sie steht in der git-Historie.
+
+| Rolle | Modell | Wie es greift |
+|---|---|---|
+| Kettenführer (diese Sitzung) | **opus** | `model:` im Kopf dieser Datei |
+| `planer` | **opus** | Agent-Definition |
+| `umsetzer` | **opus** | Agent-Definition — **gilt auch für `nachzug.md` Schritt 5**, dort steht noch „umsetzer (sonnet)": hier wird er als `umsetzer (opus)` gelesen |
+| `hueter` | **opus** | Agent-Definition, bei Prüfpfad-Paketen adversarial |
+| `mechaniker` | haiku | bleibt: Rot-Beleg ausführen, Gate-Ausgaben lesen, Doku kopieren — kein Urteil |
+
+`opus` ist der Alias für das jeweils aktuelle Opus-Modell — **Stand 23.09.2026 Opus 5.5**
+(`claude-opus-5-5`). Der Alias wird bewusst nicht durch die feste ID ersetzt:
+`enforceAvailableModels` in `.claude/settings.json` lässt nur die drei Aliasse zu.
+**Beim Agent-Aufruf kein `model`-Override übergeben** — die Definition gilt. Meldet ein Agent
+ein anderes Modell als Opus (außer `mechaniker`), ist das ein Abbruchgrund.
 
 ## Am Checkpoint
+
+**Zuerst Doku-Sync (Regel seit 23.09.2026):** der `mechaniker` kopiert
+`../Wissen/57_Phase0_Arbeitspakete.md` **byte-gleich** nach `docs/arbeitspakete.md` — als eigener
+PR `chore/doku-sync-kette-<n>`, CI grün ×3, `hueter` kurz, mergen. Was ein Paket am Datenmodell
+ändert (`docs/datenmodell.md`, `docs/schema/`), gehört **nicht** hierher, sondern in den PR des
+Pakets selbst. So ist die Repo-Kopie nie älter als eine Kette.
 
 Kein `/abnahme`. Stattdessen: Laufplan nachziehen, `pnpm bilder` ein letztes Mal laufen lassen,
 und dem Nutzer in fünf Zeilen sagen — welche Pakete gemergt sind, wo die Bilder liegen, was an
