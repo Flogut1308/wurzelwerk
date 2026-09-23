@@ -47,7 +47,7 @@ test.describe('Ablauf 00 — Projekt anlegen und wieder öffnen', () => {
       async (arg) => window.wurzelwerk.aufrufen('befehl:projekt.anlegen', arg),
       { elternordner, name: 'Testprojekt' },
     )
-    expect(anlegen).toMatchObject({ ok: true, daten: { name: 'Testprojekt', schemaversion: '5' } })
+    expect(anlegen).toMatchObject({ ok: true, daten: { name: 'Testprojekt', schemaversion: '6' } })
 
     // Pfad des frisch angelegten Projekts für das erneute Öffnen. Cast ist sicher: die
     // toMatchObject-Zusicherung oben hat die `ok:true`-Variante bereits geprüft (CLAUDE.md §4).
@@ -60,6 +60,6 @@ test.describe('Ablauf 00 — Projekt anlegen und wieder öffnen', () => {
       async (pfad) => window.wurzelwerk.aufrufen('befehl:projekt.oeffnen', { pfad }),
       projektPfad,
     )
-    expect(oeffnen).toMatchObject({ ok: true, daten: { status: 'geoeffnet', projekt: { schemaversion: '5' } } })
+    expect(oeffnen).toMatchObject({ ok: true, daten: { status: 'geoeffnet', projekt: { schemaversion: '6' } } })
   })
 })
