@@ -830,6 +830,52 @@ und wieder geöffnet werden kann. Sichtbar ist davon nichts — und das ist rich
 
 ---
 
+### Vorentscheidungen für den Kettenlauf (Phase 1)
+
+Das Pendant zum gleichnamigen Abschnitt der Nachzug-Kette. `CLAUDE.md` §12 verbietet, eine
+fehlende Entscheidung zu raten — eine unbeaufsichtigte Kette hält an jeder an. Darum sind die
+Fragen, die ein `planer` in AP-1.1 bis AP-1.5 zwangsläufig stellt, hier vorab beantwortet. Jede
+ist eine **Umsetzungsentscheidung**; Datenmodell-, Invarianten- und Architekturfragen halten
+weiterhin an (§12.3). Eine Abweichung ist zu begründen, nicht stillschweigend zu nehmen.
+
+| Paket | Frage | Entscheidung | Warum |
+|---|---|---|---|
+| alle | Bringt ein Paket eine Migration mit? | **Nein.** Schema v1 deckt Phase 1 ab — auch `import_lauf` und `import_herkunft` stehen seit `0002_kern.sql` (Z. 648/662). Entsteht doch eine Migration, **hält die Kette an**. | Der teuerste Fehlerfall der Nachzug-Kette (AP-0.17, Byte-Identität der Prüfsummen) tritt in Phase 1 gar nicht auf — solange niemand ihn unbemerkt einführt. |
+| alle | Neue sichtbare Texte? | Immer als i18next-Schlüssel, nie als Literal. `react/jsx-no-literals` ist scharf (AP-0.3). | Ein Literal im JSX ist ein Lint-Fehler; das Paket würde ohnehin an den schnellen Gates scheitern. |
+| 1.1 | Datentyp der julianischen Tageszahl? | **Ganzzahlige JDN** (Tagesauflösung), `sort_von`/`sort_bis` als INTEGER. Kein Bruchteil, keine Uhrzeit, keine Zeitzone. | Ein Bruchteil brächte Tageshälften und Rundungsfragen in eine Sortierung, die nur Tage unterscheiden muss. `new Date()` ist in `src/core` ohnehin per ESLint gesperrt (AP-0.14). |
+| 1.1 | Was tut der Parser bei ungültiger Eingabe? | **Kein `throw`.** Reines Ergebnis-Union (`{ ok: true, wert }` \| `{ ok: false, grund }`), core-lokal definiert. | Der Import braucht pro Zeile eine Meldung, keinen Abbruch. `src/core` darf `src/shared` nicht importieren (§2), der `Ergebnis`-Typ aus `shared` steht also nicht zur Verfügung. |
+| 1.1 | Wie erzeugt der Formatierer deutsche Anzeige, wenn `src/core` nichts importieren darf? | Der Formatierer gibt **`{ schluessel, werte }`** zurück; `t()` ruft der Renderer. Die Muster (`um {{jahr}}`, `zwischen {{von}} und {{bis}}`) leben in `src/shared/i18n/de/datum.json`. | `core-darf-nichts` (dependency-cruiser) verbietet i18next in `src/core`. Der Umfangstext in AP-1.1 („über i18next") meint das Ziel, nicht den Importweg — die Grenze gewinnt (§2). |
+| 1.1 | Kirchenfeste und anderer nicht auflösbarer Text? | Enthält der Text eine vierstellige Jahreszahl: übernehmen als `originaltext` mit `praezision: 'jahr'`. Sonst Parserfehler. | Deckt `Dom. III post Trinitatis 1750` wie in der Abnahme, ohne stillschweigend alles zu schlucken. Die Auflösung kommt in Phase 6. |
+| 1.2 | Welche ISO-9-Fassung, und wo liegen die Tabellen? | **ISO 9:1995**, strenge 1:1-Abbildung. Tabellen als reine Daten in `src/core/name/umschrift-tabellen.ts`, **eine** Tabelle für beide Richtungen. | Zwei getrennte Tabellen wären zwei Wahrheiten — die Umkehrbarkeits-Invariante (ADR-014) prüfte dann sich selbst statt der Abbildung. |
+| 1.2 | Rückabbildung auch für DIN 1460? | **Nein**, DIN 1460 nur vorwärts. Die Rückrichtung wird gar nicht angeboten. | DIN 1460 ist nicht umkehrbar (ADR-014). Eine angebotene, unzuverlässige Rückabbildung ist schlechter als keine. |
+| 1.3 | JSON-Schema oder Zod — wer ist die Quelle? | **Das veröffentlichte JSON-Schema ist der Vertrag**, Zod ist die Laufzeitprüfung. **Kein Generator.** Gleichwertigkeit wird über den Fixture-Korpus geprüft: jede gültige Datei besteht beide, jede fehlerhafte löst bei beiden **denselben** IMP-Code aus. | Das Schema lesen Menschen und der Skill (D-11) — es ist die Außenfläche. Ein Generator-Umweg macht die Außenfläche zum Nebenprodukt. |
+| 1.3a | Braucht das eine neue Abhängigkeit? | **Ja, genau eine: `ajv` als `devDependency`** (nur Test). Sie ist im Abnahmetext von AP-1.3 bereits vorgesehen und die **einzige** neue Abhängigkeit der Phase 1. Jede weitere hält die Kette an (CLAUDE.md §4). | Ein veröffentlichter Vertrag, der nie ausgeführt wird, ist eine Behauptung. Ohne JSON-Schema-Prüfer prüft der Gleichwertigkeitstest nur die Zod-Seite — also sich selbst. |
+| 1.3 | Wo lebt der Positionsindex (JSON-Pfad → Zeile)? | Reine Funktion in `src/core/import/positionsindex.ts`, gespeist mit dem Rohtext. | Kein Node, keine Datei — damit in `src/core` erlaubt und ohne Dateisystem testbar. |
+| 1.3 | Schnitt des Pakets? | **1.3a** Schema + Zod + Stufe 1 (IMP-101…107) + gültige Fixtures · **1.3b** Stufe 2 (IMP-201…209) + Positionsindex + Kanal `befehl:import.pruefen`. | 16 Fehlerfixtures plus Schema, Zod, Validierung, Index und IPC sprengen die ~10-Dateien-Grenze, an der die Kette nach §12.4 selbst anhält. |
+| 1.4 | Zweiter Codeweg für den Trockenlauf? | **Nein** — dieselbe Bahn, `ROLLBACK` am Ende. Kein `journalAus()`, keine Sonderpfade. | Steht so in der Abnahme; der kanonische Abzug vor/nach ist der Beleg, dass der Rollback reicht. Ein zweiter Weg macht die Invariante „Trockenlauf == Import" wertlos. |
+| 1.5 | Woher kommen die UUIDs für `tmp:`-Kennungen? | `neueId()` aus `src/main/id.ts` (UUID v7, seit AP-0.25 elektronfrei). | Es gibt genau eine ID-Quelle; eine zweite driftet. |
+| 1.5 | Wohin werden Mediendateien kopiert? | `<projektordner>/medien/<uuid7>.<endung>`, der Originalname steht in der Datenbank. Kopie, nie Verschiebung. | Kollisionsfrei ohne Namenslogik; der Nutzer verliert seine Originaldatei nie. |
+
+**Was weiterhin anhält:** jede Frage, die das Datenmodell, eine Invariante oder eine
+Architekturgrenze berührt — und jede Migration.
+
+### Schnittentscheidung (16.09.2026, Nutzer bestätigt)
+
+Zwei Pakete werden geteilt, damit die Kette durchläuft und keine Oberfläche zweimal entsteht:
+
+- **AP-1.3 → 1.3a / 1.3b.** 16 Fehlerfixtures plus Schema, Zod, Validierung, Positionsindex und
+  IPC sprengen die ~10-Dateien-Grenze, an der die Kette nach §12.4 selbst anhält.
+- **AP-1.4 → 1.4a / 1.4b.** AP-1.4 enthielt mit `src/renderer/ansichten/import/` die **erste
+  echte Oberfläche** — und zwar **vor** AP-1.6, wo die Komponentenwelle aus `71` §2 entsteht. Die
+  Importansichten wären ohne Atome und Moleküle gebaut und später nachgezogen worden. **1.4b
+  läuft darum nach AP-1.6**, auf der fertigen Bausteinbibliothek.
+
+Damit trägt die Kette **AP-1.1 → 1.2 → 1.3a → 1.3b → 1.4a → 1.5 (+PR-B)** und hält vor AP-1.6.
+`1.4b` und die Ansichtspakete laufen einzeln über `/ap`, weil dort ein Blick entscheidet und
+kein Gate.
+
+---
+
 ## AP-1.1 — Datumsmodul im Kern
 
 **Auftrag** — A-03. Das erste Paket der Phase 1, weil Import, Suche, Sortierung, Plausibilität
@@ -850,7 +896,7 @@ und später jede Ansicht darauf aufbauen. Reines `src/core/`, keine Datenbank, k
 **Tests**
 - `test/einheit/datum-parser.test.ts`: eine Tabelle mit ~50 Eingaben und erwarteten Ergebnissen, plus die Fälle, die **nicht** geparst werden dürfen (`31.02.1900`, `1901-13-01`).
 - `test/invarianten/datum-rundlauf.test.ts` (fast-check): `formatiere(parse(x))` ist stabil; `parse` ist idempotent; `sort_von ≤ sort_bis` für jeden erzeugten Wert.
-- `test/einheit/datum-kalender.test.ts`: bekannte Umrechnungspaare julianisch/gregorianisch (z. B. 1700-02-18 jul. = 1700-02-28 greg. — 1700 ist julianisches, aber kein gregorianisches Schaltjahr, der Zehn-Tage-Versatz gilt bis zum julianischen Schalttag).
+- `test/einheit/datum-kalender.test.ts`: bekannte Umrechnungspaare julianisch/gregorianisch (z. B. 1700-02-18 jul. = 1700-02-28 greg.; 1700 ist julianisches, aber kein gregorianisches Schaltjahr).
 - `test/einheit/datum-sortierung.test.ts`: Eine gemischte Liste unscharfer Daten sortiert in der erwarteten Ordnung.
 
 ---
@@ -879,30 +925,54 @@ die Kölner Phonetik gibt es schon aus AP-0.7; hier kommt die Umschrift dazu.
 
 ---
 
-## AP-1.3 — Import-Vertrag v1: Schema und Prüfung Stufe 1 und 2
+## AP-1.3a — Import-Vertrag v1: Schema, Zod und Prüfung Stufe 1
 
 **Auftrag** — D-10, ADR-010. Der Vertrag steht, bevor manuell erfasst wird. Umsetzung nach
-`56_Import_Vertrag.md` §3 und §4.
+`56_Import_Vertrag.md` §3 und §4 Stufe 1. Erste Hälfte des geteilten AP-1.3 (s. Schnittentscheidung).
 
 **Umfang**
 `docs/import-vertrag/wurzelwerk-import-v1.schema.json` (aus `56_Beispiele/`) ·
-`src/shared/schemata/import-v1.ts` (Zod) · `src/main/import/validierung.ts` ·
-Positionsindex JSON-Pfad → Zeile · `fixtures/import/v1/` ·
-Kanal `befehl:import.pruefen`
+`src/shared/schemata/import-v1.ts` (Zod) · `src/main/import/validierung.ts` (Stufe 1) ·
+`fixtures/import/v1/gueltig/` + `fixtures/import/v1/fehlerhaft/` (IMP-101…107) ·
+`ajv` als `devDependency`
 
 **Abnahme**
-- Alle Regeln aus `56_Import_Vertrag.md` §4 Stufe 1 (IMP-101 bis IMP-107) und Stufe 2 (IMP-201 bis IMP-209).
-- **Fehlermeldungen im Format aus §5**, mit JSON-Pfad, betroffener Kennung, Datei und **Zeilennummer**, und einem „Was tun"-Satz mit allen Auswegen.
-- Referenzprüfung läuft über die typisierte Struktur, **nicht** über einen regulären Ausdruck auf dem Rohtext (`56_Import_Vertrag.md` §4 Stufe 2, Umsetzungshinweis).
+- Alle Regeln aus `56_Import_Vertrag.md` §4 **Stufe 1** (IMP-101 bis IMP-107).
+- **Fehlermeldungen im Format aus §5**, mit JSON-Pfad, betroffener Kennung und Datei sowie einem „Was tun"-Satz mit allen Auswegen. **Die Zeilennummer kommt in 1.3b** (Positionsindex).
 - Alle Texte über i18next (`import.fehler.IMP_xxx.*`).
 - Die drei Beispieldateien aus `56_Beispiele/` liegen in `fixtures/import/v1/gueltig/` und werden akzeptiert.
-- Für **jeden** IMP-Code der Stufen 1 und 2 liegt eine Datei in `fixtures/import/v1/fehlerhaft/`, die genau ihn auslöst.
+- Für **jeden** IMP-Code der Stufe 1 liegt eine Datei in `fixtures/import/v1/fehlerhaft/`, die genau ihn auslöst.
+- Das veröffentlichte JSON-Schema ist der Vertrag, Zod die Laufzeitprüfung (Vorentscheidung). Kein Generator.
 
 **Tests**
 - `test/einheit/import-schema-zod-gleich.test.ts`: JSON Schema (Ajv) und Zod geben über den gesamten Fixture-Ordner **dasselbe** Urteil ab. Der Test, der die zwei Fassungen des Vertrags zusammenhält.
-- `test/einheit/import-fehlercodes.test.ts`: Jede Fehlerdatei löst genau den erwarteten Code aus — nicht mehr und nicht weniger. („Nicht mehr" ist der wichtigere Teil: eine Prüfung, die zehn Folgefehler ausspuckt, ist unbenutzbar.)
-- `test/einheit/import-zeilennummern.test.ts`: Für einen bekannten Fehler stimmt die gemeldete Zeile.
+- `test/einheit/import-fehlercodes-stufe1.test.ts`: Jede Fehlerdatei der Stufe 1 löst genau den erwarteten Code aus — nicht mehr und nicht weniger. („Nicht mehr" ist der wichtigere Teil: eine Prüfung, die zehn Folgefehler ausspuckt, ist unbenutzbar.)
 - `test/einheit/import-zusammenfassung.test.ts`: Eine Datei mit falschen Anzahlen löst IMP-105 aus.
+
+---
+
+## AP-1.3b — Import-Vertrag v1: Prüfung Stufe 2, Positionsindex, Kanal
+
+**Auftrag** — D-10, ADR-010. Umsetzung nach `56_Import_Vertrag.md` §4 Stufe 2 und §5. Zweite
+Hälfte des geteilten AP-1.3; setzt 1.3a voraus.
+
+**Umfang**
+`src/main/import/validierung.ts` (Stufe 2) · `src/core/import/positionsindex.ts` (rein,
+JSON-Pfad → Zeile) · `fixtures/import/v1/fehlerhaft/` (IMP-201…209) ·
+Kanal `abfrage:import.pruefen` (korrigiert von `befehl:` gemäß architektur.md §11/ADR-016 — die Prüfung schreibt nicht; Nutzerentscheidung, s. 80 §11 U-AP1.3b-kanal)
+
+**Abnahme**
+- Alle Regeln aus `56_Import_Vertrag.md` §4 **Stufe 2** (IMP-201 bis IMP-209).
+- Referenzprüfung läuft über die typisierte Struktur, **nicht** über einen regulären Ausdruck auf dem Rohtext (`56_Import_Vertrag.md` §4 Stufe 2, Umsetzungshinweis).
+- Jede Fehlermeldung trägt jetzt zusätzlich die **Zeilennummer** aus dem Positionsindex (§5).
+- Der Positionsindex ist eine **reine Funktion** in `src/core` — gespeist mit dem Rohtext, ohne Dateisystem (Vorentscheidung).
+- Für **jeden** IMP-Code der Stufe 2 liegt eine Datei in `fixtures/import/v1/fehlerhaft/`, die genau ihn auslöst.
+- Der Kanal `befehl:import.pruefen` liefert das vollständige Urteil beider Stufen.
+
+**Tests**
+- `test/einheit/import-fehlercodes-stufe2.test.ts`: Jede Fehlerdatei der Stufe 2 löst genau den erwarteten Code aus — nicht mehr und nicht weniger.
+- `test/einheit/import-zeilennummern.test.ts`: Für einen bekannten Fehler stimmt die gemeldete Zeile.
+- `test/einheit/import-positionsindex.test.ts`: JSON-Pfad → Zeile für verschachtelte Felder, Arrays und die letzte Zeile der Datei.
 
 ---
 
@@ -929,45 +999,74 @@ CI sieht es, weil sie nur frische Datenbanken kennt.
 | 1 | `zitat.zeitmarke_sekunden REAL` | `$defs/Beleg.zeitmarke_sekunden` (A-16), 8× in `beispiel-3-interview.json` | ADD COLUMN |
 | 2 | `person.unsicherheit TEXT` | `$defs/Person.unsicherheit`, Pflicht bei `konfidenz ≤ 2` (IMP-206) | ADD COLUMN |
 | 3 | `aussage.unsicherheit TEXT` | `$defs/Aussage.unsicherheit` (≠ `begruendung`, IMP-207) | ADD COLUMN |
-| 4 | `aussage.gueltig_von INTEGER` / `gueltig_bis INTEGER` | `$defs/Aussage.gueltig_von/bis` (A-08) | ADD COLUMN |
+| 4 | `aussage.gueltig_von INTEGER` / `gueltig_bis INTEGER` | `$defs/Aussage.gueltig_von/bis` (A-08), benutzt in `beispiel-1-einfach.json:70/213` | ADD COLUMN |
 | 5 | `aussage.subjekt_typ`-CHECK um `'diagnose'`, `'risikofaktor'` erweitern | `$defs/Diagnose.belege`, `$defs/Risikofaktor.belege` (§2.3) | **Tabellenneubau** |
 
 **Vorentscheidungen**
 - **Alle fünf in einer Migration.** Eine Aufteilung hieße zwei Migrationen für eine Lücke, jede mit eingefrorener Fixture-DB, Triggerlauf, Prüfsumme und Migrationstests. Diagnosen und Risikofaktoren sind in Phase 1 im Schreibpfad: `diagnosen`/`risikofaktoren` sind Felder erster Ebene im Vertrag v1 (`wurzelwerk-import-v1.schema.json:52-53`) und stehen in `beispiel-3-interview.json`, das AP-1.3a akzeptieren muss.
 - **Punkt 5 als CHECK-Erweiterung, nicht als `diagnose_zitat`/`risikofaktor_zitat`.** Zwei Belegtabellen für zwei Sonderfälle brächen die Einheitlichkeit, die ADR-026 gerade herstellt; die Konfidenz liegt dort ohnehin schon als Spalte.
 - **`diagnose.icd10` bleibt.** Der Vertrag sagt „kein ICD-10" (E24), die Spalte existiert — eine Spalte zu viel, die niemand füllt. Sie zu entfernen wäre ein **zweiter** Tabellenneubau. Als hingenommene Divergenz in `80` notieren, nicht mitrenovieren.
-- **Der Tabellenneubau (Punkt 5) lief NICHT über den zunächst erwogenen `PRAGMA legacy_alter_table`-Trick vor einem einfachen `RENAME`.** Eine Probe zeigte: das schützt nicht die Fremdschlüssel-Definitionen anderer Tabellen (`risikofaktor.quelle_beruf_id` zeigte danach trotzdem auf den umbenannten Namen) — verworfen. Stattdessen ein Drei-Phasen-Muster: `aussage_zitat`/`risikofaktor` erst OHNE ihren Fremdschlüssel auf `aussage` neu bauen (neutralisiert die einzigen zwei eingehenden FKs), dann `aussage` gefahrlos neu bauen, dann `aussage_zitat`/`risikofaktor` ein zweites Mal MIT Fremdschlüssel auf die neue `aussage` neu bauen (plus deren vier Indizes). Ein eng auf die eine `RENAME`-Anweisung begrenztes `PRAGMA legacy_alter_table = ON` schützt zusätzlich `abl_person_*`/`abl_name_*`/`abl_ortsname_*` (referenzieren `aussage` in Unterabfragen) vor stillem Umschreiben ihrer Trigger-Körper — ein erst im roten Testlauf sichtbarer zweiter Stolperstein. Details: ADR-026-Nachtrag.
 
 **Abnahme**
 - Migration 4→5 läuft in einer Transaktion je Version, `user_version` in derselben TX (AP-0.5-Mechanik, unverändert).
 - **Byte-Identität:** die Prüfsumme in `registrierung.ts` gehört zur neuen Datei; bestehende Prüfsummen bleiben unangetastet.
-- `pnpm trigger` neu gelaufen: die neuen Spalten stehen im Journal-Abbild (`jrn_*`), bei Punkt 5 zusätzlich `abl_aussage_*` neu erzeugt. **Kein** Eintrag in der JOURNALISIERT-Liste ändert sich — es entsteht keine neue Tabelle. `docs/schema/0003_abgeleitet.sql` bleibt dabei byte-identisch (nur `jrn_aussage_*`/`jrn_zitat_*`/`jrn_person_*` ändern sich).
-- Der Tabellenneubau aus Punkt 5 **erhält alle Daten**: Zeilenzahl und Voll-Spalten-Abzug von `aussage`/`aussage_zitat`/`risikofaktor` vor/nach sind identisch, Trigger und Indizes sind danach wieder vollständig da, `PRAGMA foreign_key_check` liefert 0 Zeilen, und die Fremdschlüssel-Wirkung (CASCADE/SET NULL) ist nach der Migration nachweislich funktionsfähig, nicht nur strukturell vorhanden.
+- `pnpm trigger` neu gelaufen: die neuen Spalten stehen im Journal-Abbild (`jrn_*`), bei Punkt 5 zusätzlich `abl_aussage_*` neu erzeugt. **Kein** Eintrag in der JOURNALISIERT-Liste ändert sich — es entsteht keine neue Tabelle.
+- Der Tabellenneubau aus Punkt 5 **erhält alle Daten**: Zeilenzahl und kanonischer Abzug vor/nach sind identisch, Trigger und Indizes sind danach wieder vollständig da.
 - Eine gepackte App öffnet eine Projektdatei auf Stand 4 und hebt sie auf 5 (AP-0.17-Abnahmemuster).
 
 **Tests**
 - `test/migration/historisch.test.ts`: Aufstieg 4→5 gegen die eingefrorene `schema-v4.sqlite`.
 - `test/migration/pruefsumme.test.ts`: geänderte Migrationsdatei → `PROJEKT_MIGRATION_GEAENDERT`.
 - `test/schema/*`: die fünf neuen Spalten/der neue CHECK sind zugesichert (geschützter Prüfpfad — schema-bedingt zulässig im selben PR, ADR-025-Nachtrag).
-- `test/migration/import-luecken.test.ts` (neu): Aufstieg gegen die Fixture, Datenerhaltung des Tabellenneubaus (Zeilenzahlen, Voll-Spalten-Abzug, Indizes, Trigger, FK-Wirkung), CHECK-Grenze vor/nach der Migration, `person_flach`-Nachführung über `abl_aussage_ai` nach der Migration.
+- **Datenerhaltung Punkt 5:** Tabelle mit Aussagen aller sechs Alt-Subjekttypen füllen, migrieren, kanonischen Abzug vergleichen; danach eine Aussage mit `subjekt_typ='diagnose'` einfügen (vorher: CHECK-Verletzung).
 
 ---
 
-## AP-1.4 — Trockenlauf und Bericht
+## AP-1.3d — Import-Schreiblogik
+
+**Auftrag** — D-10, ADR-026. Das Vorpaket, das AP-1.4a braucht: der Trockenlauf ist definitionsgemäß
+der echte Import mit `ROLLBACK` — es gibt nur **einen** Schreibweg, und er entsteht hier.
+Setzt AP-1.3c voraus.
+
+**Umfang**
+`src/main/import/schreiben.ts` · Abbildung Vertrag → Zeilen für Person, Ereignis, Beteiligung,
+Elternschaft, Partnerschaft, Name, Diagnose, Risikofaktor, Quelle, Zitat · Existenz-Aussagen
+nach ADR-026 · `tmp:`→UUID-v7-Auflösung über `neueId()` (`src/main/id.ts`)
+
+**Abnahme**
+- Je belegtem Objekt entsteht **eine** Aussage `praedikat='existenz'`, `wert_text='ja'`, mit `konfidenz` aus dem Vertrag, plus `aussage_zitat` je Beleg (ADR-026, `50` §2.7).
+- Zu jedem Geburts-/Todesereignis entstehen **zusätzlich** Aussagen `geburtsdatum`/`todesdatum`/`geburtsort` — sonst bleibt `person_flach` datumsleer (es gibt keinen `abl_ereignis_*`-Trigger).
+- `elternschaft.konfidenz` wird **nicht** geschrieben (bleibt NULL, ADR-026).
+- Belege landen als `zitat`-Zeilen; der `$defs/Beleg` ist spaltenweise die `zitat`-Tabelle (`seite`, `eintragsnummer`, `band`, `jahr`, `transkript`, `uebersetzung`, `digitalisat_url`, `konfidenz`, `zeitmarke_sekunden`).
+- `tmp:`-Kennungen werden zu UUID v7; `db:`-Kennungen ergänzen und ersetzen ohne `ueberschreiben: true` nichts.
+- **Kein** Transaktionsrahmen in diesem Paket: die Klammer sitzt im Befehlsbus (`CLAUDE.md` §2 Regel 3). Der Schreibweg ist eine Funktion, die in einer offenen Transaktion läuft.
+
+**Tests**
+- `test/einheit/import-schreiben-abbildung.test.ts`: `beispiel-1-einfach.json` → erwartete Zeilen je Tabelle, inklusive der Existenz-Aussagen und der abgeleiteten Personen-Aussagen.
+- `test/einheit/import-schreiben-belege.test.ts`: jedes Feld aus `$defs/Beleg` landet in der erwarteten `zitat`-Spalte; `zeitmarke_sekunden` aus `beispiel-3-interview.json`.
+- `test/einheit/import-schreiben-person-flach.test.ts`: nach dem Schreiben trägt `person_flach` Geburtsjahr, Todesjahr und Geburtsort — der Beleg für den zweiten Abnahmepunkt.
+- `test/einheit/import-schreiben-kennungen.test.ts`: `tmp:`→UUID v7, `db:` ohne `ueberschreiben` verändert nichts.
+
+---
+
+## AP-1.4a — Trockenlauf, Bericht, Plausibilität (kopflos)
 
 **Auftrag** — D-10 (Trockenlauf), ADR-010 Punkt 3. Umsetzung nach `56_Import_Vertrag.md` §6.
+Erste Hälfte des geteilten AP-1.4 (s. Schnittentscheidung): **keine Oberfläche** — die Ansichten
+kommen in 1.4b nach AP-1.6, auf der fertigen Bausteinbibliothek.
 
 **Umfang**
 `src/main/import/{trockenlauf,bericht}.ts` · Kanal `befehl:import.trockenlauf` ·
-`src/renderer/ansichten/import/` (Dateiwahl, Berichtsanzeige, Textexport) ·
-Plausibilitätsregeln Stufe 3 in `src/core/plausibilitaet/regeln.ts`
+Plausibilitätsregeln Stufe 3 in `src/core/plausibilitaet/regeln.ts` ·
+Textfassung des Berichts (Serialisierung in `bericht.ts`, **ohne** Speicherdialog)
 
 **Abnahme**
-- **Der Trockenlauf ist der echte Import in einer Transaktion mit `ROLLBACK`** — kein zweiter Codeweg. Der Bericht entsteht aus den `aenderung`-Zeilen, die geschrieben worden wären.
+- **Der Trockenlauf ist der echte Import in einer Transaktion mit `ROLLBACK`** — kein zweiter Codeweg, kein `journalAus()` (Vorentscheidung). Der Bericht entsteht aus den `aenderung`-Zeilen, die geschrieben worden wären.
 - Bericht enthält alle sieben Blöcke aus `56_Import_Vertrag.md` §6.2, in dieser Reihenfolge und mit den dort genannten Eigenschaften — insbesondere: die **Art der Rücknahme** steht oben, „wird ergänzt" listet jede einzelne Änderung, unverarbeitetes Material ist ein eigener Block (auch wenn leer), der Gesundheitsblock nennt die Exportsperre.
 - Stufe 3 (IMP-301 bis IMP-310) und Stufe 4 (IMP-401 bis IMP-404) laufen und erscheinen als Hinweise.
 - Prüfsumme wird gegen `import_lauf` geprüft: bekannte Prüfsumme → deutlicher Warnhinweis „schon importiert am …".
-- Bei Fehlern > 0 ist „Importieren" gesperrt; der Bericht ist als Textdatei exportierbar (der Rückweg zum Skill).
+- Der Bericht ist als **Text** erzeugbar (der Rückweg zum Skill); das Schreiben der Datei über einen Dialog ist 1.4b.
+- Das Urteil „Importieren gesperrt bei Fehlern > 0" liegt als **Feld des Berichts** vor, damit 1.4b nur noch anzeigen muss.
 - Der Trockenlauf verändert die Datenbank nicht — auch nicht `transaktion`, auch nicht die abgeleiteten Tabellen.
 
 **Tests**
@@ -975,6 +1074,28 @@ Plausibilitätsregeln Stufe 3 in `src/core/plausibilitaet/regeln.ts`
 - `test/einheit/trockenlauf-bericht.test.ts`: Für `beispiel-2-widersprueche.json` enthält der Bericht die erwarteten Zahlen, die erwartete Dublettenmeldung und die erwarteten Hinweise (darunter IMP-302 für die absichtlich falsche Elternkante).
 - `test/einheit/plausibilitaet.test.ts`: jede Regel der Stufe 3 einzeln, mit einem Fall, der auslöst, und einem, der knapp nicht auslöst.
 - `test/einheit/import-prüfsumme-doppelt.test.ts`: Zweiter Trockenlauf derselben Datei warnt.
+
+---
+
+## AP-1.4b — Importansichten (nach AP-1.6)
+
+**Auftrag** — D-10, `72_Screens_und_Flows.md` S-10 bis S-13. Zweite Hälfte des geteilten AP-1.4.
+**Läuft nach AP-1.6**, nicht in der Kette: die Ansichten entstehen auf den Atomen und Molekülen
+aus `71` §2, nicht daneben.
+
+**Umfang**
+`src/renderer/ansichten/import/` — Dateiwahl (S-10), Berichtsanzeige (S-11), Fehlerliste (S-12),
+Ergebnis (S-13) · Speicherdialog für den Textexport des Berichts
+
+**Abnahme**
+- Die vier Bildschirme nach `72` §S-10…S-13, gebaut aus den Bausteinen von AP-1.6 — keine eigene visuelle Sprache (`CLAUDE.md` §14).
+- Bei Fehlern > 0 ist „Importieren" **sichtbar gesperrt**, mit dem Grund daneben; das Urteil kommt aus dem Bericht (1.4a), die Ansicht entscheidet nichts selbst.
+- Der Bericht ist als Textdatei speicherbar (der Rückweg zum Skill).
+- Alle Texte über i18next; kein Literal im JSX.
+
+**Tests**
+- `test/e2e/ablauf-import-trockenlauf.spec.ts`: Datei wählen → Bericht sehen → bei Fehlern ist „Importieren" gesperrt.
+- Einheitentests je Ansicht nach dem Muster aus AP-1.6.
 
 ---
 
@@ -1008,6 +1129,21 @@ Kanal `befehl:import.ausfuehren` · Schwellwertlogik und Schnappschuss ·
 ---
 
 ## AP-1.6 — Listenansicht und Suche
+
+> **Vorentscheidung Umfang (18.09.2026, Nutzer):** Dieses Paket bringt die **erste
+> Komponentenwelle** mit, nicht nur `tabelle` und `suchfeld`. Die ~10-Dateien-Grenze aus §12.4
+> gilt hier **ausdrücklich nicht** — sie ist für kopflose Pakete gedacht; eine Bausteinbibliothek
+> ist naturgemäß breit und flach. Gebaut werden: **alle 17 Atome aus `71` §2.1** (`Text`,
+> `Symbol`, `Schaltflaeche`, `SchaltflaecheSymbol`, `Eingabekoerper`, `Abzeichen`,
+> `KonfidenzPunkt`, `WiderspruchZeichen`, `Trennlinie`, `Fokusring`, `Ladeschimmer`, `TastenKappe`,
+> `Zaehler`, `Umschalter`, `Kontrollkaestchen`, `Optionsfeld`, `Fortschritt`), das Template
+> `T-Shell` aus §2.4, und **die Moleküle, die Liste und Suche brauchen** (voraussichtlich
+> `Suchfeld`, `Filterchip`, `Tabellenzeile`, `Umschaltergruppe`, `Auswahlfeld`, `Blaetterleiste`,
+> `LeerzustandBlock`, `KopfzeileAbschnitt`). Die übrigen Moleküle entstehen mit dem Bildschirm,
+> der sie braucht — Atome sind in §2.1 vollständig spezifiziert, Moleküle ohne Verwendung wären
+> Spekulation. **Checkpoint nach den Atomen**, bevor die Moleküle beginnen: sie setzen das
+> Aussehen von allem, was danach kommt, und ein falscher Zug multipliziert sich.
+
 
 **Auftrag** — C-16, C-17, A-19. **Nach diesem Paket kann man sehen, was man importiert hat.**
 Ohne diesen Schritt ist AP-1.5 nicht überprüfbar — man hätte Daten, die man nicht ansehen kann.
@@ -1059,9 +1195,106 @@ Beleg, ein weiterer die Widersprüche.
 
 ---
 
+## AP-1.10 — Listen- und Profilvertrag vervollständigen
+
+**Auftrag** — C-16, C-17, A-17, E21, `CLAUDE.md` §14. Aus fünf §14-Vermerken derselben Klasse
+(`docs/80` §16 und §19): `72` beschreibt Bildschirme, die die Zod-Verträge aus Phase 1 nicht
+tragen. Einzeln „nicht blockierend", zusammen ein **Vertragsrückstand**, den jeder neue
+Bildschirm erbt. **Keine Schemaänderung** — die Daten liegen alle, es fehlen Vertrag, Abfrage und
+Anzeige.
+
+**Umfang**
+`src/shared/schemata/{person-liste,person-detail}.ts` · `src/main/abfragen/{person-liste,suche}.ts` ·
+`src/renderer/bausteine/{datentabelle-format,datentabelle-spalten,filterleiste}*` ·
+`src/renderer/ansichten/profil/beleg-liste.tsx`
+
+**Abnahme** — je Punkt der `docs/80`-Eintrag, der ihn ausgelöst hat
+- **U-1.6-spalten-datenvertrag:** `PersonListeZeile` trägt zusätzlich Beruf, Belegzahl und Kinderzahl; S-05 zeigt sie als wählbare Spalten.
+- **U-1.6-lebensdaten-unschaerfe:** Lebensdaten tragen Modifikator und Präzision; die Zeile zeigt „etwa 1890 – 1961" statt „1890 – 1961". Die Datumsanzeige kommt aus dem Formatierer aus AP-1.1 (`{schluessel, werte}`), nicht aus neuer Formatierlogik im Renderer.
+- **U-1.6-filterleiste-vier-filter:** Zeitraum, Ort und Strang ergänzen die vier vorhandenen Filter; `PersonListeFilter` und `abfrage:person.liste` tragen sie.
+- **U-1.6-suche-ohne-filter-sortierung-seite:** `abfrage:suche` nimmt Filter, Sortierung und Seite entgegen — die Bedienelemente sind während einer Suche wirksam statt deaktiviert.
+- **U-1.7-beziehung-platzhalter:** `PersonDetailBeziehung` trägt `ist_platzhalter` der verwandten Person; S-07 setzt Platzhalter farbunabhängig ab (A-17).
+- **U-1.7-belegliste-zweistufig:** Belegdetail wird dreistufig (Quelle → Zitat → Transkript) und trägt `unmittelbarkeit` bei mündlichen Quellen (S-08).
+- Die Budgets aus `55` §11 halten weiterhin gegen die 2.000er-Fixture — die breiteren Abfragen dürfen sie nicht reißen.
+
+**Tests**
+- `test/einheit/person-liste-vertrag.test.ts`: jedes neue Feld ist befüllt, auch wenn die Quelle NULL ist.
+- `test/einheit/lebensdaten-anzeige.test.ts`: die Unschärfefälle aus AP-1.1 erscheinen in der Zeile wie im Formatierer.
+- `test/einheit/suche-mit-filter.test.ts`: Suche + Filter + Sortierung + Seite zusammen, gegen die 2.000er-Fixture.
+- `test/budget/leistung.test.ts`: Budgets nach der Verbreiterung erneut gemessen.
+- Die sechs `docs/80`-Einträge werden geschlossen, nicht nur umformuliert.
+
+---
+
+## AP-1.11 — Symbolsatz beschaffen und die fehlenden Atome bauen
+
+**Auftrag** — `71` §6 (Asset „Symbolsatz", als **Phase-0**-Asset geführt und nie beschafft),
+`71` §2.1, `docs/80` U-1.6-atome-scope und U-1.6-leerzustand-ohne-symbol. Ohne Symbolsatz fehlen
+vier der 17 Atome, `LeerzustandBlock` rendert ohne Symbol, und Spaltenicons sind
+Unicode-Platzhalter. Der Rückstand wächst mit jedem Bildschirm; Phase 2 ist ohne Symbole nicht zu
+bauen.
+
+**Entscheidung (Nutzer, 18.09.2026): Phosphor Icons** — MIT, ~1.400 Namen in sechs Strichstärken,
+`viewBox="0 0 256 256"`, `fill="currentColor"`. Begründung und Abwägung: ADR-027.
+
+**Umfang**
+`src/renderer/gestaltung/symbole/` (kuratierte SVG, **nur die benutzten**) ·
+`src/renderer/bausteine/symbol.tsx` + `schaltflaeche-symbol.tsx` ·
+`docs/lizenzen/MIT-Phosphor.txt` · `skripte/symbole-holen.ts` (einmaliger, nachvollziehbarer Abzug) ·
+`71` §6 und §2.1 nachgezogen (beide Bäume)
+
+**Abnahme**
+- **Keine neue Abhängigkeit.** Die SVG werden als Dateien in den Baum kopiert (MIT erlaubt das), nicht als npm-Paket eingebunden — die App ist offline, die CSP lässt ohnehin nichts nachladen, und ein Paket mit 8.000 Dateien im Bündel wäre Ballast.
+- `Symbol` inlined SVG über eine **typisierte Namensliste**; ein Tippfehler ist ein Typfehler, kein leeres Kästchen. Größe und Farbe kommen aus Tokens (`currentColor` + `--wz-text-*`), nie aus Festwerten.
+- Strichstärke **Regular** als Grundgewicht, **Fill** nur für ausgewählte/aktive Zustände. Keine dritte Stärke ohne Begründung.
+- Die vier fehlenden Atome sind gebaut: `Symbol`, `SchaltflaecheSymbol`, `Abzeichen`, `Trennlinie` — plus `TastenKappe`, `Zaehler`, `Kontrollkaestchen`, `Optionsfeld`, `Fortschritt`, `Fokusring`, soweit sie ohne Bildschirm sinnvoll prüfbar sind. Damit ist die erste Welle aus `71` §2.1 vollständig.
+- `LeerzustandBlock` bekommt sein Symbol (S-19, „Symbol + Satz + Aktion").
+- Die Unicode-Platzhalter in `datentabelle*` sind ersetzt.
+- **Die fachlichen Symbole sind zugeordnet** (`71` §6, Phase-1-Satz): Geburt, Taufe, Trauung, Tod, Beerdigung, Auswanderung, Beruf, Militär, Quelle, Zitat, Archiv, Platzhalter, Implex, Widerspruch, Interview, Audio. Wo Phosphor nichts hat — **Trauung** und **Beerdigung** —, wird im selben 256er-Raster und derselben Strichstärke gezeichnet und als eigene Datei geführt, erkennbar getrennt von den übernommenen.
+- **Kein Emoji** (`71` §4.3), kein Icon-Font, kein Laufzeit-Nachladen.
+
+**Zusätzlich: die Zustandsbibliothek (S-19) als echte Seite**
+
+`72` S-19 beschreibt „ein eigenes Artboard, das **alle** Zustände einmal nebeneinander zeigt";
+`71` §10 Prinzip 4 nennt sie „den Beweis, dass Zustände Teil des Designs sind". Sie wird hier
+gebaut — als Entwicklerseite in der Anwendung, nicht als Bild. Sie ist die Grundlage dafür, dass
+die folgenden Oberflächenpakete als Kette laufen können, ohne dass nach jedem Paket jemand
+hinsehen muss.
+
+- `src/renderer/ansichten/zustandsbibliothek/` zeigt jedes Atom und Molekül in **allen** im
+  Dokument genannten Varianten und Zuständen, dazu die fünf Leerzustände, die drei Ladeschimmer
+  und die vier Fehlerzustände aus S-19.
+- **Drei Wege hinein, alle drei gebaut:**
+  1. **Im Programm:** ein Menüeintrag „Zustandsbibliothek" in einem Menü **Entwicklung**, das nur
+     bei `!app.isPackaged` entsteht (dasselbe Kennzeichen wie in `ipc/huelle.ts` und
+     `protokoll/logger.ts`). Das Menü baut `src/main/menue/menue.ts` ohnehin strukturiert auf; der
+     Eintrag schaltet die Ansicht im Renderer um, so wie AP-1.6 zwischen Start und Liste umschaltet.
+     Im ausgelieferten Paket existiert weder Menü noch Ansicht.
+  2. **Als Bilder:** `pnpm bilder` schreibt nach `artefakte/bilder/` und legt daneben eine
+     `kontaktabzug.html` — die vier Fassungen (hell/dunkel × beide Dichten) nebeneinander,
+     beschriftet, in einer Datei, die man im Browser öffnet. Das ist der Weg, den der Nutzer an den
+     Checkpoints geht: ansehen, nicht klicken.
+  3. **Aus der CI:** dieselben Bilder als Artefakt am PR, damit ein Blick auch ohne lokalen Lauf möglich ist.
+- Sie ist ein Werkzeug, kein Feature: keine Übersetzung der Beispieltexte nötig, kein Eintrag in
+  `72`, keine Aufnahme in die Budgets.
+- **Bildstrecke:** `test/e2e/zustandsbibliothek.spec.ts` fotografiert sie in **hell und dunkel ×
+  beide Dichten** (vier Bilder) und legt sie als CI-Artefakt ab. `package.json` bekommt
+  `pnpm bilder` für denselben Lauf lokal.
+- **Jedes folgende Oberflächenpaket trägt seine Zustände hier ein.** Das steht ab sofort in der
+  Abnahme jedes UI-Pakets; ein Baustein ohne Eintrag gilt als nicht fertig.
+
+**Tests**
+- `test/gestaltung/symbole-vollstaendig.test.ts`: jeder Name der typisierten Liste hat eine Datei, jede Datei einen Namen — beides ohne Waise.
+- `test/gestaltung/bibliothek-vollstaendig.test.ts`: jeder Baustein aus `src/renderer/bausteine/` kommt in der Zustandsbibliothek vor. Ein neuer Baustein ohne Eintrag ist rot — sonst verwahrlost die Bibliothek genau dann, wenn sie gebraucht wird.
+- `test/gestaltung/symbole-sauber.test.ts`: kein `fill`/`stroke` mit Festfarbe in den SVG (nur `currentColor`), kein `<script>`, keine externen Verweise.
+- `test/einheit/symbol.test.ts`: rendert, trägt `aria-hidden` bei rein dekorativer Nutzung und einen Namen bei bedeutungstragender.
+- Ein Einheitentest je neuem Atom nach dem Muster aus AP-1.6.
+
+---
+
 ## AP-1.8 — Plausibilitätsprüfungen im Bestand
 
-**Auftrag** — F-07 (Grundsatz). Stufe 3 der Importprüfung gibt es schon (AP-1.4); hier laufen
+**Auftrag** — F-07 (Grundsatz). Stufe 3 der Importprüfung gibt es schon (AP-1.4a); hier laufen
 dieselben Regeln über den **gesamten** Bestand, weil sich Widersprüche erst ergeben, wenn zwei
 Importe zusammentreffen.
 
@@ -1088,7 +1321,7 @@ Anzeige in der Fußzeile (`70_UX_Konzept.md` §2) und als Liste ·
 ## AP-1.9 — Der Skill `wurzelwerk-import-vertrag`
 
 **Auftrag** — D-11, ADR-010 Punkt 5. Kein Code im Repository, sondern ein Claude-Skill. Er
-gehört hierher, weil er ohne die Prüfung aus AP-1.3/1.4 nicht entwickelt werden kann: Der
+gehört hierher, weil er ohne die Prüfung aus AP-1.3a/1.3b/1.4a nicht entwickelt werden kann: Der
 Trockenlauf ist seine Rückmeldeschleife.
 
 **Umfang**
@@ -1117,10 +1350,570 @@ leer oder abgehakt ist. **Ab dann wächst der Bestand.**
 
 ---
 
-## Was danach kommt (zweiter Teil Phase 1, noch nicht geschnitten)
+## AP-1.25 — Bildvergleichs-Gate (Referenzbilder)
 
-Zur Orientierung, nicht als Auftrag. Reihenfolge folgt der Reibung, die die Arbeit mit echten
-Daten zeigt — deshalb wird sie erst nach AP-1.9 festgelegt.
+**Auftrag** — ADR-012, ADR-025, `CLAUDE.md` §13. **Der Grund, warum die Oberflächenpakete als
+Kette laufen dürfen.** Ohne dieses Gate kann ein späteres Paket einen fertigen Bildschirm still
+verändern, und niemand sieht es, bis jemand hinschaut. Setzt AP-1.11 voraus (die
+Zustandsbibliothek ist das Hauptmotiv).
+
+**Umfang**
+`test/golden/bilder/` (Referenzbilder, **geschützter Prüfpfad**) ·
+`test/e2e/bildvergleich.spec.ts` · `playwright.config.ts` (Vergleichsschwellen) ·
+`package.json` (`bilder:erneuern`)
+
+**Abnahme**
+- Playwright `toHaveScreenshot` gegen eingefrorene Referenzbilder für: Zustandsbibliothek (hell/dunkel × beide Dichten), Startansicht, Liste, Profil, Importansichten.
+- **Nur macOS** vergleicht pixelgenau; der Windows-Lauf legt seine Bilder weiter als Artefakt ab (ADR-012), vergleicht aber nicht — Schriftrasterung unterscheidet sich, ein Vergleich wäre nichtdeterministisch rot und würde nach `CLAUDE.md` §13 „wegoptimiert".
+- Schwelle so eng wie deterministisch möglich; jede Lockerung steht mit Begründung in der Konfiguration.
+- **`bilder:erneuern` ist ein bewusster Akt**: Referenzbilder liegen in `test/golden/` und lösen damit das Prüfpfad-Gate aus (ADR-025). Ein Paket, das Bilder erneuert, begründet im PR **welche und warum** — „sieht jetzt anders aus" ist keine Begründung, „Spaltenbreite folgt jetzt dem Inhalt (AP-1.x)" ist eine.
+- Ein Paket, das einen bestehenden Bildschirm verändert, **ohne** das Referenzbild bewusst zu erneuern, macht das Gate rot. Das ist der Zweck.
+
+**Tests** — das Gate ist der Test. Rot-Beleg: eine Farbe in einem Baustein um einen Tokenschritt
+verändern, Vergleich muss rot werden; zurücknehmen.
+
+---
+
+# Person bearbeiten und Medien — neuer Entwurf (geschnitten 22.09.2026)
+
+> **Grundlagen, beide versioniert (`CLAUDE.md` §14):**
+> `docs/design/Wurzelwerk Person bearbeiten.dc.html` (Artboards 1a–1d, 2a–2c, 3a–3c) und
+> `docs/design/Entwicklungsvorgaben Person bearbeiten & Medien.md` (Datenmodell, Verhalten,
+> Akzeptanzkriterien). Bei Widerspruch zwischen den beiden gilt das Vorgabendokument (so sagt es selbst).
+> **Der Transporthinweis ist verbindlich:** die dort als REST formulierten Endpunkte werden **1:1 auf
+> Befehle und Abfragen des Busses abgebildet**, Namen und Nutzlasten bleiben — die Konventionen
+> dieses Repos haben Vorrang vor der Syntax dort.
+>
+> **Vier Entscheidungen des Nutzers (22.09.2026), sie gehen allem vor:**
+> 1. **Zerlegtes Namensmodell mit Migration** — `name_form` + `name_part` wie im Entwurf.
+> 2. **Kein Papierkorb, kein `deleted_at`.** Löschen bleibt eine Transaktion, die Undo zurückholt;
+>    das Journal ist die Wahrheit. Der Papierkorb des Entwurfs ist eine §14-Abweichung.
+> 3. **Kein Schloss am Gesundheitsreiter.** Er verhält sich wie jeder andere Reiter, mit Zähler;
+>    die Trennung ist visuell, dazu die Exportsperre M-08. Kein Rechtesystem (ADR-001: kein Konto).
+> 4. **ISO 9 bleibt fest** (ADR-014). `language_profile.default_transliteration_scheme` wird
+>    **nicht** gebaut; die Umkehrbarkeits-Invariante aus AP-1.2 gilt unverändert.
+>
+> **Was das Vorgabendokument „Fundament" nennt (§9 Phase 1), steht größtenteils schon:** FuzzyDate
+> = `src/core/datum` (AP-1.1), Confidence = `konfidenz` 1..4 überall im Schema, `change_log` + Undo
+> = Journal aus Phase 0, Sprachprofile = `name.sprache`/`.schrift`. **Autosave passt sogar
+> überraschend gut:** die geforderten 400 ms Debounce schreiben einzelne Befehle, und die
+> Koaleszenz aus AP-0.15 (gleicher Schlüssel, < 2000 ms) fasst sie zu **einem** Undo-Schritt
+> zusammen — genau das, was Akzeptanzkriterium 1a verlangt.
+>
+> **Kettenschnitt (23.09.2026, Review):** Kette 3a = 1.29 → [1.33, 1.34 einzeln] → 1.30 → 1.32,
+> Checkpoint 3 · Kette 3b = [1.31a einzeln] → 1.31b → 1.31c → 1.31d → 1.19, Checkpoint 4 ·
+> Kette 4 = 1.18 → 1.23 → 1.24 → 1.21 → 1.22. Die drei Migrationen (0006 Namen, 0007 Querschnitt,
+> 0008 Medien) laufen einzeln über `/ap`. Maßgeblich ist `.claude/commands/kette-ui.md`.
+
+## AP-1.29 — Fehlende Schreibwege und Bildlücken (Vorpaket)
+
+**Auftrag** — ADR-026, `docs/80` §29, Checkpoint 2. **Läuft vor allem anderen.**
+
+1. **`aussage_zitat.anlegen` / `.loeschen`** — ein Beleg lässt sich an eine Aussage hängen und wieder lösen. Heute bleibt jede neu angelegte Quelle unverknüpft.
+2. **`aussage.aendern`** — eine Aussage ist nur anlegbar und löschbar; jede Korrektur wäre Löschen + Neuanlegen mit zerrissener Herkunft.
+3. **`abfrage:quelle.suche`** — ohne sie kein Quelle-Picker (`docs/80` §29).
+4. **Die zwei fehlenden Referenzbilder** („Person bearbeiten", „Orte") plus geschärfte Kettenregel: **ein Paket mit neuem Bildschirm ohne neues Referenzbild hält die Kette an.**
+
+**Tests** — je Befehl Wirkung/Undo/Redo/Fehlerfall; `undo-bitgleich` erweitert (**PR-B**, geschützter Prüfpfad); Bildvergleich um zwei Motive erweitert.
+
+---
+
+## AP-1.33 — Namensmodell zerlegen (Migration 0006)
+
+**Auftrag** — Entwurf Artboard 2a, Vorgaben §2.3, Nutzerentscheidung 22.09.2026.
+**Korrektur meiner ersten Analyse:** Ich hatte behauptet, der Namen-Reiter sei ohne Migration
+baubar, weil `name` bereits `sprache`, `schrift`, `praefix`, `titel_vor` und `zusatz_nach` trägt.
+Das war falsch. Der Entwurf führt **jeden Namensbestandteil als eigene Zeile** — sortierbar, mit
+Vatersname als eigenem Typ und femininer Variante. Das flache Spaltenmodell kann das nicht.
+**Muss vor AP-1.30 laufen**, sonst wird der Namen-Reiter zweimal gebaut. **Läuft einzeln über `/ap`, nicht in der Kette** (Migration; Nachtrag 23.09.2026).
+
+**Umfang**
+`docs/schema/0006_namensformen.sql` · `src/main/befehle/{namensform,namensteil}-*.ts` ·
+`src/core/name/anzeigename.ts` (Rückfallkette) · `src/shared/schemata/name.ts` ·
+Datenumzug aller bestehenden Namen
+
+**Migration 0006**
+- **`name_form`**: `person_id`, `sprache` (BCP-47), `schrift` (Latn/Cyrl/…), `reihenfolge` (`vorname_zuerst`/`nachname_zuerst`), `rolle` (aus dem bestehenden `name.typ` übernommen: geburtsname, ehename, vulgo, latinisiert, ordensname, aka, sonstiges — plus `rollen_notiz` für „amtlich ab 1946"), `ist_bevorzugt` (**genau eine je Person, DB-Constraint** — Akzeptanzkriterium 2a), `umschrift_von`, `umschrift_norm`, `konfidenz`, `sortier_index`.
+- **`name_part`**: `name_form_id`, `art` (`vorname`, `praefix`, `nachname`, `suffix`, `titel`, `vatersname`), `wert`, `ist_rufname` (nur bei `vorname`, höchstens einer je Form), `sortier_index`, `feminine_variante`.
+- **Datenumzug**: jede bestehende `name`-Zeile wird zu einer `name_form` mit ihren Bestandteilen als `name_part`-Zeilen. `vornamen` wird an Leerzeichen zerlegt, `rufname_index` wird zu `ist_rufname` an der richtigen Stelle. **Verlustfrei und umkehrbar prüfbar** — das ist die Abnahme.
+- ~~`name` bleibt zunächst bestehen und wird erst entfernt, wenn nichts mehr darauf zeigt.~~ → ersetzt durch Entscheidung 2 unten.
+
+**Nutzerentscheidungen 23.09.2026 (Review) — gehen dem Text oben vor**
+1. **Verlustfreies Modell, erweitert gegenüber dem Entwurf.** `name_form` bekommt zusätzlich `gueltig_von`/`gueltig_bis` (Datumsgruppe wie heute, „amtlich ab 1946" bleibt **Datum**, nicht Notiz) und `original_text`. Die `rolle`-Liste bekommt zusätzlich **`beruf`**. `name.typ = 'transliteriert'` wird **keine Rolle**, sondern eine Form mit gesetztem `umschrift_von`. `rufname_text` wird ein `name_part` (`art = vorname`, `ist_rufname = 1`), sofern der Rufname nicht schon unter den Vornamen steht. Jeder Wert der alten Zeile hat einen benannten Zielort — die Abnahme „verlustfrei" gilt wörtlich.
+2. **Harter Schnitt in diesem Paket, keine Parallelführung.** 1.33 stellt **alle** Schreiber und Leser um: Befehle `name.*` aus AP-1.12, Import-Schreiblogik (`schreibeImport`, der Importvertrag v1 bleibt unverändert, nur der Writer bildet ab), `suche.ts`, `person-liste.ts`, `person-detail.ts`, `abgeleitet-projektion.ts`, FTS/`person_flach` (`0003`), Trigger, `personenwaehler`, Maske aus AP-1.14. `name` wird in 0006 nach dem Datenumzug **entfernt**. Die Invarianten `trockenlauf-gleich-import` und `abgeleitet-gleich` laufen gegen das neue Modell. Wird das Paket dafür zu groß (`CLAUDE.md` §12.4), schneidet der `planer` in PR-A (Migration + Schreiber) / PR-C (Leser) — `name` darf aber in keinem gemergten Zwischenstand **beschrieben** werden.
+3. **IDs bleiben erhalten.** `name_form.id` übernimmt die alte `name.id`. Sonst verwaisen `aussage` (`subjekt_typ = 'name'`), `medium_zuordnung` (`subjekt_typ = 'name'`) und `umschrift_von` — beide Subjektverweise sind polymorph, kein FK fängt es.
+4. **„Genau ein Hauptname"** = partieller UNIQUE-Index (höchstens einer) **plus** Trigger (mindestens einer, sobald die Person eine Form hat). Der Wechsel des Hauptnamens ist **ein** Befehl, der beide Zeilen in einer Transaktion umstellt; Platzhalter ohne Namen sind erlaubt.
+
+**Abnahme**
+- **Genau ein Hauptname je Person**, erzwungen von der Datenbank, nicht von der Oberfläche.
+- Leere Bestandteile werden **nicht persistiert** (Vorgaben §2.3).
+- **Anzeigename-Auflösung** als reine Funktion in `src/core`: Sprache → Umschrift → Hauptname, Rückgabe `{text, quelle, formId}`. **Einmal implementiert**, von Liste, Karte, Suche und Export benutzt — nicht zweimal.
+- `sortier_name` („Gutnoff, Karl Friedrich Wilhelm", Präfix zählt nicht mit).
+- Umschrift bleibt **ISO 9** (ADR-014); `umschrift_norm = manuell` wird nie überschrieben.
+- Die Suche findet eine Person über **jede** ihrer Formen und Umschriften (Akzeptanzkriterium 2a: „Гуытнаты" findet Karl Gutnoff).
+- **Fixture-Datenbank auf Stand 5 eingefroren**, `pnpm trigger` neu gelaufen, `person_flach` und FTS nachgezogen.
+
+**Tests** — Datenumzug verlustfrei (kanonischer Abzug vor/nach, **jede alte Spalte jeder alten Zeile** an ihrem Zielort wiederfindbar, IDs gleich; ein Fixture je alter `typ`-Ausprägung); Constraint „genau ein Hauptname" mit Gegenprobe; Rückfallkette einzeln; Suche über Formen; `undo-bitgleich` über die neuen Befehle (**PR-B**).
+
+---
+
+## AP-1.34 — Querschnitt des Editors: Kennung, Textanker, offene Punkte, Plausibilität am Feld
+
+**Auftrag** — Vorgaben §2.1 (Citation), §2.2 (`display_id`), §5.5, §5.6. Vier kleine Dinge, die
+**jeder** Reiter braucht und die sonst dreimal halb gebaut werden.
+
+- **Menschenlesbare Kennung** (`P-0142`): laufende Nummer je Projekt, stabil, unabhängig von der UUID. Ein Wert, der im Kopf steht und in Verweisen zitiert wird — darum vergeben und nie neu vergeben, auch nach Löschen nicht. **Nutzerentscheidung 23.09.2026:** der Zähler liegt in einer Tabelle unter `NICHT_JOURNALISIERT` und läuft nur vorwärts; `person.kennung` selbst ist journalisiert. Ein Undo von `person.anlegen` entfernt die Person, die Nummer bleibt verbraucht. `undo-bitgleich` nimmt **genau diese eine Zählertabelle** aus dem Vergleich — per ADR-Nachtrag, im **PR-B** (geschützter Prüfpfad), mit Gegenprobe, dass jede andere Tabelle weiter bitgleich verglichen wird.
+- **Beleg an der einzelnen Angabe**: `aussage_zitat` um `feld` und `textanker` erweitern (Offset/Bereich in `zitat.transkript`). Damit trägt „Belegte Angaben · zur Stelle springen" aus Artboard 2c. **Kein neues Belegmodell** — ADR-026 gilt: der Beleg hängt an der Aussage, der Anker sagt nur, *wo im Transkript*.
+- **Offene Punkte** als Regelwerk (`id, reiter, feld, meldungsschluessel`): Sterbeort fehlt, Elternteil nicht zugeordnet, kein Porträt, Kind ohne Partnerschaft, Widerspruch vorhanden. Speist rechte Spalte, Reiterpunkt und schmale Fußleiste. Erweiterbar, nicht hart verdrahtet.
+- **Plausibilität am Feld**: die Regeln aus AP-1.8 liefern zusätzlich feldbezogene Warnungen in jeder Personenantwort. **Gespeichert wird trotzdem** — eine Warnung blockiert nie (Vorgaben §1).
+- **Vollständigkeitsgrad**: die Definition von „Kernangabe" wird hier **einmal** festgelegt und dokumentiert, statt in der Oberfläche zu entstehen.
+
+**Migration 0007** (Nachtrag 23.09.2026, Review): Zwei der vier Punkte sind Schemaänderungen —
+`aussage_zitat` um `feld` und `textanker`, `person` um die stabile Kennung (Spalte plus
+Vergabestelle). Das Paket läuft deshalb **einzeln über `/ap`, nicht in der Kette** (`kette.md`:
+„Eine Migration entsteht" ist Abbruchgrund). Fixture-Datenbank auf Stand 6 eingefroren,
+`pnpm trigger` neu gelaufen. Kennung und `undo-bitgleich`: **entschieden** (Nutzer 23.09.2026),
+siehe Punkt „Menschenlesbare Kennung" oben — Zähler nicht journalisiert, Ausnahme per ADR-Nachtrag
+im PR-B.
+
+---
+
+## AP-1.30 — Person bearbeiten: Gerüst und Reiter
+
+**Auftrag** — Artboards 1a/1b/1d, Vorgaben §1 und §8. Ersetzt die Maske aus AP-1.14.
+Setzt AP-1.29, AP-1.33 und AP-1.34 voraus. **Ohne** Medien (AP-1.31) und ohne Gesundheitsinhalte
+(AP-1.19) — der Reiter existiert, sein Inhalt kommt dort.
+
+**Abnahme — die Regeln des Entwurfs sind Abnahmekriterien, nicht Stilfragen**
+- **Höchstens acht Reiter.** Beim Öffnen steht immer „Person" oben, die Reiterwahl wird **nicht** gemerkt. Reiterwechsel speichert. Kein Reiter außer dem ersten hat Pflichtangaben.
+- **Zähler am Reiter, keine Prozentwerte**; ein Punkt heißt: dort liegt ein offener Punkt. **Der Gesundheitsreiter trägt einen Zähler wie alle anderen — kein Schloss** (Nutzerentscheidung).
+- **Kein Speichern-Knopf**: Blur oder 400 ms Debounce schreibt, Kopf zeigt „Gespeichert · gerade eben" / „Speichert …" / „Nicht gespeichert — erneut versuchen". Die Koaleszenz aus AP-0.15 macht daraus **einen** Undo-Schritt — **aber nur, wenn der Befehl einen `koaleszenzSchluessel` trägt.** Heute hat ihn einzig `person.feldSetzen` für `notiz` (Stand 23.09.2026). Jeder Befehl, den der Autosave schreibt, bekommt einen Schlüssel (Befehl + Subjekt + Feld); ohne ihn ist Akzeptanzkriterium 1a nicht erfüllt.
+- **Abgeleitete Werte** sind sichtbar, gesperrt und beschriftet („aus Beziehung abgeleitet"), nie editierbar.
+- **Feldbreite folgt dem Inhalt**; Wiederholbares wird Liste, nie „Feld 2, Feld 3". **Sicherheit steht neben dem Wert.**
+- **Reiter Person:** Hauptname, Rufname, Kurzbeschreibung, Geschlecht, Lebensstatus, Geburt und Tod je mit Datum, Genauigkeit, Ort, Sicherheit, Beleg. Tod-Gruppe erscheint nur bei „verstorben" — **Werte bleiben gespeichert**, wenn wieder auf „lebend" gestellt wird (Akzeptanzkriterium 1a).
+- **Reiter Namen:** Liste + Modal auf dem Modell aus AP-1.33, mit Vorschau-Umschalter und Rückfallkette.
+- **Reiter Leben:** Stationen mit Zeitspur; die Zeitspur ist **reine Anzeige**, berechnet aus Anfang/Ende relativ zur Lebenszeit.
+- **Reiter Beziehungen:** Eltern, Partnerschaften mit den Kindern darunter, **Geschwister abgeleitet und nicht editierbar**; Halb- und Vollgeschwister unterscheidbar; ein Kind ohne Partnerschaftszuordnung erzeugt einen offenen Punkt. Löschen einer Beziehung lässt beide Personen bestehen.
+- **Reiter Notizen** (Freitext) und **Verwaltung** (Kennung, Herkunft des Datensatzes, Verlauf, Löschen). **Kein Papierkorb** (Nutzerentscheidung); „Zusammenführen" steht als deaktivierter Eintrag mit Hinweis „Phase 4", nicht als stiller Leerlauf.
+- **Rechte Spalte:** Vollständigkeit, offene Punkte, die letzten drei Verlaufseinträge — über **die** Verlaufsabfrage, die AP-1.23 später für S-16 wiederverwendet (nach Subjekt gefiltert, siehe dort). **Ohne Benutzername** — es gibt nur einen Nutzer (ADR-001).
+- **Schmales Fenster:** bei 1099 px greift das Layout aus Artboard 1d vollständig.
+- **Tastatur:** `1…8` wählt Reiter (nicht in Textfeldern), `⌘Z`/`⌘⇧Z` global.
+
+**Tests** — e2e je Reiter; „Feldänderung ist in ≤ 1 s gespeichert und `⌘Z` stellt sie zurück"; Reiterzähler stimmen mit den Daten; Bildvergleich für alle acht Reiter in hell und dunkel, plus 1099 px; **je Reiter ein Test „zehn Tastenanschläge in < 2 s = ein Undo-Schritt"** (fängt einen fehlenden Koaleszenzschlüssel).
+
+---
+
+## AP-1.32 — Person anlegen: Schnellanlage mit Dublettenprüfung
+
+**Auftrag** — Artboard 1c, Vorgaben §5.4. Setzt AP-1.33 voraus (die Prüfung läuft über **alle**
+Namensformen und Umschriften).
+
+**Abnahme** — Dialog über abgedunkeltem Hintergrund, vier Angaben. **Dublettenprüfung während der
+Eingabe**: Score aus Namensähnlichkeit über alle Formen und Umschriften (Kölner Phonetik aus
+AP-0.7), Geschlecht, Geburtsjahr ± 5, Ort, bestehende Beziehung zur Bezugsperson; höchstens drei
+Treffer, jeder mit sichtbarer Begründung; Schwelle konfigurierbar. „Das ist sie" legt **keine**
+neue Person an. „Anlegen & weitere" behält Nachname und Beziehungsart. Vorbelegung aus der
+Beziehung, aus der man kommt. „Später benennen" legt einen Platzhalter an (A-17).
+`⌘⏎` / `⌘⇧⏎` / `Esc` (mit Nachfrage). **Zwei der drei Einstiege gehen** (aus der Suche, aus einer
+Beziehung); **„aus dem Baum" ist Phase 2**, „aus Gespräch" kommt mit AP-1.21.
+
+---
+
+## AP-1.31a — Medien: Kern und Ablage (Migration 0008)
+
+**Auftrag** — Artboards 2c/3a–3c, Vorgaben §2.7 und §5.8. **Ersetzt den Zuschnitt von AP-1.20.**
+Der Entwurf verlangt deutlich mehr als „Medien zuordnen" — hier entsteht nur das Fundament.
+
+**Migration 0008 — fünf neue Tabellen, Spaltenerweiterungen und eine CHECK-Erweiterung**
+| Was | Warum |
+|---|---|
+| **`herkunft`** (`bezeichnung`, `art`: privat/archiv/gespraech/sonstiges, `standort_original`, `rechte`: familie/archiv/gemeinfrei, `archiv_signatur`, Farbton) | „Genau eine je Medium, trägt Eigentümer, Rechte und Standort — die erbt jedes Medium darin." Deckt sich **nicht** mit `quelle`: eine Quelle ist ein Werk, ein Konvolut ist ein Fundzusammenhang. |
+| **`medium_text`** (`art`: transkription/uebersetzung, `sprache`, `inhalt`, volltextindiziert) | Transkription am Medium, nicht nur am Zitat |
+| ~~`medium_bereich`~~ → **bestehende `medium_region`** (`0002_kern.sql`, x/y/w/h relativ 0–1, `person_id`) | Personen im Bild markieren; erzeugt automatisch eine Zuordnung. **Keine neue Tabelle** — `medium_region` steht seit Schema v1 (Nachtrag 23.09.2026). Damit **fünf** neue Tabellen. |
+| **`schlagwort`** + **`medium_schlagwort`** (normalisiert, ohne Diakritika) | vierte Ordnungsebene |
+| **`gesicherte_ansicht`** (`filter` als JSON, `sortierung`, `modus`, `ist_system`) | „Ansicht sichern"; Systemansichten nicht löschbar |
+| `medium` um `herkunft_id` (Pflicht), `art`, `breite`, `hoehe`, `dauer_s`, `sprache`, `schrift`, `hat_rueckseite` | |
+| `medium_zuordnung` um `portraet_ausschnitt`; **`subjekt_typ`-CHECK um `'aussage'`** | „Jedes Medium kann an mehreren Personen **und an einzelnen Angaben** hängen" — der CHECK (`0002_kern.sql:419`) lässt `aussage` nicht zu. **Tabellenneubau**, wie AP-1.3c Punkt 5. |
+
+**Nicht gebaut:** `deleted_at`/Papierkorb (Nutzerentscheidung), `show_for_living_guest` (setzt den
+Gastzugang aus Phase 4 voraus — als §14-Abweichung vermerkt), `media.folder_id` (die Vorgaben
+sagen selbst: bis zur Entscheidung nicht bauen, nur nicht verbauen).
+
+**Nutzerentscheidung 23.09.2026 — Ablage umstellen, mit Umzug:** Dateiname = SHA-256 + Endung (ersetzt die Vorentscheidung `medien/<uuid7>.<endung>` aus Phase 1). 0008 benennt bestehende Dateien im Projektordner **einmalig** um und schreibt `medium.pfad` nach; die Medienkopie des Imports (`src/main/import/medienkopie.ts`) wird im selben Paket umgestellt — danach gibt es genau ein Ablageschema. Der Umzug ist **absturzsicher** (erst kopieren/umbenennen, dann DB, Wiederanlauf erkennt halbfertige Umzüge) und mit Schnappschuss davor. Zwei Medien mit gleichem Hash sind eine Datei.
+
+**Abnahme** — Datei **inhaltsadressiert** über SHA-256 im Projektordner, Original unverändert, nie
+verschoben, nie von außen verlinkt; Vorschauen asynchron; große Dateien nie ganz in den Speicher;
+PDF seitenweise. `ist_titelbild` höchstens einmal je Person (Constraint), nur bei Bildern.
+Fixture-Datenbank auf Stand 7 eingefroren. **Läuft einzeln über `/ap`, nicht in der Kette** (Migration; Nachtrag 23.09.2026).
+
+---
+
+## AP-1.31b — Reiter „Belege & Medien", Dokumentansicht, Porträt
+
+**Abnahme** — **Kein eigenes Profilbild-Feld**: alle Bilder in einer Sammlung, genau eines als
+Porträt markiert. Porträt festlegen über **Bildmitte** (Rahmen), Original bleibt unbeschnitten,
+Vorschau in Karte/Baum/Liste/Zeile. Dokumentansicht mit Vorschau, Transkription, Übersetzung und
+**belegten Angaben mit „zur Stelle springen"** (Textanker aus AP-1.34). Personen im Bild markieren
+erzeugt die Zuordnung automatisch. Ein Porträtwechsel verändert **keine Datei**
+(Akzeptanzkriterium 2c).
+
+**Übernommen aus AP-1.20 (A-10, A-16; Nachtrag 23.09.2026):** Die Dokumentansicht spielt auch
+**Audio** ab. Zeitmarken zeigen auf einen Beleg (`zitat.zeitmarke_sekunden` aus AP-1.3c), ein
+Klick springt in die Aufnahme. Keine Wiedergabe über das Netz, kein Nachladen von Codecs.
+
+---
+
+## AP-1.31c — Medienbestand mit Filtern und gesicherten Ansichten
+
+**Abnahme** — Flacher Bestand, **keine Ordner**; vier Ordnungsebenen (Herkunft, Verknüpfung, Art,
+Zeit/Schlagwort). Filter als JSON-Spezifikation, serverseitig in SQL übersetzt — **eine** Stelle,
+nicht je Ansicht neu. Systemansichten „Ohne Zuordnung", „Ohne Datierung", „Zu transkribieren",
+„Zuletzt hinzugefügt" (ohne „Papierkorb" — es gibt keinen). Stapelaktionen auf eine Auswahl sind
+**ein** Undo-Schritt, auch bei hundert Medien (Akzeptanzkriterium 3a). Ein Medium erscheint
+gleichzeitig in Herkunft, Personenreiter und passender Ansicht — **ohne Duplikat**.
+
+---
+
+## AP-1.31d — Stapel-Import
+
+**Abnahme** — Eine Herkunft für den ganzen Stapel, dann Tastaturdurchlauf (`⏎ → ← P D X`).
+Dublettenerkennung über den Hash: **dieselbe Datei unter anderem Namen wird erkannt**
+(Akzeptanzkriterium 3c). Bericht „96 Dateien · 84 übernommen · 9 Dubletten · 3 nicht lesbar".
+Hintergrundverarbeitung, Aufräum-Stapel für Zurückgestelltes. **Ohne Texterkennung** — die
+Vorgaben lassen sie offen (§10.3); ohne OCR fallen Vorschläge auf Dateiname und vorherige Eingabe
+zurück, und genau so wird es gebaut.
+
+---
+
+### §14-Abweichungen vom Entwurf — was bewusst nicht kommt
+
+| Was der Entwurf zeigt | Entscheidung |
+|---|---|
+| **Papierkorb / `deleted_at`** | Nicht gebaut (Nutzer, 22.09.2026). Löschen bleibt ein Undo-Schritt; zwei Wahrheiten über „gelöscht" wären schlimmer als ein fehlender Papierkorb. |
+| **Schloss am Gesundheitsreiter, „getrennt rechtebar"** | Schloss gestrichen (Nutzer). Zähler wie überall, Trennung visuell, Exportsperre M-08 bleibt. Kein Rechtesystem — es gibt keinen zweiten Nutzer. |
+| **`created_by` / Benutzername im Verlauf** | Entfällt. Ein Nutzer, kein Konto (ADR-001). |
+| **Umschrift je Sprache konfigurierbar** | ISO 9 fest (ADR-014, Nutzer). Als offener Punkt vermerkt. |
+| **`show_for_living_guest`** | Setzt den Gastzugang/Lesemodus aus Phase 4 voraus. |
+| **„Aus dem Baum" anlegen** | Phase 2. |
+| **„Zusammenführen"** | Phase 4 — als deaktivierter Eintrag mit Hinweis sichtbar. |
+| **Texterkennung im Stapel-Import** | Offen laut Vorgaben §10.3; ohne OCR Rückfall auf Dateiname. |
+| **Einstufige Ordnerebene für Medien** | Laut Vorgaben §10.2 bewusst noch nicht bauen — nur nicht verbauen. |
+
+---
+
+# Phase 1 — zweiter Teil: Erfassen von Hand (geschnitten 18.09.2026)
+
+> Bis hierher ist die **einzige** Schreibstrecke der Importvertrag. Dieser Teil macht die App zum
+> Werkzeug statt zum Betrachter. Die Reihenfolge folgt der Abhängigkeit, nicht dem Reiz:
+> **Befehle vor Feldern, Felder vor Masken, Masken vor Komfort.**
+>
+> **Zwei Regeln, die für jedes Paket dieses Teils gelten** (`70_UX_Konzept.md` §4, ADR-003):
+> 1. **Kein Speichern-Knopf.** Jede Änderung ist ein Befehl über den Bus, sofort wirksam, durch
+>    Undo zurückholbar. Wer einen Speichern-Knopf vorschlägt, hat den Entwurf nicht gelesen.
+> 2. **Jede Eingabe ist eine Aussage** (ADR-026): mit Konfidenz und Beleg, nicht als nacktes Feld.
+>    Die fünf tragenden Eingabefelder aus `71` §3 sind deshalb ein eigenes Paket und kommen früh.
+> 3. **Pfade wählt man nie durch Tippen** (`70_UX_Konzept.md`, Regel vom 19.09.2026): Wo ein Ordner
+>    oder eine Datei gewählt, geöffnet oder angelegt wird, öffnet sich der **Systemdialog** —
+>    Finder bzw. Explorer. Ein Textfeld für einen Pfad ist kein Ersatz und kommt nicht vor.
+>    Die Mechanik steht in `src/main/import/dialog.ts` (AP-1.4b) und wird nicht zweimal geschrieben.
+
+---
+
+## AP-1.28 — Bausteinkorrekturen aus Checkpoint 1
+
+**Auftrag** — `71` §2.1, `71` §5, `CLAUDE.md` §14. **Die Sammelstelle für das, was der Nutzer an
+Checkpoint 1 gesehen hat.** Läuft **zuerst** in Kette 2: die Bausteine tragen alles Folgende, und
+eine Korrektur hier kostet ein Paket, nach Kette 2 kostet sie sechs.
+
+**Befund 1 — Trefferfläche und sichtbare Größe sind vermischt (belegt 19.09.2026).**
+Vier Bausteine setzen `min-width`/`min-height: var(--wz-trefferflaeche-min)` (32 px) auf das
+**sichtbare** Element statt auf die Klickfläche. Die entworfenen Maße aus
+`Wurzelwerk Komponenten.dc.html` werden dadurch überschrieben:
+
+| Baustein | Entwurf | Ist | Wirkung |
+|---|---|---|---|
+| `Umschalter` | Spur 38 × 22, Radius voll, Knopf 16 × 16 | ≥ 32 × 32 | wirkt fast kreisrund statt als Pille — **vom Nutzer gemeldet** |
+| `Kontrollkaestchen` | 18 × 18, Radius 4 px | ≥ 32 × 32 | zu groß, Radius wirkt verloren |
+| `Optionsfeld` | 18 × 18, Punkt 9 × 9 | ≥ 32 × 32 | zu groß |
+| `Schaltflaeche` | — | ≥ 32 × 32 | **korrekt**, nicht anfassen |
+
+**Abnahme**
+- Die drei kleinen Bedienelemente haben ihre **entworfene sichtbare Größe** zurück; die Maße stehen als Tokens oder als begründete Festwerte im Baustein, nicht als Zufall.
+- Die **Trefferfläche bleibt ≥ 32 × 32 px in beiden Dichten** (`71` §5) — erreicht über Polster oder ein unsichtbares `::before`, das die Nachbarn **nicht** verschiebt. Das ist der Kern: sichtbare Größe ≠ Klickfläche.
+- `Schaltflaeche` bleibt unverändert.
+- Die Zustandsbibliothek zeigt alle vier in allen Zuständen; im Kontaktabzug ist die Pille als Pille erkennbar.
+- **Referenzbilder bewusst erneuert**, im PR begründet: „Umschalter/Kontrollkästchen/Optionsfeld auf die entworfenen Maße zurückgeführt (AP-1.28)". Der alte Stand war eingefroren, aber falsch — ein Lehrstück für die Grenze des Bildvergleichs, das in den PR-Rumpf gehört.
+
+**Befund 2 ff. — weitere Funde aus Checkpoint 1**
+Dieses Paket ist bewusst offen: Was der Nutzer beim Durchsehen der Zustandsbibliothek und der
+Anwendung sonst noch findet, wird hier gesammelt, bevor Kette 2 startet. Jeder Fund kommt mit
+Beleg (Bild oder Datei- und Zeilenverweis) und mit dem Entwurfsmaß, gegen das er verstößt. **Ist
+kein Entwurfsmaß auffindbar, ist es kein Fund für dieses Paket**, sondern ein §14-Vermerk.
+
+**Tests**
+- `test/einheit/trefferflaeche.test.ts`: für jeden der vier Bausteine ist die **Klickfläche** ≥ 32 × 32 px in beiden Dichten und die **sichtbare Box** so groß wie entworfen. Der Test, der genau diese Verwechslung künftig rot macht.
+- Bildvergleich grün gegen die erneuerten Referenzbilder.
+
+---
+
+## AP-1.26 — Startansicht gestalten und Pfadfelder durch Systemdialoge ersetzen (S-01, S-04)
+
+**Auftrag** — `72` S-01/S-04, `70_UX_Konzept.md` (Regel „Pfade wählt man nie durch Tippen"),
+`CLAUDE.md` §14. **Der erste Bildschirm, den man jedes Mal sieht, ist der einzige, den nie jemand
+gestaltet hat.** `start-ansicht.tsx` stammt unverändert aus Phase 0: kein einziges `className`,
+kein Baustein, keine CSS-Datei; AP-1.6 hat sie nur verdrahtet. Liste, Profil und Import sind
+gestaltet, der Eingang nicht. Steht **am Anfang von Kette 2**.
+
+**Umfang**
+`src/renderer/ansichten/start/` (Gestaltung, `T-Shell`, vorhandene Bausteine) ·
+`src/main/dialoge.ts` (aus `src/main/import/dialog.ts` herausgezogen und verallgemeinert) ·
+IPC-Kanäle für Ordnerwahl · `test/golden/bilder/startansicht-*` (bewusst erneuert)
+
+**Abnahme**
+- S-01 und S-04 nach dem Design-Export (`Wurzelwerk Bildschirme.dc.html`), **aus vorhandenen Bausteinen** — keine neue visuelle Sprache (§14).
+- **Kein Pfadtextfeld mehr.** „Neues Projekt" wählt den übergeordneten Ordner über den Systemdialog; „Projekt öffnen" öffnet einen Ordnerdialog; im Dialog kann man wie gewohnt navigieren und Ordner anlegen. Das Textfeld für den Projektnamen bleibt — ein Name ist kein Pfad.
+- **`dialog.ts` wird verallgemeinert, nicht kopiert:** die Kapselung aus AP-1.4b zieht nach `src/main/dialoge.ts` und bedient Import **und** Projektwahl. Der Importweg bleibt dabei unverändert grün.
+- „Zuletzt geöffnet" zeigt Projektname und Ort lesbar, nicht als nackten Pfad; ein verschwundenes Projekt ist als solches erkennbar.
+- Die Fehlermeldung `PROJEKT_KEIN_WURZELWERK_ORDNER` bleibt erhalten (der Dialog macht sie seltener, nicht unnötig — ein Ordner kann trotzdem der falsche sein).
+- Zustandsbibliothek um die Startzustände ergänzt (leer, mit Liste, Sync-Warnung, Fehler).
+- **Referenzbilder bewusst erneuert** (`startansicht-hell/dunkel`), im PR begründet: „Startansicht erstmals gestaltet (AP-1.26)" — genau der Fall, für den die Regel aus AP-1.25 gedacht ist.
+
+**Tests**
+- `test/e2e/ablauf-04-start.spec.ts`: Projekt über den Dialog anlegen, schließen, über den Dialog wieder öffnen. Der Dialog wird im Test gestellt (`showOpenDialog` ist in `dialoge.ts` gekapselt und damit ersetzbar — dasselbe Muster wie AP-1.4b).
+- `test/einheit/dialoge.test.ts`: Abbruch im Dialog führt zu keiner Aktion und keinem Fehler.
+- Bildvergleich grün gegen die erneuerten Referenzbilder.
+
+---
+
+## AP-1.27 — Importbeispiele aufräumen
+
+**Auftrag** — D-10, `56_Import_Vertrag.md`, `docs/80` U-1.6-e2e-fixture. `fixtures/import/v1/gueltig/`
+verspricht „gültig", enthält aber mit `beispiel-3-interview.json` eine Datei, die **über die
+Oberfläche nie importierbar ist**: drei `db:`-Verweise auf eine Person, die in keinem frischen
+Projekt existiert, plus ein Medienverweis auf eine Audiodatei, die im Repository fehlt. Auch nach
+`beispiel-1` gelingt es nicht — dessen `tmp:`-Kennungen werden zu frischen UUIDs, die feste
+`db:`-Kennung entsteht nie. „Gültig" heißt dort in Wahrheit „besteht Stufe 1 und 2 **gegen eine
+Datenbank, die diese Person enthält**". Belegter Fall: der erste Importversuch des Nutzers
+(19.09.2026) endete mit vier Fehlern und einer Sackgasse.
+
+**Umfang**
+`fixtures/import/v1/` (Ordnerstruktur) · `fixtures/import/v1/LIESMICH.md` ·
+`test/e2e/fixtures/` (Verweis statt Kopie) · `docs/import-vertrag/` bzw. `56` §-Nachtrag
+
+**Abnahme**
+- Der Ordner trennt sichtbar: **`gueltig/eigenstaendig/`** (in ein frisches Projekt importierbar) und **`gueltig/braucht-bestand/`** (setzt vorhandene Daten voraus, ist Vertragsbeispiel, kein Importmaterial). `beispiel-1` und `beispiel-2` liegen im ersten, `beispiel-3` im zweiten.
+- **Eine `LIESMICH.md` sagt in drei Sätzen**, was der Unterschied ist und welche Datei man nimmt, wenn man die App einfach ausprobieren will.
+- Die selbsttragende Interview-Fassung aus AP-1.6 (`test/e2e/fixtures/import-erna-und-walter-wruck.json`, inklusive vorhandener `.m4a`) wird **zur ersten Wahl für „reich und eigenständig"** — entweder dorthin verschoben oder von dort verlinkt, **nicht** ein drittes Mal kopiert.
+- Entweder liegt die fehlende Audiodatei zu `beispiel-3` bei, oder der Medienverweis verschwindet daraus. Eine Datei, die auf nichts zeigt, ist kein gültiges Beispiel.
+- Alle bestehenden Tests, die auf die alten Pfade zeigen, sind nachgezogen; `import-schema-zod-gleich` und die IMP-Code-Tests bleiben grün.
+- `U-1.6-e2e-fixture` in `docs/80` wird geschlossen.
+
+**Tests**
+- `test/einheit/fixture-eigenstaendig.test.ts`: **jede** Datei unter `gueltig/eigenstaendig/` läuft gegen ein frisch angelegtes Projekt fehlerfrei durch Stufe 1 und 2. Das ist die Zusage, die der Ordnername gibt — hier wird sie geprüft, nicht behauptet.
+- `test/einheit/fixture-medien-vorhanden.test.ts`: jeder `relativer_pfad` in jeder Beispieldatei zeigt auf eine existierende Datei.
+
+---
+
+## AP-1.12 — Schreibbefehle für Person, Namen, Kanten, Ereignisse
+
+**Auftrag** — A-01, A-05, F-03, ADR-003. Kopflos. Der Bus kennt bisher `person.anlegen`,
+`person.feldSetzen`, `person.loeschen` (AP-0.9) und den Import (AP-1.5). Alles Weitere fehlt.
+
+**Umfang**
+`src/main/befehle/{name,elternschaft,partnerschaft,ereignis,aussage}-*.ts` ·
+`src/main/befehle/registrierung.ts` · `src/shared/schemata/befehle.ts` · IPC-Kanäle
+
+**Abnahme**
+- Je Entität anlegen, ändern, löschen — jeder Befehl **eine** Transaktion über `fuehreAus`, keine eigene Klammer (`CLAUDE.md` §2 Regel 3).
+- Jede Änderung, die einen Wert trägt, schreibt eine `aussage` mit Konfidenz und optionalem Beleg (ADR-026), nicht nur die Kernzeile.
+- Kein Befehl schreibt ohne echte Änderung (AP-0.22-Muster: vorher lesen, bei Gleichheit nichts tun).
+- Zyklusschutz bei Kanten über `src/core/graph/zyklus.ts` (AP-0.9), nicht neu erfunden.
+- Undo stellt jeden Befehl bitgleich zurück — `undo-bitgleich` läuft über die neuen Befehle.
+
+**Tests**
+- `test/einheit/befehl-*.test.ts` je Befehl: Wirkung, Undo, Redo, Fehlerfall.
+- `test/invarianten/undo-bitgleich.test.ts`: Befehlsfolgengenerator um die neuen Befehle erweitert (**geschützter Prüfpfad → eigener PR-B**, ADR-025).
+
+---
+
+## AP-1.13 — Die fünf tragenden Eingabefelder
+
+**Auftrag** — `71` §3, A-03, A-04, E21. Ohne sie ist jede Maske ein Formular mit nackten Feldern —
+und damit das Gegenteil dessen, was dieses Produkt behauptet.
+
+**Umfang**
+`src/renderer/bausteine/{formularfeld,textfeld,langtextfeld,zahlfeld,auswahlfeld,datumsfeld,ortsfeld,personenwaehler,konfidenzwaehler,vorschlagskarte}.tsx`
+
+**Abnahme**
+- **Datumsfeld:** nimmt die Eingaben aus AP-1.1 entgegen (`14.3.1901`, `um 1890`, `zwischen 1750 und 1760`, `Dom. III post Trinitatis 1750`), zeigt sofort, wie es verstanden wurde, und was nicht auflösbar war. Der Parser ist der aus `src/core/datum` — kein zweiter.
+- **Ortsfeld:** sucht bestehende Orte, legt neue an, zeigt den zum Datum gültigen Namen (AP-1.2 `ort/zeitbezug`).
+- **Personenwähler:** sucht über dieselbe Strecke wie die Liste (Original, Umschrift, Phonetik), zeigt Lebensdaten zur Unterscheidung, kann einen Platzhalter anlegen (A-17).
+- **Konfidenzwähler:** vier Stufen, Reihenfolge lesbar, nie allein über Farbe (§1.2 Regel 4).
+- **Vorschlagskarte:** drei Zustände (Vorschlag / bestätigt / verworfen), Bestätigen mit einer Taste — die Grundlage für AP-1.21.
+- Alle über Tokens, beide Themen, beide Dichten, Tastatur vollständig, Trefferfläche ≥ 32 × 32 px.
+
+**Tests** — ein Einheitentest je Feld (rendert, Tastatur, gesperrt, kein Farbliteral) plus
+`test/einheit/datumsfeld-parser.test.ts`: dieselbe Tabelle wie AP-1.1, durch das Feld gereicht.
+
+---
+
+## AP-1.14 — Person bearbeiten (S-20)
+
+**Auftrag** — A-01, A-02, A-13, `72` S-20. **Das Paket, nach dem die App ein Werkzeug ist.**
+
+**Umfang** `src/renderer/ansichten/person-bearbeiten/` · Anbindung an AP-1.12 und AP-1.13
+
+**Abnahme**
+- Namen (mehrfach, typisiert, Rufname, Präfix, Zusatz), Lebensdaten, Geschlecht, Notiz, Platzhalter-Kennzeichen.
+- **Kein Speichern-Knopf** — jede Änderung sofort über den Bus; der Änderungsverlauf zeigt sie, Undo nimmt sie zurück.
+- Jede Änderung fragt Konfidenz und Beleg **an der Stelle**, an der sie entsteht (E21), nicht in einem zweiten Arbeitsgang.
+- Die Profilseite aus AP-1.7 bleibt der Leseweg; Bearbeiten ist ein Zustand, keine zweite Seite mit eigener Wahrheit.
+
+**Tests** — `test/e2e/ablauf-03-person-bearbeiten.spec.ts`: anlegen → Namen ergänzen → Undo → Zustand vorher; Einheitentests je Abschnitt.
+
+---
+
+## AP-1.15 — Ereignisse mit Rollenbeteiligung
+
+**Auftrag** — A-05, `50` §2.5. Ereignisse sind bisher nur importierbar.
+
+**Abnahme** — Ereignis anlegen mit Typ, Datum, Ort; Beteiligte mit Rolle (Hauptperson, Zeuge,
+Pate, Trauzeuge, Informant); ein Ereignis kann mehrere Personen tragen und erscheint bei jeder;
+Löschen einer Beteiligung löscht nicht das Ereignis. Zeitstrahl aus AP-1.7 zeigt die neuen
+Ereignisse ohne Änderung.
+
+---
+
+## AP-1.16 — Orte anlegen und pflegen
+
+**Auftrag** — A-04, ADR-013, `50` §2.6. Zeitabhängige Hierarchie: politisch und kirchlich
+**getrennt**, jede Zugehörigkeit mit Gültigkeitszeitraum.
+
+**Abnahme** — Ort anlegen, Namen über die Zeit (Marienwerder 1900 / Kwidzyn 1950), Zugehörigkeit
+in beiden Ketten, externe Kennungen (GOV später, Feld jetzt). Jede Ortsanzeige in der App nutzt
+`ort/zeitbezug` aus AP-1.2 — kein zweiter Auflösungsweg.
+
+---
+
+## AP-1.17 — Quellen, Zitate, Archive, Negativbefunde (S-23)
+
+**Auftrag** — B-01, B-06, B-07, `50` §2.7. Der Import legt Quellen an; von Hand geht es bisher nicht.
+
+**Abnahme** — Quelle mit Typ, Art (original/derivat/verfasst) und Informationsart; Zitat mit
+Seite, Eintragsnummer, Transkript, Digitalisat, Konfidenz; Archiv mit Ort und Signatur;
+**Negativbefund** („gesucht, nicht gefunden") als eigene Form — der Befund, den alle anderen
+Programme verlieren. Belegdetail aus AP-1.7/AP-1.10 zeigt die von Hand erfassten Belege
+unverändert.
+
+---
+
+## AP-1.18 — Feld-Definitionssystem (S-21)
+
+**Auftrag** — A-09, A-18, E11, `50` §2.13. Benutzerdefinierte Felder statt hartverdrahteter.
+
+**Abnahme** — Feld anlegen mit Name, Datentyp (`50` §2.13-Aufzählung), Geltungsbereich und
+Hilfetext; Werte am Profil erfassen; Felder als **Listenspalte und Filter** verfügbar (A-18, baut
+auf AP-1.10).
+
+**Ort im Editor (Nachtrag 23.09.2026):** Werte benutzerdefinierter Felder erscheinen im Editor
+aus AP-1.30 **im Reiter des Geltungsbereichs** (ein Feld für Personen → Reiter „Person" als
+eigene Gruppe „Eigene Felder" unter den festen Angaben). **Kein neunter Reiter** — die Grenze
+„höchstens acht Reiter" aus AP-1.30 gilt. Autosave und Koaleszenzschlüssel wie dort. Setzt AP-1.30
+voraus. Ein gelöschtes Feld nimmt seine Werte nicht mit ins Nichts, sondern wird als
+stillgelegt geführt.
+
+---
+
+## AP-1.19 — Gesundheitsmodul in der Oberfläche (S-22)
+
+**Auftrag** — M-01 bis M-04, M-08, E10, `50` §2.12. Diagnosen und Risikofaktoren gibt es seit
+Schema v1 und im Import; die Oberfläche fehlt.
+
+**Abnahme** — Diagnose mit Kategorie (**aus dem Schema-CHECK abgeleitet**, nicht abgetippt —
+siehe AP-1.3c und ADR-026), Erstdiagnose-Datum, Status, Konfidenz, Beleg; Risikofaktoren;
+**M-08: der Hinweis „wird nie exportiert" steht an jeder Stelle**, an der Gesundheitsdaten
+entstehen, nicht nur einmal. Erst hier werden die Diagnosefarben aus `tokens.css` benutzt — die
+Korrektur aus B1 (ADR-026-Umfeld) muss vorher auf `main` sein.
+
+**Neuer Zuschnitt (Nachtrag 23.09.2026):** Seit AP-1.30 ist S-22 **kein eigener Bildschirm**
+mehr, sondern der **Inhalt des Gesundheitsreiters** im Editor. Das Gerüst des Reiters (Zähler,
+kein Schloss, visuelle Trennung) steht dann schon. Dieses Paket füllt ihn mit Diagnosen und
+Risikofaktoren nach der Abnahme oben. Setzt AP-1.30 voraus und läuft am Ende von Kette 3b.
+Der M-08-Hinweis steht im Reiter selbst und an jeder weiteren Stelle, an der Gesundheitsdaten
+entstehen.
+
+---
+
+## AP-1.20 — Medien und Audio-Zeitmarken — ⛔ ERSETZT
+
+> **Ersetzt am 22.09.2026 durch AP-1.31a–d** (Nachtrag 23.09.2026). Das Paket wird **nicht**
+> gebaut und steht in keiner Kette mehr. Medien zuordnen und die Kopie in den Projektordner (A-10)
+> tragen AP-1.31a/b, Audio mit Zeitmarken (A-16) trägt AP-1.31b. Der alte Text bleibt als Nachweis.
+
+**Auftrag (historisch)** — A-10, A-16, `50` §2.11. Der Import kopiert Medien schon (AP-1.5); von Hand und mit
+Wiedergabe fehlt.
+
+**Abnahme** — Bild, PDF und Audio zuordnen; Kopie in den Projektordner, nie Verweis nach außen;
+Audio mit **Zeitmarken**, die auf einen Beleg zeigen (`zitat.zeitmarke_sekunden` aus AP-1.3c) —
+Klick springt in die Aufnahme. Keine Wiedergabe über das Netz, kein Codec-Nachladen.
+
+---
+
+## AP-1.21 — Interview-Modus (S-14)
+
+**Auftrag** — A-15, D-10, ADR-010. **Die Falle steht im Auftrag:** Der Interview-Modus ist eine
+**Ansicht über dem Importvertrag** — er wirft Notizen ein und erzeugt daraus Importmaterial nach
+demselben Vertrag. Er ist **kein zweiter Schreibweg** in die Datenbank. Sonst entstehen die zwei
+Wahrheiten, die ADR-010 verhindert.
+
+**Abnahme** — Gespräch als Sitzung mit Informant, Datum, Audio; unstrukturierten Text einwerfen;
+die App erzeugt **Vorschlagskarten** (AP-1.13) für Personen, Ereignisse, Orte; Bestätigen mit
+einer Taste erzeugt Importmaterial, das durch **denselben Trockenlauf** läuft wie eine Datei.
+Quellenart „Zeitzeugenaussage" mit Informant und Gesprächsdatum. Zustandsbibliothek S-19 als
+Prüfbild für die Zustände.
+
+---
+
+## AP-1.22 — Befehlspalette und Schnelleingabe (S-06)
+
+**Auftrag** — A-13, `70` §7. Kommt spät, weil sie nur aufrufen kann, was es gibt.
+
+**Abnahme** — Eine Taste öffnet die Palette; sie findet Aktionen **und** Personen; Tastenkürzel
+stehen daneben und sind nach `70` §7 „nach Einführung unantastbar". Schnelleingabe: eine Person
+mit Name und Lebensdaten in einer Zeile anlegen.
+
+**Kein zweiter Anlegeweg (Nachtrag 23.09.2026):** Die Schnelleingabe legt **über denselben Weg an
+wie AP-1.32**. Die Dublettenprüfung läuft mit, und ein Treffer öffnet dieselbe Auswahl „Das ist
+sie / trotzdem anlegen". Eine Zeile, die an der Prüfung vorbei eine Person anlegt, gilt als nicht
+fertig. Setzt AP-1.32 voraus.
+
+---
+
+## AP-1.23 — Änderungsverlauf, Wartung, Einstellungen (S-16, S-17, S-18)
+
+**Auftrag** — F-02, F-08, G-02, `72` S-16/S-17/S-18. **Das billigste Paket dieses Teils:** die
+Datenwege stehen alle seit Phase 0 (`journal-verlauf.ts`, `integritaet.ts`, `schnappschuss/*`,
+`wartung/datenbestand-pruefen.ts`) — es fehlt ausschließlich die Oberfläche.
+
+**Abnahme**
+- **Eine Verlaufsabfrage für beide Stellen (Nachtrag 23.09.2026):** AP-1.30 zeigt den Verlauf schon (rechte Spalte: letzte drei Einträge; Reiter Verwaltung: Verlauf der Person). AP-1.30 legt dafür **die** Abfrage an (`abfrage:verlauf` über `journal-verlauf.ts`, optional gefiltert nach Subjekt); S-16 nutzt dieselbe, ohne Filter. Keine zweite Verlaufsabfrage.
+- **S-16:** Transaktionen neu→alt mit Zeitpunkt, Art und Anzahl; Aufklappen zeigt Feldänderungen alt/neu aus den ganzen Zeilen (ADR-017); zurückgenommene sind markiert, nicht gelöscht.
+- **S-17:** Schnappschüsse mit Wiederherstellen, „Datenbestand prüfen" mit Bericht, „Abgeleitete Daten neu aufbauen", Journalgröße und Aufräumen. Jede Aktion sagt in einem Satz, was sie tut **und was sie riskiert**.
+- **S-18:** Erscheinungsbild (hell/dunkel/Systemvorgabe) und Dichte — **der Themenumschalter fehlt bis heute**, `tokens.css` trägt seit AP-1.6 beide Fassungen, niemand kann sie umschalten. Dazu Sprache, Konfidenz-Vorgaben je Quellenart, Schnappschuss-Häufigkeit, Import-Schwellwert, Tastenkürzel als Übersicht (in Phase 1 nicht änderbar).
+
+---
+
+## AP-1.24 — Mehrere Projekte, zuletzt geöffnet
+
+**Auftrag** — G-04. Der Rest aus AP-0.4: Liste zuletzt geöffneter Projekte pflegen, Wechsel ohne
+Neustart, Sperre und Schnappschuss-Auslöser beim Wechsel sauber zurücksetzen (AP-0.19-Muster).
+
+---
+
+## Themenherkunft des zweiten Teils (Nachweis, nicht Auftrag)
+
+**Geschnitten am 18.09.2026** in AP-1.12 bis AP-1.24 (oben). Diese Tabelle bleibt als Nachweis
+stehen, dass jedes Thema der ursprünglichen Liste ein Paket bekommen hat — und welches.
 
 | Thema | IDs |
 |---|---|
@@ -1133,6 +1926,8 @@ Daten zeigt — deshalb wird sie erst nach AP-1.9 festgelegt.
 | Interview-Modus als **Ansicht über dem Importvertrag**, nicht als zweite Erfassungsstrecke | A-15 |
 | Medien einbinden, Audio mit Zeitmarken | A-10, A-16 |
 | Mehrere Projekte, zuletzt geöffnete Liste (Rest) | G-04 |
+
+**Zuordnung:** Bearbeitung → AP-1.12/1.13/1.14 · Ereignisse → AP-1.15 · Orte → AP-1.16 · Quellen → AP-1.17 · Feld-Definitionen → AP-1.18 · Gesundheit → AP-1.19 · Medien/Audio → AP-1.20 · Interview → AP-1.21 · Schnelleingabe/Palette → AP-1.22 · Mehrere Projekte → AP-1.24. **Zusätzlich aus dem Designbestand gehoben:** S-16/S-17/S-18 (Änderungsverlauf, Wartung, Einstellungen) hatten entworfene Bildschirme, aber kein Paket → AP-1.23.
 
 Der Interview-Modus ist der Punkt, an dem man aufpassen muss: A-15 und D-10/D-11 überschneiden
 sich. Er wird als Oberfläche gebaut, die Notizen einwirft und daraus **Importmaterial nach

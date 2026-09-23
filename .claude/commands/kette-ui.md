@@ -1,7 +1,7 @@
 ---
 description: Eine Kette von Oberflächenpaketen am Stück durchlaufen (mit Bildbeleg statt Blick je Paket)
 argument-hint: [abschnitt: 1, 2, 3a, 3b oder 4 — oder start-ap, z.B. 1.30]
-model: sonnet
+model: opus
 ---
 
 Du bist **Kettenführer**, nicht Umsetzer. Kein Produktivcode in diesem Lauf.
@@ -77,23 +77,51 @@ AP-1.4b läuft außerhalb der Kette (eigene Sitzung, 18.09.2026).
 - **Ein Paket will ein Referenzbild löschen** statt es zu erneuern.
 - Sonst gilt die vollständige Abbruchliste aus `nachzug.md` und `kette.md`.
 
-## Modellrouting
+## Modellrouting (ab Kette 3, Stand 23.09.2026) — je Paket und je Rolle
 
-| Paket | `planer` | `hueter` | Warum |
-|---|---|---|---|
-| 1.11, 1.13 | **opus** | sonnet | Setzen das Aussehen von allem Folgenden; ein Fehler multipliziert sich über die ganze Phase. |
-| 1.25 | sonnet | **opus** | Geschützter Prüfpfad (`test/golden/`), adversariales Gate mit Rot-Probe. |
-| 1.12 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert — geschützter Prüfpfad. |
-| 1.14, 1.19, 1.21 | **opus** | **opus** | Erste Schreibmaske · Gesundheitsdaten mit M-08-Sperre · Interview-Modus, der kein zweiter Schreibweg werden darf (ADR-010). |
-| 1.29 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert, zwei neue Referenzbilder — geschützter Prüfpfad. |
-| 1.30 | **opus** | **opus** | Ersetzt die Maske aus AP-1.14 und trägt alle Reiter; Koaleszenzschlüssel je Autosave-Befehl. |
-| 1.32 | sonnet | **opus** | Einziger Anlegeweg mit Dublettenprüfung — AP-1.22 hängt sich später daran. |
-| 1.31b, 1.31c | **opus** | sonnet | Dokumentansicht und Bestand setzen das Aussehen der ganzen Medienstrecke. |
-| 1.33, 1.34, 1.31a | — | — | **Nicht in der Kette** — Migrationen, einzeln über `/ap` (opus/opus). |
-| alle übrigen | sonnet | sonnet | |
-| Mechanisches | `mechaniker` (haiku) | — | Doku-Abgleich, Laufplan, Gate-Ausgaben. |
+**Grundsatz:** Opus ist der Standard, Sonnet eine **ausdrückliche Ausnahme je Paket und Rolle**
+für klar umrissene Arbeit nach bekanntem Muster. Entschieden wird **hier in der Tabelle**, nicht
+unterwegs vom Kettenführer — eine nicht deterministische Modellwahl ließe sich weder nachvollziehen
+noch vergleichen.
+
+**Wie es greift:** Alle Agent-Definitionen stehen auf `opus` (der `mechaniker` auf `haiku`). Steht
+unten `sonnet`, übergibt der Kettenführer beim Agent-Aufruf `model: "sonnet"` — **sonst nie einen
+Override.** Fehlt ein Paket in der Tabelle, gilt Opus für alle Rollen. `nachzug.md` Schritt 5
+(„umsetzer (sonnet)") wird hier als „umsetzer laut Tabelle" gelesen.
+
+| Paket | `planer` | `umsetzer` | `hueter` | Warum |
+|---|---|---|---|---|
+| 1.29 (+PR-B) | opus | **sonnet** | opus | Befehle nach dem Muster aus AP-1.12/1.17; `undo-bitgleich` und zwei neue Referenzbilder = geschützter Prüfpfad |
+| 1.33 · 1.34 · 1.31a | opus | opus | opus | Migrationen, einzeln über `/ap`: Datenumzug, IDs, Undo-Ausnahme, Dateiumzug — ein Fehler macht Projektdateien kaputt |
+| 1.30 | opus | opus | opus | Ersetzt die Maske aus AP-1.14, alle Reiter, Koaleszenzschlüssel je Befehl |
+| 1.32 | opus | **sonnet** | opus | Score-Logik wird im Plan festgelegt; der Anlegeweg muss dicht sein (AP-1.22 hängt sich daran) |
+| 1.31b | opus | opus | opus | Dokumentansicht, Porträt, Audio-Zeitmarken — setzt das Aussehen der Medienstrecke |
+| 1.31c | opus | **sonnet** | opus | Filter-JSON → SQL an **einer** Stelle, Stapelaktion = ein Undo-Schritt |
+| 1.31d | opus | **sonnet** | opus | Hash-Dubletten, Hintergrundverarbeitung |
+| 1.19 | opus | opus | opus | Gesundheitsdaten, M-08-Sperre |
+| 1.18 | opus | **sonnet** | **sonnet** | Datenmodell steht (`50` §2.13); Einordnung in die Reiter legt der Plan fest |
+| 1.23 | **sonnet** | **sonnet** | **sonnet** | Billigstes Paket: alle Datenwege stehen seit Phase 0, nur Oberfläche |
+| 1.24 | opus | **sonnet** | **sonnet** | Sperre/Schnappschuss beim Wechsel (AP-0.19-Muster) gehört in den Plan, der Bau ist Routine |
+| 1.21 | opus | opus | opus | Interview-Modus darf kein zweiter Schreibweg werden (ADR-010) |
+| 1.22 | **sonnet** | **sonnet** | **sonnet** | Ruft nur auf, was es gibt; Anlegen läuft über AP-1.32 |
+| Mechanisches | — | `mechaniker` (haiku) | — | Rot-Beleg ausführen, Gate-Ausgaben lesen, Doku kopieren |
+
+**Drei Regeln, die über der Tabelle stehen:**
+1. **Geschützter Prüfpfad → `hueter` auf Opus**, immer (jeder PR-B, jede Änderung an `test/golden/`, `test/invarianten/`, `test/schema/`, Migrationsprüfsummen) — auch wenn die Zeile `sonnet` sagt.
+2. **Eskalation statt Durchquälen:** Scheitert ein Sonnet-Umsetzer **zweimal am selben Gate**, übernimmt ein Opus-Umsetzer den dritten Anlauf. Vermerk im Laufplan; das ist kein Abbruchgrund.
+3. **Kettenführer** (diese Sitzung) läuft auf Opus (`model:` im Kopf dieser Datei).
+
+`opus` ist der Alias für das jeweils aktuelle Opus-Modell (**Stand 23.09.2026: Opus 5.5**),
+`sonnet` entsprechend für das aktuelle Sonnet. Feste IDs lässt `enforceAvailableModels` in
+`.claude/settings.json` nicht zu.
 
 ## Am Checkpoint
+
+**Zuerst Doku-Sync (Regel seit 23.09.2026):** der `mechaniker` kopiert
+`../Wissen/57_Phase0_Arbeitspakete.md` **byte-gleich** nach `docs/arbeitspakete.md` — als eigener
+PR `chore/doku-sync-kette-<n>`, CI grün ×3, `hueter` kurz, mergen. Was ein Paket am Datenmodell
+ändert (`docs/datenmodell.md`, `docs/schema/`), gehört **nicht** hierher, sondern in den PR des
+Pakets selbst. So ist die Repo-Kopie nie älter als eine Kette.
 
 Kein `/abnahme`. Stattdessen: Laufplan nachziehen, `pnpm bilder` ein letztes Mal laufen lassen,
 und dem Nutzer in fünf Zeilen sagen — welche Pakete gemergt sind, wo die Bilder liegen, was an
