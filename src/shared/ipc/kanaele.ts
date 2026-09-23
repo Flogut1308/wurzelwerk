@@ -84,6 +84,7 @@ const kanaele = [
   'befehl:quelle.anlegen',
   'befehl:quelle.aendern',
   'abfrage:quelle.detail',
+  'abfrage:quelle.suche',
   'befehl:zitat.anlegen',
   'befehl:zitat.aendern',
   'befehl:zitat.loeschen',

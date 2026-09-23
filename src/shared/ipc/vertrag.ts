@@ -51,6 +51,7 @@ import type { OrtSucheAus, OrtSucheEin } from '../schemata/ort-suche'
 import type { OrtDetailAus, OrtDetailEin } from '../schemata/ort-detail'
 import type { ArchivSucheAus, ArchivSucheEin } from '../schemata/archiv-suche'
 import type { QuelleDetailAus, QuelleDetailEin } from '../schemata/quelle-detail'
+import type { QuelleSucheAus, QuelleSucheEin } from '../schemata/quelle-suche'
 import type { NegativbefundListeAus, NegativbefundListeEin } from '../schemata/negativbefund-liste'
 
 /**
@@ -363,6 +364,7 @@ export interface Vertrag {
   'befehl:quelle.anlegen': { ein: QuelleAnlegenEin; aus: { readonly id: string } }
   'befehl:quelle.aendern': { ein: QuelleAendernEin; aus: null }
   'abfrage:quelle.detail': { ein: QuelleDetailEin; aus: QuelleDetailAus }
+  'abfrage:quelle.suche': { ein: QuelleSucheEin; aus: QuelleSucheAus }
   'befehl:zitat.anlegen': { ein: ZitatAnlegenEin; aus: { readonly id: string } }
   'befehl:zitat.aendern': { ein: ZitatAendernEin; aus: null }
   'befehl:zitat.loeschen': { ein: ZitatLoeschenEin; aus: null }
