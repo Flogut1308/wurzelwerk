@@ -221,6 +221,48 @@ describe('aussage_zitat.loeschen (AP-1.29 PR-A)', () => {
     }
   })
 
+  // Fängt eine Mutation am `DELETE` in `aussage-repo.ts::zitatLoesen`, die eine der beiden
+  // Schlüsselbedingungen weglässt: ohne `AND zitat_id` fielen alle Zitate der Aussage, ohne
+  // `aussage_id =` alle Aussagen des Zitats. Mit nur EINER Verknüpfung (Tests oben) ist beides
+  // unsichtbar, und `undo-bitgleich` sieht es prinzipbedingt nicht (Undo stellt alles wieder her).
+  it('eine aussage mit zwei zitaten: nur die gelöste Verknüpfung verschwindet', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const aussageId = neueAussage(db, personId)
+      const zitatA = neuesZitat(db)
+      const zitatB = neuesZitat(db)
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId, zitatId: zitatA })
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId, zitatId: zitatB })
+
+      fuehreAus(db, 'aussage_zitat.loeschen', { aussageId, zitatId: zitatA })
+
+      expect(verknuepfungLesen(db, aussageId, zitatA)).toBeUndefined()
+      expect(verknuepfungLesen(db, aussageId, zitatB)).toBeDefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein zitat an zwei aussagen: nur die gelöste Verknüpfung verschwindet', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const aussageA = neueAussage(db, personId)
+      const aussageB = neueAussage(db, personId)
+      const zitatId = neuesZitat(db)
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussageA, zitatId })
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussageB, zitatId })
+
+      fuehreAus(db, 'aussage_zitat.loeschen', { aussageId: aussageA, zitatId })
+
+      expect(verknuepfungLesen(db, aussageA, zitatId)).toBeUndefined()
+      expect(verknuepfungLesen(db, aussageB, zitatId)).toBeDefined()
+    } finally {
+      db.close()
+    }
+  })
+
   it('fehlende Verknüpfung (aussage und zitat bestehen, sind aber nicht verknüpft) → NICHT_GEFUNDEN_AUSSAGE_ZITAT, kein Schreibvorgang', () => {
     const db = neueTestDatenbank()
     try {
