@@ -511,6 +511,37 @@ export const aussageLoeschenEinSchema: z.ZodType<AussageLoeschenEin> = z.object(
 })
 
 // -----------------------------------------------------------------------------------------------
+// aussage_zitat.anlegen / aussage_zitat.loeschen (AP-1.29 PR-A, docs/schema/0002_kern.sql §2.7) —
+// verknüpft/entkoppelt EINEN bestehenden Beleg (`zitat`) mit einer bestehenden `aussage`, OHNE die
+// `aussage`- oder `zitat`-Zeile selbst zu berühren. `aussage_zitat` hat KEIN eigenes `id`
+// (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, analog `ort_externe_id`) — darum
+// zwei Befehle statt drei: eine bestehende Verknüpfung ändert man nicht, man löst sie und legt eine
+// neue an.
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:aussage_zitat.anlegen`. */
+export interface AussageZitatAnlegenEin {
+  readonly aussageId: string
+  readonly zitatId: string
+}
+
+export const aussageZitatAnlegenEinSchema: z.ZodType<AussageZitatAnlegenEin> = z.object({
+  aussageId: z.string(),
+  zitatId: z.string(),
+})
+
+/** Nutzlast von `befehl:aussage_zitat.loeschen`. */
+export interface AussageZitatLoeschenEin {
+  readonly aussageId: string
+  readonly zitatId: string
+}
+
+export const aussageZitatLoeschenEinSchema: z.ZodType<AussageZitatLoeschenEin> = z.object({
+  aussageId: z.string(),
+  zitatId: z.string(),
+})
+
+// -----------------------------------------------------------------------------------------------
 // ort.anlegen (AP-1.13 PR-C, docs/71_Designsystem.md §3.2) — NUR Ort + EIN primärer Ortsname
 // (minimale Ortsverwaltung fürs `Ortsfeld`, direkt aus der Trefferliste heraus). Die volle
 // Ortsverwaltung (zeitabhängige Namensgeschichte pflegen, politisch/kirchlich getrennte

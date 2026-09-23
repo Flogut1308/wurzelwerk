@@ -201,6 +201,27 @@ export function zitatVerknuepfen(tx: Tx, ein: AussageZitatVerknuepfenEin): void 
   })
 }
 
+/** Prüft, ob eine `aussage_zitat`-Verknüpfung existiert (zusammengesetzter Primärschlüssel
+ * `(aussage_id, zitat_id)`, kein eigenes `id` — darum kein `datensatzExistiert()`, das nimmt einen
+ * skalaren `id`-Primärschlüssel an, analog `ort-repo.ts::ortExterneIdLesen`). Für die Duplikat-
+ * prüfung vor `aussage_zitat.anlegen` und die Existenzprüfung vor `aussage_zitat.loeschen`
+ * (AP-1.29 PR-A). */
+export function verknuepfungExistiert(tx: Tx, aussageId: string, zitatId: string): boolean {
+  const zeile = tx
+    .prepare<{ readonly aussageId: string; readonly zitatId: string }, { readonly vorhanden: number }>(
+      'SELECT 1 AS vorhanden FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId LIMIT 1',
+    )
+    .get({ aussageId, zitatId })
+  return zeile !== undefined
+}
+
+/** Löst eine `aussage_zitat`-Verknüpfung wieder — anders als `loeschen()`/`loeschenNachSubjekt()`
+ * bleiben die `aussage`- UND die `zitat`-Zeile dabei unberührt (`aussage_zitat.loeschen`,
+ * AP-1.29 PR-A). */
+export function zitatLoesen(tx: Tx, aussageId: string, zitatId: string): void {
+  tx.prepare('DELETE FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId').run({ aussageId, zitatId })
+}
+
 /** Löscht eine `aussage`-Zeile (`aussage.loeschen`, AP-1.12) — CASCADE räumt `aussage_zitat` ab. */
 export function loeschen(tx: Tx, id: string): void {
   tx.prepare('DELETE FROM aussage WHERE id = @id').run({ id })

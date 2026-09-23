@@ -21,6 +21,8 @@ import type {
   AussageAnlegenEin,
   AussageAendernEin,
   AussageLoeschenEin,
+  AussageZitatAnlegenEin,
+  AussageZitatLoeschenEin,
   OrtAnlegenEin,
   OrtAendernEin,
   OrtsnameAnlegenEin,
@@ -326,6 +328,8 @@ export interface Vertrag {
   'befehl:aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'befehl:aussage.aendern': { ein: AussageAendernEin; aus: null }
   'befehl:aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
+  'befehl:aussage_zitat.anlegen': { ein: AussageZitatAnlegenEin; aus: null }
+  'befehl:aussage_zitat.loeschen': { ein: AussageZitatLoeschenEin; aus: null }
   'befehl:journal.undo': { ein: null; aus: UndoErgebnis }
   'befehl:journal.redo': { ein: null; aus: UndoErgebnis }
   'abfrage:journal.verlauf': { ein: JournalVerlaufEin; aus: readonly VerlaufEintrag[] }

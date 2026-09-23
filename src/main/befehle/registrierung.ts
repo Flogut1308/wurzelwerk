@@ -51,6 +51,10 @@ import {
   type AussageAnlegenEin,
   type AussageAendernEin,
   type AussageLoeschenEin,
+  aussageZitatAnlegenEinSchema,
+  aussageZitatLoeschenEinSchema,
+  type AussageZitatAnlegenEin,
+  type AussageZitatLoeschenEin,
   ortAnlegenEinSchema,
   type OrtAnlegenEin,
   ortAendernEinSchema,
@@ -111,6 +115,8 @@ import { beteiligungLoeschen } from './beteiligung-loeschen'
 import { aussageAnlegen } from './aussage-anlegen'
 import { aussageAendern } from './aussage-aendern'
 import { aussageLoeschen } from './aussage-loeschen'
+import { aussageZitatAnlegen } from './aussage-zitat-anlegen'
+import { aussageZitatLoeschen } from './aussage-zitat-loeschen'
 import { ortAnlegen } from './ort-anlegen'
 import { ortAendern } from './ort-aendern'
 import { ortsnameAnlegen } from './ortsname-anlegen'
@@ -170,6 +176,8 @@ interface BefehlKarte {
   'aussage.anlegen': { ein: AussageAnlegenEin; aus: { readonly id: string } }
   'aussage.aendern': { ein: AussageAendernEin; aus: null }
   'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
+  'aussage_zitat.anlegen': { ein: AussageZitatAnlegenEin; aus: null }
+  'aussage_zitat.loeschen': { ein: AussageZitatLoeschenEin; aus: null }
   'ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
   'ort.aendern': { ein: OrtAendernEin; aus: null }
   'ortsname.anlegen': { ein: OrtsnameAnlegenEin; aus: { readonly id: string } }
@@ -316,6 +324,18 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.aussage_geloescht',
     handler: aussageLoeschen,
+  },
+  'aussage_zitat.anlegen': {
+    schema: aussageZitatAnlegenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.aussage_zitat_angelegt',
+    handler: aussageZitatAnlegen,
+  },
+  'aussage_zitat.loeschen': {
+    schema: aussageZitatLoeschenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.aussage_zitat_geloescht',
+    handler: aussageZitatLoeschen,
   },
   'ort.anlegen': {
     schema: ortAnlegenEinSchema,
