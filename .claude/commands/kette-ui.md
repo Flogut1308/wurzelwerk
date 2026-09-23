@@ -1,6 +1,6 @@
 ---
 description: Eine Kette von Oberflächenpaketen am Stück durchlaufen (mit Bildbeleg statt Blick je Paket)
-argument-hint: [abschnitt: 1, 2 oder 3 — oder start-ap, z.B. 1.13]
+argument-hint: [abschnitt: 1, 2, 3a, 3b oder 4 — oder start-ap, z.B. 1.30]
 model: sonnet
 ---
 
@@ -31,8 +31,27 @@ Paket ein fertiges Bild still verändert. Der Nutzer sieht gestapelt hin, an den
   AP-1.27 direkt danach: der Eingang der Testdaten.
   **Danach ANHALTEN — Checkpoint 2.** Der Nutzer arbeitet einen Abend mit echten Daten.
 
-**Kette 3** (`/kette-ui 3`): AP-1.18 → AP-1.19 → AP-1.20 → AP-1.23 → AP-1.24 → AP-1.21 → AP-1.22
+**Kette 3a — Editor** (`/kette-ui 3a`): AP-1.29 → ⏸ → AP-1.30 → AP-1.32
   Erst nach ausdrücklicher Freigabe von Checkpoint 2 starten.
+  AP-1.29 zuerst: die fehlenden Schreibwege und die zwei fehlenden Referenzbilder — ohne sie
+  kann sich „Person bearbeiten" während des Umbaus still verändern.
+  **⏸ = Kette hält nach AP-1.29 an.** AP-1.33 (Migration 0006) und AP-1.34 (Migration 0007)
+  laufen **einzeln über `/ap`**, nicht in der Kette — „Eine Migration entsteht" bleibt
+  Abbruchgrund (`kette.md`). Danach weiter mit `/kette-ui 1.30`.
+  **Danach ANHALTEN — Checkpoint 3.** Der Nutzer pflegt einen Abend lang Personen im neuen Editor.
+
+**Kette 3b — Medien** (`/kette-ui 3b`): ⏸ → AP-1.31b → AP-1.31c → AP-1.31d → AP-1.19
+  Erst nach ausdrücklicher Freigabe von Checkpoint 3 starten.
+  **⏸ = AP-1.31a (Migration 0008) läuft vorher einzeln über `/ap`.** Die Kette beginnt erst,
+  wenn 1.31a auf `main` ist.
+  AP-1.19 am Ende: füllt den Gesundheitsreiter aus AP-1.30, kein eigener Bildschirm mehr.
+  **Danach ANHALTEN — Checkpoint 4.**
+
+**Kette 4 — Komfort** (`/kette-ui 4`): AP-1.18 → AP-1.23 → AP-1.24 → AP-1.21 → AP-1.22
+  Erst nach ausdrücklicher Freigabe von Checkpoint 4 starten.
+  AP-1.22 zuletzt: sie kann nur aufrufen, was es gibt.
+
+AP-1.20 ist **ersetzt** (durch AP-1.31a–d, 22.09.2026) und läuft nicht mehr.
 
 AP-1.4b läuft außerhalb der Kette (eigene Sitzung, 18.09.2026).
 
@@ -66,6 +85,11 @@ AP-1.4b läuft außerhalb der Kette (eigene Sitzung, 18.09.2026).
 | 1.25 | sonnet | **opus** | Geschützter Prüfpfad (`test/golden/`), adversariales Gate mit Rot-Probe. |
 | 1.12 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert — geschützter Prüfpfad. |
 | 1.14, 1.19, 1.21 | **opus** | **opus** | Erste Schreibmaske · Gesundheitsdaten mit M-08-Sperre · Interview-Modus, der kein zweiter Schreibweg werden darf (ADR-010). |
+| 1.29 (+PR-B) | sonnet | **opus** | `undo-bitgleich` wird erweitert, zwei neue Referenzbilder — geschützter Prüfpfad. |
+| 1.30 | **opus** | **opus** | Ersetzt die Maske aus AP-1.14 und trägt alle Reiter; Koaleszenzschlüssel je Autosave-Befehl. |
+| 1.32 | sonnet | **opus** | Einziger Anlegeweg mit Dublettenprüfung — AP-1.22 hängt sich später daran. |
+| 1.31b, 1.31c | **opus** | sonnet | Dokumentansicht und Bestand setzen das Aussehen der ganzen Medienstrecke. |
+| 1.33, 1.34, 1.31a | — | — | **Nicht in der Kette** — Migrationen, einzeln über `/ap` (opus/opus). |
 | alle übrigen | sonnet | sonnet | |
 | Mechanisches | `mechaniker` (haiku) | — | Doku-Abgleich, Laufplan, Gate-Ausgaben. |
 

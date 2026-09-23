@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #6e6f6b; }
+  a { color: #2c625f; }
+  a:hover { color: #1f4744; }
+</style>
+</helmet>
+
+<section style="display:flex;gap:64px;align-items:flex-start;padding:56px;width:max-content;font-family:'Source Sans 3',sans-serif">
+
+<!-- ===================== 3a ===================== -->
+<div id="3a" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">3a</div>
+    <div style="max-width:1040px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">MEDIENBESTAND · ÜBERSICHT</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Medienbestand</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Ein flacher Bestand, keine frei erfundene Ordnerstruktur. Organisiert wird über das, was die Sache ohnehin hat: Herkunft, Art, Zeit, Person, Ort, Schlagwort. Jede Kombination davon lässt sich als Ansicht sichern.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px">
+    <div style="width:1440px;box-sizing:border-box;border:1px solid #908878;border-radius:10px;overflow:hidden;background:#F3F0EA;display:flex;flex-direction:column;box-shadow:0 12px 34px rgba(35,32,25,.12)">
+      <div style="flex:none;padding:11px 24px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600">Wurzelwerk</span>
+        <span style="color:#B8B2A6">/</span><span style="font-size:13px;color:#232019;font-weight:600">Medien</span>
+        <span style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Ansicht sichern</span>
+          <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:#35726E;color:#F7FBFA;font-size:13px;font-weight:600">+ Hochladen</span>
+        </span>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+        <!-- Seitenleiste -->
+        <div style="width:250px;flex:none;border-right:1px solid #E2DDD2;background:#F7F5F0;padding:18px 16px;display:flex;flex-direction:column;gap:22px">
+          <div>
+            <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:9px">Bestand</div>
+            <div style="display:flex;flex-direction:column;gap:3px;font-size:13.5px">
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;background:#E4EEEC;color:#232019;font-weight:600">Alle Medien<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#5C564B">1 284</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:#5C564B">Zuletzt hinzugefügt<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">32</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:#5C564B">Ohne Zuordnung<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7E5714">148</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:#5C564B">Ohne Datierung<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7E5714">211</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:#5C564B">Papierkorb<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">7</span></span>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Herkunft</span><span style="margin-left:auto;font-size:12px;color:#2C625F">+</span></div>
+            <div style="display:flex;flex-direction:column;gap:3px;font-size:13.5px;color:#5C564B">
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px"><span style="width:9px;height:9px;border-radius:2px;background:#8A7B54;flex:none"></span>Schuhkarton Oma Erna<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">312</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px"><span style="width:9px;height:9px;border-radius:2px;background:#4C6B7A;flex:none"></span>Archiv Marienwerder<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">96</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px"><span style="width:9px;height:9px;border-radius:2px;background:#5B7A5E;flex:none"></span>Gespräche 2026<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">18</span></span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px"><span style="width:9px;height:9px;border-radius:2px;background:#8A5F55;flex:none"></span>Nachlass Wladikawkas<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">204</span></span>
+            </div>
+            <div style="margin-top:8px;font-size:12px;color:#867B65;line-height:1.5;padding:0 10px">Ein Medium gehört zu genau einer Herkunft — dem Konvolut, aus dem es stammt.</div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:9px">Gesicherte Ansichten</div>
+            <div style="display:flex;flex-direction:column;gap:3px;font-size:13.5px;color:#5C564B">
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px">Urkunden vor 1945</span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px">Fotos ohne Person</span>
+              <span style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px">Zu transkribieren<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">23</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hauptfläche -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#FAF8F4">
+          <div style="flex:none;padding:14px 22px;border-bottom:1px solid #E2DDD2;background:#FCFBF8;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="flex:1;max-width:420px;height:34px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:14px;color:#867B65"><span style="color:#6F695C">⌕</span>In Titeln, Transkriptionen und Schlagwörtern suchen</div>
+              <div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:34px">
+                <span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Raster</span>
+                <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;color:#5C564B">Liste</span>
+                <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;color:#5C564B">Zeitleiste</span>
+                <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;color:#5C564B">Karte</span>
+              </div>
+              <span style="margin-left:auto;font-size:13px;color:#6F695C">sortiert nach <span style="color:#232019">Aufnahmedatum</span></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:14px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12.5px;color:#234F4C">Art: Foto<span style="color:#2C625F">✕</span></span>
+              <span style="display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:14px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12.5px;color:#234F4C">1900 – 1945<span style="color:#2C625F">✕</span></span>
+              <span style="display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:14px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12.5px;color:#234F4C">Person: Karl Gutnoff<span style="color:#2C625F">✕</span></span>
+              <span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:14px;border:1px dashed #908878;background:#FCFBF8;font-size:12.5px;color:#5C564B">+ Filter</span>
+              <span style="margin-left:auto;font-size:12.5px;color:#6F695C"><span style="font-weight:600;color:#232019">38</span> von 1 284</span>
+            </div>
+          </div>
+
+          <div style="flex:1;padding:18px 22px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;align-content:start">
+            <div style="border:1px solid #35726E;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;position:relative;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span><span style="position:absolute;top:7px;left:7px;width:16px;height:16px;border-radius:4px;background:#35726E;color:#F7FBFA;font-size:10px;display:inline-flex;align-items:center;justify-content:center">✓</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Karl in der Schmiede</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">um 1935 · 1 Person</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Hochzeit Karl &amp; Emma</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">1925 · 4 Personen</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Familie vor dem Haus</div><div style="font-size:11px;color:#7E5714;margin-top:2px">undatiert</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Schmiede, Außenansicht</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">1938 · Marienwerder</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;position:relative;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span><span style="position:absolute;bottom:7px;right:7px;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:9px;background:#FCFBF8;border:1px solid #E2DDD2;font-size:10px;color:#5C564B">Rückseite</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Gruppenbild Umsiedler</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">1946 · 11 Personen</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Emma mit Kindern</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">um 1930 · 3 Personen</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Porträt unbekannt</div><div style="font-size:11px;color:#7E5714;margin-top:2px">keine Person zugeordnet</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Werkstatt Innenraum</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">um 1940</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Karl und Wilhelm</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">um 1912 · 2 Personen</div></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="height:112px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter</span></div>
+              <div style="padding:9px 10px"><div style="font-size:12.5px;font-weight:600;line-height:1.35">Konfirmation Elisabeth</div><div style="font-size:11px;color:#6F695C;margin-top:2px;font-variant-numeric:tabular-nums">1943 · 1 Person</div></div>
+            </div>
+          </div>
+
+          <div style="flex:none;padding:11px 22px;border-top:1px solid #E2DDD2;background:#FCFBF8;display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:#232019"><span style="font-weight:600">1</span> ausgewählt</span>
+            <span style="display:flex;gap:9px;margin-left:12px">
+              <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Person zuordnen</span>
+              <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Datieren</span>
+              <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Schlagwort</span>
+              <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Herkunft ändern</span>
+            </span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">Stapelaktionen gelten für die ganze Auswahl</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="margin:16px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6;max-width:1060px">Kein Medium liegt „in“ einer Ansicht — Ansichten sind gespeicherte Filter. Dadurch kann dasselbe Foto gleichzeitig unter „Urkunden vor 1945“, bei Karl Gutnoff und im Konvolut „Schuhkarton Oma Erna“ auftauchen, ohne kopiert zu werden.</p>
+  </div>
+</div>
+
+<!-- ===================== 3b ===================== -->
+<div id="3b" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">3b</div>
+    <div style="max-width:1040px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">ORGANISATIONSMODELL · WARUM KEINE ORDNER</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Wie der Bestand geordnet ist</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Vier Ordnungsebenen statt eines Ordnerbaums. Jede beantwortet eine andere Frage — und keine zwingt dazu, sich beim Ablegen für einen einzigen Platz zu entscheiden.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:44px;align-items:flex-start">
+    <div style="width:880px;flex:none;display:flex;flex-direction:column;gap:16px">
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px;display:flex;gap:20px">
+        <div style="width:150px;flex:none"><div style="font-size:15px;font-weight:600">Herkunft</div><div style="font-size:12px;color:#867B65;margin-top:3px">genau eine je Medium</div></div>
+        <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.6;color:#5C564B">Das Konvolut, aus dem die Datei stammt: „Schuhkarton Oma Erna“, „Archiv Marienwerder, Bestand 14“, „Gespräche 2026“. Trägt Eigentümer, Rechte und Standort des Originals — die erbt jedes Medium darin.
+          <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:13px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:12px"><span style="width:8px;height:8px;border-radius:2px;background:#8A7B54"></span>Schuhkarton Oma Erna</span><span style="display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:13px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:12px"><span style="width:8px;height:8px;border-radius:2px;background:#4C6B7A"></span>Archiv Marienwerder</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px;display:flex;gap:20px">
+        <div style="width:150px;flex:none"><div style="font-size:15px;font-weight:600">Verknüpfung</div><div style="font-size:12px;color:#867B65;margin-top:3px">beliebig viele</div></div>
+        <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.6;color:#5C564B">Wozu gehört das Medium inhaltlich: Personen, Orte, Stationen, einzelne Angaben. Entsteht beim Markieren im Bild oder beim Verknüpfen eines Belegs — und ist zugleich der Weg zurück vom Personenformular zum Medium.
+          <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12px;color:#234F4C">Karl Gutnoff</span><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12px;color:#234F4C">Marienwerder</span><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:12px;color:#234F4C">Geburt 1901</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px;display:flex;gap:20px">
+        <div style="width:150px;flex:none"><div style="font-size:15px;font-weight:600">Schlagwort</div><div style="font-size:12px;color:#867B65;margin-top:3px">frei, aber vorgeschlagen</div></div>
+        <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.6;color:#5C564B">Für alles, was keine Person und kein Ort ist: „Handwerk“, „Militär“, „Rückseite beschriftet“, „unleserlich“. Neue Schlagwörter entstehen beim Tippen; bestehende werden zuerst vorgeschlagen, damit nicht drei Schreibweisen desselben Begriffs entstehen.
+          <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:12px;color:#5C564B">Handwerk</span><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:12px;color:#5C564B">Rückseite beschriftet</span><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:12px;color:#5C564B">zu transkribieren</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px;display:flex;gap:20px">
+        <div style="width:150px;flex:none"><div style="font-size:15px;font-weight:600">Gesicherte Ansicht</div><div style="font-size:12px;color:#867B65;margin-top:3px">ein gespeicherter Filter</div></div>
+        <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.6;color:#5C564B">Was wie ein Ordner aussieht, ist eine Abfrage: Art + Zeitraum + Person + Schlagwort. Sie füllt sich von selbst, wenn neue Medien passen, und lässt sich umbenennen, teilen und wieder löschen, ohne dass ein Medium verschwindet.
+          <div style="margin-top:11px;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4;font-size:12.5px;color:#5C564B"><span style="font-weight:600;color:#232019">Zu transkribieren</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">Art: Dokument · Transkription: leer · Herkunft: beliebig</span><span style="margin-left:auto;color:#2C625F">bearbeiten</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E4D2AB;border-radius:10px;background:#F8F1E2;padding:18px 20px;display:flex;gap:20px">
+        <div style="width:150px;flex:none"><div style="font-size:15px;font-weight:600;color:#7E5714">Freie Ordner</div><div style="font-size:12px;color:#8A7348;margin-top:3px">bewusst nicht</div></div>
+        <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.6;color:#7E5714">Ein Ordnerbaum zwingt bei jedem Foto zur Entscheidung: nach Person, nach Jahr oder nach Quelle? Jede Wahl macht die beiden anderen Zugriffe unmöglich, und nach tausend Dateien findet niemand mehr etwas wieder. Wer Ordner gewohnt ist, bekommt mit Herkunft plus gesicherten Ansichten dasselbe Gefühl — ohne die Sackgasse.</div>
+      </div>
+    </div>
+
+    <div style="width:540px;flex:none;display:flex;flex-direction:column;gap:22px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">HERKUNFT ANLEGEN</div>
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;box-shadow:0 10px 28px rgba(35,32,25,.12);overflow:hidden">
+          <div style="padding:15px 18px;border-bottom:1px solid #E2DDD2;font-size:16.5px;font-weight:600">Herkunft anlegen</div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Bezeichnung</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 11px;font-size:14px">Nachlass Wladikawkas</div></div>
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Art</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14px">Privatbesitz<span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px;width:150px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Farbe</span><div style="height:36px;display:flex;align-items:center;gap:8px"><span style="width:22px;height:22px;border-radius:5px;background:#8A5F55;outline:2px solid #232019;outline-offset:2px"></span><span style="width:22px;height:22px;border-radius:5px;background:#4C6B7A;outline:1px solid #E2DDD2"></span><span style="width:22px;height:22px;border-radius:5px;background:#5B7A5E;outline:1px solid #E2DDD2"></span><span style="width:22px;height:22px;border-radius:5px;background:#8A7B54;outline:1px solid #E2DDD2"></span></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Standort des Originals</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 11px;font-size:14px">bei Tamara Gutnova, Wladikawkas</div></div>
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Rechte <span style="color:#867B65">· gilt für alle Medien darin, einzeln überschreibbar</span></span><div style="display:flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:34px"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Familienbesitz</span><span style="width:1px;background:#E2DDD2"></span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:#5C564B">Archiv</span><span style="width:1px;background:#E2DDD2"></span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:#5C564B">gemeinfrei</span></div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;border-top:1px solid #E2DDD2;background:#FAF8F4"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65;margin-right:auto">204 Medien zugeordnet</span><span style="height:36px;display:inline-flex;align-items:center;padding:0 15px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Abbrechen</span><span style="height:36px;display:inline-flex;align-items:center;padding:0 17px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:14px;font-weight:600">Speichern</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Was ein Medium trägt</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:#5C564B">
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Titel</span><span>frei, sonst Dateiname</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Art</span><span>Foto, Dokument, Ton, Video, Objekt</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Datierung</span><span>wie überall unscharf möglich: „um 1935“</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Ort</span><span>Verweis auf den Ortsdatensatz</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Herkunft</span><span>eine, mit Rechten und Standort des Originals</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Verknüpfungen</span><span>Personen, Orte, Stationen, einzelne Angaben</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Text</span><span>Transkription und Übersetzung, durchsuchbar</span></div>
+          <div style="display:flex;gap:12px"><span style="width:124px;flex:none;color:#232019;font-weight:600">Datei</span><span>Original unverändert, Vorschauen erzeugt</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 3c ===================== -->
+<div id="3c" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">3c</div>
+    <div style="max-width:1040px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">STAPEL-IMPORT · ZUORDNEN OHNE EINZELKLICKS</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Hundert Scans auf einmal</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Der Normalfall ist nicht eine Datei, sondern ein Karton. Beim Import wird einmal die Herkunft gesetzt, dann arbeitet man die Stapel in einem Rutsch durch — mit Tastatur, ohne jedes Medium einzeln zu öffnen.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:40px;align-items:flex-start">
+    <div style="width:880px;flex:none">
+      <div style="border:1px solid #908878;border-radius:10px;background:#FAF8F4;overflow:hidden">
+        <div style="padding:14px 20px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:12px">
+          <span style="font-size:15px;font-weight:600">Import · 96 Dateien</span>
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#EDF3EA;border:1px solid #C4D8BF;font-size:11.5px;color:#3A6335">84 übernommen</span>
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#F8F1E2;border:1px solid #E4D2AB;font-size:11.5px;color:#7E5714">9 Dubletten</span>
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#FBF2F0;border:1px solid #E2C8C3;font-size:11.5px;color:#832F24">3 nicht lesbar</span>
+          <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65">Herkunft: Archiv Marienwerder</span>
+        </div>
+
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid #E2DDD2">
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:240px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Herkunft für alle</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14px"><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:2px;background:#4C6B7A"></span>Archiv Marienwerder</span><span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Art</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Dokument</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Datierung aus</span><div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:36px"><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Dateiname</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;color:#5C564B">Datei-Datum</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 12px;font-size:13px;color:#5C564B">selbst setzen</span></div></div>
+          </div>
+
+          <div style="display:flex;gap:18px">
+            <div style="width:300px;flex:none">
+              <div style="height:300px;background:#EDE7DA;border:1px solid #E2DDD2;border-radius:8px;display:flex;align-items:center;justify-content:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6F695C">Platzhalter · Scan 37</span></div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><span style="height:30px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">‹ zurück</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C">37 / 96</span><span style="margin-left:auto;height:30px;display:inline-flex;align-items:center;padding:0 11px;border-radius:6px;background:#35726E;color:#F7FBFA;font-size:13px;font-weight:600">Übernehmen &amp; weiter ›</span></div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:13px">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Titel <span style="color:#867B65">· aus Dateiname vorgeschlagen</span></span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Trauregister 1925, S. 118</div></div>
+              <div style="display:flex;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:5px;width:130px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Datierung</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px;font-variant-numeric:tabular-nums">1925</div></div>
+                <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Ort</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Marienwerder</div></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Personen <span style="color:#867B65">· aus dem Text erkannt, bestätigen</span></span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 11px;border-radius:15px;background:#DCE8E6;border:1px solid #A9C6C2;font-size:13px;color:#234F4C">Karl Gutnoff<span style="color:#2C625F">✕</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 11px;border-radius:15px;background:#F8F1E2;border:1px dashed #E4D2AB;font-size:13px;color:#7E5714">Emma Wruck?<span style="color:#7E5714">✓</span></span>
+                  <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:15px;border:1px dashed #908878;background:#FCFBF8;font-size:13px;color:#5C564B">+ Person</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Schlagwörter</span><div style="display:flex;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 11px;border-radius:15px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:13px;color:#5C564B">Kirchenbuch<span style="color:#867B65">✕</span></span><span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 11px;border-radius:15px;background:#F7F5F0;border:1px solid #E2DDD2;font-size:13px;color:#5C564B">zu transkribieren<span style="color:#867B65">✕</span></span></div></div>
+              <label style="display:flex;align-items:center;gap:10px;font-size:13.5px;color:#5C564B;margin-top:2px"><span style="display:inline-flex;align-items:center;width:38px;height:22px;border-radius:11px;background:#35726E;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:18px;height:18px;border-radius:50%;background:#FCFBF8"></span></span>Eingaben für die nächste Datei beibehalten</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Wer nichts eingibt und nur ⏎ drückt, hat am Ende trotzdem 96 datierte Medien mit Herkunft im Bestand — schlecht beschrieben ist besser als nicht importiert.</p>
+    </div>
+
+    <div style="width:560px;flex:none;display:flex;flex-direction:column;gap:22px">
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:12px">Dublette erkannt</div>
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="width:96px;height:96px;flex:none;background:#E6E1D6;border:1px solid #E2DDD2;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6F695C;font-family:'IBM Plex Mono',monospace">neu</div>
+          <div style="width:96px;height:96px;flex:none;background:#E6E1D6;border:1px solid #35726E;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6F695C;font-family:'IBM Plex Mono',monospace">im Bestand</div>
+          <div style="flex:1;min-width:0;font-size:13px;color:#5C564B;line-height:1.55">Gleiche Datei, anderer Name. Bereits vorhanden als <span style="color:#232019;font-weight:600">Hochzeit Karl &amp; Emma</span>, verknüpft mit 4 Personen.
+            <div style="display:flex;gap:8px;margin-top:10px"><span style="height:30px;display:inline-flex;align-items:center;padding:0 11px;border-radius:6px;background:#35726E;color:#F7FBFA;font-size:12.5px;font-weight:600">Überspringen</span><span style="height:30px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:12.5px;color:#5C564B">Trotzdem anlegen</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:12px">Tastatur im Stapel</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px;color:#5C564B">
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:86px;flex:none;text-align:center">⏎</span>Übernehmen und weiter</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:86px;flex:none;text-align:center">→ ←</span>Blättern ohne zu ändern</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:86px;flex:none;text-align:center">P</span>Person zuordnen — Suche öffnet sofort</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:86px;flex:none;text-align:center">D</span>Datierung übernehmen wie vorherige</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:86px;flex:none;text-align:center">X</span>Später bearbeiten — landet in „Ohne Zuordnung“</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Aufräumen später</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4"><span style="font-size:13.5px;color:#232019;font-weight:600">Ohne Zuordnung</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7E5714">148</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Stapel durchgehen</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4"><span style="font-size:13.5px;color:#232019;font-weight:600">Ohne Datierung</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7E5714">211</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Stapel durchgehen</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4"><span style="font-size:13.5px;color:#232019;font-weight:600">Zu transkribieren</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C">23</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Stapel durchgehen</span></div>
+          <p style="margin:4px 0 0 0;font-size:12.5px;color:#6F695C;line-height:1.55">Diese drei Listen sind selbst gesicherte Ansichten. Sie leeren sich, während gearbeitet wird — das ist der Fortschrittsbalken des Bestands.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 2a ===================== -->
+<div id="2a" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">2a</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">REITER „NAMEN“ · DEUTSCH · RUSSISCH · OSSETISCH</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Ein Mensch, mehrere Namen</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Jede Namensform ist ein eigener Datensatz mit Sprache, Schrift, Reihenfolge und Quelle — keine Übersetzung eines „richtigen“ Namens. Innerhalb der Form sind die Bestandteile einzeln geführt: mehrere Vornamen, Präfix, Suffix, Titel, Vatersname.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:44px;align-items:flex-start">
+    <div style="width:860px;flex:none">
+      <div style="border:1px solid #908878;border-radius:10px;background:#FAF8F4;overflow:hidden">
+        <div style="padding:14px 20px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:12px">
+          <span style="font-size:15px;font-weight:600">Namensformen</span>
+          <span style="font-size:12.5px;color:#6F695C">3 · nach Sprache</span>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;height:32px;padding:0 13px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:13.5px;font-weight:600">+ Namensform</span>
+        </div>
+
+        <div style="padding:13px 20px;background:#F7F5F0;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#6F695C;letter-spacing:.04em">Vorschau in</span>
+          <div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:30px">
+            <span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Deutsch</span>
+            <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13px;color:#5C564B">Русский</span>
+            <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13px;color:#5C564B">Ирон</span>
+            <span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13px;color:#5C564B">English</span>
+          </div>
+          <span style="font-size:13px;color:#5C564B">Zeigt: <span style="font-weight:600;color:#232019">Karl Friedrich Gutnoff</span></span>
+          <span style="margin-left:auto;font-size:12.5px;color:#6F695C">Rückfall: Sprache → Umschrift → Hauptname</span>
+        </div>
+
+        <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+
+          <div style="border:1px solid #35726E;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid #E2DDD2;background:#F2F6F5;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:11px;background:#35726E;color:#F7FBFA;font-size:12px;font-weight:600">Deutsch</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2DDD2;border-radius:4px;background:#FCFBF8;font-size:11px;color:#5C564B">Lateinisch</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2DDD2;border-radius:4px;background:#FCFBF8;font-size:11px;color:#5C564B">Vorname → Nachname</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#2C625F;font-weight:600"><span style="width:7px;height:7px;border-radius:50%;background:#35726E"></span>Hauptname</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:13px"><span style="font-size:12.5px;color:#2C625F">Bearbeiten</span><span style="font-size:15px;color:#6F695C">⋯</span></span>
+            </div>
+            <div style="padding:13px 14px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap">
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Titel</div><div style="height:34px;border:1px solid #E2DDD2;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 10px;font-size:14px;color:#867B65">—</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Vornamen <span style="color:#867B65">· Rufname hervorgehoben</span></div><div style="display:flex;gap:6px;align-items:center">
+                  <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 11px;border:1px solid #35726E;border-radius:6px;background:#F2F6F5;font-size:14px;font-weight:600">Karl<span style="font-size:10.5px;color:#2C625F;letter-spacing:.04em">RUFNAME</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 11px;border:1px solid #E2DDD2;border-radius:6px;background:#FAF8F4;font-size:14px">Friedrich<span style="color:#867B65">✕</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 11px;border:1px solid #E2DDD2;border-radius:6px;background:#FAF8F4;font-size:14px">Wilhelm<span style="color:#867B65">✕</span></span>
+                  <span style="display:inline-flex;align-items:center;height:34px;padding:0 10px;border:1px dashed #908878;border-radius:6px;background:#F7F5F0;font-size:13px;color:#2C625F">+ Vorname</span>
+                </div></div>
+              </div>
+              <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap">
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Präfix</div><div style="width:86px;height:34px;box-sizing:border-box;border:1px solid #E2DDD2;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 10px;font-size:14px;color:#867B65">von …</div></div>
+                <div style="flex:1;min-width:200px"><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Nachname</div><div style="height:34px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 10px;font-size:14px;font-weight:600">Gutnoff</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Suffix</div><div style="width:86px;height:34px;box-sizing:border-box;border:1px solid #E2DDD2;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 10px;font-size:14px;color:#867B65">jr. …</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:4px">Rolle</div><div style="height:34px;display:flex;align-items:center;gap:7px"><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#EFEBE2;border:1px solid #E2DDD2;font-size:12px;color:#57534B">Geburtsname</span><span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:13px;background:#EFEBE2;border:1px solid #E2DDD2;font-size:12px;color:#57534B">amtlich ab 1946</span></div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:#5C564B;border-top:1px solid #E2DDD2;padding-top:10px">
+                <span style="color:#6F695C">Sortiert unter</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#232019">Gutnoff, Karl Friedrich Wilhelm</span>
+                <span style="margin-left:auto;display:flex;align-items:center;gap:9px"><span style="display:flex;gap:3px"><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span></span><span>Meldekarte 1946</span></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid #E2DDD2;background:#F7F5F0;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:11px;background:#EFEBE2;border:1px solid #E2DDD2;font-size:12px;color:#5C564B;font-weight:600">Русский</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2DDD2;border-radius:4px;background:#FCFBF8;font-size:11px;color:#5C564B">Kyrillisch</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2DDD2;border-radius:4px;background:#FCFBF8;font-size:11px;color:#5C564B">mit Vatersname</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:13px"><span style="font-size:12.5px;color:#2C625F">Bearbeiten</span><span style="font-size:15px;color:#6F695C">⋯</span></span>
+            </div>
+            <div style="padding:13px 14px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Имя · Vorname</div><div style="font-size:15px;font-weight:600">Карл</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Отчество · Vatersname</div><div style="font-size:15px;font-weight:600">Фридрихович</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Фамилия · Nachname</div><div style="font-size:15px;font-weight:600">Гутнов</div></div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:9px"><span style="display:flex;gap:3px"><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span></span><span style="font-size:12.5px;color:#5C564B">Gespräch Erna Wruck</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4">
+                <span style="font-size:11px;color:#6F695C;width:96px;flex:none">Umschrift</span>
+                <span style="font-size:14px">Karl Fridrikhovich Gutnov</span>
+                <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#EAF0F7;border:1px solid #BCD0E4;font-size:11px;color:#2C4B70">automatisch · ISO 9</span>
+                <span style="margin-left:auto;font-size:12.5px;color:#2C625F">überschreiben</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:#5C564B"><span style="color:#6F695C">Weibliche Form des Nachnamens</span><span style="font-weight:600;color:#232019">Гутнова</span><span style="color:#867B65">· wird für Töchter und Ehefrauen vorgeschlagen</span></div>
+            </div>
+          </div>
+
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid #E2DDD2;background:#F7F5F0;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:11px;background:#EFEBE2;border:1px solid #E2DDD2;font-size:12px;color:#5C564B;font-weight:600">Ирон · Ossetisch</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2DDD2;border-radius:4px;background:#FCFBF8;font-size:11px;color:#5C564B">Kyrillisch</span>
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E4D2AB;border-radius:4px;background:#F8F1E2;font-size:11px;color:#7E5714">Nachname → Vorname</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:13px"><span style="font-size:12.5px;color:#2C625F">Bearbeiten</span><span style="font-size:15px;color:#6F695C">⋯</span></span>
+            </div>
+            <div style="padding:13px 14px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Мыггаг · Nachname</div><div style="font-size:15px;font-weight:600">Гуытнаты</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Ном · Vorname</div><div style="font-size:15px;font-weight:600">Карл</div></div>
+                <div><div style="font-size:11px;color:#6F695C;margin-bottom:3px">Anzeige</div><div style="font-size:15px">Гуытнаты Карл</div></div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:9px"><span style="display:flex;gap:3px"><span style="width:4px;height:14px;background:#A5664A"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span></span><span style="font-size:12.5px;color:#5C564B">vermutet</span></div>
+              </div>
+              <div style="font-size:12.5px;color:#5C564B;line-height:1.5;background:#F8F1E2;border:1px solid #E4D2AB;border-radius:7px;padding:9px 11px">Die Reihenfolge gehört zur Sprache, nicht zum Feld. Wo Ossetisch die Oberfläche ist, steht der Familienname vorn — in Listen, Karten und im Export.</div>
+            </div>
+          </div>
+
+          <div style="border:1px dashed #908878;border-radius:9px;background:#F7F5F0;padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:13px;color:#6F695C"><span style="font-size:15px;color:#2C625F">+</span>Namensform hinzufügen — Sprache und Schrift wählen, dann die Bestandteile</div>
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Die Suche findet „Gutnov“, „Гутнов“ und „Гуытнаты“ gleichermaßen und zeigt im Treffer, über welche Form gefunden wurde. Sortiert wird nach Nachname, Präfix zählt nicht mit.</p>
+    </div>
+
+    <div style="width:560px;flex:none;display:flex;flex-direction:column;gap:22px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">MODAL · NAMENSFORM BEARBEITEN</div>
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;box-shadow:0 12px 34px rgba(35,32,25,.14);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid #E2DDD2"><span style="font-size:16.5px;font-weight:600">Namensform bearbeiten</span><span style="margin-left:auto;width:22px;height:22px;border:1px solid #E2DDD2;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#6F695C">✕</span></div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:15px">
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Sprache</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14px">Ирон · Ossetisch<span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px;width:160px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Schrift</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14px">Kyrillisch<span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Reihenfolge <span style="color:#867B65">· aus der Sprache vorbelegt</span></span><div style="display:flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:34px"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:#5C564B">Vorname → Nachname</span><span style="width:1px;background:#E2DDD2"></span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Nachname → Vorname</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Bestandteile <span style="color:#867B65">· ziehbar sortierbar</span></span>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:118px;flex:none;font-size:12.5px;color:#6F695C">Мыггаг · Nachname</span><span style="flex:1;height:34px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 10px;font-size:14px">Гуытнаты</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:118px;flex:none;font-size:12.5px;color:#6F695C">Ном · Vorname 1</span><span style="flex:1;height:34px;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 10px;font-size:14px;gap:8px">Карл<span style="margin-left:auto;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#F2F6F5;border:1px solid #A9C6C2;font-size:11px;color:#2C625F">Rufname</span></span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:118px;flex:none;font-size:12.5px;color:#6F695C">Vorname 2</span><span style="flex:1;height:34px;border:1px dashed #908878;border-radius:6px;background:#F7F5F0;display:flex;align-items:center;padding:0 10px;font-size:13px;color:#6F695C">leer — wird beim Speichern verworfen</span></div>
+                <div style="display:flex;gap:9px;flex-wrap:wrap;padding-left:128px"><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1px solid #908878;border-radius:14px;background:#FCFBF8;font-size:12.5px;color:#5C564B">+ Vorname</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1px solid #908878;border-radius:14px;background:#FCFBF8;font-size:12.5px;color:#5C564B">+ Präfix</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1px solid #908878;border-radius:14px;background:#FCFBF8;font-size:12.5px;color:#5C564B">+ Suffix</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1px solid #908878;border-radius:14px;background:#FCFBF8;font-size:12.5px;color:#5C564B">+ Titel</span></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Lateinische Umschrift</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#F1EEE8;display:flex;align-items:center;padding:0 11px;font-size:14px;color:#5C564B;gap:8px">Gwytnaty Karl<span style="margin-left:auto;font-size:12px;color:#2C625F">selbst eintragen</span></div><span style="font-size:11.5px;color:#867B65">Wird erzeugt, sobald die kyrillischen Felder gefüllt sind. Eigene Eingabe hat Vorrang.</span></div>
+            <label style="display:flex;align-items:center;gap:10px;font-size:14px"><span style="display:inline-flex;align-items:center;width:38px;height:22px;border-radius:11px;background:#D8D2C6;padding:2px;box-sizing:border-box"><span style="width:18px;height:18px;border-radius:50%;background:#FCFBF8"></span></span>Hauptname der Person</label>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;border-top:1px solid #E2DDD2;background:#FAF8F4"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65;margin-right:auto">Гуытнаты Карл</span><span style="height:36px;display:inline-flex;align-items:center;padding:0 15px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Abbrechen</span><span style="height:36px;display:inline-flex;align-items:center;padding:0 17px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:14px;font-weight:600">Übernehmen</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Bestandteile eines Namens</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px;color:#5C564B;line-height:1.5">
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Vornamen</span><span>Mehrere, sortierbar, einer als Rufname markiert.</span></div>
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Präfix</span><span>von, van, de, zu — getrennt gespeichert, zählt bei der Sortierung nicht mit.</span></div>
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Suffix</span><span>jr., sen., III. — gehört zum Namen, erscheint in der Anzeige.</span></div>
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Titel</span><span>Dr., Pfarrer, Freiherr — gehört zur Person, in Listen ausblendbar.</span></div>
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Vatersname</span><span>Erscheint nur bei Sprachen, die ihn führen.</span></div>
+          <div style="display:flex;gap:12px"><span style="width:120px;flex:none;color:#232019;font-weight:600">Genusform</span><span>Weibliche Nachnamensform, wo die Sprache sie verlangt.</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Regeln</div>
+        <ul style="margin:0;padding-left:17px;font-size:13.5px;line-height:1.65;color:#5C564B">
+          <li>Genau ein Hauptname pro Person, beliebig viele Formen je Sprache.</li>
+          <li>Anzeige = Form der Oberflächensprache, sonst Umschrift, sonst Hauptname; die Herkunft steht im Tooltip.</li>
+          <li>Umschriften werden vorgeschlagen, nie erzwungen — eigene Eingabe wird nie überschrieben.</li>
+          <li>Leere Bestandteile verschwinden beim Speichern, statt als leere Felder zu bleiben.</li>
+          <li>Beim Zusammenführen zweier Personen werden Namensformen ergänzt, nicht ersetzt.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 2b ===================== -->
+<div id="2b" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">2b</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">ORTE · SPRACHEN UND ZEITEN</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Orte heißen je nach Sprache und Jahr anders</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Ein Ort ist ein eigener Datensatz mit Namensformen, jede mit Sprache und Gültigkeitszeitraum. Das Personenformular schreibt nie einen Ortsnamen als Text, sondern verweist auf diesen Datensatz.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:44px;align-items:flex-start">
+    <div style="width:760px;flex:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">ORTSDATENSATZ</div>
+      <div style="border:1px solid #908878;border-radius:10px;background:#FCFBF8;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:12px;background:#F7F5F0">
+          <div><div style="font-family:'Source Serif 4',serif;font-size:21px;font-weight:600">Kwidzyn</div><div style="font-size:12.5px;color:#6F695C;margin-top:2px">Woiwodschaft Pommern, Polen · 53,73° N / 18,93° O</div></div>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;background:#EAF0F7;border:1px solid #BCD0E4;font-size:11.5px;color:#2C4B70">42 Verweise</span>
+          <span style="font-size:12.5px;color:#2C625F">Bearbeiten</span>
+        </div>
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;padding:0 12px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C"><span style="flex:1">Name</span><span style="width:130px;flex:none">Sprache</span><span style="width:150px;flex:none">gültig</span><span style="width:120px;flex:none">Quelle</span></div>
+          <div style="display:flex;align-items:center;padding:11px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4"><span style="flex:1;font-size:14.5px;font-weight:600">Marienwerder</span><span style="width:130px;flex:none;font-size:13px;color:#5C564B">Deutsch</span><span style="width:150px;flex:none;font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">bis 1945</span><span style="width:120px;flex:none;font-size:12.5px;color:#6F695C">Kirchenbuch</span></div>
+          <div style="display:flex;align-items:center;padding:11px 12px;border:1px solid #35726E;border-radius:8px;background:#F2F6F5"><span style="flex:1;font-size:14.5px;font-weight:600">Kwidzyn</span><span style="width:130px;flex:none;font-size:13px;color:#5C564B">Polnisch</span><span style="width:150px;flex:none;font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">ab 1945 · heute</span><span style="width:120px;flex:none;font-size:12.5px;color:#6F695C">amtlich</span></div>
+          <div style="display:flex;align-items:center;padding:11px 12px;border:1px solid #E2DDD2;border-radius:8px;background:#FAF8F4"><span style="flex:1;font-size:14.5px">Квидзын</span><span style="width:130px;flex:none;font-size:13px;color:#5C564B">Russisch</span><span style="width:150px;flex:none;font-size:13px;color:#5C564B">—</span><span style="width:120px;flex:none;font-size:12.5px;color:#6F695C">Umschrift</span></div>
+          <div style="display:flex;align-items:center;padding:11px 12px;border:1px dashed #908878;border-radius:8px;background:#F7F5F0;font-size:13px;color:#6F695C"><span style="color:#2C625F;margin-right:8px">+</span>Weitere Namensform</div>
+        </div>
+        <div style="padding:16px 20px;border-top:1px solid #E2DDD2;background:#FAF8F4">
+          <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:10px">Zugehörigkeit im Zeitverlauf</div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 11px;border-radius:14px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:12.5px;color:#5C564B"><span style="font-variant-numeric:tabular-nums;color:#867B65">–1920</span>Westpreußen, Deutsches Reich</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 11px;border-radius:14px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:12.5px;color:#5C564B"><span style="font-variant-numeric:tabular-nums;color:#867B65">1920–1945</span>Regierungsbezirk Marienwerder</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 11px;border-radius:14px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:12.5px;color:#5C564B"><span style="font-variant-numeric:tabular-nums;color:#867B65">1945–</span>Polen</span>
+          </div>
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Beim Zusammenführen doppelter Orte bleiben alle Namensformen erhalten; die Zusammenführung ist umkehrbar (S-35).</p>
+    </div>
+
+    <div style="width:660px;flex:none;display:flex;flex-direction:column;gap:22px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">ORTSFELD IM FORMULAR · SUCHE ÜBER ALLE SPRACHEN</div>
+        <div style="border:1px solid #35726E;border-radius:8px;background:#FCFBF8;overflow:hidden">
+          <div style="height:40px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid #E2DDD2;font-size:14.5px"><span style="color:#6F695C">⌕</span>Kwidz<span style="width:1px;height:17px;background:#1F5C58"></span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;background:#EAF1F0;flex-wrap:wrap"><span style="font-size:14px;font-weight:600">Marienwerder</span><span style="font-size:12.5px;color:#6F695C">Westpreußen · heute Kwidzyn, Polen</span><span style="margin-left:auto;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#FCFBF8;border:1px solid #BCD0E4;font-size:11px;color:#2C4B70">gefunden über „Kwidzyn“ (pl)</span></div>
+          <div style="height:1px;background:#E2DDD2"></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 12px"><span style="font-size:14px;font-weight:600">Kwidzyński</span><span style="font-size:12.5px;color:#6F695C">Landkreis, Polen</span></div>
+          <div style="height:1px;background:#E2DDD2"></div>
+          <div style="padding:10px 12px;font-size:13px;color:#2C625F">+ Ort „Kwidz“ neu anlegen</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:13px">Wie der Ort angezeigt wird</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:#5C564B">
+          <div style="display:flex;gap:14px;align-items:baseline"><span style="width:160px;flex:none;font-size:12px;color:#6F695C">Geburt 1901</span><span style="color:#232019">Marienwerder <span style="color:#6F695C">(heute Kwidzyn)</span></span></div>
+          <div style="display:flex;gap:14px;align-items:baseline"><span style="width:160px;flex:none;font-size:12px;color:#6F695C">Oberfläche Russisch</span><span style="color:#232019">Мариенвердер <span style="color:#6F695C">(Квидзын)</span></span></div>
+          <div style="display:flex;gap:14px;align-items:baseline"><span style="width:160px;flex:none;font-size:12px;color:#6F695C">Karte, heutige Sicht</span><span style="color:#232019">Kwidzyn <span style="color:#6F695C">(bis 1945 Marienwerder)</span></span></div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #E2DDD2">
+          <div style="font-size:11px;color:#6F695C;letter-spacing:.04em;margin-bottom:7px">Einstellung · gilt für die ganze Anwendung</div>
+          <div style="display:flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:34px"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;background:#35726E;color:#F7FBFA;font-weight:600">Name zur Zeit des Ereignisses</span><span style="width:1px;background:#E2DDD2"></span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:#5C564B">heutiger Name</span></div>
+          <p style="margin:9px 0 0 0;font-size:12.5px;color:#6F695C;line-height:1.55">Die jeweils andere Form steht in Klammern dahinter — nie verschwindet eine von beiden.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 2c ===================== -->
+<div id="2c" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">2c</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">REITER „BELEGE &amp; MEDIEN“ · PORTRÄT · DOKUMENTE</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Bilder und Dokumente</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Kein eigenes Profilbild-Feld: alle Bilder liegen in derselben Sammlung, eines ist als Porträt markiert. Jedes Medium kann an mehreren Personen und an einzelnen Angaben hängen.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:40px;align-items:flex-start">
+    <div style="width:840px;flex:none">
+      <div style="border:1px solid #908878;border-radius:10px;background:#FAF8F4;overflow:hidden">
+        <div style="padding:13px 18px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:12px">
+          <span style="font-size:15px;font-weight:600">Belege &amp; Medien</span><span style="font-size:12.5px;color:#6F695C">5 · Bilder, Urkunden, Ton</span>
+          <span style="margin-left:auto;display:flex;gap:9px">
+            <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Aus Sammlung verknüpfen</span>
+            <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:6px;background:#35726E;color:#F7FBFA;font-size:13px;font-weight:600">+ Hochladen</span>
+          </span>
+        </div>
+        <div style="padding:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+          <div style="border:1px solid #35726E;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="height:132px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;position:relative;display:flex;align-items:center;justify-content:center">
+              <span style="font-size:11.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter · Foto</span>
+              <span style="position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#35726E;color:#F7FBFA;font-size:11px;font-weight:600">Porträt</span>
+            </div>
+            <div style="padding:10px 11px"><div style="font-size:13px;font-weight:600;line-height:1.35">Karl in der Schmiede</div><div style="font-size:11.5px;color:#6F695C;margin-top:3px;font-variant-numeric:tabular-nums">um 1935 · Privatbesitz</div></div>
+          </div>
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="height:132px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:11.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter · Foto</span></div>
+            <div style="padding:10px 11px"><div style="font-size:13px;font-weight:600;line-height:1.35">Hochzeit Karl &amp; Emma</div><div style="font-size:11.5px;color:#6F695C;margin-top:3px">1925 · 4 Personen markiert</div></div>
+          </div>
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="height:132px;background:#EDE7DA;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6F695C;border:1px solid #D8D2C6;border-radius:4px;padding:3px 7px;background:#FCFBF8">PDF</span></div>
+            <div style="padding:10px 11px"><div style="font-size:13px;font-weight:600;line-height:1.35">Taufregister 1901, S. 42</div><div style="font-size:11.5px;color:#6F695C;margin-top:3px">belegt: Geburt, Vater</div></div>
+          </div>
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="height:132px;background:#EDE7DA;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6F695C;border:1px solid #D8D2C6;border-radius:4px;padding:3px 7px;background:#FCFBF8">AUDIO</span></div>
+            <div style="padding:10px 11px"><div style="font-size:13px;font-weight:600;line-height:1.35">Gespräch Erna Wruck</div><div style="font-size:11.5px;color:#6F695C;margin-top:3px;font-variant-numeric:tabular-nums">12.09.2026 · 48 min</div></div>
+          </div>
+          <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+            <div style="height:132px;background:#E6E1D6;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center"><span style="font-size:11.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter · Foto</span></div>
+            <div style="padding:10px 11px"><div style="font-size:13px;font-weight:600;line-height:1.35">Familie vor dem Haus</div><div style="font-size:11.5px;color:#6F695C;margin-top:3px">undatiert <span style="color:#7E5714">· Datum fehlt</span></div></div>
+          </div>
+          <div style="border:1px dashed #908878;border-radius:9px;background:#F7F5F0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:186px;padding:14px;text-align:center"><span style="font-size:20px;color:#2C625F">+</span><span style="font-size:12.5px;color:#6F695C;line-height:1.45">Dateien hierher ziehen<br>oder auswählen</span></div>
+        </div>
+      </div>
+
+      <div style="margin-top:26px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">DOKUMENT ÖFFNEN · VORSCHAU, TRANSKRIPTION, BELEGTE ANGABEN</div>
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;overflow:hidden;display:flex">
+          <div style="width:340px;flex:none;background:#EDE7DA;border-right:1px solid #E2DDD2;display:flex;align-items:center;justify-content:center;min-height:340px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6F695C">Platzhalter · Seitenvorschau</span></div>
+          <div style="flex:1;min-width:0;padding:18px;display:flex;flex-direction:column;gap:14px">
+            <div><div style="font-size:16px;font-weight:600">Taufregister Marienwerder 1901, S. 42</div><div style="font-size:12.5px;color:#6F695C;margin-top:3px">Kirchenbuch · Ev. Kirchengemeinde Marienwerder · Signatur KB 14/1901</div></div>
+            <div style="display:flex;gap:2px;border-bottom:1px solid #E2DDD2">
+              <span style="padding:7px 12px;font-size:13.5px;font-weight:600;border-bottom:2px solid #35726E">Transkription</span>
+              <span style="padding:7px 12px;font-size:13.5px;color:#5C564B">Übersetzung</span>
+              <span style="padding:7px 12px;font-size:13.5px;color:#5C564B">Belegte Angaben <span style="color:#867B65">3</span></span>
+            </div>
+            <div style="font-family:'Source Serif 4',serif;font-size:14px;line-height:1.65;background:#FAF8F4;border:1px solid #E2DDD2;border-radius:7px;padding:12px 14px">„Am vierzehnten März Eintausend neunhundert und eins ist zu Marienwerder geboren und am ein und dreißigsten getauft worden: <span style="background:#EBF0EF;border-bottom:1px solid #A9C6C2">Karl Friedrich</span>, ehelicher Sohn des Schmiedemeisters <span style="background:#EBF0EF;border-bottom:1px solid #A9C6C2">Friedrich Gutnoff</span> …“</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4;font-size:13px;color:#5C564B"><span style="width:110px;flex:none;color:#6F695C">Geburtsdatum</span><span style="color:#232019;font-variant-numeric:tabular-nums">14.03.1901</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">zur Stelle springen</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4;font-size:13px;color:#5C564B"><span style="width:110px;flex:none;color:#6F695C">Vater</span><span style="color:#232019">Friedrich Gutnoff</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">zur Stelle springen</span></div>
+            </div>
+            <div style="display:flex;gap:9px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:14px;border:1px solid #E2DDD2;background:#F7F5F0;font-size:12.5px;color:#5C564B">Sprache: Deutsch · Kurrent</span>
+              <span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:14px;border:1px solid #E2DDD2;background:#F7F5F0;font-size:12.5px;color:#5C564B">Rechte: Familienbesitz</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:600px;flex:none;display:flex;flex-direction:column;gap:22px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">PORTRÄT FESTLEGEN · BILDMITTE FÜR KARTEN</div>
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px;display:flex;gap:18px">
+          <div style="width:210px;flex:none">
+            <div style="height:210px;background:#E6E1D6;border:1px solid #E2DDD2;border-radius:8px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <span style="font-size:11.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter · Foto</span>
+              <span style="position:absolute;left:46px;top:28px;width:112px;height:112px;border:2px solid #35726E;border-radius:6px"></span>
+            </div>
+            <p style="margin:9px 0 0 0;font-size:12px;color:#6F695C;line-height:1.5">Der Rahmen legt die Bildmitte fest. Das Original bleibt unbeschnitten.</p>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:13px">
+            <div>
+              <div style="font-size:11px;color:#6F695C;letter-spacing:.04em;margin-bottom:6px">Vorschau</div>
+              <div style="display:flex;gap:12px;align-items:flex-end">
+                <span style="width:56px;height:56px;border-radius:6px;background:#E6E1D6;border:1px solid #E2DDD2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Karte</span>
+                <span style="width:34px;height:34px;border-radius:5px;background:#E6E1D6;border:1px solid #E2DDD2;box-sizing:border-box"></span>
+                <span style="width:22px;height:22px;border-radius:4px;background:#E6E1D6;border:1px solid #E2DDD2;box-sizing:border-box"></span>
+                <span style="font-size:12px;color:#6F695C">Baum · Liste · Zeile</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <label style="display:flex;align-items:center;gap:10px;font-size:13.5px"><span style="display:inline-flex;align-items:center;width:38px;height:22px;border-radius:11px;background:#35726E;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:18px;height:18px;border-radius:50%;background:#FCFBF8"></span></span>Als Porträt verwenden</label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:13.5px;color:#5C564B"><span style="display:inline-flex;align-items:center;width:38px;height:22px;border-radius:11px;background:#D8D2C6;padding:2px;box-sizing:border-box"><span style="width:18px;height:18px;border-radius:50%;background:#FCFBF8"></span></span>Auch für lebende Personen im Gastzugang zeigen</label>
+            </div>
+            <div style="border-top:1px solid #E2DDD2;padding-top:12px;font-size:12.5px;color:#6F695C;line-height:1.55">Ohne Porträt zeigen Karten die Initialen auf einem Feld in der Generationsfarbe — nie ein erfundenes Gesicht.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:12px">Personen im Bild markieren</div>
+        <div style="display:flex;gap:16px">
+          <div style="width:230px;flex:none;height:150px;background:#E6E1D6;border:1px solid #E2DDD2;border-radius:8px;position:relative;display:flex;align-items:center;justify-content:center">
+            <span style="font-size:11px;color:#6F695C;font-family:'IBM Plex Mono',monospace">Platzhalter · Gruppenfoto</span>
+            <span style="position:absolute;left:24px;top:34px;width:44px;height:52px;border:2px solid #35726E;border-radius:4px"></span>
+            <span style="position:absolute;left:84px;top:40px;width:42px;height:50px;border:2px solid #908878;border-radius:4px"></span>
+            <span style="position:absolute;left:142px;top:46px;width:40px;height:48px;border:2px dashed #A9761E;border-radius:4px"></span>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:14px;height:14px;border:2px solid #35726E;border-radius:3px;flex:none"></span>Karl Gutnoff<span style="margin-left:auto;font-size:12px;color:#6F695C">verknüpft</span></div>
+            <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:14px;height:14px;border:2px solid #908878;border-radius:3px;flex:none"></span>Emma Wruck<span style="margin-left:auto;font-size:12px;color:#6F695C">verknüpft</span></div>
+            <div style="display:flex;align-items:center;gap:9px;font-size:13px;color:#7E5714"><span style="width:14px;height:14px;border:2px dashed #A9761E;border-radius:3px;flex:none"></span>unbekannt<span style="margin-left:auto;font-size:12px;color:#2C625F">Person zuordnen</span></div>
+            <div style="margin-top:4px;font-size:12.5px;color:#6F695C;line-height:1.55">Das Bild erscheint danach bei allen markierten Personen — hochgeladen wird es nur einmal.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Regeln für Medien</div>
+        <ul style="margin:0;padding-left:17px;font-size:13.5px;line-height:1.65;color:#5C564B">
+          <li>Eine Datei liegt einmal im Bestand und wird verknüpft, nie kopiert.</li>
+          <li>Porträt ist eine Markierung an einem Bild, kein zweiter Upload.</li>
+          <li>Jedes Medium trägt Datierung, Herkunft und Rechte; fehlt die Datierung, wird das angezeigt, nicht geraten.</li>
+          <li>Belege hängen an einzelnen Angaben — daraus entsteht die Sicherheitsstufe, die überall neben dem Wert steht.</li>
+          <li>Große Dateien bleiben als Original erhalten; die Anwendung erzeugt nur Vorschauen.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 1a ===================== -->
+<div id="1a" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">1a</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">PERSON BEARBEITEN · TAB „PERSON“</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Person bearbeiten</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Fester Personenkopf, Reiter für die acht Inhaltsbereiche, Formularspalte mit Gruppen, rechte Spalte für Zustand und Verlauf. Kein Speichern-Knopf: jede Änderung wird sofort geschrieben, der Kopf zeigt den Stand.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px">
+    <div style="width:1440px;box-sizing:border-box;border:1px solid #908878;border-radius:10px;overflow:hidden;background:#F3F0EA;display:flex;flex-direction:column;box-shadow:0 12px 34px rgba(35,32,25,.12)">
+
+      <!-- App-Leiste -->
+      <div style="flex:none;padding:11px 24px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600">Wurzelwerk</span>
+        <span style="color:#B8B2A6">/</span><span style="font-size:13px;color:#5C564B">Personen</span>
+        <span style="color:#B8B2A6">/</span><span style="font-size:13px;color:#232019;font-weight:600">Karl Friedrich Gutnoff</span>
+        <span style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B"><span style="width:11px;height:11px;border:1.4px solid #6F695C;border-radius:2px"></span>Im Stammbaum zeigen</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;color:#5C564B;font-size:15px">⋯</span>
+        </span>
+      </div>
+
+      <!-- Personenkopf -->
+      <div style="flex:none;padding:18px 24px 0 24px;background:#FCFBF8;display:flex;gap:16px;align-items:flex-start">
+        <div style="width:56px;height:56px;border-radius:6px;background:#E6E1D6;border:1px solid #E2DDD2;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;position:relative">
+          <span style="font-family:'Source Serif 4',serif;font-size:20px;color:#6F695C">KG</span>
+          <span style="position:absolute;left:0;bottom:0;width:100%;height:4px;background:#4C6B7A;border-radius:0 0 5px 5px"></span>
+        </div>
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+            <span style="font-family:'Source Serif 4',serif;font-size:26px;font-weight:600;letter-spacing:-.01em">Karl Friedrich Gutnoff</span>
+            <span style="font-size:15px;color:#5C564B;font-variant-numeric:tabular-nums">1901 – 1976</span>
+            <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#F2F0EB;border:1px solid #DAD5CA;font-size:11.5px;color:#57534B">verstorben</span>
+            <span style="display:inline-flex;align-items:center;gap:7px;height:22px;padding:0 9px;border-radius:11px;background:#EAF0F7;border:1px solid #BCD0E4;font-size:11.5px;color:#2C4B70">Generation 3 · väterlich</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:5px;font-size:12.5px;color:#6F695C">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">P-0142</span>
+            <span>Schmied in Marienwerder</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;color:#2C625F"><span style="width:7px;height:7px;border-radius:50%;background:#35726E"></span>Gespeichert · gerade eben</span>
+          </div>
+        </div>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #E2DDD2;border-radius:6px;background:#FCFBF8;color:#6F695C;flex:none">✕</span>
+      </div>
+
+      <!-- Reiter -->
+      <div style="flex:none;background:#FCFBF8;border-bottom:1px solid #E2DDD2;padding:16px 24px 0 24px;display:flex;gap:2px;align-items:flex-end">
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid #35726E;font-size:14.5px;font-weight:600;color:#232019;background:#F7F5F0;border-radius:6px 6px 0 0">Person</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Namen<span style="display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#EFEBE2;font-size:11px;color:#6F695C;font-variant-numeric:tabular-nums">3</span></span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Leben<span style="display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#EFEBE2;font-size:11px;color:#6F695C;font-variant-numeric:tabular-nums">4</span></span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Beziehungen<span style="display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#EFEBE2;font-size:11px;color:#6F695C;font-variant-numeric:tabular-nums">5</span><span style="width:7px;height:7px;border-radius:50%;background:#A9761E"></span></span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Belege &amp; Medien<span style="display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#EFEBE2;font-size:11px;color:#6F695C;font-variant-numeric:tabular-nums">3</span></span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Gesundheit<span style="display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:9px;background:#F8F1E2;border:1px solid #E4D2AB;font-size:10.5px;color:#7E5714">sensibel</span></span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Notizen</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-bottom:2px solid transparent;font-size:14.5px;color:#5C564B">Verwaltung</span>
+      </div>
+
+      <!-- Körper -->
+      <div style="flex:1;display:flex;min-height:0;background:#FAF8F4">
+        <div style="flex:1;min-width:0;padding:26px 28px 32px 28px;display:flex;flex-direction:column;gap:30px">
+
+          <!-- Gruppe: Hauptname -->
+          <div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px">
+              <span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Hauptname</span>
+              <span style="font-size:12.5px;color:#867B65">so erscheint die Person überall in der Oberfläche</span>
+              <span style="margin-left:auto;font-size:12.5px;color:#2C625F;border-bottom:1px dotted #2C625F">2 weitere Namensformen · Reiter „Namen“</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Vorname(n)</span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px">Karl Friedrich</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Nachname</span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px">Gutnoff</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Geburtsname <span style="color:#867B65">· optional</span></span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px;color:#867B65">—</div></div>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:12px;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:5px;width:240px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Rufname <span style="color:#867B65">· optional</span></span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px">Karl</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Kurzbeschreibung <span style="color:#867B65">· erscheint unter dem Namen in Karten und Suche</span></span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px">Schmied in Marienwerder</div></div>
+            </div>
+          </div>
+
+          <div style="height:1px;background:#E2DDD2"></div>
+
+          <!-- Gruppe: Eckdaten -->
+          <div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Eckdaten</span></div>
+            <div style="display:flex;gap:56px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Geschlecht</span>
+                <div style="display:flex;gap:18px;align-items:center;height:30px">
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:14px"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #35726E;background:#FCFBF8;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center"><span style="width:9px;height:9px;border-radius:50%;background:#35726E"></span></span>männlich</span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#5C564B"><span style="width:18px;height:18px;border-radius:50%;border:1px solid #908878;background:#FCFBF8;box-sizing:border-box"></span>weiblich</span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#5C564B"><span style="width:18px;height:18px;border-radius:50%;border:1px solid #908878;background:#FCFBF8;box-sizing:border-box"></span>divers</span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#5C564B"><span style="width:18px;height:18px;border-radius:50%;border:1px solid #908878;background:#FCFBF8;box-sizing:border-box"></span>unbekannt</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Lebensstatus <span style="color:#867B65">· steuert, ob Sterbedaten erscheinen</span></span>
+                <div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:30px">
+                  <span style="display:inline-flex;align-items:center;padding:0 14px;font-size:13.5px;color:#5C564B">lebend</span>
+                  <span style="width:1px;background:#E2DDD2"></span>
+                  <span style="display:inline-flex;align-items:center;padding:0 14px;font-size:13.5px;background:#35726E;color:#F7FBFA;font-weight:600">verstorben</span>
+                  <span style="width:1px;background:#E2DDD2"></span>
+                  <span style="display:inline-flex;align-items:center;padding:0 14px;font-size:13.5px;color:#5C564B">unbekannt</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="height:1px;background:#E2DDD2"></div>
+
+          <!-- Gruppe: Geburt -->
+          <div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Geburt</span></div>
+            <div style="display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Datum</span><div style="width:140px;height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14.5px"><span style="font-variant-numeric:tabular-nums">14.03.1901</span><span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Genauigkeit</span><div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:38px"><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;background:#35726E;color:#F7FBFA;font-weight:600">genau</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">um</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">vor</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">nach</span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:280px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Ort</span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px;gap:8px">Marienwerder<span style="color:#6F695C;font-size:13px">· Kreis Marienwerder, Westpreußen · heute Kwidzyn</span><span style="margin-left:auto;font-size:12px;color:#2C625F">ändern</span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Sicherheit</span><div style="height:38px;display:flex;align-items:center;gap:9px"><span style="display:flex;gap:3px"><span style="width:4px;height:15px;background:#1D4029"></span><span style="width:4px;height:15px;background:#1D4029"></span><span style="width:4px;height:15px;background:#1D4029"></span><span style="width:4px;height:15px;background:#1D4029"></span></span><span style="font-size:13px;color:#5C564B">urkundlich</span></div></div>
+            </div>
+            <div style="margin-top:10px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:#5C564B"><span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid #E2DDD2;border-radius:5px;background:#FCFBF8"><span style="width:16px;height:16px;border-radius:3px;background:#EDE7DA;border:1px solid #E2DDD2;font-family:'IBM Plex Mono',monospace;font-size:8px;display:inline-flex;align-items:center;justify-content:center;color:#6F695C">PDF</span>Taufregister 1901, S. 42</span><span style="color:#2C625F;border-bottom:1px dotted #2C625F">Beleg verknüpfen</span></div>
+          </div>
+
+          <div style="height:1px;background:#E2DDD2"></div>
+
+          <!-- Gruppe: Tod -->
+          <div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Tod</span><span style="font-size:12.5px;color:#867B65">erscheint, weil der Lebensstatus „verstorben“ ist</span></div>
+            <div style="display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Datum</span><div style="width:140px;height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;justify-content:space-between;padding:0 11px;font-size:14.5px"><span style="font-variant-numeric:tabular-nums">1976</span><span style="width:6px;height:6px;border-right:1.5px solid #6F695C;border-bottom:1.5px solid #6F695C;transform:rotate(45deg);margin-top:-2px"></span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Genauigkeit</span><div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:38px"><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">genau</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;background:#35726E;color:#F7FBFA;font-weight:600">nur Jahr</span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:280px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Ort</span><div style="height:38px;box-sizing:border-box;border:1px solid #A9761E;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14.5px;color:#867B65">Ort suchen …</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Sicherheit</span><div style="height:38px;display:flex;align-items:center;gap:9px"><span style="display:flex;gap:3px"><span style="width:4px;height:15px;background:#A5664A"></span><span style="width:4px;height:15px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span><span style="width:4px;height:15px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span><span style="width:4px;height:15px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span></span><span style="font-size:13px;color:#5C564B">vermutet</span></div></div>
+            </div>
+            <div style="margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:#7E5714"><span style="width:14px;height:14px;border-radius:50%;background:#F8F1E2;border:1px solid #E4D2AB;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">!</span>Sterbeort fehlt. Die Zeitleiste zeigt die Person ohne Endpunkt an.</div>
+          </div>
+
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div style="width:326px;flex:none;border-left:1px solid #E2DDD2;background:#F7F5F0;padding:24px 22px;display:flex;flex-direction:column;gap:26px">
+          <div>
+            <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:10px">Vollständigkeit</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="font-family:'Source Serif 4',serif;font-size:28px;font-weight:600">68 %</span><span style="font-size:12.5px;color:#6F695C">der Kernangaben belegt</span></div>
+            <div style="height:6px;border-radius:3px;background:#E6E1D6;overflow:hidden"><span style="display:block;width:68%;height:100%;background:#35726E"></span></div>
+          </div>
+          <div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Offene Punkte</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6F695C">3</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="border:1px solid #E4D2AB;border-radius:7px;background:#F8F1E2;padding:9px 11px;font-size:13px;color:#7E5714;line-height:1.45">Sterbeort fehlt<span style="display:block;color:#8A7348;font-size:12px;margin-top:2px">Reiter „Person“</span></div>
+              <div style="border:1px solid #E4D2AB;border-radius:7px;background:#F8F1E2;padding:9px 11px;font-size:13px;color:#7E5714;line-height:1.45">Mutter nicht zugeordnet<span style="display:block;color:#8A7348;font-size:12px;margin-top:2px">Reiter „Beziehungen“</span></div>
+              <div style="border:1px solid #E2DDD2;border-radius:7px;background:#FCFBF8;padding:9px 11px;font-size:13px;color:#5C564B;line-height:1.45">Kein Porträt hinterlegt<span style="display:block;color:#867B65;font-size:12px;margin-top:2px">Reiter „Belege &amp; Medien“</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:10px">Zuletzt geändert</div>
+            <div style="display:flex;flex-direction:column;gap:11px;font-size:12.5px;color:#5C564B;line-height:1.45">
+              <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:52px;flex:none">15:04</span><span><span style="color:#232019">Kurzbeschreibung</span> gesetzt · Florian</span></div>
+              <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:52px;flex:none">14:51</span><span><span style="color:#232019">Sterbejahr</span> 1976 aus Gespräch übernommen</span></div>
+              <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:52px;flex:none">gestern</span><span><span style="color:#232019">Taufregister</span> als Beleg verknüpft</span></div>
+            </div>
+            <div style="margin-top:12px;font-size:12.5px;color:#2C625F;border-bottom:1px dotted #2C625F;display:inline-block">Ganzen Verlauf öffnen</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fußleiste -->
+      <div style="flex:none;padding:12px 24px;background:#FCFBF8;border-top:1px solid #E2DDD2;display:flex;align-items:center;gap:12px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65;margin-right:auto">Änderungen werden sofort gespeichert · ⌘Z macht rückgängig</span>
+        <span style="height:36px;display:inline-flex;align-items:center;padding:0 15px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Person löschen</span>
+        <span style="height:36px;display:inline-flex;align-items:center;padding:0 15px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Nächste Person</span>
+        <span style="height:36px;display:inline-flex;align-items:center;padding:0 18px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:14px;font-weight:600">Fertig</span>
+      </div>
+    </div>
+
+    <p style="margin:16px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6;max-width:1040px">Reiter tragen Zähler, keine Prozentwerte. Ein gelber Punkt am Reiter heißt: dort liegt ein offener Punkt. Pflicht ist nur der Name — alles andere darf leer bleiben, weil Genealogie mit Lücken arbeitet.</p>
+  </div>
+</div>
+
+<!-- ===================== 1b ===================== -->
+<div id="1b" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">1b</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">PERSON BEARBEITEN · REITER „BEZIEHUNGEN“ UND „LEBEN“</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Beziehungen und Leben</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Wiederholbare Inhalte als Listen statt Feldwüsten. Kinder hängen sichtbar an der Partnerschaft, aus der sie stammen. Geschwister werden abgeleitet und nicht erfasst.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:40px;align-items:flex-start">
+    <!-- Beziehungen -->
+    <div style="width:880px;flex:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">REITER BEZIEHUNGEN · INHALTSFLÄCHE</div>
+      <div style="border:1px solid #908878;border-radius:10px;background:#FAF8F4;overflow:hidden">
+        <div style="padding:14px 22px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;gap:2px;align-items:center">
+          <span style="font-size:14px;color:#5C564B;padding:0 12px">Person</span>
+          <span style="font-size:14px;color:#5C564B;padding:0 12px">Namen</span>
+          <span style="font-size:14px;color:#5C564B;padding:0 12px">Leben</span>
+          <span style="font-size:14px;font-weight:600;color:#232019;padding:6px 12px;border-bottom:2px solid #35726E">Beziehungen</span>
+          <span style="font-size:14px;color:#5C564B;padding:0 12px">Belege</span>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:13.5px;font-weight:600">+ Beziehung</span>
+        </div>
+        <div style="padding:22px;display:flex;flex-direction:column;gap:26px">
+
+          <div>
+            <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:10px">Eltern</div>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid #E2DDD2;border-radius:8px;background:#FCFBF8">
+                <span style="font-size:12.5px;color:#6F695C;width:78px;flex:none">Vater</span>
+                <span style="width:24px;height:24px;border-radius:4px;background:#4C6B7A;flex:none"></span>
+                <span style="font-size:14.5px;font-weight:600">Friedrich Gutnoff</span>
+                <span style="font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">1870 – 1940</span>
+                <span style="margin-left:auto;display:flex;align-items:center;gap:14px">
+                  <span style="display:flex;gap:3px"><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#1D4029"></span><span style="width:4px;height:14px;background:#FCFBF8;border:1px solid #908878;box-sizing:border-box"></span></span>
+                  <span style="font-size:12.5px;color:#2C625F">Bearbeiten</span>
+                  <span style="font-size:15px;color:#6F695C">⋯</span>
+                </span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px dashed #A9761E;border-radius:8px;background:#F8F1E2">
+                <span style="font-size:12.5px;color:#7E5714;width:78px;flex:none">Mutter</span>
+                <span style="font-size:13.5px;color:#7E5714;font-style:italic">nicht zugeordnet</span>
+                <span style="margin-left:auto;display:flex;gap:9px">
+                  <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Person suchen</span>
+                  <span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">Neu anlegen</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Partnerschaften</span><span style="font-size:12.5px;color:#867B65">Kinder hängen an der Partnerschaft, aus der sie stammen</span></div>
+            <div style="border:1px solid #E2DDD2;border-radius:9px;background:#FCFBF8;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #E2DDD2;background:#F7F5F0">
+                <span style="width:24px;height:24px;border-radius:4px;background:#7A5A5A;flex:none"></span>
+                <span style="font-size:14.5px;font-weight:600">Emma Wruck</span>
+                <span style="font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">1903 – 1988</span>
+                <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;background:#EFEBE2;border:1px solid #E2DDD2;font-size:11.5px;color:#57534B">Ehe · 1925 – 1958 · verwitwet</span>
+                <span style="margin-left:auto;display:flex;align-items:center;gap:14px"><span style="font-size:12.5px;color:#2C625F">Bearbeiten</span><span style="font-size:15px;color:#6F695C">⋯</span></span>
+              </div>
+              <div style="padding:12px 14px 14px 14px;display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:11.5px;letter-spacing:.04em;color:#6F695C">Kinder aus dieser Verbindung · 3</div>
+                <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4"><span style="width:20px;height:20px;border-radius:3px;background:#4C6B7A;flex:none"></span><span style="font-size:14px;font-weight:600">Heinrich Gutnoff</span><span style="font-size:12.5px;color:#5C564B;font-variant-numeric:tabular-nums">1926 – 1944</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Öffnen</span></div>
+                <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4"><span style="width:20px;height:20px;border-radius:3px;background:#7A6A4C;flex:none"></span><span style="font-size:14px;font-weight:600">Elisabeth Gutnoff</span><span style="font-size:12.5px;color:#5C564B;font-variant-numeric:tabular-nums">1929 – 2011</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Öffnen</span></div>
+                <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border:1px solid #E2DDD2;border-radius:7px;background:#FAF8F4"><span style="width:20px;height:20px;border-radius:3px;background:#8A8375;flex:none"></span><span style="font-size:14px;font-weight:600">Kind ohne Namen</span><span style="font-size:12.5px;color:#5C564B;font-variant-numeric:tabular-nums">um 1932</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#F2F0EB;border:1px solid #DAD5CA;font-size:11px;color:#57534B">Platzhalter</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Öffnen</span></div>
+                <div style="display:flex;gap:9px;margin-top:2px"><span style="height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:13px;color:#5C564B">+ Kind hinzufügen</span></div>
+              </div>
+            </div>
+            <div style="margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:#2C4B70;background:#EAF0F7;border:1px solid #BCD0E4;border-radius:7px;padding:9px 11px"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #BCD0E4;background:#FCFBF8;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#2C4B70">i</span>Anna Gutnoff (geb. 1962) ist als Kind erfasst, gehört aber zu keiner Partnerschaft. <span style="color:#2C625F;border-bottom:1px dotted #2C625F">Zuordnen</span></div>
+          </div>
+
+          <div>
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C">Geschwister</span><span style="font-size:12.5px;color:#867B65">abgeleitet aus den Eltern · nicht direkt erfassbar</span></div>
+            <div style="display:flex;gap:9px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid #E2DDD2;border-radius:16px;background:#F7F5F0;font-size:13.5px;color:#5C564B"><span style="width:16px;height:16px;border-radius:3px;background:#7A6A4C"></span>Martha Gutnoff <span style="color:#867B65;font-variant-numeric:tabular-nums">1899</span></span>
+              <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid #E2DDD2;border-radius:16px;background:#F7F5F0;font-size:13.5px;color:#5C564B"><span style="width:16px;height:16px;border-radius:3px;background:#4C6B7A"></span>Wilhelm Gutnoff <span style="color:#867B65;font-variant-numeric:tabular-nums">1905</span></span>
+              <span style="display:inline-flex;align-items:center;height:32px;padding:0 12px;font-size:12.5px;color:#867B65;font-style:italic">weitere Geschwister erscheinen, sobald die Mutter zugeordnet ist</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Jede Zeile ist eine Beziehung, kein Feld. Bearbeiten öffnet dasselbe Modal wie in S-20. Löschen trennt nur die Verbindung, nie die Person — das steht als Satz im Bestätigungsdialog.</p>
+    </div>
+
+    <!-- Leben -->
+    <div style="width:600px;flex:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">REITER LEBEN · STATIONEN MIT ZEITSPUR</div>
+      <div style="border:1px solid #908878;border-radius:10px;background:#FAF8F4;overflow:hidden">
+        <div style="padding:13px 18px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:12px">
+          <span style="font-size:14.5px;font-weight:600">Lebensstationen</span>
+          <span style="font-size:12.5px;color:#6F695C">4 · nach Jahr</span>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:#35726E;color:#F7FBFA;font-size:13px;font-weight:600">+ Station</span>
+        </div>
+        <div style="padding:18px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:10px;font-size:11.5px;color:#6F695C;font-family:'IBM Plex Mono',monospace"><span>1900</span><span style="flex:1;height:1px;background:#E2DDD2"></span><span>1980</span></div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="border:1px solid #E2DDD2;border-radius:8px;background:#FCFBF8;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:11px"><span style="display:inline-flex;align-items:center;gap:6px;height:23px;padding:0 9px;border:1px solid #E2DDD2;border-radius:5px;background:#F6F3ED;font-size:12px;color:#5C564B"><span style="width:8px;height:8px;border-radius:2px;background:#8A7B54"></span>Beruf</span><span style="font-size:14.5px;font-weight:600">Schmied</span><span style="font-size:12.5px;color:#6F695C">Marienwerder</span><span style="margin-left:auto;font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">1920 – 1958</span></div>
+              <div style="height:6px;border-radius:3px;background:#EFEBE3;position:relative"><span style="position:absolute;left:25%;width:47.5%;top:0;bottom:0;background:#8A7B54;border-radius:3px"></span></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:8px;background:#FCFBF8;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:11px"><span style="display:inline-flex;align-items:center;gap:6px;height:23px;padding:0 9px;border:1px solid #E2DDD2;border-radius:5px;background:#F6F3ED;font-size:12px;color:#5C564B"><span style="width:8px;height:8px;border-radius:2px;background:#6B7480"></span>Militär</span><span style="font-size:14.5px;font-weight:600">Wehrmacht, Ostpreußen</span><span style="margin-left:auto;font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">1941 – 1945</span></div>
+              <div style="height:6px;border-radius:3px;background:#EFEBE3;position:relative"><span style="position:absolute;left:51%;width:5%;top:0;bottom:0;background:#6B7480;border-radius:3px"></span></div>
+            </div>
+            <div style="border:1px solid #E2DDD2;border-radius:8px;background:#FCFBF8;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:11px"><span style="display:inline-flex;align-items:center;gap:6px;height:23px;padding:0 9px;border:1px solid #E2DDD2;border-radius:5px;background:#F6F3ED;font-size:12px;color:#5C564B"><span style="width:8px;height:8px;border-radius:2px;background:#A6743E"></span>Umsiedlung</span><span style="font-size:14.5px;font-weight:600">Marienwerder → Lüneburg</span><span style="margin-left:auto;font-size:13px;color:#5C564B;font-variant-numeric:tabular-nums">1945</span></div>
+              <div style="height:6px;border-radius:3px;background:#EFEBE3;position:relative"><span style="position:absolute;left:56%;width:1.5%;top:-2px;bottom:-2px;background:#A6743E;border-radius:2px"></span></div>
+            </div>
+            <div style="border:1px dashed #908878;border-radius:8px;background:#F7F5F0;padding:11px 13px;display:flex;align-items:center;gap:10px;font-size:13px;color:#6F695C"><span style="font-size:15px;color:#2C625F">+</span>Station hinzufügen — Art wählen, dann Zeitraum und Ort</div>
+          </div>
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Die Zeitspur unter jeder Zeile ist Anzeige, kein Eingabefeld. Sie macht Lücken und Überschneidungen sichtbar, bevor jemand rechnet.</p>
+
+      <div style="margin-top:28px;border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:12px">Zustände der Formularfelder</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px"><span style="width:150px;flex:none;font-size:12.5px;color:#6F695C">Leer</span><span style="flex:1;height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px;color:#867B65">Ort suchen …</span></div>
+          <div style="display:flex;align-items:center;gap:14px"><span style="width:150px;flex:none;font-size:12.5px;color:#6F695C">Fokus</span><span style="flex:1;height:36px;border:2px solid #1F5C58;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 10px;font-size:14px">Marienwerder<span style="width:1px;height:17px;background:#1F5C58;margin-left:2px"></span></span></div>
+          <div style="display:flex;align-items:center;gap:14px"><span style="width:150px;flex:none;font-size:12.5px;color:#6F695C">Unsicher markiert</span><span style="flex:1;height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px;gap:8px">um 1932<span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#F8F1E2;border:1px solid #E4D2AB;font-size:11px;color:#7E5714">geschätzt</span></span></div>
+          <div style="display:flex;align-items:flex-start;gap:14px"><span style="width:150px;flex:none;font-size:12.5px;color:#6F695C;padding-top:8px">Widerspruch</span><span style="flex:1"><span style="display:flex;height:36px;border:1px solid #9C3B2E;border-radius:6px;background:#FBF2F0;align-items:center;padding:0 11px;font-size:14px;font-variant-numeric:tabular-nums">1899</span><span style="display:block;margin-top:5px;font-size:12.5px;color:#832F24">Sterbejahr liegt vor dem Geburtsjahr 1901.</span></span></div>
+          <div style="display:flex;align-items:center;gap:14px"><span style="width:150px;flex:none;font-size:12.5px;color:#6F695C">Gesperrt</span><span style="flex:1;height:36px;border:1px solid #E2DDD2;border-radius:6px;background:#F1EEE8;display:flex;align-items:center;padding:0 11px;font-size:14px;color:#867B65">aus Beziehung abgeleitet</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 1c ===================== -->
+<div id="1c" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">1c</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">PERSON ANLEGEN · SCHNELLANLAGE MIT DUBLETTENPRÜFUNG</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Person anlegen</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Anlegen ist nicht dieselbe Aufgabe wie Bearbeiten. Hier zählen vier Angaben und die Frage „gibt es die Person schon?“. Alles Weitere passiert danach im vollen Editor.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:48px;align-items:flex-start">
+    <div style="width:700px;flex:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">DIALOG · ÜBER ABGEDUNKELTEM HINTERGRUND</div>
+      <div style="border:1px solid #C9C2B4;border-radius:12px;background:#F0EDE6;padding:22px">
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;box-shadow:0 14px 38px rgba(35,32,25,.18);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid #E2DDD2"><span style="font-size:17px;font-weight:600">Person anlegen</span><span style="font-size:12.5px;color:#6F695C">als Mutter von Karl Friedrich Gutnoff</span><span style="margin-left:auto;width:22px;height:22px;border:1px solid #E2DDD2;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#6F695C">✕</span></div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Vorname(n) <span style="color:#9C3B2E">·</span></span><div style="height:38px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 11px;font-size:14.5px">Auguste</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Nachname</span><div style="height:38px;box-sizing:border-box;border:2px solid #1F5C58;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 10px;font-size:14.5px">Gutnoff<span style="width:1px;height:17px;background:#1F5C58;margin-left:2px"></span></div><span style="font-size:11.5px;color:#867B65">aus der Beziehung vorbelegt</span></div>
+            </div>
+            <div style="display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Geschlecht</span><div style="display:inline-flex;border:1px solid #908878;border-radius:7px;overflow:hidden;height:36px"><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">m</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;background:#35726E;color:#F7FBFA;font-weight:600">w</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">d</span><span style="width:1px;background:#E2DDD2"></span><span style="display:inline-flex;align-items:center;padding:0 13px;font-size:13.5px;color:#5C564B">unbek.</span></div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Geburt</span><div style="width:130px;height:36px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 11px;font-size:14.5px;font-variant-numeric:tabular-nums">um 1875</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C;letter-spacing:.04em">Tod</span><div style="width:130px;height:36px;box-sizing:border-box;border:1px solid #908878;border-radius:6px;background:#FAF8F4;display:flex;align-items:center;padding:0 11px;font-size:14.5px;color:#867B65">unbekannt</div></div>
+            </div>
+
+            <div style="border:1px solid #E4D2AB;border-radius:9px;background:#F8F1E2;padding:13px 14px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="width:15px;height:15px;border-radius:50%;background:#FCFBF8;border:1px solid #E4D2AB;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#7E5714">!</span><span style="font-size:13.5px;font-weight:600;color:#7E5714">Zwei ähnliche Personen gefunden</span></div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid #E4D2AB;border-radius:7px;background:#FCFBF8"><span style="width:22px;height:22px;border-radius:3px;background:#7A6A4C;flex:none"></span><span style="font-size:13.5px;font-weight:600">Auguste Gutnoff</span><span style="font-size:12.5px;color:#5C564B;font-variant-numeric:tabular-nums">1876 – 1944</span><span style="font-size:12px;color:#6F695C">Marienwerder · 2 Kinder</span><span style="margin-left:auto;height:28px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:12.5px;color:#5C564B">Das ist sie</span></div>
+                <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid #E2DDD2;border-radius:7px;background:#FCFBF8"><span style="width:22px;height:22px;border-radius:3px;background:#7A6A4C;flex:none"></span><span style="font-size:13.5px;font-weight:600">Auguste Gutnow</span><span style="font-size:12.5px;color:#5C564B;font-variant-numeric:tabular-nums">um 1880</span><span style="font-size:12px;color:#6F695C">Danzig</span><span style="margin-left:auto;height:28px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;font-size:12.5px;color:#5C564B">Das ist sie</span></div>
+              </div>
+              <div style="margin-top:9px;font-size:12.5px;color:#7E5714;line-height:1.5">Gleicht Name, Lebensdaten und Ort ab. „Das ist sie“ verknüpft statt anzulegen — keine doppelte Person im Baum.</div>
+            </div>
+
+            <label style="display:flex;align-items:center;gap:10px;font-size:14px;color:#232019"><span style="display:inline-flex;align-items:center;width:38px;height:22px;border-radius:11px;background:#35726E;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:18px;height:18px;border-radius:50%;background:#FCFBF8"></span></span>Nach dem Anlegen gleich weiter erfassen</label>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-top:1px solid #E2DDD2;background:#FAF8F4">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#867B65;margin-right:auto">Wird als Mutter verknüpft</span>
+            <span style="height:38px;display:inline-flex;align-items:center;padding:0 16px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Abbrechen</span>
+            <span style="height:38px;display:inline-flex;align-items:center;padding:0 16px;border:1px solid #908878;border-radius:7px;font-size:14px;color:#5C564B">Anlegen &amp; weitere</span>
+            <span style="height:38px;display:inline-flex;align-items:center;padding:0 18px;border-radius:7px;background:#35726E;color:#F7FBFA;font-size:14px;font-weight:600">Anlegen</span>
+          </div>
+        </div>
+      </div>
+      <p style="margin:14px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6">Pflicht ist allein ein Namensteil. „Anlegen &amp; weitere“ hält den Dialog offen und behält Nachname und Beziehungsart bei — für das Erfassen ganzer Geschwisterreihen in einem Zug.</p>
+    </div>
+
+    <div style="width:620px;flex:none;display:flex;flex-direction:column;gap:24px">
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:12px">Platzhalterperson</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <p style="margin:0;font-size:13.5px;line-height:1.6;color:#5C564B">Wenn nur die Rolle bekannt ist, aber kein Name: Platzhalter anlegen. Er füllt die Lücke im Baum, zählt aber nicht als belegte Person.</p>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px dashed #908878;border-radius:8px;background:#F7F5F0"><span style="width:24px;height:24px;border-radius:4px;background:#E6E1D6;border:1px dashed #908878;box-sizing:border-box;flex:none"></span><span style="font-size:14px;font-style:italic;color:#5C564B">Mutter von Karl Gutnoff</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:#F2F0EB;border:1px solid #DAD5CA;font-size:11px;color:#57534B">Platzhalter</span><span style="margin-left:auto;font-size:12.5px;color:#2C625F">Später benennen</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:14px">Drei Wege ins Anlegen</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:92px;flex:none;padding-top:2px">aus dem Baum</span><span style="font-size:13.5px;color:#5C564B;line-height:1.5">Klick auf eine leere Andockstelle. Beziehungsart und Nachname sind vorbelegt, der Dialog öffnet an der Stelle.</span></div>
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:92px;flex:none;padding-top:2px">aus der Suche</span><span style="font-size:13.5px;color:#5C564B;line-height:1.5">Kein Treffer? Die letzte Zeile der Trefferliste heißt „Auguste Gutnoff anlegen“ und übernimmt den Suchtext.</span></div>
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#867B65;width:92px;flex:none;padding-top:2px">aus Gespräch</span><span style="font-size:13.5px;color:#5C564B;line-height:1.5">Aus dem Interview-Vorschlag heraus: derselbe Dialog, Felder aus der Aussage vorbelegt, Sicherheit steht auf „vom Hörensagen“.</span></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:20px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:14px">Tastatur</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px;color:#5C564B">
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:96px;flex:none;text-align:center">⌘ ⏎</span>Anlegen und Dialog schließen</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:96px;flex:none;text-align:center">⌘ ⇧ ⏎</span>Anlegen und nächste Person</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:96px;flex:none;text-align:center">1 … 8</span>Reiter im Editor direkt wählen</div>
+          <div style="display:flex;gap:14px;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #E2DDD2;border-radius:4px;padding:2px 7px;background:#F7F5F0;width:96px;flex:none;text-align:center">Esc</span>Abbrechen · fragt nach, wenn etwas eingetragen ist</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 1d ===================== -->
+<div id="1d" style="width:1560px;flex:none;background:#FAF8F4;color:#232019;padding:0 0 56px 0">
+  <div style="padding:52px 40px 28px 40px;border-bottom:1px solid #E2DDD2;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6F695C;border:1px solid #E2DDD2;padding:4px 8px;border-radius:4px">1d</div>
+    <div style="max-width:1000px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:#6F695C;margin-bottom:10px">STRUKTUR · REGELN · ENGE FENSTER</div>
+      <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.08">Aufbau und Regeln</h1>
+      <p style="margin:10px 0 0 0;font-size:16px;line-height:1.55;color:#5C564B">Welcher Inhalt in welchen Reiter gehört, wann ein Reiter kein Reiter sein darf, und was bei schmalem Fenster passiert.</p>
+    </div>
+  </div>
+
+  <div style="padding:36px 40px 0 40px;display:flex;gap:44px;align-items:flex-start">
+    <div style="width:820px;flex:none">
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;overflow:hidden">
+        <div style="display:flex;padding:11px 18px;background:#F7F5F0;border-bottom:1px solid #E2DDD2;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6F695C"><span style="width:150px;flex:none">Reiter</span><span style="flex:1">Inhalt</span><span style="width:150px;flex:none">Form</span><span style="width:90px;flex:none;text-align:right">Zähler</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Person</span><span style="flex:1;color:#5C564B">Hauptname, Geschlecht, Lebensstatus, Geburt, Tod, Kurzbeschreibung</span><span style="width:150px;flex:none;color:#6F695C">Einzelfelder</span><span style="width:90px;flex:none;text-align:right;color:#867B65">–</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Namen</span><span style="flex:1;color:#5C564B">Namensformen je Sprache und Schrift, Transliteration, Spitznamen</span><span style="width:150px;flex:none;color:#6F695C">Liste + Modal</span><span style="width:90px;flex:none;text-align:right;color:#5C564B">Anzahl</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Leben</span><span style="flex:1;color:#5C564B">Stationen: Beruf, Wohnort, Militär, Ausbildung, Umsiedlung, Ereignis</span><span style="width:150px;flex:none;color:#6F695C">Liste + Modal</span><span style="width:90px;flex:none;text-align:right;color:#5C564B">Anzahl</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Beziehungen</span><span style="flex:1;color:#5C564B">Eltern, Partnerschaften mit Kindern, abgeleitete Geschwister</span><span style="width:150px;flex:none;color:#6F695C">Liste + Modal</span><span style="width:90px;flex:none;text-align:right;color:#5C564B">Anzahl</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Belege &amp; Medien</span><span style="flex:1;color:#5C564B">Urkunden, Fotos, Tonaufnahmen, Verweise; Zuordnung zu einzelnen Angaben</span><span style="width:150px;flex:none;color:#6F695C">Liste + Vorschau</span><span style="width:90px;flex:none;text-align:right;color:#5C564B">Anzahl</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Gesundheit</span><span style="flex:1;color:#5C564B">Diagnosen, Todesursache, erbliche Hinweise · getrennt sichtbar, getrennt rechtebar</span><span style="width:150px;flex:none;color:#6F695C">Liste + Modal</span><span style="width:90px;flex:none;text-align:right;color:#867B65">Schloss</span></div>
+        <div style="display:flex;padding:13px 18px;border-bottom:1px solid #E2DDD2;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Notizen</span><span style="flex:1;color:#5C564B">Biografie als Prosa, offene Fragen, Rechercheideen</span><span style="width:150px;flex:none;color:#6F695C">Freitext</span><span style="width:90px;flex:none;text-align:right;color:#867B65">–</span></div>
+        <div style="display:flex;padding:13px 18px;font-size:13.5px"><span style="width:150px;flex:none;font-weight:600">Verwaltung</span><span style="flex:1;color:#5C564B">Kennung, Herkunft des Datensatzes, Verlauf, Zusammenführen, Löschen</span><span style="width:150px;flex:none;color:#6F695C">Liste + Verlauf</span><span style="width:90px;flex:none;text-align:right;color:#867B65">–</span></div>
+      </div>
+
+      <div style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+          <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Regeln für Reiter</div>
+          <ul style="margin:0;padding-left:17px;font-size:13.5px;line-height:1.65;color:#5C564B">
+            <li>Höchstens acht. Was danach kommt, gehört in einen bestehenden Reiter.</li>
+            <li>Ein Reiter ist ein eigenes Thema, keine Portionierung eines langen Formulars.</li>
+            <li>Kein Reiter enthält Pflichtangaben außer dem ersten.</li>
+            <li>Beim Öffnen steht immer „Person“ oben; die Reiterwahl wird nicht gemerkt.</li>
+            <li>Wechseln speichert; kein Reiter hält Änderungen zurück.</li>
+          </ul>
+        </div>
+        <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+          <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Regeln für Felder</div>
+          <ul style="margin:0;padding-left:17px;font-size:13.5px;line-height:1.65;color:#5C564B">
+            <li>Feldbreite folgt dem Inhalt: Datum schmal, Ort breit, Prosa volle Breite.</li>
+            <li>Wiederholbares wird Liste, nie Feld&nbsp;2, Feld&nbsp;3, Feld&nbsp;4.</li>
+            <li>Jede Angabe kann unsicher sein — Sicherheit steht neben dem Wert, nicht in einem eigenen Bereich.</li>
+            <li>Abgeleitete Werte sind sichtbar, aber gesperrt und beschriftet.</li>
+            <li>Widersprüche erscheinen am Feld, nicht erst beim Speichern.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:560px;flex:none;display:flex;flex-direction:column;gap:24px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#6F695C;margin-bottom:12px">SCHMALES FENSTER · UNTER 1100 PX</div>
+        <div style="width:520px;border:1px solid #908878;border-radius:10px;background:#F3F0EA;overflow:hidden">
+          <div style="padding:12px 16px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;align-items:center;gap:10px"><span style="width:34px;height:34px;border-radius:5px;background:#E6E1D6;border:1px solid #E2DDD2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-family:'Source Serif 4',serif;font-size:13px;color:#6F695C">KG</span><div><div style="font-family:'Source Serif 4',serif;font-size:17px;font-weight:600">Karl Friedrich Gutnoff</div><div style="font-size:11.5px;color:#6F695C">1901 – 1976 · gespeichert</div></div><span style="margin-left:auto;font-size:13px;color:#2C625F">Zustand</span></div>
+          <div style="padding:10px 16px;background:#FCFBF8;border-bottom:1px solid #E2DDD2;display:flex;gap:8px;align-items:center;overflow:hidden">
+            <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:15px;background:#35726E;color:#F7FBFA;font-size:13px;font-weight:600;flex:none">Person</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:13px;color:#5C564B;flex:none">Namen <span style="color:#867B65">3</span></span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:13px;color:#5C564B;flex:none">Leben <span style="color:#867B65">4</span></span>
+            <span style="display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:15px;border:1px solid #E2DDD2;background:#FCFBF8;font-size:13px;color:#5C564B;flex:none">›</span>
+          </div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:14px;background:#FAF8F4">
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C">Vorname(n)</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Karl Friedrich</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#6F695C">Nachname</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Gutnoff</div></div>
+            <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:5px;width:140px"><span style="font-size:11px;color:#6F695C">Geburt</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px;font-variant-numeric:tabular-nums">14.03.1901</div></div><div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font-size:11px;color:#6F695C">Ort</span><div style="height:36px;border:1px solid #908878;border-radius:6px;background:#FCFBF8;display:flex;align-items:center;padding:0 11px;font-size:14px">Marienwerder</div></div></div>
+            <div style="border:1px solid #E4D2AB;border-radius:7px;background:#F8F1E2;padding:9px 11px;font-size:12.5px;color:#7E5714">3 offene Punkte · antippen zum Öffnen</div>
+          </div>
+        </div>
+        <p style="margin:12px 0 0 0;font-size:13px;color:#6F695C;line-height:1.6;max-width:520px">Die rechte Spalte wird zur Schaltfläche „Zustand“ und öffnet als Überlagerung. Reiter werden zu einer scrollbaren Chip-Reihe mit demselben Zähler. Zwei Spalten im Formular werden eine.</p>
+      </div>
+
+      <div style="border:1px solid #E2DDD2;border-radius:10px;background:#FCFBF8;padding:18px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#6F695C;margin-bottom:11px">Bewusst nicht gemacht</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.55;color:#5C564B">
+          <div><span style="color:#232019;font-weight:600">Kein Assistent über mehrere Schritte.</span> Erfassen ist selten linear; Nutzer springen zwischen Quellen hin und her.</div>
+          <div><span style="color:#232019;font-weight:600">Kein Speichern-Knopf.</span> Sofort schreiben, Verlauf führen, rückgängig machen können.</div>
+          <div><span style="color:#232019;font-weight:600">Keine Pflichtfelder außer Name.</span> Lücken sind der Normalfall und dürfen nicht blockieren.</div>
+          <div><span style="color:#232019;font-weight:600">Kein Akkordeon zusätzlich zu Reitern.</span> Zwei Faltebenen übereinander verstecken Inhalt doppelt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</section>
+
+</x-dc>
+</body>
+</html>
