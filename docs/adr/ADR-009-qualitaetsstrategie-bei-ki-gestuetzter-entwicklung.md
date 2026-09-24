@@ -24,6 +24,13 @@ KI-Code sieht plausibel aus und ist genau deshalb gefährlich. Die Strategie set
 
 **Nachtrag (06.09.2026, E48):** Diese Strategie war gegen „Code-Review durch einen Anfänger" formuliert; sie gilt unverändert und **stärker** gegen agentische Loops — deren Fitnessfunktion genau diese maschinenprüfbaren Invarianten sind. Die Loop-spezifischen Guardrails stehen in ADR-025.
 
+**Nachtrag (24.09.2026, AP-1.34):** „Bitgleich" in Punkt 2 heißt: der kanonische Abzug (`test/invarianten/_kanonischer-abzug.ts`) **aller Basistabellen** stimmt Zeichen für Zeichen überein — ausgenommen ist nur eine **fest gepinnte, wörtliche Liste** in drei Kategorien, je mit Grund:
+- **Journal** (ADR-018): `transaktion`, `aenderung`, `journal_kontext` — dort soll sich durch Undo/Redo etwas ändern.
+- **Abgeleitet** (Architektur §5.3): `person_flach`, `name_phonetik`, `suche_fts_quelle`, `suche_fts` samt Schattentabellen `suche_fts_data`/`_idx`/`_docsize`/`_config` — separat gegen ihren vollständigen Neuaufbau geprüft (`abgeleitet-gleich.test.ts`, rohe Schreibfolgen ohne Undo); Konsistenz *nach* Undo belegt bisher nur `test/einheit/undo-abgeleitet.test.ts` und nur für `person_flach` (Folgepunkt `U-1.34-B4`).
+- **Fachlich:** `kennung_zaehler` — eine vergebene Personen-Kennung wird nie neu vergeben; der Zähler läuft nur vorwärts (Trigger in 0007) und bleibt nach Undo bewusst stehen (AP-1.34, E14).
+
+Die Liste wird ausdrücklich **nicht** aus `NICHT_JOURNALISIERT` abgeleitet. Jede andere und jede neu angelegte Tabelle wird automatisch verglichen (fail-closed). **Korrektur:** Bis zu diesem Nachtrag nahm der Abzug `NICHT_JOURNALISIERT` pauschal aus; `schema_migration`, `merge_protokoll` und `id_alias` fielen dadurch still aus dem Vergleich — sie werden jetzt verglichen. Eine Erweiterung der Liste braucht einen weiteren Nachtrag zu diesem ADR und eine Gegenprobe. Geprüft durch `test/invarianten/undo-bitgleich-ausnahmen.test.ts` (B-T1 bis B-T6: Liste gegen Schema, keine journalisierte Tabelle ausgenommen, übrige NICHT_JOURNALISIERT-Tabellen im Abzug, Mutationsprobe, `kennung_zaehler` bleibt draußen, neue Tabelle erscheint) und `test/invarianten/kennung-nie-neu-vergeben.test.ts` (K1 bis K3: Zähler weicht nach Undo roh ab, nächste Kennung größer als jede je gesehene, Redo stellt dieselbe Kennung her).
+
 ## Quellen
 - Electron-Versionen: https://endoflife.date/electron · Tauri: https://tauri.app/release/core/
 - SQLite WAL: https://www.sqlite.org/wal.html · als Dateiformat: https://sqlite.org/aff_short.html

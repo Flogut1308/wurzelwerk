@@ -14,30 +14,58 @@
 // schreiben ganze Zeilen zurück, der Test muss sehen, wenn eine Spalte dabei mal nicht mehr
 // mitkommt.
 //
-// Ausgenommen: alle Tabellen aus `NICHT_JOURNALISIERT` (`src/main/journal/journalisierung.ts`) -
-// das Journal selbst (`transaktion`/`aenderung`/`journal_kontext`, wo sich per Definition etwas
-// ändern SOLL), dazu `schema_migration`/`name_phonetik`/`merge_protokoll`/`id_alias`/
-// `person_flach`/`suche_fts_quelle` (Journal-/Merge-Infrastruktur bzw. abgeleitete Tabellen, die
-// `test/invarianten/abgeleitet-gleich.test.ts` bereits separat gegen `alleAbgeleitetenNeuAufbauen`
-// prüft, 55_Architektur.md §5.3 - hier NICHT nochmal, sonst würde ein von einem Undo-Schritt nicht
-// mitgepflegter abgeleiteter Wert fälschlich als "Bitgleichheit verletzt" durchgehen, obwohl die
-// Basistabellen längst wieder korrekt sind). Dazu die virtuelle FTS5-Tabelle `suche_fts` selbst
-// (NICHT in `NICHT_JOURNALISIERT` - s. dortiger Kommentar: "keine Anwendertabelle im Sinn von
-// anwenderTabellenNamen") + ihre vier von SQLite automatisch angelegten Schattentabellen
-// (`suche_fts_data`/`_idx`/`_docsize`/`_config`, geprüft gegen eine echte migrierte `:memory:`-DB)
-// + `sqlite_%`-Tabellen (SQLite-Eigenverwaltung, z. B. `sqlite_sequence` für die einzige
-// AUTOINCREMENT-Spalte `suche_fts_quelle.rowid` - keine Anwendertabelle).
+// Ausgenommen (AP-1.34 PR-B, ADR-009-Nachtrag 24.09.2026): GENAU die fest gepinnte, wörtliche
+// Liste `AUSGENOMMEN` unten — drei Kategorien, je Eintrag ein Grund — plus `sqlite_%`-Tabellen
+// (SQLite-Eigenverwaltung, z. B. `sqlite_sequence` für die einzige AUTOINCREMENT-Spalte
+// `suche_fts_quelle.rowid` - keine Anwendertabelle). Die Liste wird BEWUSST NICHT aus
+// `NICHT_JOURNALISIERT` (`src/main/journal/journalisierung.ts`) abgeleitet: die frühere Fassung
+// nahm `...NICHT_JOURNALISIERT` pauschal aus und ließ damit `schema_migration`, `merge_protokoll`
+// und `id_alias` still aus dem Vergleich fallen, obwohl 55_Architektur.md §4.9 Punkt 5 nur
+// Journal + abgeleitete Tabellen erlaubt. Fail-closed: jede Tabelle, die hier nicht steht -
+// insbesondere jede künftig neu angelegte -, wird automatisch verglichen. Eine Erweiterung der
+// Liste braucht einen weiteren ADR-009-Nachtrag und eine Gegenprobe
+// (`test/invarianten/undo-bitgleich-ausnahmen.test.ts`, B-T1..B-T6).
+//
+// 1. Journal (ADR-018): `transaktion`/`aenderung`/`journal_kontext` - dort SOLL sich durch
+//    Undo/Redo per Definition etwas ändern (Rücknahme-Markierung, Armierungszustand).
+// 2. Abgeleitet (55_Architektur.md §5.3): `person_flach`/`name_phonetik`/`suche_fts_quelle`, die
+//    virtuelle FTS5-Tabelle `suche_fts` und ihre vier von SQLite automatisch angelegten
+//    Schattentabellen (`suche_fts_data`/`_idx`/`_docsize`/`_config`). Sie werden in
+//    `test/invarianten/abgeleitet-gleich.test.ts` gegen `alleAbgeleitetenNeuAufbauen` geprüft
+//    (rohe Schreibfolgen ohne Undo; nach Undo bisher nur `person_flach` in
+//    `test/einheit/undo-abgeleitet.test.ts`, Folgepunkt U-1.34-B4 in docs/80 §31) -
+//    hier NICHT nochmal, sonst würde ein von einem Undo-Schritt nicht mitgepflegter abgeleiteter
+//    Wert fälschlich als "Bitgleichheit verletzt" durchgehen, obwohl die Basistabellen längst
+//    wieder korrekt sind.
+// 3. Fachlich (AP-1.34, E14): `kennung_zaehler` - eine einmal vergebene Personen-Kennung wird nie
+//    neu vergeben; der Zähler läuft nur vorwärts (Trigger in docs/schema/0007_kennung_textanker.sql)
+//    und bleibt nach einem Undo bewusst stehen. Dass er dabei tatsächlich ABWEICHT, prüft
+//    `test/invarianten/kennung-nie-neu-vergeben.test.ts` (K1) gegen den rohen Tabelleninhalt.
 import type Database from 'better-sqlite3'
-import { NICHT_JOURNALISIERT } from '../../src/main/journal/journalisierung'
 import type { ZeileWerte } from '../../src/main/repositories/basis'
 
-const AUSGENOMMEN: ReadonlySet<string> = new Set<string>([
-  ...NICHT_JOURNALISIERT,
+/** Journal-Tabellen (ADR-018): dort soll sich durch Undo/Redo etwas ändern. */
+const AUSGENOMMEN_JOURNAL = ['transaktion', 'aenderung', 'journal_kontext'] as const
+
+/** Abgeleitete Tabellen (55_Architektur.md §5.3) - geprüft gegen Neuaufbau in abgeleitet-gleich.test.ts. */
+const AUSGENOMMEN_ABGELEITET = [
+  'person_flach',
+  'name_phonetik',
+  'suche_fts_quelle',
   'suche_fts',
   'suche_fts_data',
   'suche_fts_idx',
   'suche_fts_docsize',
   'suche_fts_config',
+] as const
+
+/** Fachliche Ausnahme (AP-1.34, E14): Kennung wird nie neu vergeben, Zähler bleibt nach Undo stehen. */
+const AUSGENOMMEN_FACHLICH = ['kennung_zaehler'] as const
+
+const AUSGENOMMEN: ReadonlySet<string> = new Set<string>([
+  ...AUSGENOMMEN_JOURNAL,
+  ...AUSGENOMMEN_ABGELEITET,
+  ...AUSGENOMMEN_FACHLICH,
 ])
 
 interface TabelleNameZeile {
