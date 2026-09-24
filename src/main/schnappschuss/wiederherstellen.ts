@@ -34,7 +34,8 @@ import { wiederhergestellteDateiAngleichen, type ErsetzterKennungsstand } from '
  * übernehmen ihre Personen im Migrations-Hook die Kennungen der ersetzten Datei, übrige werden ab
  * dem gesicherten Zählerstand nummeriert (O-2). `projektOeffnen` findet danach eine aktuelle Datei
  * vor (Migration No-op). Scheitert das Angleichen, wird wie beim Kopierfehler zurückgerollt; das
- * Projekt bleibt wieder öffenbar.
+ * Projekt bleibt wieder öffenbar. Ein `WurzelFehler` aus dem Angleichen behält dabei seinen Code,
+ * alles andere wird `INTERN_UNERWARTET`.
  */
 export function schnappschussWiederherstellen(
   ein: SchnappschussWiederherstellenEin,
@@ -83,9 +84,11 @@ export function schnappschussWiederherstellen(
     })
   } catch (u) {
     // Wie der Rückroll oben (Muster `importZuruecknehmen()`): die kopierte Datei wird durch die
-    // ersetzte überschrieben, das Projekt bleibt im Vorher-Zustand öffenbar.
+    // ersetzte überschrieben, das Projekt bleibt im Vorher-Zustand öffenbar. Ein bereits
+    // typisierter Fehler (`DATENBANK_INTEGRITAET`, `PROJEKT_NEUERE_SCHEMAVERSION`,
+    // `PROJEKT_MIGRATION_GEAENDERT`) wird durchgereicht (hueter-H3) — nur Unbekanntes wird umgepackt.
     renameSync(ersetztPfad, pfade.dbPfad)
-    throw new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
+    throw u instanceof WurzelFehler ? u : new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
   }
 
   projektOeffnen({ pfad: ordnerPfad }, ktx)

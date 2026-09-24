@@ -36,6 +36,7 @@ vi.mock('electron-store', () => {
 })
 
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen } from '../../src/main/projekt/projekt-dienst'
@@ -598,7 +599,7 @@ describe('Wiederherstellen über mehrere Migrationen und mit beschädigter Seite
     } catch (u) {
       expect(u).toBeInstanceOf(WurzelFehler)
       if (u instanceof WurzelFehler) {
-        expect(u.message).toMatch(/DATENBANK_INTEGRITAET/)
+        expect(u.code).toBe('DATENBANK_INTEGRITAET')
       }
     }
 
@@ -612,5 +613,41 @@ describe('Wiederherstellen über mehrere Migrationen und mit beschädigter Seite
     const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
     expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })
     expect(alleKennungen(dbPfad)).toEqual(vorher)
+  })
+
+  it('H3: ein Schnappschuss mit neuerer Schemaversion wirft PROJEKT_NEUERE_SCHEMAVERSION (nicht umgepackt) und rollt zurück', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    personenAnlegen(2)
+    const eintrag = schnappschussErzeugen(offenesProjektDatenbank(), { snapshotsPfad }, () => Date.UTC(2026, 8, 24, 8, 0, 0))
+    personenAnlegen(1)
+    const vorher = alleKennungen(dbPfad)
+    expect(Object.keys(vorher)).toHaveLength(3)
+
+    // Test-SQL: der Schnappschuss behauptet eine Schemaversion, die diese App nicht kennt.
+    const schnappschuss = new Database(join(snapshotsPfad, `${eintrag.id}.sqlite`))
+    try {
+      schnappschuss.pragma(`user_version = ${String(SCHEMA_VERSION + 1)}`)
+    } finally {
+      schnappschuss.close()
+    }
+
+    try {
+      schnappschussWiederherstellen({ id: eintrag.id }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.code).toBe('PROJEKT_NEUERE_SCHEMAVERSION')
+      }
+    }
+
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(alleKennungen(dbPfad)).toEqual(vorher)
+    const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
+    expect(ersetzteDateien).toHaveLength(0)
+    const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
+    expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })
   })
 })
