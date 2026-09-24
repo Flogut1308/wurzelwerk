@@ -13,6 +13,9 @@ import { neueId } from '../id'
  * `docs/schema/0002_kern.sql` ("Befüllung per Trigger AP-0.8") ist damit überholt — es gibt keinen
  * solchen Trigger, die Migration selbst bleibt aber unverändert (CLAUDE.md §6: eine angewendete
  * Migrationsdatei wird nie geändert). Diese Handler-Zuweisung hier ist die tatsächliche Quelle.
+ *
+ * AP-1.34 (E10): die fortlaufende Kennung zieht `einfuegen()` selbst (einziger Schreibweg, B2);
+ * die Rückgabe bleibt `{ id }`.
  */
 export function personAnlegen(tx: Tx, ein: PersonAnlegenEin): { readonly id: string } {
   const id = neueId()

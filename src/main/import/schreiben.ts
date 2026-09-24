@@ -266,6 +266,8 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
   datei.personen?.forEach((p) => {
     const id = aufloesen(p.id)
     if (!istDbKennung(p.id)) {
+      // AP-1.34: über den einzigen Schreibweg `personRepo.einfuegen` — der zieht die fortlaufende
+      // `person.kennung` in DIESER Import-Transaktion (Trockenlauf/Sondierung rollen sie mit zurück).
       personRepo.einfuegen(tx, {
         id,
         geschlecht: p.geschlecht,
