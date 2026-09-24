@@ -910,8 +910,11 @@ fc.assert(fc.property(befehlsfolgeGenerator(), (folge) => {
 sortierten Schlüsseln. Wichtig: `geaendert_am` wird **nicht** ausgenommen. Es wird von der
 Rücknahme mit zurückgesetzt, weil ganze Zeilen zurückgeschrieben werden — und wenn das mal nicht
 mehr stimmt, soll der Test es sagen. Ausgenommen sind nur `transaktion`, `aenderung`,
-`journal_kontext` (dort *soll* sich etwas geändert haben) und die abgeleiteten Tabellen (die
-werden separat geprüft, §5.3).
+`journal_kontext` (dort *soll* sich etwas geändert haben), die abgeleiteten Tabellen (die
+werden separat geprüft, §5.3) und `kennung_zaehler` (eine vergebene Kennung wird nie neu
+vergeben, der Zähler bleibt nach Undo stehen). Die Liste ist fest gepinnt und nicht aus
+`NICHT_JOURNALISIERT` abgeleitet; jede andere Tabelle wird verglichen (ADR-009-Nachtrag
+24.09.2026).
 
 ---
 
