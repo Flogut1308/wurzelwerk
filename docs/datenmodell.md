@@ -266,7 +266,11 @@ Zwei Nebenbefunde, die beim Bauen sonst als Fehler gelesen werden:
 2. `person_flach` wird **ausschließlich** aus `aussage` gespeist, nie aus `ereignis` — es gibt
    keinen `abl_ereignis_*`-Trigger. Der Import muss zu jedem Geburts-/Todesereignis **zusätzlich**
    Aussagen mit `praedikat='geburtsdatum'`/`'todesdatum'`/`'geburtsort'` schreiben, sonst bleibt die
-   Personenliste datumsleer.
+   Personenliste datumsleer. Seit AP-1.34 PR-C2a (`80_Offene_Fragen.md` §31 U-1.34-E5) schreibt er
+   symmetrisch zu `geburtsort` auch `todesort` (`wert_ref_id` = Ort des Tod-Ereignisses, nur mit
+   Datum und Ort, gleiche Konfidenz und Belege). `todesort` speist `person_flach` nicht; der
+   Sterbeort der Profilseite ist die Aussage `todesort`, fehlt sie, der Ort des Tod-Ereignisses
+   mit Rolle `verstorbener` (`src/core/person/sterbeort.ts`).
 
 `elternschaft.konfidenz` (Schema v1, als ungeprüfte Annahme kommentiert) wird **nicht mehr
 geschrieben** und bleibt NULL; sie ist nullable, der Ausbau ist eine spätere Aufräummigration.
