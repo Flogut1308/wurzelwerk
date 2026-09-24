@@ -230,11 +230,20 @@ import type {
   OrtExterneIdAnlegenEin,
   QuelleAnlegenEin,
 } from '../../src/shared/schemata/befehle'
-import { fuehreAus } from '../../src/main/befehle/bus'
 import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
 import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
-import { transkriptArbitrary } from './_befehlsfolge-beleg'
+import {
+  aussageZitatAnlegenAktionArbitrary,
+  aussageZitatAnlegenAusfuehren,
+  befehl,
+  transkriptArbitrary,
+  type AktionAussageZitatAnlegen,
+  type BelegAenderungInfo,
+  type Zweig,
+} from './_befehlsfolge-beleg'
+
+export type { Zweig } from './_befehlsfolge-beleg'
 
 /**
  * Verteilendes `Omit` (`T extends unknown ? ... : never` erzwingt die Verteilung über jedes
@@ -457,22 +466,8 @@ export interface AktionAussageAendern {
   readonly gueltigBis: number
 }
 
-/**
- * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.anlegen` (`src/main/befehle/aussage-zitat-anlegen.ts`)
- * — verknüpft eine BESTEHENDE `aussage` (`zustand.aussagen`) mit einem BESTEHENDEN `zitat`
- * (`zustand.zitatIds`, AP-1.17 PR-B). Braucht BEIDE Listen nichtleer — leere `aussagen` ODER leere
- * `zitatIds` machen die Aktion zum No-op (zwei No-op-Prüfungen statt einer, dasselbe Muster wie
- * `zitatAendern` oben mit zwei unabhängigen Zielen). Eine bereits bestehende Kombination
- * (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, s. Handler-Kommentar) würde
- * `KONFLIKT_BEREITS_VORHANDEN` werfen — `zustand.aussageZitatVerknuepfungen` trackt jede angelegte
- * Kombination, ein Kandidat mit bereits vergebener Kombination wird als No-op übersprungen
- * (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen` oben).
- */
-export interface AktionAussageZitatAnlegen {
-  readonly art: 'aussageZitatAnlegen'
-  readonly aussageZielRoh: number
-  readonly zitatZielRoh: number
-}
+// `AktionAussageZitatAnlegen` (AP-1.29 PR-B, mit Textanker/feld erweitert AP-1.34 PR-B2) steht in
+// `_befehlsfolge-beleg.ts`.
 
 /**
  * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.loeschen` (`src/main/befehle/aussage-zitat-loeschen.ts`)
@@ -949,13 +944,6 @@ function aussageAendernAktionArbitrary(): fc.Arbitrary<AktionAussageAendern> {
     .map((r): AktionAussageAendern => ({ art: 'aussageAendern', ...r }))
 }
 
-/** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatAnlegen`. */
-function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAnlegen> {
-  return fc
-    .record({ aussageZielRoh: fc.nat(), zitatZielRoh: fc.nat() })
-    .map((r): AktionAussageZitatAnlegen => ({ art: 'aussageZitatAnlegen', ...r }))
-}
-
 /** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatLoeschen`. */
 function aussageZitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatLoeschen> {
   return fc
@@ -1345,10 +1333,14 @@ interface BeteiligungInfo {
  * darum außerhalb dieses Arbeitspakets, `'ort'` fehlt hier weiterhin bewusst. */
 type AussageSubjektKind = 'person' | 'name' | 'elternschaft' | 'partnerschaft' | 'ereignis'
 
+/** `istExistenz` (AP-1.34 PR-B2): die versteckte Existenz-Aussage von `elternschaft`/
+ * `partnerschaft`/`ereignis` — nur an ihr ist `aussage_zitat.feld` zulässig
+ * (`_befehlsfolge-beleg.ts`, §31 U-1.34-C1b-feld-praedikat). */
 interface AussageInfo {
   readonly id: string
   readonly subjektTyp: AussageSubjektKind
   readonly subjektId: string
+  readonly istExistenz: boolean
 }
 
 /** Ein getrackter (subjektTyp, subjektId, praedikat)-Dreiklang — die Grundlage der garantierten
@@ -1421,6 +1413,9 @@ export interface Zustand {
   quelleIds: string[]
   zitatIds: string[]
   negativbefundIds: NegativbefundInfo[]
+  /** AP-1.34 PR-B2: Anforderung des zuletzt ausgeführten `aussage_zitat.aendern` — zu Beginn jeder
+   * Aktion zurückgesetzt (s. `aktionAusfuehren()`), für I2 in `textanker-gueltig.test.ts`. */
+  belegAenderung: BelegAenderungInfo | undefined
 }
 
 export function neuerZustand(): Zustand {
@@ -1442,6 +1437,7 @@ export function neuerZustand(): Zustand {
     quelleIds: [],
     zitatIds: [],
     negativbefundIds: [],
+    belegAenderung: undefined,
   }
 }
 
@@ -1671,11 +1667,45 @@ function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, akt
  * Referenzielle Aktionen ohne gültiges Ziel (leere getrackte Liste, oder — bei `elternschaft.
  * anlegen`/`person.loeschen` — ein Kandidat, der eine fachliche Regel verletzen würde) sind
  * bewusste No-ops: kein `fuehreAus()`-Aufruf, keine Transaktion, kein Undo-Schritt.
+ *
+ * AP-1.34 PR-B2: gibt die tatsächlich getroffenen Deckungszweige zurück (`Zweig`,
+ * `_befehlsfolge-beleg.ts`); Aufrufer, die nicht zählen, ignorieren das Ergebnis.
  */
-export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void {
+export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): readonly Zweig[] {
+  const zweige: Zweig[] = []
+  zustand.belegAenderung = undefined
+  aktionAusfuehrenIn(db, zustand, aktion, zweige)
+  return zweige
+}
+
+/** Bevorzugte Aussage desselben (Subjekt, Prädikat) vorhanden? — dann demoted ein weiteres
+ * `aussage.anlegen` mit `istBevorzugt: 1` sie (Zweig `demote`). */
+function bevorzugteAussageBesteht(db: Tx, subjektTyp: AussageSubjektKind, subjektId: string, praedikat: string): boolean {
+  const zeile = db
+    .prepare<{ readonly subjektTyp: string; readonly subjektId: string; readonly praedikat: string }, { readonly anzahl: number }>(
+      'SELECT COUNT(*) AS anzahl FROM aussage WHERE subjekt_typ = @subjektTyp AND subjekt_id = @subjektId AND praedikat = @praedikat AND ist_bevorzugt = 1',
+    )
+    .get({ subjektTyp, subjektId, praedikat })
+  return zeile !== undefined && zeile.anzahl > 0
+}
+
+/** Ist `nameId` die bevorzugte Form einer Person mit weiteren Formen? — dann rückt beim Löschen eine
+ * andere nach (Zweig `nachruecken`). */
+function nachrueckenFaellig(db: Tx, nameId: string, personId: string): boolean {
+  const zeile = db
+    .prepare<{ readonly nameId: string; readonly personId: string }, { readonly bevorzugt: number; readonly weitere: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM name_form WHERE id = @nameId AND ist_bevorzugt = 1) AS bevorzugt,
+         (SELECT COUNT(*) FROM name_form WHERE person_id = @personId AND id <> @nameId) AS weitere`,
+    )
+    .get({ nameId, personId })
+  return zeile !== undefined && zeile.bevorzugt > 0 && zeile.weitere > 0
+}
+
+function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zweig[]): void {
   switch (aktion.art) {
     case 'anlegen': {
-      const { id } = fuehreAus(db, 'person.anlegen', aktion.ein)
+      const { id } = befehl(zweige, db, 'person.anlegen', aktion.ein)
       zustand.personIds.push(id)
       return
     }
@@ -1685,7 +1715,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (id === undefined) {
         return
       }
-      fuehreAus(db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
+      befehl(zweige, db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
       return
     }
 
@@ -1697,7 +1727,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personIstGebunden(zustand, id)) {
         return
       }
-      fuehreAus(db, 'person.loeschen', { id })
+      befehl(zweige, db, 'person.loeschen', { id })
       // Die `name`-Ids der gelöschten Person VOR dem Filtern merken (s. unten — CASCADE nimmt sie
       // mit, `zustand.aussageTripel` muss das für 'name'-Dreiklänge genauso nachvollziehen wie für
       // 'person'-Dreiklänge).
@@ -1728,7 +1758,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'name.anlegen', {
+      const { id } = befehl(zweige, db, 'name.anlegen', {
         personId,
         typ: aktion.typ,
         nachname: aktion.nachname,
@@ -1743,7 +1773,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'name.aendern', { id: ziel.id, typ: aktion.typ, nachname: aktion.nachname, vornamen: aktion.vornamen })
+      befehl(zweige, db, 'name.aendern', { id: ziel.id, typ: aktion.typ, nachname: aktion.nachname, vornamen: aktion.vornamen })
       return
     }
 
@@ -1752,7 +1782,11 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'name.loeschen', { id: ziel.id })
+      const nachruecken = nachrueckenFaellig(db, ziel.id, ziel.personId)
+      befehl(zweige, db, 'name.loeschen', { id: ziel.id })
+      if (nachruecken) {
+        zweige.push('nachruecken')
+      }
       zustand.namen = zustand.namen.filter((n) => n.id !== ziel.id)
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'name' && t.subjektId === ziel.id))
       return
@@ -1763,7 +1797,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (vorhandene === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'name.anlegen', {
+      const { id } = befehl(zweige, db, 'name.anlegen', {
         personId: vorhandene.personId,
         typ: aktion.typ,
         nachname: aktion.nachname,
@@ -1786,7 +1820,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (alt === undefined || alt.id === neu.id) {
         return
       }
-      fuehreAus(db, 'hauptname.wechseln', { personId: neu.personId, alt: alt.id, neu: neu.id })
+      befehl(zweige, db, 'hauptname.wechseln', { personId: neu.personId, alt: alt.id, neu: neu.id })
       return
     }
 
@@ -1800,7 +1834,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (wuerdeZyklusErzeugen(kanten, { elternteilId, kindId })) {
         return
       }
-      const { id } = fuehreAus(db, 'elternschaft.anlegen', {
+      const { id } = befehl(zweige, db, 'elternschaft.anlegen', {
         elternteilId,
         kindId,
         typ: aktion.typ,
@@ -1808,7 +1842,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         notiz: aktion.notiz,
       })
       zustand.elternschaften.push({ id, elternteilId, kindId })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'elternschaft', id), subjektTyp: 'elternschaft', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'elternschaft', id), subjektTyp: 'elternschaft', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1817,7 +1851,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'elternschaft.aendern', { id: ziel.id, typ: aktion.typ, notiz: aktion.notiz })
+      befehl(zweige, db, 'elternschaft.aendern', { id: ziel.id, typ: aktion.typ, notiz: aktion.notiz })
       return
     }
 
@@ -1826,7 +1860,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'elternschaft.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'elternschaft.loeschen', { id: ziel.id })
       zustand.elternschaften = zustand.elternschaften.filter((e) => e.id !== ziel.id)
       // AP-1.29 PR-B: `aussageRepo.loeschenNachSubjekt` löscht ALLE `aussage`-Zeilen dieses Subjekts
       // (nicht nur die Existenz-Aussage, s. Modul-Kommentar) — jede darauf `aussage_zitat`-verknüpfte
@@ -1849,14 +1883,14 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const [a, b] = paar
-      const { id } = fuehreAus(db, 'partnerschaft.anlegen', {
+      const { id } = befehl(zweige, db, 'partnerschaft.anlegen', {
         typ: aktion.typ,
         beteiligte: [{ personId: a }, { personId: b }],
         konfidenz: aktion.konfidenz,
         notiz: aktion.notiz,
       })
       zustand.partnerschaften.push({ id, personIds: [a, b] })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'partnerschaft', id), subjektTyp: 'partnerschaft', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'partnerschaft', id), subjektTyp: 'partnerschaft', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1865,7 +1899,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'partnerschaft.aendern', { id: ziel.id, typ: aktion.typ, endeGrund: aktion.endeGrund, notiz: aktion.notiz })
+      befehl(zweige, db, 'partnerschaft.aendern', { id: ziel.id, typ: aktion.typ, endeGrund: aktion.endeGrund, notiz: aktion.notiz })
       return
     }
 
@@ -1874,7 +1908,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'partnerschaft.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'partnerschaft.loeschen', { id: ziel.id })
       zustand.partnerschaften = zustand.partnerschaften.filter((p) => p.id !== ziel.id)
       // AP-1.29 PR-B: s. Kommentar im `elternschaftLoeschen`-Fall — dieselbe CASCADE-Nachpflege für
       // `aussage_zitat`.
@@ -1894,7 +1928,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'ereignis.anlegen', {
+      const { id } = befehl(zweige, db, 'ereignis.anlegen', {
         typ: aktion.typ,
         beteiligungen: [{ personId, rolle: aktion.rolle }],
         konfidenz: aktion.konfidenz,
@@ -1902,7 +1936,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       })
       zustand.ereignisse.push({ id, personIds: [personId] })
       zustand.beteiligungen.push({ id: beteiligungIdLesen(db, id, personId), ereignisId: id, personId })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'ereignis', id), subjektTyp: 'ereignis', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'ereignis', id), subjektTyp: 'ereignis', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1911,7 +1945,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ereignis.aendern', { id: ziel.id, typ: aktion.typ, beschreibung: aktion.beschreibung })
+      befehl(zweige, db, 'ereignis.aendern', { id: ziel.id, typ: aktion.typ, beschreibung: aktion.beschreibung })
       return
     }
 
@@ -1920,7 +1954,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ereignis.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ereignis.loeschen', { id: ziel.id })
       zustand.ereignisse = zustand.ereignisse.filter((e) => e.id !== ziel.id)
       // `ereignis-repo.ts` Kommentar "CASCADE räumt `beteiligung` ab" — jede noch offene Beteiligung
       // dieses Ereignisses verschwindet mit, `zustand.beteiligungen` muss das nachvollziehen (sonst
@@ -1944,7 +1978,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'beteiligung.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'beteiligung.loeschen', { id: ziel.id })
       zustand.beteiligungen = zustand.beteiligungen.filter((b) => b.id !== ziel.id)
       // Das zugehörige `ereignis` bleibt bestehen — auch mit 0 Beteiligungen (Variante A, s.
       // Typkommentar `AktionBeteiligungLoeschen`). `personIstGebunden()` prüft `beteiligung.person_id`
@@ -1968,8 +2002,11 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (subjektId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'aussage.anlegen', aussageAnlegenEinBauen(pool.kind, subjektId, aktion))
-      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      if (aktion.istBevorzugt === 1 && bevorzugteAussageBesteht(db, pool.kind, subjektId, aktion.praedikat)) {
+        zweige.push('demote')
+      }
+      const { id } = befehl(zweige, db, 'aussage.anlegen', aussageAnlegenEinBauen(pool.kind, subjektId, aktion))
+      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId, istExistenz: false })
       // `istBevorzugt === 1` macht diesen Dreiklang ebenfalls zu einem gültigen Wiederholungsziel
       // für `aussageFaktAendern` (s. dortiger Fall) — nur dann demoted eine spätere Wiederholung
       // tatsächlich etwas (`aussage-anlegen.ts` demoted nur zuvor selbst bevorzugte Aussagen).
@@ -1984,7 +2021,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'aussage.loeschen', { id: ziel.id })
       zustand.aussagen = zustand.aussagen.filter((a) => a.id !== ziel.id)
       // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.aussage_id` (Kopfkommentar
       // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieser Aussage verschwindet mit.
@@ -1997,7 +2034,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage.aendern', {
+      befehl(zweige, db, 'aussage.aendern', {
         id: ziel.id,
         konfidenz: aktion.konfidenz,
         begruendung: aktion.begruendung,
@@ -2010,25 +2047,8 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
     }
 
     case 'aussageZitatAnlegen': {
-      const aussage = zielAusListe(zustand.aussagen, aktion.aussageZielRoh)
-      if (aussage === undefined) {
-        return
-      }
-      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
-      if (zitatId === undefined) {
-        return
-      }
-      // Zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)` (Kopfkommentar) — ein Kandidat
-      // mit bereits vergebener Kombination würde `KONFLIKT_BEREITS_VORHANDEN` werfen, bleibt darum
-      // ein bewusster No-op (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen`).
-      const bestehtSchon = zustand.aussageZitatVerknuepfungen.some(
-        (v) => v.aussageId === aussage.id && v.zitatId === zitatId,
-      )
-      if (bestehtSchon) {
-        return
-      }
-      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussage.id, zitatId })
-      zustand.aussageZitatVerknuepfungen.push({ aussageId: aussage.id, zitatId })
+      // AP-1.34 PR-B2: mit Textanker und feld, s. `_befehlsfolge-beleg.ts`.
+      aussageZitatAnlegenAusfuehren(db, zustand, aktion, zweige)
       return
     }
 
@@ -2037,7 +2057,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage_zitat.loeschen', { aussageId: ziel.aussageId, zitatId: ziel.zitatId })
+      befehl(zweige, db, 'aussage_zitat.loeschen', { aussageId: ziel.aussageId, zitatId: ziel.zitatId })
       zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
         (v) => !(v.aussageId === ziel.aussageId && v.zitatId === ziel.zitatId),
       )
@@ -2054,7 +2074,10 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         if (tripel === undefined) {
           throw new Error('aktionAusfuehren(aussageFaktAendern): unerreichbar — die Liste ist nicht leer.')
         }
-        const { id } = fuehreAus(db, 'aussage.anlegen', {
+        if (bevorzugteAussageBesteht(db, tripel.subjektTyp, tripel.subjektId, tripel.praedikat)) {
+          zweige.push('demote')
+        }
+        const { id } = befehl(zweige, db, 'aussage.anlegen', {
           subjektTyp: tripel.subjektTyp,
           subjektId: tripel.subjektId,
           praedikat: tripel.praedikat,
@@ -2062,7 +2085,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
           istBevorzugt: 1,
           ...aussageWertFeld(aktion.wert),
         })
-        zustand.aussagen.push({ id, subjektTyp: tripel.subjektTyp, subjektId: tripel.subjektId })
+        zustand.aussagen.push({ id, subjektTyp: tripel.subjektTyp, subjektId: tripel.subjektId, istExistenz: false })
         return
       }
 
@@ -2077,7 +2100,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (subjektId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'aussage.anlegen', {
+      const { id } = befehl(zweige, db, 'aussage.anlegen', {
         subjektTyp: pool.kind,
         subjektId,
         praedikat: aktion.praedikat,
@@ -2085,13 +2108,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         istBevorzugt: 1,
         ...aussageWertFeld(aktion.wert),
       })
-      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId, istExistenz: false })
       zustand.aussageTripel.push({ subjektTyp: pool.kind, subjektId, praedikat: aktion.praedikat })
       return
     }
 
     case 'ortAnlegen': {
-      const { id } = fuehreAus(db, 'ort.anlegen', { name: aktion.name, typ: aktion.typ, notiz: aktion.notiz })
+      const { id } = befehl(zweige, db, 'ort.anlegen', { name: aktion.name, typ: aktion.typ, notiz: aktion.notiz })
       zustand.ortIds.push(id)
       // `ort.anlegen` legt selbst einen primären `ortsname` an (s. Kopfkommentar) — dessen echte
       // `id` liest der Generator nach, damit sie ein gültiges `ortsname.aendern`/`.loeschen`-Ziel
@@ -2106,7 +2129,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortId === undefined) {
         return
       }
-      fuehreAus(db, 'ort.aendern', {
+      befehl(zweige, db, 'ort.aendern', {
         id: ortId,
         typ: aktion.typ,
         koordinatenLat: aktion.koordinatenLat,
@@ -2123,7 +2146,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'ortsname.anlegen', {
+      const { id } = befehl(zweige, db, 'ortsname.anlegen', {
         ortId,
         name: aktion.name,
         sprache: aktion.sprache,
@@ -2141,7 +2164,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortsname.aendern', {
+      befehl(zweige, db, 'ortsname.aendern', {
         id: ziel.id,
         name: aktion.name,
         sprache: aktion.sprache,
@@ -2158,7 +2181,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortsname.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ortsname.loeschen', { id: ziel.id })
       zustand.ortsnamen = zustand.ortsnamen.filter((n) => n.id !== ziel.id)
       return
     }
@@ -2175,7 +2198,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortWuerdeZyklusErzeugen(kanten, { ortId, uebergeordnetId })) {
         return
       }
-      const { id } = fuehreAus(db, 'ortszugehoerigkeit.anlegen', {
+      const { id } = befehl(zweige, db, 'ortszugehoerigkeit.anlegen', {
         ortId,
         uebergeordnetId,
         art: aktion.zugehoerigkeitArt,
@@ -2191,7 +2214,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortszugehoerigkeit.aendern', { id: ziel.id, gueltigVon: aktion.gueltigVon, gueltigBis: aktion.gueltigBis })
+      befehl(zweige, db, 'ortszugehoerigkeit.aendern', { id: ziel.id, gueltigVon: aktion.gueltigVon, gueltigBis: aktion.gueltigBis })
       return
     }
 
@@ -2200,7 +2223,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortszugehoerigkeit.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ortszugehoerigkeit.loeschen', { id: ziel.id })
       zustand.ortszugehoerigkeiten = zustand.ortszugehoerigkeiten.filter((z) => z.id !== ziel.id)
       return
     }
@@ -2217,7 +2240,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (bestehtSchon) {
         return
       }
-      fuehreAus(db, 'ort-externe-id.anlegen', { ortId, system: aktion.system, wert: aktion.wert })
+      befehl(zweige, db, 'ort-externe-id.anlegen', { ortId, system: aktion.system, wert: aktion.wert })
       zustand.ortExterneIds.push({ ortId, system: aktion.system })
       return
     }
@@ -2227,13 +2250,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
+      befehl(zweige, db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
       zustand.ortExterneIds = zustand.ortExterneIds.filter((e) => !(e.ortId === ziel.ortId && e.system === ziel.system))
       return
     }
 
     case 'archivAnlegen': {
-      const { id } = fuehreAus(db, 'archiv.anlegen', { name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      const { id } = befehl(zweige, db, 'archiv.anlegen', { name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
       zustand.archivIds.push(id)
       return
     }
@@ -2243,13 +2266,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (archivId === undefined) {
         return
       }
-      fuehreAus(db, 'archiv.aendern', { id: archivId, name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      befehl(zweige, db, 'archiv.aendern', { id: archivId, name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
       return
     }
 
     case 'quelleAnlegen': {
       const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
-      const { id } = fuehreAus(db, 'quelle.anlegen', {
+      const { id } = befehl(zweige, db, 'quelle.anlegen', {
         typ: aktion.typ,
         titel: aktion.titel,
         autor: aktion.autor,
@@ -2266,7 +2289,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
-      fuehreAus(db, 'quelle.aendern', {
+      befehl(zweige, db, 'quelle.aendern', {
         id: quelleId,
         typ: aktion.typ,
         titel: aktion.titel,
@@ -2282,7 +2305,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (quelleId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'zitat.anlegen', {
+      const { id } = befehl(zweige, db, 'zitat.anlegen', {
         quelleId,
         seite: aktion.seite,
         konfidenz: aktion.konfidenz,
@@ -2301,7 +2324,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (quelleId === undefined) {
         return
       }
-      fuehreAus(db, 'zitat.aendern', {
+      befehl(zweige, db, 'zitat.aendern', {
         id: zitatId,
         quelleId,
         seite: aktion.seite,
@@ -2316,7 +2339,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (zitatId === undefined) {
         return
       }
-      fuehreAus(db, 'zitat.loeschen', { id: zitatId })
+      befehl(zweige, db, 'zitat.loeschen', { id: zitatId })
       zustand.zitatIds = zustand.zitatIds.filter((z) => z !== zitatId)
       // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.zitat_id` (Kopfkommentar
       // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieses Zitats verschwindet mit.
@@ -2330,7 +2353,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
-      const { id } = fuehreAus(db, 'negativbefund.anlegen', {
+      const { id } = befehl(zweige, db, 'negativbefund.anlegen', {
         gesuchtePersonId: personId,
         gesuchtesPraedikat: aktion.gesuchtesPraedikat,
         zeitraumVon: aktion.zeitraumVon,
@@ -2352,7 +2375,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
-      fuehreAus(db, 'negativbefund.aendern', {
+      befehl(zweige, db, 'negativbefund.aendern', {
         id: ziel.id,
         gesuchtePersonId: personId,
         gesuchtesPraedikat: aktion.gesuchtesPraedikat,
@@ -2375,7 +2398,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'negativbefund.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'negativbefund.loeschen', { id: ziel.id })
       zustand.negativbefundIds = zustand.negativbefundIds.filter((n) => n.id !== ziel.id)
       return
     }
