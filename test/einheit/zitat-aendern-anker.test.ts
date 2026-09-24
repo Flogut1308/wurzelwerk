@@ -61,6 +61,19 @@ function aufbauen(db: Db): Aufbau {
   const aussageB = neueAussage(db, personId, 'Bauer')
   fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussageA, zitatId, textanker: { von: 14, bis: 20 } })
   fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussageB, zitatId, textanker: { von: 21, bis: 27 } })
+  // Vorbedingung: die Anker sind wirklich gesetzt — sonst bestünden die „→ NULL"-Zusicherungen
+  // (Z3/Z4) leer, z. B. wenn ein Schema `textanker` stillschweigend verwirft.
+  const gesetzt = db
+    .prepare<{ readonly zitatId: string }, { readonly aussage_id: string; readonly textanker_von: number | null; readonly textanker_bis: number | null }>(
+      'SELECT aussage_id, textanker_von, textanker_bis FROM aussage_zitat WHERE zitat_id = @zitatId ORDER BY textanker_von',
+    )
+    .all({ zitatId })
+  if (JSON.stringify(gesetzt) !== JSON.stringify([
+    { aussage_id: aussageA, textanker_von: 14, textanker_bis: 20 },
+    { aussage_id: aussageB, textanker_von: 21, textanker_bis: 27 },
+  ])) {
+    throw new Error(`aufbauen(): Textanker nicht wie erwartet gesetzt: ${JSON.stringify(gesetzt)}`)
+  }
   return { quelleId, zitatId, aussageA, aussageB }
 }
 
