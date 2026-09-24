@@ -16,9 +16,11 @@ import { join } from 'node:path'
  * - **`pnpm dev`:** `electron-vite dev` startet aus dem Repo-Root; `app.getAppPath()` liefert das
  *   Repo-Root, wo `docs/schema` ohnehin liegt.
  *
- * Nur die Aufrufer im laufenden Prozess (`src/main/projekt/projekt-dienst.ts` und, für die
- * Migration vor dem Öffnen einer wiederhergestellten Datei, `src/main/schnappschuss/
- * wiederherstellen.ts`, AP-1.34 A2b) importieren diese Funktion — Vitest
+ * Nur die Aufrufer im laufenden Prozess (`src/main/projekt/projekt-dienst.ts`, für die
+ * Migration vor dem Öffnen einer wiederhergestellten Datei `src/main/schnappschuss/
+ * wiederherstellen.ts`, AP-1.34 A2b, und für die Import-Rücknahme über `undo()`
+ * `src/main/ipc/registrierung.ts` und `src/main/menue/menue.ts`, AP-1.34 A2c — gesichert durch
+ * `test/einheit/undo-aufrufer-verdrahtet.test.ts`) importieren diese Funktion — Vitest
  * und die Skripte unter `skripte/` bleiben electron-frei und nutzen stattdessen den
  * `process.cwd()`-Default in `src/main/datenbank/migration/laeufer.ts`.
  */
