@@ -25,6 +25,7 @@ import {
   aussageLoeschenEinSchema,
   aussageZitatAnlegenEinSchema,
   aussageZitatLoeschenEinSchema,
+  aussageZitatAendernEinSchema,
   ortAnlegenEinSchema,
   ortAendernEinSchema,
   ortsnameAnlegenEinSchema,
@@ -198,6 +199,7 @@ export function ipcRegistrierung(): void {
   registriere('befehl:aussage.aendern', aussageAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.aendern', ein))
   registriere('befehl:aussage.loeschen', aussageLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage.loeschen', ein))
   registriere('befehl:aussage_zitat.anlegen', aussageZitatAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage_zitat.anlegen', ein))
+  registriere('befehl:aussage_zitat.aendern', aussageZitatAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage_zitat.aendern', ein))
   registriere('befehl:aussage_zitat.loeschen', aussageZitatLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'aussage_zitat.loeschen', ein))
 
   // `undo()`/`redo()` laufen NICHT über `fuehreAus()`/den Befehlsbus (55_Architektur.md §4.9,

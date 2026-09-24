@@ -55,7 +55,9 @@ import {
   type AussageLoeschenEin,
   aussageZitatAnlegenEinSchema,
   aussageZitatLoeschenEinSchema,
+  aussageZitatAendernEinSchema,
   type AussageZitatAnlegenEin,
+  type AussageZitatAendernEin,
   type AussageZitatLoeschenEin,
   ortAnlegenEinSchema,
   type OrtAnlegenEin,
@@ -120,6 +122,7 @@ import { aussageAendern } from './aussage-aendern'
 import { aussageLoeschen } from './aussage-loeschen'
 import { aussageZitatAnlegen } from './aussage-zitat-anlegen'
 import { aussageZitatLoeschen } from './aussage-zitat-loeschen'
+import { aussageZitatAendern } from './aussage-zitat-aendern'
 import { ortAnlegen } from './ort-anlegen'
 import { ortAendern } from './ort-aendern'
 import { ortsnameAnlegen } from './ortsname-anlegen'
@@ -181,6 +184,7 @@ interface BefehlKarte {
   'aussage.aendern': { ein: AussageAendernEin; aus: null }
   'aussage.loeschen': { ein: AussageLoeschenEin; aus: null }
   'aussage_zitat.anlegen': { ein: AussageZitatAnlegenEin; aus: null }
+  'aussage_zitat.aendern': { ein: AussageZitatAendernEin; aus: null }
   'aussage_zitat.loeschen': { ein: AussageZitatLoeschenEin; aus: null }
   'ort.anlegen': { ein: OrtAnlegenEin; aus: { readonly id: string } }
   'ort.aendern': { ein: OrtAendernEin; aus: null }
@@ -340,6 +344,14 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.aussage_zitat_angelegt',
     handler: aussageZitatAnlegen,
+  },
+  // AP-1.34 PR-C1b: bewusst OHNE Koaleszenz-Schlüssel — jede Änderung von feld/Anker ist ein eigener
+  // Undo-Schritt (§31 U-1.34-F2).
+  'aussage_zitat.aendern': {
+    schema: aussageZitatAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.aussage_zitat_geaendert',
+    handler: aussageZitatAendern,
   },
   'aussage_zitat.loeschen': {
     schema: aussageZitatLoeschenEinSchema,

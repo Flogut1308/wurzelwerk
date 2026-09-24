@@ -41,6 +41,7 @@ const kanaele = [
   'befehl:aussage.aendern',
   'befehl:aussage.loeschen',
   'befehl:aussage_zitat.anlegen',
+  'befehl:aussage_zitat.aendern',
   'befehl:aussage_zitat.loeschen',
   'befehl:journal.undo',
   'befehl:journal.redo',
