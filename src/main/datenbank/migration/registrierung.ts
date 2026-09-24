@@ -44,10 +44,15 @@ export const MIGRATIONEN = [
     datei: '0006_namensformen.sql',
     pruefsumme: 'sha256-16ec62eede7f66f54bed365c789cf23cbbd9700933965f01985e947ca867b9ed',
   },
+  {
+    version: 7,
+    datei: '0007_kennung_textanker.sql',
+    pruefsumme: 'sha256-73965b04ca293494581276f93d3dd697d62266f26f498c88f88c0d0772ef4bad',
+  },
 ] as const satisfies readonly MigrationEintrag[]
 
 /** Ziel von `PRAGMA user_version` nach vollständiger Migration — die höchste Version der Registry. */
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 /** sha256 über den rohen Byte-Inhalt einer Migrationsdatei, Format `sha256-<hexdigest>`. */
 export function pruefsummeBerechnen(inhalt: string | Buffer): string {
