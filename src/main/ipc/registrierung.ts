@@ -72,6 +72,7 @@ import { fuehreAus } from '../befehle/bus'
 import { importAusfuehren } from '../befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../befehle/import-trockenlauf'
 import { berichtSpeichern, importDateiWaehlen, projektElternordnerWaehlen, projektOrdnerWaehlen } from '../dialoge'
+import { schemaBasisverzeichnis } from '../datenbank/migration/schema-basis'
 import { importPruefen } from '../import/pruefen'
 import { journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
@@ -204,7 +205,9 @@ export function ipcRegistrierung(): void {
   // auslöst, gehen darum hier von Hand raus, direkt nach dem erfolgreichen Aufruf.
   registriere('befehl:journal.undo', z.null(), () => {
     const db = offenesProjektDatenbank()
-    const ergebnis = undo(db)
+    // Import-Rücknahme migriert die zurückkopierte Datei (AP-1.34 A2c) — Schema-Basis und
+    // App-Version ausdrücklich, im gepackten Build liegt `docs/schema` nicht unter `cwd`.
+    const ergebnis = undo(db, { schemaBasis: schemaBasisverzeichnis(), appVersion: app.getVersion() })
     sendeEreignis('ereignis:datenGeaendert', { transaktionId: ergebnis.transaktionId, ursache: 'journal.undo' })
     journalStatusMelden(db)
     return ergebnis

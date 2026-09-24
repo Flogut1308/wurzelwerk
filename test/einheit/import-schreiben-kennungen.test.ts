@@ -6,15 +6,16 @@
 // (`person.kennung` aus `kennung_zaehler`) für den Importweg: fortlaufend über Importe hinweg,
 // Trockenlauf verbraucht keine Nummer, und E12 — die Rücknahme eines Großimports per Schnappschuss
 // setzt den Zähler NICHT zurück („nie neu vergeben" gilt ausnahmslos).
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { importAusfuehren } from '../../src/main/befehle/import-ausfuehren'
 import { importTrockenlaufDurchfuehren } from '../../src/main/befehle/import-trockenlauf'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { undo } from '../../src/main/journal/undo'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
@@ -22,6 +23,8 @@ import { schreibeImport } from '../../src/main/import/schreiben'
 import { einfuegen as personEinfuegen, lesen as personLesen } from '../../src/main/repositories/person-repo'
 import { RUECKNAHME_SCHWELLE_ZEILEN } from '../../src/shared/import/trockenlauf-bericht'
 import { importDateiSchema } from '../../src/shared/schemata/import-v1'
+import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
+import { v6SchnappschussBauen } from '../hilfsmittel/alt-schnappschuss'
 
 const UUID_V7_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
@@ -255,6 +258,8 @@ describe('Import — fortlaufende Personen-Kennung (AP-1.34 PR-A)', () => {
 
     const dbNach = oeffnen(dbPfad)
     try {
+      // H6-T2 (A2c): ein Import-Schnappschuss ≥v7 bleibt auf seiner Version (Migration No-op).
+      expect(dbNach.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
       // Die Rücknahme hat wirklich stattgefunden: nur die drei Personen von vorher sind da …
       expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3])
       // … aber der Zähler steht auf max(alt, wiederhergestellt) = 804, nicht auf dem Schnappschuss-
@@ -309,6 +314,140 @@ describe('Import — fortlaufende Personen-Kennung (AP-1.34 PR-A)', () => {
       expect(quellenAnzahl?.anzahl).toBe(1) // nur die Quelle des kleinen Imports: Rücknahme erfolgt
       expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3])
       expect(zaehlerstand(dbNach)).toBe(4)
+    } finally {
+      dbNach.close()
+    }
+  }, 90_000)
+})
+
+// ---------------------------------------------------------------------------------------------
+// AP-1.34 A2c (H6, Eigentümer 24.09.2026: „gleich behandeln wie H6b"): die Import-Rücknahme
+// migriert einen Schnappschuss vor 0007 sofort und übernimmt die Kennungen der ersetzten Datei.
+// Der Schnappschuss des Großimports wird dafür durch eine v6-Datei ersetzt — echte Projekte mit
+// einem Import-Schnappschuss aus der Zeit vor 0007 sehen genau so aus.
+// ---------------------------------------------------------------------------------------------
+
+/** Sortiert per `ORDER BY id` vor jeder uuidv7 aus dem Import. */
+const X_ID = '00000000-0000-7000-8000-000000000001'
+
+describe('Import-Rücknahme mit Schnappschuss vor 0007 (AP-1.34 A2c, H6)', () => {
+  let ordner: string
+  let dbPfad: string
+
+  beforeEach(() => {
+    ordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-import-h6-'))
+    dbPfad = join(ordner, 'baum.sqlite')
+  })
+
+  afterEach(() => {
+    rmSync(ordner, { recursive: true, force: true })
+  })
+
+  function schreibeDatei(name: string, inhalt: unknown): string {
+    const pfad = join(ordner, name)
+    writeFileSync(pfad, JSON.stringify(inhalt), 'utf8')
+    return pfad
+  }
+
+  function personIds(db: Database.Database): readonly string[] {
+    return db
+      .prepare<[], { readonly id: string }>('SELECT id FROM person ORDER BY id')
+      .all()
+      .map((zeile) => zeile.id)
+  }
+
+  function kennungenNachId(db: Database.Database): Record<string, number | null> {
+    const ergebnis: Record<string, number | null> = {}
+    for (const zeile of db.prepare<[], { readonly id: string; readonly kennung: number | null }>('SELECT id, kennung FROM person ORDER BY id').all()) {
+      ergebnis[zeile.id] = zeile.kennung
+    }
+    return ergebnis
+  }
+
+  function importSchnappschussPfad(db: Database.Database): string {
+    const zeile = db
+      .prepare<[], { readonly snapshot_pfad: string | null }>("SELECT snapshot_pfad FROM transaktion WHERE art = 'import' ORDER BY lfd DESC LIMIT 1")
+      .get()
+    if (zeile?.snapshot_pfad == null) {
+      throw new Error('importSchnappschussPfad(): die Import-Transaktion hat keinen snapshot_pfad.')
+    }
+    return zeile.snapshot_pfad
+  }
+
+  /** Kleiner Import (3 Personen, Kennungen 1..3) und Großimport (800 Personen, 4..803). */
+  function kleinUndGrossImportieren(db: Database.Database): { readonly kleineIds: readonly string[]; readonly snapshotPfad: string } {
+    migrieren(db)
+    importAusfuehren(db, { pfad: schreibeDatei('klein.json', baueImport(3, 'k')) })
+    const kleineIds = personIds(db)
+    expect(kleineIds).toHaveLength(3)
+    const bericht = importAusfuehren(db, { pfad: schreibeDatei('gross.json', baueImport(800, 'g')) })
+    expect(bericht.zusammenfassung.ruecknahmeArt).toBe('schnappschuss')
+    expect(zaehlerstand(db)).toBe(804)
+    return { kleineIds, snapshotPfad: importSchnappschussPfad(db) }
+  }
+
+  /** Ersetzt die Datei unter `snapshotPfad` durch eine v6-Datei mit genau `ids`. */
+  function durchV6Ersetzen(snapshotPfad: string, ids: readonly string[]): void {
+    v6SchnappschussBauen(ordner, dirname(snapshotPfad), basename(snapshotPfad, '.sqlite'), ids)
+  }
+
+  it('H6-T1: v6-Schnappschuss wird sofort migriert, übernimmt die Kennungen, Rest ab dem gesicherten Zähler', () => {
+    const db = oeffnen(dbPfad)
+    const { kleineIds, snapshotPfad } = kleinUndGrossImportieren(db)
+    const kennungenVorher = kennungenNachId(db)
+    durchV6Ersetzen(snapshotPfad, [...kleineIds, X_ID])
+
+    // undo() schließt `db` (Datei-Wiederherstellungsweg) — weiter über eine neue Verbindung, OHNE
+    // erneutes migrieren(): die Datei muss schon jetzt aktuell sein (E12).
+    undo(db)
+
+    const dbNach = oeffnen(dbPfad)
+    try {
+      expect(dbNach.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      const erwartet: Record<string, number | null> = { [X_ID]: 804 }
+      for (const id of kleineIds) {
+        erwartet[id] = kennungenVorher[id] ?? null
+      }
+      expect(kennungenNachId(dbNach)).toEqual(erwartet)
+      expect(kleineIds.map((id) => kennungenNachId(dbNach)[id])).toEqual([1, 2, 3])
+      expect(zaehlerstand(dbNach)).toBe(805)
+
+      importAusfuehren(dbNach, { pfad: schreibeDatei('danach.json', baueImport(1, 'd')) })
+      expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3, 804, 805])
+      expect(zaehlerstand(dbNach)).toBe(806)
+    } finally {
+      dbNach.close()
+    }
+  }, 90_000)
+
+  it('H6-F: Schnappschuss mit neuerer Schemaversion — PROJEKT_NEUERE_SCHEMAVERSION, Rücknahme zurückgerollt', () => {
+    const db = oeffnen(dbPfad)
+    const { snapshotPfad } = kleinUndGrossImportieren(db)
+    const schnappschuss = oeffnen(snapshotPfad)
+    try {
+      schnappschuss.pragma(`user_version = ${String(SCHEMA_VERSION + 1)}`)
+    } finally {
+      schnappschuss.close()
+    }
+
+    let gefangen: unknown
+    try {
+      undo(db)
+    } catch (u) {
+      gefangen = u
+    }
+    expect(gefangen).toBeInstanceOf(WurzelFehler)
+    if (gefangen instanceof WurzelFehler) {
+      expect(gefangen.code).toBe('PROJEKT_NEUERE_SCHEMAVERSION')
+    }
+
+    // Zurückgerollt: der Stand NACH dem Großimport liegt wieder unter dbPfad, keine ersetzt-Datei.
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(readdirSync(dirname(snapshotPfad)).filter((name) => name.startsWith('ersetzt-'))).toHaveLength(0)
+    const dbNach = oeffnen(dbPfad)
+    try {
+      expect(personenAnzahl(dbNach)).toBe(803)
+      expect(zaehlerstand(dbNach)).toBe(804)
     } finally {
       dbNach.close()
     }

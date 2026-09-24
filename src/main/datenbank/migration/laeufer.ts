@@ -177,6 +177,15 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
 }
 
 /**
+ * Standard-Basisverzeichnis der Migrations-SQL ohne ausdrückliche Angabe (`LaeufenOptionen.schemaBasis`):
+ * `docs/schema` unter `cwd` — gilt für Vitest und Skripte, NICHT für die gepackte App (dort
+ * `schemaBasisverzeichnis()`). Auch von `undo()` als Standard genutzt (AP-1.34 A2c).
+ */
+export function standardSchemaBasis(): string {
+  return join(process.cwd(), 'docs', 'schema')
+}
+
+/**
  * Migriert `db` auf die Zielversion (Standard: `SCHEMA_VERSION` aus der echten Registry,
  * 55_Architektur.md §9.3). Ablauf: `user_version` lesen → neuer als Ziel? abbrechen → Prüfsummen
  * bereits angewendeter Migrationen vergleichen → für jede fehlende Version in genau einer
@@ -185,7 +194,7 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
  */
 export function migrieren(db: Database.Database, opts: LaeufenOptionen = {}): void {
   const migrationen = opts.migrationen ?? MIGRATIONEN
-  const schemaBasis = opts.schemaBasis ?? join(process.cwd(), 'docs', 'schema')
+  const schemaBasis = opts.schemaBasis ?? standardSchemaBasis()
   const inhaltLesen = opts.inhaltLesen ?? ((eintrag: MigrationEintrag) => migrationsRohInhaltLesen(schemaBasis, eintrag))
   const jetzt = opts.jetzt ?? Date.now
   const appVersion = opts.appVersion ?? ''

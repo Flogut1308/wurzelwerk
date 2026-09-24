@@ -2,7 +2,7 @@
 // schließen, aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` verschieben (NIE löschen),
 // gewählten Schnappschuss zurückkopieren, wieder öffnen.
 import Database from 'better-sqlite3'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,6 +42,7 @@ import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { offenesProjektDatenbank, projektAnlegen, projektOeffnen, projektSchliessen } from '../../src/main/projekt/projekt-dienst'
 import { schnappschussErzeugen } from '../../src/main/schnappschuss/erzeugen'
 import { schnappschussWiederherstellen } from '../../src/main/schnappschuss/wiederherstellen'
+import { altSchnappschussBauen, v6SchnappschussBauen } from '../hilfsmittel/alt-schnappschuss'
 
 const ktx: Kontext = { vorgangsId: 'v-test-0001' }
 
@@ -296,50 +297,8 @@ describe('schnappschussWiederherstellen() senkt den Kennungszähler nie (AP-1.34
   })
 })
 
-const FIXTURE_V6_PFAD = join(process.cwd(), 'fixtures', 'datenbanken', 'schema-v6.sqlite')
-
 /** Sortiert per `ORDER BY id` vor jeder uuidv7 aus `person.anlegen`. */
 const X_ID = '00000000-0000-7000-8000-000000000001'
-
-/**
- * Baut aus der eingefrorenen v6-Fixture (0 Personen) einen Schnappschuss `snapshots/<id>.sqlite`
- * mit genau `personIds` (nur v6-Spalten, keine `kennung`). Das Journal wird im Test abgeschaltet —
- * der `journalAus`-Scanner (`test/invarianten/_journal-aufrufer.ts`) sieht nur `src/`.
- */
-function v6SchnappschussBauen(bauordner: string, snapshotsPfad: string, id: string, personIds: readonly string[]): void {
-  altSchnappschussBauen(FIXTURE_V6_PFAD, 6, bauordner, snapshotsPfad, id, personIds)
-}
-
-/**
- * Wie `v6SchnappschussBauen`, aber aus einer beliebigen eingefrorenen Fixture vor 0007 (hueter-H1:
- * v5 → Migration 6 und 7). Kopiert wird nur die Hauptdatei — die eingecheckten `-wal/-shm` der
- * Fixtures bleiben liegen; `user_version` belegt, dass die Hauptdatei allein den Stand trägt.
- */
-function altSchnappschussBauen(
-  fixturePfad: string,
-  erwarteteVersion: number,
-  bauordner: string,
-  snapshotsPfad: string,
-  id: string,
-  personIds: readonly string[],
-): void {
-  const bauPfad = join(bauordner, `${id}-bau.sqlite`)
-  copyFileSync(fixturePfad, bauPfad)
-  const db = oeffnen(bauPfad)
-  try {
-    expect(db.pragma('user_version', { simple: true })).toBe(erwarteteVersion)
-    journalAus(db, 'Testvorbereitung (AP-1.34, A2b): Schnappschuss vor 0007 ohne armierte Transaktion befüllen.')
-    const einfuegen = db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)')
-    for (const personId of personIds) {
-      einfuegen.run({ id: personId })
-    }
-    journalAn(db)
-  } finally {
-    db.close() // letzter Handle: WAL wird eingecheckt, die Hauptdatei ist vollständig
-  }
-  mkdirSync(snapshotsPfad, { recursive: true })
-  copyFileSync(bauPfad, join(snapshotsPfad, `${id}.sqlite`))
-}
 
 function alleKennungen(pfad: string): Record<string, number | null> {
   const db = new Database(pfad, { readonly: true })

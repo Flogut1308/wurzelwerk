@@ -1,9 +1,9 @@
 // AP-1.34 (E12, A2): Kennungen nach einer Datei-Wiederherstellung angleichen.
-//   - `zaehlerNachziehen` (A2a): nur Zähler vorziehen — genutzt von `importZuruecknehmen()`
-//     (`src/main/journal/undo.ts`; die Übernahme für Import-Schnappschüsse <v7 folgt mit A2c).
-//   - `wiederhergestellteDateiAngleichen` (A2b): migriert die wiederhergestellte Datei vor dem
-//     Öffnen und übernimmt bei einem Schnappschuss <v7 im Migrations-Hook die Kennungen der
-//     ersetzten Datei (H6b, O-1/O-2) — genutzt von `schnappschussWiederherstellen()`.
+//   `wiederhergestellteDateiAngleichen` (A2b): migriert die wiederhergestellte Datei vor dem
+//   Öffnen und übernimmt bei einem Schnappschuss <v7 im Migrations-Hook die Kennungen der
+//   ersetzten Datei (H6b, O-1/O-2) — genutzt von `schnappschussWiederherstellen()` und seit A2c
+//   (H6) auch von `importZuruecknehmen()` (`src/main/journal/undo.ts`). Das reine
+//   Zähler-Nachziehen (`zaehlerNachziehen`, A2a) ist darin aufgegangen und entfallen.
 // Kein eigenes SQL (CLAUDE.md §2: das steht in `src/main/repositories/kennung-repo.ts`) und keine
 // eigene Transaktion: die Übernahme läuft in der Transaktion des Migrationslaufs
 // (`src/main/datenbank/migration/laeufer.ts`), das Zähler-Nachziehen ist je Bereich ein einzelnes
@@ -12,7 +12,7 @@ import type { KennungZaehler } from '../../shared/schemata/kennung-zaehler'
 import { integritaetPruefen } from '../datenbank/integritaet'
 import { migrieren } from '../datenbank/migration/laeufer'
 import { oeffnen } from '../datenbank/verbindung'
-import { personKennungenUebernehmen, zaehlerMindestensSetzen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
+import { personKennungenUebernehmen, zaehlerMindestensSetzen } from '../repositories/kennung-repo'
 
 /** Die Migration, die `person.kennung` und `kennung_zaehler` einführt (`docs/schema/0007_kennung_textanker.sql`). */
 const KENNUNG_MIGRATION_VERSION = 7
@@ -28,30 +28,6 @@ export interface ErsetzterKennungsstand {
 export interface AngleichenOptionen {
   readonly schemaBasis: string
   readonly appVersion: string
-}
-
-/**
- * Öffnet die wiederhergestellte Datei kurz und zieht jeden gesicherten Zähler auf mindestens
- * seinen alten Stand. Ein einzelnes UPDATE je Bereich auf eine NICHT_JOURNALISIERTE Tabelle —
- * keine Journalklammer nötig. Kennt die wiederhergestellte Datei den Zähler nicht (Schnappschuss
- * älter als Migration 0007), bleibt sie unberührt (E13). Der Handle ist beim Rücksprung — auch
- * bei einem Wurf — geschlossen (Windows: der Aufrufer benennt die Datei danach ggf. um).
- */
-export function zaehlerNachziehen(dbPfad: string, zaehlerVorher: readonly KennungZaehler[]): void {
-  if (zaehlerVorher.length === 0) {
-    return
-  }
-  const wiederhergestellt = oeffnen(dbPfad)
-  try {
-    if (!zaehlerTabelleVorhanden(wiederhergestellt)) {
-      return
-    }
-    for (const zaehler of zaehlerVorher) {
-      zaehlerMindestensSetzen(wiederhergestellt, zaehler.bereich, zaehler.naechste)
-    }
-  } finally {
-    wiederhergestellt.close()
-  }
 }
 
 /**
