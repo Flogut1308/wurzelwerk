@@ -147,7 +147,8 @@ Das ist ADR-009 Punkt 8 und die einzige Regel, deren Verletzung Arbeit rückgän
 - Generation(Kind) > Generation(Elternteil) für jede Elternkante.
 - Ehepartner liegen auf derselben Layout-Ebene.
 - Keine zwei Layout-Knoten überlappen.
-- **`Undo(Aktion)` stellt den Datenbestand bitgleich wieder her.**
+- **`Undo(Aktion)` stellt den Datenbestand bitgleich wieder her** (Ausnahmen fest gepinnt, ADR-009-Nachtrag).
+- Eine vergebene Kennung wird nie neu vergeben.
 - Abgeleitete Tabellen sind identisch mit ihrem vollständigen Neuaufbau.
 - Jede Tabelle steht in genau einer der Listen `JOURNALISIERT` / `NICHT_JOURNALISIERT`.
 - Jede journalisierte Tabelle hat genau drei Journal-Trigger.
