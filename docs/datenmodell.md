@@ -172,7 +172,7 @@ aussage(
   ist_bevorzugt,    -- der angezeigte Wert bei Widerspruch
   begruendung       -- warum dieser Wert bevorzugt wird
 )
-aussage_zitat(aussage_id, zitat_id)
+aussage_zitat(aussage_id, zitat_id, feld, textanker_von, textanker_bis)  -- feld/Anker seit 0007
 
 zitat(
   id, quelle_id,
@@ -203,6 +203,28 @@ sechs Werte: `person|ereignis|elternschaft|partnerschaft|ort|name|diagnose|risik
 letzten beiden, weil `56_Import_Vertrag.md` §2.3 auch für Diagnose und Risikofaktor `belege`
 verlangt. `zitat.zeitmarke_sekunden REAL` (A-16, Interview-Zeitstempel), `person.unsicherheit TEXT`
 und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migration ergänzt.
+
+**Feldbezug und Textanker eines Belegs (Migration `0007_kennung_textanker.sql`, AP-1.34, B-01).**
+`aussage_zitat` trägt seit 0007 drei weitere Spalten:
+
+- `feld TEXT` — NULL = der Beleg gilt für die ganze Aussage; sonst das belegte Attribut. Bewusst
+  **ohne** DB-CHECK, die Wertliste ist ein Zod-Enum im Code (E3; kommt mit AP-1.34 PR-C1b, §31
+  U-1.34-F1). Beim Lesen wird ein unbekannter Wert toleriert.
+- `textanker_von`, `textanker_bis INTEGER` — der Ausschnitt des Zitat-Transkripts, auf den sich der
+  Beleg stützt: halboffenes Intervall **[von, bis) in UTF-16-Codeeinheiten** (= JavaScript-String-
+  Index, `transkript.slice(von, bis)`). Beide gesetzt oder beide NULL, `von ≥ 0`, `bis > von`
+  (DB-CHECK). Beim Setzen (`aussage_zitat.anlegen`) prüft der Handler zusätzlich: Transkript
+  vorhanden, `bis ≤ Länge`, und **keine Grenze teilt ein UTF-16-Ersatzpaar** (F4, Nutzer
+  24.09.2026) — sonst `VALIDIERUNG_WERTEBEREICH`, nichts wird geschrieben.
+- **Entwerten (E4):** ändert `zitat.aendern` das Transkript, bleibt ein Anker genau dann, wenn das
+  neue Transkript nicht NULL ist, `bis ≤ neu.length` gilt und `neu.slice(von, bis) ===
+  alt.slice(von, bis)` — Position **und** Text gleich, kein Suchen oder Verschieben. Sonst werden
+  `textanker_von`/`textanker_bis` in **derselben Transaktion** auf NULL gesetzt (`feld` bleibt,
+  `geaendert_am` neu); ein Befehl bleibt ein Undo-Schritt. Ein weggelassenes Transkript (NULL)
+  entwertet alle Anker des Zitats. Regeln rein in `src/core/beleg/textanker.ts`.
+- **Befund: ein Anker je Paar.** Der Primärschlüssel ist `(aussage_id, zitat_id)` — dieselbe Aussage
+  kann sich darum nicht auf zwei Stellen desselben Zitats stützen. Mehrere Anker bräuchten eine
+  eigene Tabelle (neue Entscheidung, nicht Teil von AP-1.34).
 
 **Existenzbehauptung — wo Beleg und Konfidenz einer Entität leben (entschieden 17.09.2026, ADR-026).**
 Beleg und Konfidenz für **Person, Ereignis, Elternschaft und Partnerschaft** werden **nicht** als
