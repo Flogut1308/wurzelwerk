@@ -6,6 +6,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
 import { JOURNAL_STATUS_KEIN_PROJEKT, journalStatusBeobachterSetzen, journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
+import { schemaBasisverzeichnis } from '../datenbank/migration/schema-basis'
 import { neueId } from '../id'
 import { sendeEreignis } from '../ipc/ereignisse'
 import { protokollFehler } from '../protokoll/logger'
@@ -120,7 +121,8 @@ export function journalMenueBeschriftung(
 function journalBefehlAusfuehren(art: 'undo' | 'redo'): void {
   try {
     const db = offenesProjektDatenbank()
-    const ergebnis = art === 'undo' ? undo(db) : redo(db)
+    // Schema-Basis/App-Version ausdrücklich (AP-1.34 A2c, s. `UndoOptionen`).
+    const ergebnis = art === 'undo' ? undo(db, { schemaBasis: schemaBasisverzeichnis(), appVersion: app.getVersion() }) : redo(db)
     sendeEreignis('ereignis:datenGeaendert', { transaktionId: ergebnis.transaktionId, ursache: `journal.${art}` })
     journalStatusMelden(db)
   } catch (fehler) {

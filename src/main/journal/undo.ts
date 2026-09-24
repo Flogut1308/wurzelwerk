@@ -22,17 +22,30 @@ import { dirname, join } from 'node:path'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
-import { zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
+import { standardSchemaBasis } from '../datenbank/migration/laeufer'
+import { personKennungenLesen, zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
 import { mitHauptnameConstraintAus } from '../repositories/name-form-repo'
 import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from '../schnappschuss/dateiname'
-import { zaehlerNachziehen } from '../schnappschuss/kennung-angleichen'
+import { wiederhergestellteDateiAngleichen, type AngleichenOptionen, type ErsetzterKennungsstand } from '../schnappschuss/kennung-angleichen'
 import { journalAn, journalAus } from './kontext'
 
 // `UndoErgebnis` stand bis AP-0.10 PR-A1 als rein interner Typ hier (kein Renderer-Aufrufer
 // existierte) - jetzt aus `src/shared/ipc/vertrag.ts` (dort begründet), re-exportiert für
 // bestehende Importe (`test/einheit/undo-*.test.ts`).
 export type { UndoErgebnis }
+
+/**
+ * Was die Import-Rücknahme für den Migrationslauf der zurückkopierten Datei braucht (AP-1.34 A2c,
+ * wie `LaeufenOptionen`). `undo.ts` importiert `electron` bewusst nicht — die Produktiv-Aufrufer
+ * (`src/main/ipc/registrierung.ts`, `src/main/menue/menue.ts`) übergeben `schemaBasisverzeichnis()`
+ * und `app.getVersion()` ausdrücklich (im gepackten Build liegt `docs/schema` nicht unter `cwd`).
+ * Ohne Angabe gilt derselbe Standard wie im Migrationsläufer (Vitest, Skripte).
+ */
+export interface UndoOptionen {
+  readonly schemaBasis?: string
+  readonly appVersion?: string
+}
 
 /** `JSON.parse(...)` + Zod-Prüfung einer Journalspalte (CLAUDE.md §4: kein `any`, kein unbegründetes `as`). */
 function zeileAusJson(json: string | null, aufrufer: 'undo' | 'redo', transaktionId: string): ZeileWerte {
@@ -84,10 +97,23 @@ function importRuecknahmeSperren(ziel: JournalTransaktionZiel): void {
  * vergebenen Kennungen würden sonst neu vergeben. Darum wird `kennung_zaehler` vor dem Schließen
  * gesichert und nach dem Zurückkopieren auf `max(alt, wiederhergestellt)` gezogen („nie neu
  * vergeben" gilt ausnahmslos). Geschrieben wird nur, wo der wiederhergestellte Stand kleiner ist —
- * der „nur vorwärts"-Trigger (`chk_kennung_zaehler_vorwaerts`) bleibt damit unberührt. Scheitert das
- * Nachziehen, wird die Rücknahme wie beim Kopierfehler zurückgerollt.
+ * der „nur vorwärts"-Trigger (`chk_kennung_zaehler_vorwaerts`) bleibt damit unberührt.
+ *
+ * AP-1.34 (A2c, H6 — wie H6b beim Wiederherstellen): zusätzlich wird die Zuordnung `id → kennung`
+ * gesichert, und die zurückkopierte Datei wird VOR jeder Weiterverwendung migriert
+ * (`wiederhergestellteDateiAngleichen`). Ein Import-Schnappschuss vor 0007 übernimmt im
+ * Migrations-Hook die Kennungen der ersetzten Datei, übrige Personen werden ab dem gesicherten
+ * Zählerstand nummeriert (O-2); ein Schnappschuss ≥v7 behält seine Kennungen (O-3). Scheitert das
+ * Angleichen, wird die Rücknahme wie beim Kopierfehler zurückgerollt; ein `WurzelFehler` behält
+ * dabei seinen Code (`DATENBANK_INTEGRITAET`, `PROJEKT_NEUERE_SCHEMAVERSION`, …), alles andere
+ * wird `INTERN_UNERWARTET`.
  */
-function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel, jetzt: () => number = Date.now): UndoErgebnis {
+function importZuruecknehmen(
+  db: Database.Database,
+  ziel: JournalTransaktionZiel,
+  optionen: AngleichenOptionen,
+  jetzt: () => number = Date.now,
+): UndoErgebnis {
   if (ziel.snapshotPfad === null) {
     // Defensiv (CLAUDE.md §4) — der Aufrufer (undo() unten) prüft dies bereits.
     throw new WurzelFehler('INTERN_UNERWARTET', 'importZuruecknehmen(): snapshotPfad fehlt unerwartet.')
@@ -96,7 +122,11 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
   const snapshotsPfad = join(dirname(dbPfad), 'snapshots')
   const ersetztPfad = join(snapshotsPfad, `${ERSETZT_PRAEFIX}${kolonfreieZeit(jetzt())}${SCHNAPPSCHUSS_ENDUNG}`)
 
-  const zaehlerVorher = zaehlerTabelleVorhanden(db) ? zaehlerstaendeLesen(db) : []
+  // Das offene Projekt ist stets auf SCHEMA_VERSION migriert (projektOeffnen); der Wächter bleibt
+  // defensiv. `kennung_zaehler` und `person.kennung` kommen beide mit 0007.
+  const kennungsstand: ErsetzterKennungsstand = zaehlerTabelleVorhanden(db)
+    ? { zaehler: zaehlerstaendeLesen(db), kennungen: personKennungenLesen(db) }
+    : { zaehler: [], kennungen: new Map() }
   db.close()
 
   try {
@@ -113,10 +143,11 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
     throw new WurzelFehler('DATEI_KEIN_PLATZ', u instanceof Error ? u.message : String(u))
   }
   try {
-    zaehlerNachziehen(dbPfad, zaehlerVorher)
+    // Schließt seinen Handle auch im Fehlerfall selbst (Windows: vor dem rename unten zu).
+    wiederhergestellteDateiAngleichen(dbPfad, kennungsstand, optionen)
   } catch (u) {
     renameSync(ersetztPfad, dbPfad)
-    throw new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
+    throw u instanceof WurzelFehler ? u : new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
   }
 
   return { transaktionId: ziel.id, beschreibung: ziel.beschreibung }
@@ -128,16 +159,20 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
  * offenen SQLite-Transaktion ohnehin nicht) — bei einer Großimport-Transaktion mit Schnappschuss
  * (ADR-019, AP-1.5) übernimmt `importZuruecknehmen()` komplett anstelle der zeilenweisen
  * Rückschreibung; sonst läuft die übliche EIGENE `IMMEDIATE`-Transaktion (s. Kopfkommentar). `db`
- * wird injiziert wie bei `fuehreAusDef` (D-DB-Injektion).
+ * wird injiziert wie bei `fuehreAusDef` (D-DB-Injektion). `optionen` braucht nur der
+ * Schnappschuss-Weg (s. `UndoOptionen`).
  */
-export function undo(db: Database.Database): UndoErgebnis {
+export function undo(db: Database.Database, optionen: UndoOptionen = {}): UndoErgebnis {
   const ziel = undoZiel(db)
   if (ziel === undefined) {
     throw new WurzelFehler('JOURNAL_NICHTS_ZURUECKZUNEHMEN')
   }
 
   if (ziel.art === 'import' && ziel.snapshotPfad !== null) {
-    return importZuruecknehmen(db, ziel)
+    return importZuruecknehmen(db, ziel, {
+      schemaBasis: optionen.schemaBasis ?? standardSchemaBasis(),
+      appVersion: optionen.appVersion ?? '',
+    })
   }
 
   return db
