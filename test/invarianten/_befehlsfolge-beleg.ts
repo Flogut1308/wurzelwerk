@@ -132,57 +132,6 @@ export const BELEG_PFLICHTZWEIGE: readonly Zweig[] = [
   'zitat.entwertet',
 ]
 
-/** Bestands-Pflichtzweige (nur `undo-bitgleich.test.ts`): JEDER Befehl, den der Generator erzeugt,
- * dazu Demote und Nachrücken. Eine Gewichtsänderung, die einen Befehl verdrängt (in AP-1.34 PR-B2
- * gemessen: `ortszugehoerigkeit.aendern`/`.loeschen` bei 0), wird so rot statt still ungeprüft. */
-export const BESTAND_PFLICHTZWEIGE: readonly Zweig[] = [
-  'befehl:archiv.aendern',
-  'befehl:archiv.anlegen',
-  'befehl:aussage.aendern',
-  'befehl:aussage.anlegen',
-  'befehl:aussage.loeschen',
-  'befehl:aussage_zitat.aendern',
-  'befehl:aussage_zitat.anlegen',
-  'befehl:aussage_zitat.loeschen',
-  'befehl:beteiligung.loeschen',
-  'befehl:elternschaft.aendern',
-  'befehl:elternschaft.anlegen',
-  'befehl:elternschaft.loeschen',
-  'befehl:ereignis.aendern',
-  'befehl:ereignis.anlegen',
-  'befehl:ereignis.loeschen',
-  'befehl:hauptname.wechseln',
-  'befehl:name.aendern',
-  'befehl:name.anlegen',
-  'befehl:name.loeschen',
-  'befehl:negativbefund.aendern',
-  'befehl:negativbefund.anlegen',
-  'befehl:negativbefund.loeschen',
-  'befehl:ort-externe-id.anlegen',
-  'befehl:ort-externe-id.loeschen',
-  'befehl:ort.aendern',
-  'befehl:ort.anlegen',
-  'befehl:ortsname.aendern',
-  'befehl:ortsname.anlegen',
-  'befehl:ortsname.loeschen',
-  'befehl:ortszugehoerigkeit.aendern',
-  'befehl:ortszugehoerigkeit.anlegen',
-  'befehl:ortszugehoerigkeit.loeschen',
-  'befehl:partnerschaft.aendern',
-  'befehl:partnerschaft.anlegen',
-  'befehl:partnerschaft.loeschen',
-  'befehl:person.anlegen',
-  'befehl:person.feldSetzen',
-  'befehl:person.loeschen',
-  'befehl:quelle.aendern',
-  'befehl:quelle.anlegen',
-  'befehl:zitat.aendern',
-  'befehl:zitat.anlegen',
-  'befehl:zitat.loeschen',
-  'demote',
-  'nachruecken',
-]
-
 /** Führt einen Befehl über den echten Bus aus und vermerkt `befehl:<name>` in `zweige`. */
 export function befehl<N extends BefehlName>(zweige: Zweig[], db: Tx, name: N, ein: BefehlEin<N>): BefehlAus<N> {
   const aus = fuehreAus(db, name, ein)

@@ -1223,7 +1223,7 @@ export type GeneratorProfil = 'bestand' | 'beleg'
  * Personen (Typkommentar „MEHRFORMEN-DECKUNG", Trefferzahlen im PR-Bericht).
  *
  * AP-1.34 PR-B2 (BELEG-DECKUNG, Eigentümer-Entscheidung E-B2-1 (c): Deckungszähler „nie 0" je
- * Zweig committet, `BELEG_PFLICHTZWEIGE`/`BESTAND_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`). Die
+ * Zweig committet, `BELEG_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`, Bestandsschwellen in `undo-bitgleich.test.ts`). Die
  * folgenden Werte gelten NUR im Profil `beleg` (`g(bestand, beleg)`, zweiter Wert; s. `GeneratorProfil`
  * — das Profil `bestand` behält die main-Gewichte): die Beleg-Aktionen tragen das meiste Gewicht (`aussageZitatAnlegen` 4, `zitatAendern` 6,
  * `aussageZitatAendern` 3, `belegAblehnen` 2), weil jede von ihnen erst am Ende der Kette Quelle →
@@ -1234,7 +1234,7 @@ export type GeneratorProfil = 'bestand' | 'beleg'
  * `negativbefundAnlegen`. `nameLoeschen` (Nachrücken) und `nameWeitereFormAnlegen` steigen auf 2
  * bzw. 3, weil die Beleg-Gewichte die Namenszweige sonst unter wenige Treffer drückten. Belegte
  * Zählerstände (vorher/nachher) stehen im PR-Bericht. `ortAnlegen` bleibt bei 2: mit 1 fielen
- * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen, seitdem `BESTAND_PFLICHTZWEIGE`);
+ * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen; seitdem prüft `undo-bitgleich.test.ts` jeden Befehl gegen eine Schwelle);
  * `ortszugehoerigkeitAnlegen` steigt aus demselben Grund auf 3.
  */
 function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
