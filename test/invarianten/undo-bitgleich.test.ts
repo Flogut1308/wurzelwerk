@@ -62,6 +62,18 @@
 // beim "Fakt ändern"-Demote-Pfad, …) — `_befehlsfolge-generator.ts` deckt seit AP-1.12 PR-B genau
 // diese Befehle mit ab (s. dortiger Kopfkommentar für die Generierungsregeln), DESC und
 // `defer_foreign_keys` sind damit real geprüft, nicht mehr nur eine offene Lücke.
+//
+// DECKUNGSZÄHLER (AP-1.34 PR-B2, Eigentümer-Entscheidung E-B2-1 (c)): `aktionAusfuehren()` meldet
+// die tatsächlich getroffenen Zweige (`Zweig`, `_befehlsfolge-beleg.ts`). Nach `fc.assert` muss jeder
+// Beleg-Zweig (`BELEG_PFLICHTZWEIGE`: Textanker/feld bei `aussage_zitat.anlegen`/`.aendern`,
+// `zitat.aendern` bleibt/entwertet, Ablehnungen), jeder vom Generator erzeugte Befehl samt Demote
+// und Nachrücken (`BESTAND_PFLICHTZWEIGE`) und das Undo eines Schritts, der einen Anker entwertet
+// hat (`undo.entwertung`), mehr als 0 Treffer haben. Früher standen solche Zahlen nur im PR-Bericht
+// einer temporären, nicht committeten Zählung — ein später verdrängter Zweig (z. B. durch eine
+// Gewichtsänderung) blieb dann still ungeprüft. Fällt ein Zähler auf 0: Gewichtung im Generator
+// korrigieren, nie Seed oder `numRuns`. Ein abgelehnter Befehl (`belegAblehnen`, E-B2-2) erzeugt
+// keine Transaktion und fällt in Punkt 2 unter „gleiche oberste Transaktion" (identischer
+// Schnappschuss ersetzt den letzten).
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
@@ -83,12 +95,21 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { undo } from '../../src/main/journal/undo'
 import { undoZiel } from '../../src/main/repositories/journal-repo'
 import { kanonischerAbzug } from './_kanonischer-abzug'
-import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand } from './_befehlsfolge-generator'
+import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand, type Zweig } from './_befehlsfolge-generator'
+import { BELEG_PFLICHTZWEIGE, BESTAND_PFLICHTZWEIGE } from './_befehlsfolge-beleg'
 
 function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   const db = oeffnen(':memory:')
   migrieren(db)
   return db
+}
+
+type Zaehlschluessel = Zweig | 'undo.entwertung'
+
+const zaehler = new Map<Zaehlschluessel, number>()
+
+function zaehle(schluessel: Zaehlschluessel): void {
+  zaehler.set(schluessel, (zaehler.get(schluessel) ?? 0) + 1)
 }
 
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
@@ -98,19 +119,32 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
+          // Zweige je Undo-Schritt: `schrittZweige[i]` gehört zum Übergang schnappschuesse[i] → [i + 1].
+          const schrittZweige: Set<Zweig>[] = []
           // `id` der aktuell obersten anwendbaren Transaktion — `undefined`, solange keine existiert.
           // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neue Transaktion vs. No-op/Koaleszenz).
           let oberstesTxIdVorher = undoZiel(db)?.id
 
           const zustand = neuerZustand()
           for (const aktion of folge) {
-            aktionAusfuehren(db, zustand, aktion)
+            const zweige = aktionAusfuehren(db, zustand, aktion)
+            for (const z of zweige) {
+              zaehle(z)
+            }
             const oberstesTxIdJetzt = undoZiel(db)?.id
             if (oberstesTxIdJetzt !== oberstesTxIdVorher) {
               schnappschuesse.push(kanonischerAbzug(db))
+              schrittZweige.push(new Set(zweige))
             } else if (oberstesTxIdJetzt !== undefined) {
               const letzterIndex = schnappschuesse.length - 1
               schnappschuesse[letzterIndex] = kanonischerAbzug(db)
+              const letzteZweige = schrittZweige[schrittZweige.length - 1]
+              if (letzteZweige === undefined) {
+                throw new Error('unerreichbar: eine oberste Transaktion existiert, also auch ein Schritt.')
+              }
+              for (const z of zweige) {
+                letzteZweige.add(z)
+              }
             }
             oberstesTxIdVorher = oberstesTxIdJetzt
           }
@@ -123,6 +157,9 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
               throw new Error('unerreichbar: Index liegt per Konstruktion innerhalb von schnappschuesse.')
             }
             expect(kanonischerAbzug(db)).toBe(erwartet)
+            if (schrittZweige[anzahlSchritte - schritt]?.has('zitat.entwertet') === true) {
+              zaehle('undo.entwertung')
+            }
           }
 
           // Gegenprobe: die Zählung stimmt — nach genau `anzahlSchritte` Rücknahmen ist nichts mehr rücknehmbar.
@@ -134,6 +171,11 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
       // Fester Seed + Mindestlaufzahl 300 (CLAUDE.md §13: Determinismus ist Pflicht, Auftragsvorgabe).
       { seed: 20260910, numRuns: 300 },
     )
+
+    // E-B2-1 (c): kein Pflichtzweig darf leer grün sein (s. Modul-Kommentar DECKUNGSZÄHLER).
+    for (const z of [...BELEG_PFLICHTZWEIGE, ...BESTAND_PFLICHTZWEIGE, 'undo.entwertung' as const]) {
+      expect(zaehler.get(z) ?? 0, `Deckungszweig ${z}`).toBeGreaterThan(0)
+    }
   }, 180_000)
   // it()-Timeout 180s statt 60s (AP-1.12 PR-B, Nachzug): die erhöhte Demote-Deckung
   // (`minLength: 15`, `_befehlsfolge-generator.ts`) braucht auf dem Windows-CI-Runner
