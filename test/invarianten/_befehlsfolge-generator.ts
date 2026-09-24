@@ -22,7 +22,8 @@
 // `ereignis.anlegen/aendern/loeschen` und `aussage.anlegen/loeschen` ab — dasselbe
 // "Index-modulo-Länge-oder-No-op"-Muster wie oben, konsequent auf alle neuen Referenzen
 // (`personId`, `nameId`, `elternschaftId`, `partnerschaftId`, `ereignisId`, `aussageId`)
-// ausgeweitet. Bewusste Vereinfachungen, jede für sich gültige (nicht invalide!) Eingaben:
+// ausgeweitet. Bewusste Vereinfachungen, jede für sich gültige (nicht invalide!) Eingaben — einzige
+// Ausnahme seit AP-1.34 PR-B2: die Ablehnungs-Aktion `belegAblehnen` (s. unten, E-B2-2):
 //
 // - KEINE `belege`/`zitatId`-Referenzen: optional in jedem betroffenen Schema, das Weglassen
 //   bleibt darum immer schema-konform. Eine `zitat`-Fixture anzulegen bräuchte einen rohen
@@ -206,6 +207,21 @@
 //   `zustand.archivIds`/`quelleIds` bleiben darum reine `string[]` ohne Löschpfad von außen —
 //   anders als `zustand.zitatIds` (`zitat.loeschen` existiert) und `zustand.negativbefundIds`
 //   (eigener Löschbefehl UND CASCADE über `person.loeschen`, s. oben).
+//
+// AP-1.34 PR-B2 ERWEITERUNG (Beleg-Teil in `_befehlsfolge-beleg.ts`, Eigentümer-Entscheidungen
+// 24.09.2026 E-B2-1..E-B2-4): `aussage_zitat.anlegen` mit Textanker und `feld`, `aussage_zitat.
+// aendern`, `zitat.aendern` mit gezielt abgeleiteten Transkripten (Anker bleibt/entwertet, E4) und
+// Transkripte mit Umlauten/Emoji. `aktionAusfuehren()` meldet die getroffenen Deckungszweige
+// (`Zweig`), die `undo-bitgleich.test.ts` und `textanker-gueltig.test.ts` zählen. Eine Aktion löst
+// weiterhin HÖCHSTENS EINEN erfolgreichen `fuehreAus()` aus (ein Schnappschuss je Aktion in
+// `undo-bitgleich`) — Deckung entsteht über gewichtete Zielwahl, nicht über Befehlsketten.
+//
+// GRUNDSATZÄNDERUNG „NICHT NUR GÜLTIGE EINGABEN" (E-B2-2): alles oben Gesagte über „gültige statt
+// zufällig scheiternde Eingaben" gilt weiter für JEDE Aktion außer `belegAblehnen`. Diese eine
+// Aktion schickt absichtlich einen ungültigen Anker bzw. ein ungültiges `feld` und VERLANGT die
+// Ablehnung (`VALIDIERUNG_WERTEBEREICH`, keine neue Transaktion) — sonst wirft der Generator.
+// Begründung: die Invarianten sehen nur, was in der Datenbank steht; ein entfernter Handler-Schutz
+// fiele ohne einen Generator, der ihn herausfordert, nie auf (Typkommentar `AktionBelegAblehnen`).
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -230,10 +246,30 @@ import type {
   OrtExterneIdAnlegenEin,
   QuelleAnlegenEin,
 } from '../../src/shared/schemata/befehle'
-import { fuehreAus } from '../../src/main/befehle/bus'
 import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
 import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
+import {
+  aussageZitatAendernAktionArbitrary,
+  aussageZitatAendernAusfuehren,
+  aussageZitatAnlegenAktionArbitrary,
+  aussageZitatAnlegenAusfuehren,
+  befehl,
+  belegAblehnenAktionArbitrary,
+  belegAblehnenAusfuehren,
+  transkriptArbitrary,
+  zitatAendernAktionArbitrary,
+  zitatAendernAusfuehren,
+  type AktionAussageZitatAendern,
+  type AktionBelegAblehnen,
+  type AktionAussageZitatAnlegen,
+  type AktionZitatAendern,
+  type AussageVorlauf,
+  type BelegAenderungInfo,
+  type Zweig,
+} from './_befehlsfolge-beleg'
+
+export type { Zweig } from './_befehlsfolge-beleg'
 
 /**
  * Verteilendes `Omit` (`T extends unknown ? ... : never` erzwingt die Verteilung über jedes
@@ -456,22 +492,8 @@ export interface AktionAussageAendern {
   readonly gueltigBis: number
 }
 
-/**
- * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.anlegen` (`src/main/befehle/aussage-zitat-anlegen.ts`)
- * — verknüpft eine BESTEHENDE `aussage` (`zustand.aussagen`) mit einem BESTEHENDEN `zitat`
- * (`zustand.zitatIds`, AP-1.17 PR-B). Braucht BEIDE Listen nichtleer — leere `aussagen` ODER leere
- * `zitatIds` machen die Aktion zum No-op (zwei No-op-Prüfungen statt einer, dasselbe Muster wie
- * `zitatAendern` oben mit zwei unabhängigen Zielen). Eine bereits bestehende Kombination
- * (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, s. Handler-Kommentar) würde
- * `KONFLIKT_BEREITS_VORHANDEN` werfen — `zustand.aussageZitatVerknuepfungen` trackt jede angelegte
- * Kombination, ein Kandidat mit bereits vergebener Kombination wird als No-op übersprungen
- * (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen` oben).
- */
-export interface AktionAussageZitatAnlegen {
-  readonly art: 'aussageZitatAnlegen'
-  readonly aussageZielRoh: number
-  readonly zitatZielRoh: number
-}
+// `AktionAussageZitatAnlegen` (AP-1.29 PR-B, mit Textanker/feld erweitert AP-1.34 PR-B2) steht in
+// `_befehlsfolge-beleg.ts`.
 
 /**
  * AP-1.29 PR-B ERWEITERUNG: `aussage_zitat.loeschen` (`src/main/befehle/aussage-zitat-loeschen.ts`)
@@ -633,23 +655,20 @@ export interface AktionQuelleAendern {
 }
 
 /** `quelleZielRoh` braucht eine bereits bestehende `quelleId` (Pflichtfeld) — leere
- * `zustand.quelleIds` macht die Aktion zum No-op (s. Kopfkommentar). */
+ * `zustand.quelleIds` macht die Aktion zum No-op (s. Kopfkommentar). AP-1.34 PR-B2: `transkript`
+ * aus `transkriptArbitrary()` (`_befehlsfolge-beleg.ts`, Umlaute/Emoji statt nur ASCII) und
+ * optional — `undefined` lässt den Schlüssel weg (bedingtes Spreaden, `exactOptionalPropertyTypes`),
+ * das Zitat hat dann KEIN Transkript (NULL): der Fall „Anker ohne Transkript" (§31 U-1.34-E4/F4). */
 export interface AktionZitatAnlegen {
   readonly art: 'zitatAnlegen'
   readonly quelleZielRoh: number
   readonly seite: string
-  readonly transkript: string
+  readonly transkript: string | undefined
   readonly konfidenz: number
 }
 
-export interface AktionZitatAendern {
-  readonly art: 'zitatAendern'
-  readonly zitatZielRoh: number
-  readonly quelleZielRoh: number
-  readonly seite: string
-  readonly transkript: string
-  readonly konfidenz: number
-}
+// `AktionZitatAendern` (AP-1.17 PR-B, mit Textanker-Wirkung erweitert AP-1.34 PR-B2) steht in
+// `_befehlsfolge-beleg.ts`.
 
 export interface AktionZitatLoeschen {
   readonly art: 'zitatLoeschen'
@@ -708,6 +727,8 @@ export type Aktion =
   | AktionAussageFaktAendern
   | AktionAussageAendern
   | AktionAussageZitatAnlegen
+  | AktionAussageZitatAendern
+  | AktionBelegAblehnen
   | AktionAussageZitatLoeschen
   | AktionOrtAnlegen
   | AktionOrtAendern
@@ -945,13 +966,6 @@ function aussageAendernAktionArbitrary(): fc.Arbitrary<AktionAussageAendern> {
     .map((r): AktionAussageAendern => ({ art: 'aussageAendern', ...r }))
 }
 
-/** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatAnlegen`. */
-function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAnlegen> {
-  return fc
-    .record({ aussageZielRoh: fc.nat(), zitatZielRoh: fc.nat() })
-    .map((r): AktionAussageZitatAnlegen => ({ art: 'aussageZitatAnlegen', ...r }))
-}
-
 /** AP-1.29 PR-B: s. Typkommentar `AktionAussageZitatLoeschen`. */
 function aussageZitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatLoeschen> {
   return fc
@@ -1125,27 +1139,17 @@ function quelleAendernAktionArbitrary(): fc.Arbitrary<AktionQuelleAendern> {
     .map((r): AktionQuelleAendern => ({ art: 'quelleAendern', ...r }))
 }
 
-function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
+/** `profil` `beleg` lässt das Transkript öfter weg (1:1 statt 1:2) — Zitate ohne Transkript braucht
+ * die Ablehnung „Anker ohne Transkript" (hueter PR #119, H6). */
+function zitatAnlegenAktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<AktionZitatAnlegen> {
   return fc
     .record({
       quelleZielRoh: fc.nat(),
       seite: fc.string(),
-      transkript: fc.string(),
+      transkript: fc.option(transkriptArbitrary(), { nil: undefined, freq: profil === 'beleg' ? 1 : 2 }),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
-}
-
-function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
-  return fc
-    .record({
-      zitatZielRoh: fc.nat(),
-      quelleZielRoh: fc.nat(),
-      seite: fc.string(),
-      transkript: fc.string(),
-      konfidenz: fc.integer({ min: 1, max: 4 }),
-    })
-    .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
 }
 
 function zitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionZitatLoeschen> {
@@ -1186,6 +1190,20 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
 }
 
 /**
+ * AP-1.34 PR-B2 (hueter PR #119, H1/H2 — Eigentümer-Entscheidung „zwei Profile", 24.09.2026):
+ * - `bestand` (Standard; `undo-bitgleich` und alle bisherigen Aufrufer): EXAKT die Gewichte von
+ *   main (d0a095b) für alle Bestandsaktionen, dazu kleine Gewichte (1) für die neuen Beleg-Aktionen
+ *   `aussageZitatAendern` und `belegAblehnen`. Nur `aussageZitatAendern` hat hier den Vorlauf
+ *   (`VorlaufRoh`) — `aussageZitatAnlegen`/`zitatAendern` verhalten sich ohne Ziel wie auf main
+ *   (No-op bzw. freie Zitatwahl). So bleibt die Deckung der Bestandsbefehle und die Laufzeit auf
+ *   main-Niveau (mit den Beleg-Gewichten verloren 13 Bestandsbefehle Treffer, Windows-CI 138,9 s
+ *   statt 111,5 s), und jeder neue Befehl feuert trotzdem (Journal-Lücken wie M7 bleiben gedeckt).
+ * - `beleg` (nur `textanker-gueltig.test.ts`): die Beleg-Gewichte (s. Kommentar an
+ *   `aktionArbitrary()`) mit Vorlauf in allen Beleg-Aktionen.
+ */
+export type GeneratorProfil = 'bestand' | 'beleg'
+
+/**
  * Arbitrary für eine einzelne `Aktion`. Gewichte: `anlegen` (Person) bleibt mit Abstand am
  * höchsten (3), weil praktisch jede neue Aktion — die eigenen `person.*`-Aktionen ausgenommen —
  * mindestens eine bestehende Person referenziert; ohne genügend früh angelegte Personen blieben
@@ -1203,12 +1221,29 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * braucht eine Person mit MINDESTENS ZWEI Formen und eine nicht bevorzugte davon als Ziel, feuert
  * also seltener als ein gewöhnliches `aendern`; `nameWeitereFormAnlegen` bei 2 erzeugt genau diese
  * Personen (Typkommentar „MEHRFORMEN-DECKUNG", Trefferzahlen im PR-Bericht).
+ *
+ * AP-1.34 PR-B2 (BELEG-DECKUNG, Eigentümer-Entscheidung E-B2-1 (c): Deckungszähler „nie 0" je
+ * Zweig committet, `BELEG_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`, Bestandsschwellen in `undo-bitgleich.test.ts`). Die
+ * folgenden Werte gelten NUR im Profil `beleg` (`g(bestand, beleg)`, zweiter Wert; s. `GeneratorProfil`
+ * — das Profil `bestand` behält die main-Gewichte): die Beleg-Aktionen tragen das meiste Gewicht (`aussageZitatAnlegen` 4, `zitatAendern` 6,
+ * `aussageZitatAendern` 3, `belegAblehnen` 2), weil jede von ihnen erst am Ende der Kette Quelle →
+ * Zitat → Aussage → Verknüpfung mit Anker wirkt; der Vorlauf (`VorlaufRoh`) schafft die fehlenden
+ * Kettenglieder. Zum Ausgleich (Gesamtgewicht 74 statt 66 auf main, Laufzeit) sind reichlich
+ * gedeckte Aktionen auf 1 gesenkt: `feldSetzen`, `aussageAendern`, `ortsnameAnlegen`, `ortExterneIdAnlegen`,
+ * `archivAnlegen`, `quelleAnlegen` (der Vorlauf legt Quellen bei Bedarf selbst an),
+ * `negativbefundAnlegen`. `nameLoeschen` (Nachrücken) und `nameWeitereFormAnlegen` steigen auf 2
+ * bzw. 3, weil die Beleg-Gewichte die Namenszweige sonst unter wenige Treffer drückten. Belegte
+ * Zählerstände (vorher/nachher) stehen im PR-Bericht. `ortAnlegen` bleibt bei 2: mit 1 fielen
+ * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen; seitdem prüft `undo-bitgleich.test.ts` jeden Befehl gegen eine Schwelle);
+ * `ortszugehoerigkeitAnlegen` steigt aus demselben Grund auf 3.
  */
-function aktionArbitrary(): fc.Arbitrary<Aktion> {
+function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
+  // `g(bestand, beleg)`: Gewicht je Profil (s. `GeneratorProfil`).
+  const g = (bestand: number, beleg: number): number => (profil === 'bestand' ? bestand : beleg)
   return fc.oneof(
     { weight: 3, arbitrary: personAnlegenEinArbitrary().map((ein): AktionAnlegen => ({ art: 'anlegen', ein })) },
     {
-      weight: 2,
+      weight: g(2, 1),
       arbitrary: fc
         .record({ zielRoh: fc.nat(), feldwert: feldwertArbitrary() })
         .map((r): AktionFeldSetzen => ({ art: 'feldSetzen', zielRoh: r.zielRoh, feldwert: r.feldwert })),
@@ -1216,9 +1251,9 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: fc.nat().map((zielRoh): AktionLoeschen => ({ art: 'loeschen', zielRoh })) },
     { weight: 2, arbitrary: nameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: nameAendernAktionArbitrary() },
-    { weight: 1, arbitrary: nameLoeschenAktionArbitrary() },
+    { weight: g(1, 2), arbitrary: nameLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: hauptnameWechselnAktionArbitrary() },
-    { weight: 2, arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
+    { weight: g(2, 3), arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftAendernAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
@@ -1232,27 +1267,29 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
-    { weight: 2, arbitrary: aussageAendernAktionArbitrary() },
-    { weight: 2, arbitrary: aussageZitatAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: aussageAendernAktionArbitrary() },
+    { weight: g(2, 4), arbitrary: aussageZitatAnlegenAktionArbitrary(profil) },
+    { weight: g(1, 3), arbitrary: aussageZitatAendernAktionArbitrary() },
+    { weight: g(1, 2), arbitrary: belegAblehnenAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
-    { weight: 2, arbitrary: ortsnameAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortsnameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
+    { weight: g(2, 3), arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortExterneIdAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: archivAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: archivAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: archivAendernAktionArbitrary() },
-    { weight: 2, arbitrary: quelleAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: quelleAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: quelleAendernAktionArbitrary() },
-    { weight: 2, arbitrary: zitatAnlegenAktionArbitrary() },
-    { weight: 1, arbitrary: zitatAendernAktionArbitrary() },
+    { weight: 2, arbitrary: zitatAnlegenAktionArbitrary(profil) },
+    { weight: g(1, 6), arbitrary: zitatAendernAktionArbitrary(profil) },
     { weight: 1, arbitrary: zitatLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: negativbefundAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: negativbefundAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundAendernAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundLoeschenAktionArbitrary() },
   )
@@ -1294,8 +1331,8 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
  * über 0, `aussageZitatLoeschen` mit knappem, aber durch den festen Seed STABILEM Abstand).
  * Laufzeit lokal weiterhin deutlich unter dem 180s-`it()`-Timeout (s. `undo-bitgleich.test.ts`,
  * ~21s statt ~17s zuvor). */
-export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(), { minLength: 30, maxLength: 52 })
+export function befehlsfolgeArbitrary(optionen: { readonly profil: GeneratorProfil } = { profil: 'bestand' }): fc.Arbitrary<readonly Aktion[]> {
+  return fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
@@ -1341,10 +1378,14 @@ interface BeteiligungInfo {
  * darum außerhalb dieses Arbeitspakets, `'ort'` fehlt hier weiterhin bewusst. */
 type AussageSubjektKind = 'person' | 'name' | 'elternschaft' | 'partnerschaft' | 'ereignis'
 
+/** `istExistenz` (AP-1.34 PR-B2): die versteckte Existenz-Aussage von `elternschaft`/
+ * `partnerschaft`/`ereignis` — nur an ihr ist `aussage_zitat.feld` zulässig
+ * (`_befehlsfolge-beleg.ts`, §31 U-1.34-C1b-feld-praedikat). */
 interface AussageInfo {
   readonly id: string
   readonly subjektTyp: AussageSubjektKind
   readonly subjektId: string
+  readonly istExistenz: boolean
 }
 
 /** Ein getrackter (subjektTyp, subjektId, praedikat)-Dreiklang — die Grundlage der garantierten
@@ -1417,6 +1458,12 @@ export interface Zustand {
   quelleIds: string[]
   zitatIds: string[]
   negativbefundIds: NegativbefundInfo[]
+  /** AP-1.34 PR-B2: Anforderung des zuletzt ausgeführten `aussage_zitat.aendern` — zu Beginn jeder
+   * Aktion zurückgesetzt (s. `aktionAusfuehren()`), für I2 in `textanker-gueltig.test.ts`. */
+  belegAenderung: BelegAenderungInfo | undefined
+  /** AP-1.34 PR-B2 (hueter PR #119 H3): Anforderung des zuletzt ausgeführten `aussage_zitat.anlegen`,
+   * wie `belegAenderung` zu Beginn jeder Aktion zurückgesetzt. */
+  belegAnlage: BelegAenderungInfo | undefined
 }
 
 export function neuerZustand(): Zustand {
@@ -1438,6 +1485,8 @@ export function neuerZustand(): Zustand {
     quelleIds: [],
     zitatIds: [],
     negativbefundIds: [],
+    belegAenderung: undefined,
+    belegAnlage: undefined,
   }
 }
 
@@ -1667,11 +1716,65 @@ function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, akt
  * Referenzielle Aktionen ohne gültiges Ziel (leere getrackte Liste, oder — bei `elternschaft.
  * anlegen`/`person.loeschen` — ein Kandidat, der eine fachliche Regel verletzen würde) sind
  * bewusste No-ops: kein `fuehreAus()`-Aufruf, keine Transaktion, kein Undo-Schritt.
+ *
+ * AP-1.34 PR-B2: gibt die tatsächlich getroffenen Deckungszweige zurück (`Zweig`,
+ * `_befehlsfolge-beleg.ts`); Aufrufer, die nicht zählen, ignorieren das Ergebnis.
  */
-export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void {
+export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): readonly Zweig[] {
+  const zweige: Zweig[] = []
+  zustand.belegAenderung = undefined
+  zustand.belegAnlage = undefined
+  aktionAusfuehrenIn(db, zustand, aktion, zweige)
+  return zweige
+}
+
+/** Bevorzugte Aussage desselben (Subjekt, Prädikat) vorhanden? — dann demoted ein weiteres
+ * `aussage.anlegen` mit `istBevorzugt: 1` sie (Zweig `demote`). */
+function bevorzugteAussageBesteht(db: Tx, subjektTyp: AussageSubjektKind, subjektId: string, praedikat: string): boolean {
+  const zeile = db
+    .prepare<{ readonly subjektTyp: string; readonly subjektId: string; readonly praedikat: string }, { readonly anzahl: number }>(
+      'SELECT COUNT(*) AS anzahl FROM aussage WHERE subjekt_typ = @subjektTyp AND subjekt_id = @subjektId AND praedikat = @praedikat AND ist_bevorzugt = 1',
+    )
+    .get({ subjektTyp, subjektId, praedikat })
+  return zeile !== undefined && zeile.anzahl > 0
+}
+
+/** Ist `nameId` die bevorzugte Form einer Person mit weiteren Formen? — dann rückt beim Löschen eine
+ * andere nach (Zweig `nachruecken`). */
+function nachrueckenFaellig(db: Tx, nameId: string, personId: string): boolean {
+  const zeile = db
+    .prepare<{ readonly nameId: string; readonly personId: string }, { readonly bevorzugt: number; readonly weitere: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM name_form WHERE id = @nameId AND ist_bevorzugt = 1) AS bevorzugt,
+         (SELECT COUNT(*) FROM name_form WHERE person_id = @personId AND id <> @nameId) AS weitere`,
+    )
+    .get({ nameId, personId })
+  return zeile !== undefined && zeile.bevorzugt > 0 && zeile.weitere > 0
+}
+
+/** Vorlauf-Schritt 3 der Beleg-Kette (`_befehlsfolge-beleg.ts`, `AussageVorlauf`): noch keine
+ * Person → eine Person anlegen; sonst ein Ereignis mit der ersten Person anlegen (bringt eine
+ * Existenz-Aussage mit, an der auch `feld` zulässig ist). Beides über `aktionAusfuehrenIn()`, damit
+ * die Zustandspflege dieselbe bleibt. */
+function aussageVorlaufFuer(db: Tx, zustand: Zustand): AussageVorlauf {
+  return (zweige) => {
+    if (zustand.personIds.length === 0) {
+      aktionAusfuehrenIn(db, zustand, { art: 'anlegen', ein: { privat: 0, ist_platzhalter: 0 } }, zweige)
+      return
+    }
+    aktionAusfuehrenIn(
+      db,
+      zustand,
+      { art: 'ereignisAnlegen', personZielRoh: 0, typ: 'geburt', rolle: 'hauptperson', konfidenz: 3, beschreibung: 'Vorlauf' },
+      zweige,
+    )
+  }
+}
+
+function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zweig[]): void {
   switch (aktion.art) {
     case 'anlegen': {
-      const { id } = fuehreAus(db, 'person.anlegen', aktion.ein)
+      const { id } = befehl(zweige, db, 'person.anlegen', aktion.ein)
       zustand.personIds.push(id)
       return
     }
@@ -1681,7 +1784,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (id === undefined) {
         return
       }
-      fuehreAus(db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
+      befehl(zweige, db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
       return
     }
 
@@ -1693,7 +1796,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personIstGebunden(zustand, id)) {
         return
       }
-      fuehreAus(db, 'person.loeschen', { id })
+      befehl(zweige, db, 'person.loeschen', { id })
       // Die `name`-Ids der gelöschten Person VOR dem Filtern merken (s. unten — CASCADE nimmt sie
       // mit, `zustand.aussageTripel` muss das für 'name'-Dreiklänge genauso nachvollziehen wie für
       // 'person'-Dreiklänge).
@@ -1724,7 +1827,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'name.anlegen', {
+      const { id } = befehl(zweige, db, 'name.anlegen', {
         personId,
         typ: aktion.typ,
         nachname: aktion.nachname,
@@ -1739,7 +1842,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'name.aendern', { id: ziel.id, typ: aktion.typ, nachname: aktion.nachname, vornamen: aktion.vornamen })
+      befehl(zweige, db, 'name.aendern', { id: ziel.id, typ: aktion.typ, nachname: aktion.nachname, vornamen: aktion.vornamen })
       return
     }
 
@@ -1748,7 +1851,11 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'name.loeschen', { id: ziel.id })
+      const nachruecken = nachrueckenFaellig(db, ziel.id, ziel.personId)
+      befehl(zweige, db, 'name.loeschen', { id: ziel.id })
+      if (nachruecken) {
+        zweige.push('nachruecken')
+      }
       zustand.namen = zustand.namen.filter((n) => n.id !== ziel.id)
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'name' && t.subjektId === ziel.id))
       return
@@ -1759,7 +1866,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (vorhandene === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'name.anlegen', {
+      const { id } = befehl(zweige, db, 'name.anlegen', {
         personId: vorhandene.personId,
         typ: aktion.typ,
         nachname: aktion.nachname,
@@ -1782,7 +1889,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (alt === undefined || alt.id === neu.id) {
         return
       }
-      fuehreAus(db, 'hauptname.wechseln', { personId: neu.personId, alt: alt.id, neu: neu.id })
+      befehl(zweige, db, 'hauptname.wechseln', { personId: neu.personId, alt: alt.id, neu: neu.id })
       return
     }
 
@@ -1796,7 +1903,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (wuerdeZyklusErzeugen(kanten, { elternteilId, kindId })) {
         return
       }
-      const { id } = fuehreAus(db, 'elternschaft.anlegen', {
+      const { id } = befehl(zweige, db, 'elternschaft.anlegen', {
         elternteilId,
         kindId,
         typ: aktion.typ,
@@ -1804,7 +1911,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         notiz: aktion.notiz,
       })
       zustand.elternschaften.push({ id, elternteilId, kindId })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'elternschaft', id), subjektTyp: 'elternschaft', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'elternschaft', id), subjektTyp: 'elternschaft', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1813,7 +1920,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'elternschaft.aendern', { id: ziel.id, typ: aktion.typ, notiz: aktion.notiz })
+      befehl(zweige, db, 'elternschaft.aendern', { id: ziel.id, typ: aktion.typ, notiz: aktion.notiz })
       return
     }
 
@@ -1822,7 +1929,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'elternschaft.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'elternschaft.loeschen', { id: ziel.id })
       zustand.elternschaften = zustand.elternschaften.filter((e) => e.id !== ziel.id)
       // AP-1.29 PR-B: `aussageRepo.loeschenNachSubjekt` löscht ALLE `aussage`-Zeilen dieses Subjekts
       // (nicht nur die Existenz-Aussage, s. Modul-Kommentar) — jede darauf `aussage_zitat`-verknüpfte
@@ -1845,14 +1952,14 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const [a, b] = paar
-      const { id } = fuehreAus(db, 'partnerschaft.anlegen', {
+      const { id } = befehl(zweige, db, 'partnerschaft.anlegen', {
         typ: aktion.typ,
         beteiligte: [{ personId: a }, { personId: b }],
         konfidenz: aktion.konfidenz,
         notiz: aktion.notiz,
       })
       zustand.partnerschaften.push({ id, personIds: [a, b] })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'partnerschaft', id), subjektTyp: 'partnerschaft', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'partnerschaft', id), subjektTyp: 'partnerschaft', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1861,7 +1968,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'partnerschaft.aendern', { id: ziel.id, typ: aktion.typ, endeGrund: aktion.endeGrund, notiz: aktion.notiz })
+      befehl(zweige, db, 'partnerschaft.aendern', { id: ziel.id, typ: aktion.typ, endeGrund: aktion.endeGrund, notiz: aktion.notiz })
       return
     }
 
@@ -1870,7 +1977,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'partnerschaft.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'partnerschaft.loeschen', { id: ziel.id })
       zustand.partnerschaften = zustand.partnerschaften.filter((p) => p.id !== ziel.id)
       // AP-1.29 PR-B: s. Kommentar im `elternschaftLoeschen`-Fall — dieselbe CASCADE-Nachpflege für
       // `aussage_zitat`.
@@ -1890,7 +1997,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (personId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'ereignis.anlegen', {
+      const { id } = befehl(zweige, db, 'ereignis.anlegen', {
         typ: aktion.typ,
         beteiligungen: [{ personId, rolle: aktion.rolle }],
         konfidenz: aktion.konfidenz,
@@ -1898,7 +2005,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       })
       zustand.ereignisse.push({ id, personIds: [personId] })
       zustand.beteiligungen.push({ id: beteiligungIdLesen(db, id, personId), ereignisId: id, personId })
-      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'ereignis', id), subjektTyp: 'ereignis', subjektId: id })
+      zustand.aussagen.push({ id: existenzAussageIdLesen(db, 'ereignis', id), subjektTyp: 'ereignis', subjektId: id, istExistenz: true })
       return
     }
 
@@ -1907,7 +2014,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ereignis.aendern', { id: ziel.id, typ: aktion.typ, beschreibung: aktion.beschreibung })
+      befehl(zweige, db, 'ereignis.aendern', { id: ziel.id, typ: aktion.typ, beschreibung: aktion.beschreibung })
       return
     }
 
@@ -1916,7 +2023,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ereignis.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ereignis.loeschen', { id: ziel.id })
       zustand.ereignisse = zustand.ereignisse.filter((e) => e.id !== ziel.id)
       // `ereignis-repo.ts` Kommentar "CASCADE räumt `beteiligung` ab" — jede noch offene Beteiligung
       // dieses Ereignisses verschwindet mit, `zustand.beteiligungen` muss das nachvollziehen (sonst
@@ -1940,7 +2047,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'beteiligung.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'beteiligung.loeschen', { id: ziel.id })
       zustand.beteiligungen = zustand.beteiligungen.filter((b) => b.id !== ziel.id)
       // Das zugehörige `ereignis` bleibt bestehen — auch mit 0 Beteiligungen (Variante A, s.
       // Typkommentar `AktionBeteiligungLoeschen`). `personIstGebunden()` prüft `beteiligung.person_id`
@@ -1964,8 +2071,11 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (subjektId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'aussage.anlegen', aussageAnlegenEinBauen(pool.kind, subjektId, aktion))
-      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      if (aktion.istBevorzugt === 1 && bevorzugteAussageBesteht(db, pool.kind, subjektId, aktion.praedikat)) {
+        zweige.push('demote')
+      }
+      const { id } = befehl(zweige, db, 'aussage.anlegen', aussageAnlegenEinBauen(pool.kind, subjektId, aktion))
+      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId, istExistenz: false })
       // `istBevorzugt === 1` macht diesen Dreiklang ebenfalls zu einem gültigen Wiederholungsziel
       // für `aussageFaktAendern` (s. dortiger Fall) — nur dann demoted eine spätere Wiederholung
       // tatsächlich etwas (`aussage-anlegen.ts` demoted nur zuvor selbst bevorzugte Aussagen).
@@ -1980,7 +2090,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'aussage.loeschen', { id: ziel.id })
       zustand.aussagen = zustand.aussagen.filter((a) => a.id !== ziel.id)
       // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.aussage_id` (Kopfkommentar
       // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieser Aussage verschwindet mit.
@@ -1993,7 +2103,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage.aendern', {
+      befehl(zweige, db, 'aussage.aendern', {
         id: ziel.id,
         konfidenz: aktion.konfidenz,
         begruendung: aktion.begruendung,
@@ -2006,25 +2116,20 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
     }
 
     case 'aussageZitatAnlegen': {
-      const aussage = zielAusListe(zustand.aussagen, aktion.aussageZielRoh)
-      if (aussage === undefined) {
-        return
-      }
-      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
-      if (zitatId === undefined) {
-        return
-      }
-      // Zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)` (Kopfkommentar) — ein Kandidat
-      // mit bereits vergebener Kombination würde `KONFLIKT_BEREITS_VORHANDEN` werfen, bleibt darum
-      // ein bewusster No-op (dasselbe Vermeidungsmuster wie bei `ort-externe-id.anlegen`).
-      const bestehtSchon = zustand.aussageZitatVerknuepfungen.some(
-        (v) => v.aussageId === aussage.id && v.zitatId === zitatId,
-      )
-      if (bestehtSchon) {
-        return
-      }
-      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: aussage.id, zitatId })
-      zustand.aussageZitatVerknuepfungen.push({ aussageId: aussage.id, zitatId })
+      // AP-1.34 PR-B2: mit Textanker und feld, s. `_befehlsfolge-beleg.ts`.
+      aussageZitatAnlegenAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
+      return
+    }
+
+    case 'aussageZitatAendern': {
+      // AP-1.34 PR-B2: s. `_befehlsfolge-beleg.ts`.
+      aussageZitatAendernAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
+      return
+    }
+
+    case 'belegAblehnen': {
+      // AP-1.34 PR-B2 (E-B2-2): bewusst ungültige Eingabe, Ablehnung verlangt — s. `_befehlsfolge-beleg.ts`.
+      belegAblehnenAusfuehren(db, zustand, aktion, zweige)
       return
     }
 
@@ -2033,7 +2138,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'aussage_zitat.loeschen', { aussageId: ziel.aussageId, zitatId: ziel.zitatId })
+      befehl(zweige, db, 'aussage_zitat.loeschen', { aussageId: ziel.aussageId, zitatId: ziel.zitatId })
       zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter(
         (v) => !(v.aussageId === ziel.aussageId && v.zitatId === ziel.zitatId),
       )
@@ -2050,7 +2155,10 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         if (tripel === undefined) {
           throw new Error('aktionAusfuehren(aussageFaktAendern): unerreichbar — die Liste ist nicht leer.')
         }
-        const { id } = fuehreAus(db, 'aussage.anlegen', {
+        if (bevorzugteAussageBesteht(db, tripel.subjektTyp, tripel.subjektId, tripel.praedikat)) {
+          zweige.push('demote')
+        }
+        const { id } = befehl(zweige, db, 'aussage.anlegen', {
           subjektTyp: tripel.subjektTyp,
           subjektId: tripel.subjektId,
           praedikat: tripel.praedikat,
@@ -2058,7 +2166,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
           istBevorzugt: 1,
           ...aussageWertFeld(aktion.wert),
         })
-        zustand.aussagen.push({ id, subjektTyp: tripel.subjektTyp, subjektId: tripel.subjektId })
+        zustand.aussagen.push({ id, subjektTyp: tripel.subjektTyp, subjektId: tripel.subjektId, istExistenz: false })
         return
       }
 
@@ -2073,7 +2181,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (subjektId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'aussage.anlegen', {
+      const { id } = befehl(zweige, db, 'aussage.anlegen', {
         subjektTyp: pool.kind,
         subjektId,
         praedikat: aktion.praedikat,
@@ -2081,13 +2189,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         istBevorzugt: 1,
         ...aussageWertFeld(aktion.wert),
       })
-      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId })
+      zustand.aussagen.push({ id, subjektTyp: pool.kind, subjektId, istExistenz: false })
       zustand.aussageTripel.push({ subjektTyp: pool.kind, subjektId, praedikat: aktion.praedikat })
       return
     }
 
     case 'ortAnlegen': {
-      const { id } = fuehreAus(db, 'ort.anlegen', { name: aktion.name, typ: aktion.typ, notiz: aktion.notiz })
+      const { id } = befehl(zweige, db, 'ort.anlegen', { name: aktion.name, typ: aktion.typ, notiz: aktion.notiz })
       zustand.ortIds.push(id)
       // `ort.anlegen` legt selbst einen primären `ortsname` an (s. Kopfkommentar) — dessen echte
       // `id` liest der Generator nach, damit sie ein gültiges `ortsname.aendern`/`.loeschen`-Ziel
@@ -2102,7 +2210,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortId === undefined) {
         return
       }
-      fuehreAus(db, 'ort.aendern', {
+      befehl(zweige, db, 'ort.aendern', {
         id: ortId,
         typ: aktion.typ,
         koordinatenLat: aktion.koordinatenLat,
@@ -2119,7 +2227,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'ortsname.anlegen', {
+      const { id } = befehl(zweige, db, 'ortsname.anlegen', {
         ortId,
         name: aktion.name,
         sprache: aktion.sprache,
@@ -2137,7 +2245,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortsname.aendern', {
+      befehl(zweige, db, 'ortsname.aendern', {
         id: ziel.id,
         name: aktion.name,
         sprache: aktion.sprache,
@@ -2154,7 +2262,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortsname.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ortsname.loeschen', { id: ziel.id })
       zustand.ortsnamen = zustand.ortsnamen.filter((n) => n.id !== ziel.id)
       return
     }
@@ -2171,7 +2279,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ortWuerdeZyklusErzeugen(kanten, { ortId, uebergeordnetId })) {
         return
       }
-      const { id } = fuehreAus(db, 'ortszugehoerigkeit.anlegen', {
+      const { id } = befehl(zweige, db, 'ortszugehoerigkeit.anlegen', {
         ortId,
         uebergeordnetId,
         art: aktion.zugehoerigkeitArt,
@@ -2187,7 +2295,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortszugehoerigkeit.aendern', { id: ziel.id, gueltigVon: aktion.gueltigVon, gueltigBis: aktion.gueltigBis })
+      befehl(zweige, db, 'ortszugehoerigkeit.aendern', { id: ziel.id, gueltigVon: aktion.gueltigVon, gueltigBis: aktion.gueltigBis })
       return
     }
 
@@ -2196,7 +2304,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ortszugehoerigkeit.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'ortszugehoerigkeit.loeschen', { id: ziel.id })
       zustand.ortszugehoerigkeiten = zustand.ortszugehoerigkeiten.filter((z) => z.id !== ziel.id)
       return
     }
@@ -2213,7 +2321,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (bestehtSchon) {
         return
       }
-      fuehreAus(db, 'ort-externe-id.anlegen', { ortId, system: aktion.system, wert: aktion.wert })
+      befehl(zweige, db, 'ort-externe-id.anlegen', { ortId, system: aktion.system, wert: aktion.wert })
       zustand.ortExterneIds.push({ ortId, system: aktion.system })
       return
     }
@@ -2223,13 +2331,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
+      befehl(zweige, db, 'ort-externe-id.loeschen', { ortId: ziel.ortId, system: ziel.system })
       zustand.ortExterneIds = zustand.ortExterneIds.filter((e) => !(e.ortId === ziel.ortId && e.system === ziel.system))
       return
     }
 
     case 'archivAnlegen': {
-      const { id } = fuehreAus(db, 'archiv.anlegen', { name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      const { id } = befehl(zweige, db, 'archiv.anlegen', { name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
       zustand.archivIds.push(id)
       return
     }
@@ -2239,13 +2347,13 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (archivId === undefined) {
         return
       }
-      fuehreAus(db, 'archiv.aendern', { id: archivId, name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
+      befehl(zweige, db, 'archiv.aendern', { id: archivId, name: aktion.name, kontakt: aktion.kontakt, url: aktion.url, notiz: aktion.notiz })
       return
     }
 
     case 'quelleAnlegen': {
       const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
-      const { id } = fuehreAus(db, 'quelle.anlegen', {
+      const { id } = befehl(zweige, db, 'quelle.anlegen', {
         typ: aktion.typ,
         titel: aktion.titel,
         autor: aktion.autor,
@@ -2262,7 +2370,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const archivId = wahlAufloesen(zustand.archivIds, aktion.archivWahlRoh)
-      fuehreAus(db, 'quelle.aendern', {
+      befehl(zweige, db, 'quelle.aendern', {
         id: quelleId,
         typ: aktion.typ,
         titel: aktion.titel,
@@ -2278,32 +2386,20 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (quelleId === undefined) {
         return
       }
-      const { id } = fuehreAus(db, 'zitat.anlegen', {
+      const { id } = befehl(zweige, db, 'zitat.anlegen', {
         quelleId,
         seite: aktion.seite,
-        transkript: aktion.transkript,
         konfidenz: aktion.konfidenz,
+        ...(aktion.transkript === undefined ? {} : { transkript: aktion.transkript }),
       })
       zustand.zitatIds.push(id)
       return
     }
 
     case 'zitatAendern': {
-      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
-      if (zitatId === undefined) {
-        return
-      }
-      const quelleId = zielAusListe(zustand.quelleIds, aktion.quelleZielRoh)
-      if (quelleId === undefined) {
-        return
-      }
-      fuehreAus(db, 'zitat.aendern', {
-        id: zitatId,
-        quelleId,
-        seite: aktion.seite,
-        transkript: aktion.transkript,
-        konfidenz: aktion.konfidenz,
-      })
+      // AP-1.34 PR-B2: Transkript aus dem alten abgeleitet (Anker bleibt/entwertet), s.
+      // `_befehlsfolge-beleg.ts`.
+      zitatAendernAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
       return
     }
 
@@ -2312,7 +2408,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (zitatId === undefined) {
         return
       }
-      fuehreAus(db, 'zitat.loeschen', { id: zitatId })
+      befehl(zweige, db, 'zitat.loeschen', { id: zitatId })
       zustand.zitatIds = zustand.zitatIds.filter((z) => z !== zitatId)
       // AP-1.29 PR-B: `ON DELETE CASCADE` auf `aussage_zitat.zitat_id` (Kopfkommentar
       // `AktionAussageZitatAnlegen`) — jede Verknüpfung dieses Zitats verschwindet mit.
@@ -2326,7 +2422,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
-      const { id } = fuehreAus(db, 'negativbefund.anlegen', {
+      const { id } = befehl(zweige, db, 'negativbefund.anlegen', {
         gesuchtePersonId: personId,
         gesuchtesPraedikat: aktion.gesuchtesPraedikat,
         zeitraumVon: aktion.zeitraumVon,
@@ -2348,7 +2444,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
         return
       }
       const quelleId = wahlAufloesen(zustand.quelleIds, aktion.quelleWahlRoh)
-      fuehreAus(db, 'negativbefund.aendern', {
+      befehl(zweige, db, 'negativbefund.aendern', {
         id: ziel.id,
         gesuchtePersonId: personId,
         gesuchtesPraedikat: aktion.gesuchtesPraedikat,
@@ -2371,7 +2467,7 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       if (ziel === undefined) {
         return
       }
-      fuehreAus(db, 'negativbefund.loeschen', { id: ziel.id })
+      befehl(zweige, db, 'negativbefund.loeschen', { id: ziel.id })
       zustand.negativbefundIds = zustand.negativbefundIds.filter((n) => n.id !== ziel.id)
       return
     }

@@ -62,6 +62,21 @@
 // beim "Fakt ändern"-Demote-Pfad, …) — `_befehlsfolge-generator.ts` deckt seit AP-1.12 PR-B genau
 // diese Befehle mit ab (s. dortiger Kopfkommentar für die Generierungsregeln), DESC und
 // `defer_foreign_keys` sind damit real geprüft, nicht mehr nur eine offene Lücke.
+//
+// DECKUNGSZÄHLER (AP-1.34 PR-B2, Eigentümer-Entscheidung E-B2-1 (c)): `aktionAusfuehren()` meldet
+// die tatsächlich getroffenen Zweige (`Zweig`, `_befehlsfolge-beleg.ts`). Nach `fc.assert` gilt
+// (hueter PR #119, H1/H7): jeder Befehl, Demote und Nachrücken erreichen mindestens 50 % ihres
+// main-Werts (`MAIN_TREFFER`, gemessen auf d0a095b mit genau diesem Seed/`numRuns`); neue Befehle
+// und das Undo eines Schritts, der einen Anker entwertet hat (`undo.entwertung`), eine feste
+// Mindestzahl (`NEUE_MINDESTTREFFER`); und jeder beobachtete `befehl:*`-Zweig steht in einer der
+// beiden Tabellen — ein neuer Generator-Befehl ohne Eintrag macht den Test rot. Dieser Test
+// nutzt das Generator-Profil `bestand` (main-Gewichte, hueter PR #119 H1/H2); die feinen
+// Beleg-Zweige prüft `textanker-gueltig.test.ts` mit dem Profil `beleg`. Früher standen solche Zahlen nur im PR-Bericht
+// einer temporären, nicht committeten Zählung — ein später verdrängter Zweig (z. B. durch eine
+// Gewichtsänderung) blieb dann still ungeprüft. Fällt ein Zähler auf 0: Gewichtung im Generator
+// korrigieren, nie Seed oder `numRuns`. Ein abgelehnter Befehl (`belegAblehnen`, E-B2-2) erzeugt
+// keine Transaktion und fällt in Punkt 2 unter „gleiche oberste Transaktion" (identischer
+// Schnappschuss ersetzt den letzten).
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
@@ -83,12 +98,80 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { undo } from '../../src/main/journal/undo'
 import { undoZiel } from '../../src/main/repositories/journal-repo'
 import { kanonischerAbzug } from './_kanonischer-abzug'
-import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand } from './_befehlsfolge-generator'
+import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand, type Zweig } from './_befehlsfolge-generator'
 
 function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   const db = oeffnen(':memory:')
   migrieren(db)
   return db
+}
+
+type Zaehlschluessel = Zweig | 'undo.entwertung'
+
+/**
+ * Treffer auf main (d0a095b) mit `{ seed: 20260910, numRuns: 300 }` — gemessen mit einer
+ * temporären, nicht committeten Zählung im main-Generator (dieselbe Zählweise wie
+ * `aktionAusfuehren()`: `befehl:<name>` je erfolgreich zurückgekehrtem `fuehreAus`, Demote/Nachrücken
+ * am Vorzustand), zweimal gemessen, identisch (AP-1.34 PR-B2). Schwelle: ≥ 50 % davon
+ * (aufgerundet). Neu messen nur mit ADR-009-Nachtrag, nie einen Wert senken, damit ein Test grün wird.
+ */
+const MAIN_TREFFER: readonly (readonly [Zweig, number])[] = [
+  ['befehl:archiv.aendern', 63],
+  ['befehl:archiv.anlegen', 367],
+  ['befehl:aussage.aendern', 123],
+  ['befehl:aussage.anlegen', 414],
+  ['befehl:aussage.loeschen', 64],
+  ['befehl:aussage_zitat.anlegen', 29],
+  ['befehl:aussage_zitat.loeschen', 3],
+  ['befehl:beteiligung.loeschen', 21],
+  ['befehl:elternschaft.aendern', 13],
+  ['befehl:elternschaft.anlegen', 65],
+  ['befehl:elternschaft.loeschen', 10],
+  ['befehl:ereignis.aendern', 38],
+  ['befehl:ereignis.anlegen', 174],
+  ['befehl:ereignis.loeschen', 37],
+  ['befehl:hauptname.wechseln', 10],
+  ['befehl:name.aendern', 29],
+  ['befehl:name.anlegen', 264],
+  ['befehl:name.loeschen', 28],
+  ['befehl:negativbefund.aendern', 13],
+  ['befehl:negativbefund.anlegen', 163],
+  ['befehl:negativbefund.loeschen', 20],
+  ['befehl:ort-externe-id.anlegen', 142],
+  ['befehl:ort-externe-id.loeschen', 16],
+  ['befehl:ort.aendern', 83],
+  ['befehl:ort.anlegen', 390],
+  ['befehl:ortsname.aendern', 72],
+  ['befehl:ortsname.anlegen', 157],
+  ['befehl:ortsname.loeschen', 74],
+  ['befehl:ortszugehoerigkeit.aendern', 12],
+  ['befehl:ortszugehoerigkeit.anlegen', 71],
+  ['befehl:ortszugehoerigkeit.loeschen', 9],
+  ['befehl:partnerschaft.aendern', 8],
+  ['befehl:partnerschaft.anlegen', 87],
+  ['befehl:partnerschaft.loeschen', 12],
+  ['befehl:person.anlegen', 548],
+  ['befehl:person.feldSetzen', 177],
+  ['befehl:person.loeschen', 82],
+  ['befehl:quelle.aendern', 91],
+  ['befehl:quelle.anlegen', 365],
+  ['befehl:zitat.aendern', 19],
+  ['befehl:zitat.anlegen', 166],
+  ['befehl:zitat.loeschen', 23],
+  ['demote', 136],
+  ['nachruecken', 6],
+]
+
+/** Neue Befehle/Zweige ohne main-Wert: feste Mindestzahl (Branch-Werte AP-1.34 PR-B2: 7 bzw. 1). */
+const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
+  ['befehl:aussage_zitat.aendern', 3],
+  ['undo.entwertung', 1],
+]
+
+const zaehler = new Map<Zaehlschluessel, number>()
+
+function zaehle(schluessel: Zaehlschluessel): void {
+  zaehler.set(schluessel, (zaehler.get(schluessel) ?? 0) + 1)
 }
 
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
@@ -98,19 +181,32 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
+          // Zweige je Undo-Schritt: `schrittZweige[i]` gehört zum Übergang schnappschuesse[i] → [i + 1].
+          const schrittZweige: Set<Zweig>[] = []
           // `id` der aktuell obersten anwendbaren Transaktion — `undefined`, solange keine existiert.
           // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neue Transaktion vs. No-op/Koaleszenz).
           let oberstesTxIdVorher = undoZiel(db)?.id
 
           const zustand = neuerZustand()
           for (const aktion of folge) {
-            aktionAusfuehren(db, zustand, aktion)
+            const zweige = aktionAusfuehren(db, zustand, aktion)
+            for (const z of zweige) {
+              zaehle(z)
+            }
             const oberstesTxIdJetzt = undoZiel(db)?.id
             if (oberstesTxIdJetzt !== oberstesTxIdVorher) {
               schnappschuesse.push(kanonischerAbzug(db))
+              schrittZweige.push(new Set(zweige))
             } else if (oberstesTxIdJetzt !== undefined) {
               const letzterIndex = schnappschuesse.length - 1
               schnappschuesse[letzterIndex] = kanonischerAbzug(db)
+              const letzteZweige = schrittZweige[schrittZweige.length - 1]
+              if (letzteZweige === undefined) {
+                throw new Error('unerreichbar: eine oberste Transaktion existiert, also auch ein Schritt.')
+              }
+              for (const z of zweige) {
+                letzteZweige.add(z)
+              }
             }
             oberstesTxIdVorher = oberstesTxIdJetzt
           }
@@ -123,6 +219,9 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
               throw new Error('unerreichbar: Index liegt per Konstruktion innerhalb von schnappschuesse.')
             }
             expect(kanonischerAbzug(db)).toBe(erwartet)
+            if (schrittZweige[anzahlSchritte - schritt]?.has('zitat.entwertet') === true) {
+              zaehle('undo.entwertung')
+            }
           }
 
           // Gegenprobe: die Zählung stimmt — nach genau `anzahlSchritte` Rücknahmen ist nichts mehr rücknehmbar.
@@ -134,6 +233,17 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
       // Fester Seed + Mindestlaufzahl 300 (CLAUDE.md §13: Determinismus ist Pflicht, Auftragsvorgabe).
       { seed: 20260910, numRuns: 300 },
     )
+
+    // E-B2-1 (c), hueter PR #119 H1/H7 (s. Modul-Kommentar DECKUNGSZÄHLER).
+    for (const [z, mainWert] of MAIN_TREFFER) {
+      expect(zaehler.get(z) ?? 0, `Deckungszweig ${z} (main ${mainWert})`).toBeGreaterThanOrEqual(Math.ceil(mainWert / 2))
+    }
+    for (const [z, mindestens] of NEUE_MINDESTTREFFER) {
+      expect(zaehler.get(z) ?? 0, `Deckungszweig ${z}`).toBeGreaterThanOrEqual(mindestens)
+    }
+    const bekannt = new Set<Zaehlschluessel>([...MAIN_TREFFER.map(([z]) => z), ...NEUE_MINDESTTREFFER.map(([z]) => z)])
+    const unbekannt = [...zaehler.keys()].filter((z) => z.startsWith('befehl:') && !bekannt.has(z))
+    expect(unbekannt, 'befehl:*-Zweige ohne Schwelle in MAIN_TREFFER/NEUE_MINDESTTREFFER').toEqual([])
   }, 180_000)
   // it()-Timeout 180s statt 60s (AP-1.12 PR-B, Nachzug): die erhöhte Demote-Deckung
   // (`minLength: 15`, `_befehlsfolge-generator.ts`) braucht auf dem Windows-CI-Runner
