@@ -4,8 +4,9 @@
 --   1. Fortlaufende Personen-Kennung (`person.kennung`, Anzeige „P-0142" im Kern) aus einem
 --      eigenen Zähler `kennung_zaehler`. Der Zähler ist NICHT_JOURNALISIERT
 --      (src/main/journal/journalisierung.ts): Undo nimmt eine Person zurück, lässt den Zähler aber
---      stehen — eine einmal vergebene Nummer wird nie neu vergeben (E12, ausnahmslos). Zwei
---      Trigger erzwingen das auf DB-Ebene: der Zähler läuft nur vorwärts und wird nie gelöscht.
+--      stehen — eine einmal vergebene Nummer wird nie neu vergeben (E12, ausnahmslos). Drei
+--      Trigger erzwingen das auf DB-Ebene: der Zähler läuft nur vorwärts, wird nie gelöscht und nie
+--      per REPLACE/INSERT ersetzt.
 --      `person.kennung` bleibt nullable (B2): kein NOT NULL per ALTER (in SQLite nur mit Default
 --      möglich), kein Tabellenneubau, kein NOT-NULL-Trigger — ein Undo alter Journaleinträge über
 --      `rohEinfuegen` (src/main/repositories/basis.ts) setzt Zeilen ohne `kennung` wieder ein
@@ -47,6 +48,18 @@ END;
 CREATE TRIGGER chk_kennung_zaehler_kein_loeschen BEFORE DELETE ON kennung_zaehler
 BEGIN
   SELECT RAISE(ABORT, 'kennung_zaehler wird nie geloescht');
+END;
+
+-- REPLACE (`INSERT OR REPLACE`, `REPLACE INTO`) löst den PK-Konflikt durch Löschen der alten Zeile —
+-- ohne DELETE-Trigger (recursive_triggers ist aus) — und setzte den Zähler so an beiden Triggern
+-- vorbei zurück. Darum: für einen bestehenden `bereich` gibt es kein INSERT. BEFORE INSERT feuert
+-- vor der Konfliktprüfung, trifft also auch ein UPSERT (`ON CONFLICT DO UPDATE`); der einzige
+-- Schreibweg bleibt `UPDATE` (kennungZiehen/zaehlerMindestensSetzen). Der Seed-INSERT unten läuft
+-- auf der leeren Tabelle und besteht die Bedingung.
+CREATE TRIGGER chk_kennung_zaehler_kein_ersetzen BEFORE INSERT ON kennung_zaehler
+  WHEN EXISTS (SELECT 1 FROM kennung_zaehler WHERE bereich = NEW.bereich)
+BEGIN
+  SELECT RAISE(ABORT, 'kennung_zaehler wird nie ersetzt');
 END;
 
 ALTER TABLE person ADD COLUMN kennung INTEGER CHECK (kennung IS NULL OR kennung >= 1);

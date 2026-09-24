@@ -47,7 +47,7 @@ export const MIGRATIONEN = [
   {
     version: 7,
     datei: '0007_kennung_textanker.sql',
-    pruefsumme: 'sha256-73965b04ca293494581276f93d3dd697d62266f26f498c88f88c0d0772ef4bad',
+    pruefsumme: 'sha256-200d5e38b107ae38a4c8d86d3504197b212bdccd61753fe35a583cefe05d30a3',
   },
 ] as const satisfies readonly MigrationEintrag[]
 
