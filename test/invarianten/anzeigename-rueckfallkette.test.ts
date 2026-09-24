@@ -102,6 +102,76 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
     )
   })
 
+  // AP-1.33 PR-B-Folgepunkt (hueter E1/E2): die Stufen-Property oben prüft nur `quelle`/`formId`.
+  // Hier der Text-Vertrag der gewählten Form: „Titel Vornamen Präfix Nachname Zusatz", Vornamen in
+  // `sortierIndex`-Reihenfolge, Leerzeichen-getrennt; ohne Bestandteile `original_text` (oder ''). Die
+  // Bestandteile kommen in zufälliger Reihenfolge an (die DB liefert keine garantierte). `vatersname`
+  // ist bewusst NICHT im Generator: `rekonstruiereFlach` übergeht ihn derzeit ganz — ob das so
+  // gewollt ist, ist offen (docs/80 §30, U-1.33-vatersname-anzeige), und ein Test soll es nicht
+  // stillschweigend als richtig festschreiben. Grenzen dieser Property (hueter #110, H3): nur
+  // nicht-leere Wörter ohne Leerzeichen, höchstens EIN Titel/Präfix/Nachname/Zusatz — das Verwerfen
+  // weiterer Titel/Präfixe/Zusätze (`ersterWert`), das Verketten mehrerer Nachnamen (`verkette`) und
+  // der Filter auf reine Leerzeichen-Segmente bleiben hier ungeprüft. Der Rückfall ohne Bestandteile
+  // hat einen eigenen Fall unten (sonst erreicht ihn der Generator praktisch nie, hueter #110, A1).
+  it('der Text der gewählten Form folgt „Titel Vornamen Präfix Nachname Zusatz"', () => {
+    const wort = fc.stringMatching(/^[A-Za-zÄÖÜäöüß]{1,6}$/)
+    const bestandteile = fc.record({
+      titel: fc.option(wort, { nil: null }),
+      vornamen: fc.array(wort, { maxLength: 3 }),
+      praefix: fc.option(wort, { nil: null }),
+      nachname: fc.option(wort, { nil: null }),
+      suffix: fc.option(wort, { nil: null }),
+      originalText: fc.option(fc.string({ maxLength: 8 }), { nil: null }),
+    })
+    fc.assert(
+      fc.property(
+        bestandteile.chain((b) => {
+          const teile: GeladenerTeil[] = [
+            ...(b.titel === null ? [] : [{ art: 'titel' as const, wert: b.titel, istRufname: false, sortierIndex: 0 }]),
+            ...b.vornamen.map((wert, index): GeladenerTeil => ({ art: 'vorname', wert, istRufname: false, sortierIndex: index })),
+            ...(b.praefix === null ? [] : [{ art: 'praefix' as const, wert: b.praefix, istRufname: false, sortierIndex: 0 }]),
+            ...(b.nachname === null ? [] : [{ art: 'nachname' as const, wert: b.nachname, istRufname: false, sortierIndex: 0 }]),
+            ...(b.suffix === null ? [] : [{ art: 'suffix' as const, wert: b.suffix, istRufname: false, sortierIndex: 0 }]),
+          ]
+          return fc.tuple(fc.constant(b), fc.shuffledSubarray(teile, { minLength: teile.length, maxLength: teile.length }))
+        }),
+        ([b, teile]) => {
+          const form: AnzeigeForm = {
+            formId: 'form-00',
+            sprache: null,
+            schrift: null,
+            istBevorzugt: true,
+            umschriftVon: null,
+            originalText: b.originalText,
+            teile,
+          }
+          const segmente = [b.titel, ...b.vornamen, b.praefix, b.nachname, b.suffix].filter((s): s is string => s !== null)
+          const erwartet = segmente.length > 0 ? segmente.join(' ') : (b.originalText ?? '')
+          expect(anzeigenameFuer([form])?.text).toBe(erwartet)
+        },
+      ),
+      { seed: 20260924, numRuns: 1000 },
+    )
+  })
+
+  it('ohne Bestandteile ist der Text original_text, ohne original_text der leere Text', () => {
+    fc.assert(
+      fc.property(fc.option(fc.string({ maxLength: 12 }), { nil: null }), (originalText) => {
+        const form: AnzeigeForm = {
+          formId: 'form-00',
+          sprache: null,
+          schrift: null,
+          istBevorzugt: true,
+          umschriftVon: null,
+          originalText,
+          teile: [],
+        }
+        expect(anzeigenameFuer([form])?.text).toBe(originalText ?? '')
+      }),
+      { seed: 20260924, numRuns: 200 },
+    )
+  })
+
   it('ist unabhängig von der Reihenfolge der Formen', () => {
     fc.assert(
       fc.property(
