@@ -165,17 +165,19 @@ describe('test/migration/import-luecken (AP-1.3c, ADR-026, docs/schema/0005_impo
       rmSync(ordner, { recursive: true, force: true })
     })
 
-    it('user_version landet auf SCHEMA_VERSION (5), die fünf neuen Spalten und der erweiterte CHECK sind da', () => {
+    it('user_version landet auf SCHEMA_VERSION (>= 5), die fünf neuen Spalten und der erweiterte CHECK sind da', () => {
       const db = oeffnen(dbPfad)
       try {
         expect(db.pragma('user_version', { simple: true })).toBe(4)
-        // AP-1.33: voller Aufstieg auf SCHEMA_VERSION (jetzt 6). Nicht auf v5 begrenzbar, weil
-        // `generierteTriggerAnwenden()` stets das aktuelle (v6-förmige) trigger_generiert.sql liest,
-        // das `name_form` referenziert — die hier geprüften 0005-Eigenschaften (Spalten/CHECK/Daten)
-        // überleben den weiteren 0006-Aufstieg unverändert.
+        // AP-1.33: voller Aufstieg auf SCHEMA_VERSION. Nicht auf v5 begrenzbar, weil
+        // `generierteTriggerAnwenden()` stets das aktuelle trigger_generiert.sql liest (seit 0006
+        // `name_form`-, seit 0007 `kennung`-förmig) — die hier geprüften 0005-Eigenschaften
+        // (Spalten/CHECK/Daten) überleben jeden weiteren Aufstieg unverändert. AP-1.34: gegen die
+        // eigene Zielversion (>= 5) statt gegen eine feste Spitze, damit der nächste Schema-Sprung
+        // diesen Test nicht erneut bricht.
         migrieren(db)
         expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
-        expect(SCHEMA_VERSION).toBe(6)
+        expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(5)
 
         expect(spaltenNamen(db, 'zitat')).toContain('zeitmarke_sekunden')
         expect(spaltenNamen(db, 'person')).toContain('unsicherheit')
@@ -260,7 +262,7 @@ describe('test/migration/import-luecken (AP-1.3c, ADR-026, docs/schema/0005_impo
         const risikofaktorAbzugVorher = spaltenAbzug(db, 'risikofaktor', RISIKOFAKTOR_SPALTEN, ['id'])
         const aussageAltspaltenAbzugVorher = spaltenAbzug(db, 'aussage', AUSSAGE_ALTSPALTEN, ['id'])
 
-        // Voller Aufstieg auf SCHEMA_VERSION (jetzt 6) — die 0005-Datenerhaltung (aussage_zitat/
+        // Voller Aufstieg auf SCHEMA_VERSION — die 0005-Datenerhaltung (aussage_zitat/
         // risikofaktor bitgleich) überlebt den weiteren 0006-Aufstieg, der `name` umstrukturiert.
         migrieren(db)
         expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)

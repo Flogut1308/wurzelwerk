@@ -2,6 +2,10 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
+// AP-1.34: gegen die Konstante statt eines Literals — der nächste Schema-Sprung soll diesen Ablauf
+// nicht erneut brechen. Dass die Konstante zur Migrationswahrheit passt, sichert
+// test/einheit/schemaversion-konsistenz.test.ts.
+import { MANIFEST_SCHEMAVERSION } from '../../src/shared/konstanten'
 
 /**
  * AP-0.17, langsames Gate (nicht Teil von `pnpm pruefe`): Der Roundtrip „Projekt anlegen →
@@ -47,7 +51,7 @@ test.describe('Ablauf 00 — Projekt anlegen und wieder öffnen', () => {
       async (arg) => window.wurzelwerk.aufrufen('befehl:projekt.anlegen', arg),
       { elternordner, name: 'Testprojekt' },
     )
-    expect(anlegen).toMatchObject({ ok: true, daten: { name: 'Testprojekt', schemaversion: '6' } })
+    expect(anlegen).toMatchObject({ ok: true, daten: { name: 'Testprojekt', schemaversion: MANIFEST_SCHEMAVERSION } })
 
     // Pfad des frisch angelegten Projekts für das erneute Öffnen. Cast ist sicher: die
     // toMatchObject-Zusicherung oben hat die `ok:true`-Variante bereits geprüft (CLAUDE.md §4).
@@ -60,6 +64,6 @@ test.describe('Ablauf 00 — Projekt anlegen und wieder öffnen', () => {
       async (pfad) => window.wurzelwerk.aufrufen('befehl:projekt.oeffnen', { pfad }),
       projektPfad,
     )
-    expect(oeffnen).toMatchObject({ ok: true, daten: { status: 'geoeffnet', projekt: { schemaversion: '6' } } })
+    expect(oeffnen).toMatchObject({ ok: true, daten: { status: 'geoeffnet', projekt: { schemaversion: MANIFEST_SCHEMAVERSION } } })
   })
 })

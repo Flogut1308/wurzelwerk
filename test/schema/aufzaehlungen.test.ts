@@ -19,6 +19,7 @@ import {
   InformationsartEnum,
   IntensitaetEnum,
   KalenderEnum,
+  KennungBereichEnum,
   LebendStatusEnum,
   NameFormReihenfolgeEnum,
   NameFormRolleEnum,
@@ -134,6 +135,9 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   // name_phonetik.verfahren oben — trotzdem eine beobachtete Aufzählung, kein AUSSERHALB_AP_0_6-Fall
   // (die Ausnahme dort ist auf die drei 0001_grundgeruest.sql-Journal-Spalten begrenzt).
   { tabelle: 'suche_fts_quelle', spalte: 'quelle_typ', zodEnum: SucheFtsQuelleTypEnum },
+  // docs/schema/0007_kennung_textanker.sql (AP-1.34): kennung_zaehler ist NICHT_JOURNALISIERT, trägt
+  // aber eine beobachtete Aufzählung (CHECK (bereich IN ('person'))), analog suche_fts_quelle oben.
+  { tabelle: 'kennung_zaehler', spalte: 'bereich', zodEnum: KennungBereichEnum },
 ]
 
 /** Spalten mit `CHECK (spalte IN (…))` in 0001_grundgeruest.sql, außerhalb des AP-0.6-Umfangs (s. o.). */

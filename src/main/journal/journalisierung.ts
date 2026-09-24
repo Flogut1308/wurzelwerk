@@ -66,6 +66,9 @@ export const NICHT_JOURNALISIERT = [
   'id_alias',
   'person_flach',
   'suche_fts_quelle',
+  // docs/schema/0007_kennung_textanker.sql (AP-1.34): Zähler für person.kennung. Bewusst NICHT
+  // journalisiert — Undo nimmt die Person zurück, der Zähler bleibt stehen („nie neu vergeben").
+  'kennung_zaehler',
 ] as const
 
 export type JournalisierteTabelle = (typeof JOURNALISIERT)[number]

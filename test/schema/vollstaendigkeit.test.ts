@@ -50,6 +50,7 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'erstellt_am',
     'geaendert_am',
     'unsicherheit', // docs/schema/0005_import_luecken.sql (AP-1.3c): $defs/Person.unsicherheit, IMP-206
+    'kennung', // docs/schema/0007_kennung_textanker.sql (AP-1.34): fortlaufende Kennung, nullable (B2/E13)
   ],
   // docs/schema/0006_namensformen.sql (AP-1.33): das flache `name` wurde in name_form (Form/Rolle)
   // + name_part (Bestandteile) zerlegt und per DROP entfernt. name_form.id = alte name.id.
@@ -254,7 +255,16 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
     'gueltig_von', // $defs/Aussage.gueltig_von (A-08)
     'gueltig_bis', // $defs/Aussage.gueltig_bis (A-08)
   ],
-  aussage_zitat: ['aussage_id', 'zitat_id', 'erstellt_am', 'geaendert_am'],
+  aussage_zitat: [
+    'aussage_id',
+    'zitat_id',
+    'erstellt_am',
+    'geaendert_am',
+    // docs/schema/0007_kennung_textanker.sql (AP-1.34, B-01): Feldbezug + Textanker im Transkript.
+    'feld', // NULL = ganze Aussage (E3), Wertliste als Zod-Enum im Code, kein DB-CHECK
+    'textanker_von', // UTF-16-Codeeinheiten, halboffen [von, bis)
+    'textanker_bis',
+  ],
   negativbefund: [
     'id',
     'quelle_id',
@@ -463,6 +473,10 @@ export const ERWARTETES_SCHEMA: Record<string, readonly string[]> = {
   ],
   import_herkunft: ['id', 'import_lauf_id', 'datensatz_id', 'datensatz_typ', 'erstellt_am', 'geaendert_am'],
   ansicht_zustand: ['id', 'name', 'zentrumsperson_id', 'filter_json', 'erstellt_am', 'geaendert_am'],
+
+  // docs/schema/0007_kennung_textanker.sql (AP-1.34): Zähler für person.kennung, NICHT_JOURNALISIERT
+  // (Undo lässt ihn stehen — „nie neu vergeben"), läuft per Trigger nur vorwärts.
+  kennung_zaehler: ['bereich', 'naechste'],
 
   // docs/schema/0003_abgeleitet.sql (AP-0.7). Abgeleitet, NICHT_JOURNALISIERT (55_Architektur.md
   // §5) — tragen keine Wahrheit, sind aus den Basistabellen jederzeit neu berechenbar. Die

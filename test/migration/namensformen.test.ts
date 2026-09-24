@@ -413,13 +413,16 @@ describe('test/migration/namensformen (AP-1.33, docs/schema/0006_namensformen.sq
     return { zeilen, cyrlId, translitId, ehenameId, sonstigesId, rufnameTextId, rufnameKollisionId, geburtsnameId }
   }
 
-  it('SCHEMA_VERSION ist 6 und der Aufstieg landet auf 6', () => {
+  // AP-1.34: gegen die eigene Zielversion (>= 6) statt gegen eine feste Spitze — der Aufstieg läuft
+  // stets bis SCHEMA_VERSION (generierteTriggerAnwenden liest das aktuelle trigger_generiert.sql),
+  // und der nächste Schema-Sprung soll diesen 0006-Test nicht erneut brechen.
+  it('SCHEMA_VERSION ist >= 6 und der Aufstieg ab v5 landet auf SCHEMA_VERSION', () => {
     const db = oeffnen(dbPfad)
     try {
-      expect(SCHEMA_VERSION).toBe(6)
+      expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(6)
       expect(db.pragma('user_version', { simple: true })).toBe(5)
       migrieren(db)
-      expect(db.pragma('user_version', { simple: true })).toBe(6)
+      expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
     } finally {
       db.close()
     }

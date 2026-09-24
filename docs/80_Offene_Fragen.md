@@ -512,3 +512,28 @@ Kein Code in `src/`: der Skill ist eine Markdown-Definition unter
 | **U-1.33-vatersname-anzeige** | `rekonstruiereFlach` (`src/core/name/zerlegung.ts`) und damit der Anzeigetext von `anzeigenameFuer` übergehen `name_part(art='vatersname')` vollständig — „Iwan Petrowitsch Iwanow" erscheint als „Iwan Iwanow". | **Offen:** gewollt (Vatersname nur im Detail, nicht in der Kurzanzeige) oder Lücke? Der Text-Property-Test (`anzeigename-rueckfallkette.test.ts`) nimmt `vatersname` bewusst nicht auf, um das nicht stillschweigend festzuschreiben. | Betrifft den kyrillisch-polnischen Korpus und jeden importierten ostslawischen Namen. | Mit AP-1.30 (Namen-Reiter) klären; bei „Lücke" Produktivfix mit rotem Test zuerst. |
 
 ---
+
+## 31. Querschnitt des Editors (AP-1.34, Migration 0007, CLAUDE.md §12/§13)
+
+Nutzerentscheidungen vom 24.09.2026 (E5/E6/E7/E12 ausdrücklich, übrige als Empfehlung angenommen). Kennung und Offene Punkte: Vorgaben §2.2/§5.5 (keine A-ID); Textanker: B-01; Plausibilität: F-07.
+
+| ID | Befund / Frage | Entscheidung | Konsequenz | Offen |
+|---|---|---|---|---|
+| **U-1.34-E1-kennung-format** | Speicherform und Anzeige der Personen-Kennung. | `person.kennung INTEGER`; Anzeige im Kern `kennungAnzeige(n)` → `P-0142` (4-stellig aufgefüllt, ab 10000 länger). | Kein Text in der DB, Format ist reine Anzeige. | Anzeigefunktion mit PR-C1. |
+| **U-1.34-E2-nachtrag** | Reihenfolge des Nachtrags für den Bestand. | Lückenlos 1..n in `ORDER BY id` (UUID v7 ≈ Anlagereihenfolge). | 0007 nummeriert per `ROW_NUMBER()`; Zähler danach n+1. R4: 20.000 Personen 6→7 in ≈ 90 ms (lokal, macOS). | — |
+| **U-1.34-E3-feld** | Wertliste von `aussage_zitat.feld`. | Nullable, NULL = ganze Aussage; kein DB-CHECK, Wertliste als Zod-Enum im Code. | Neue Feldwerte ohne Migration. | Enum mit PR-C1. |
+| **U-1.34-E4-anker-invalidieren** | Was passiert mit einem Textanker, wenn sich das Transkript ändert? | Anker bleibt, wenn der Ausschnitt `[von, bis)` gleich ist, sonst beide NULL — in derselben Transaktion. | DB-CHECK „beide oder keine", „bis > von", „von ≥ 0" (0007). | PR-C1. |
+| **U-1.34-E5-todesort** | Sterbeort: eigene Aussage oder Ort des Tod-Ereignisses? | Beides: Aussage `todesort` ist führend, Rückfall auf `ereignis(typ='tod').ort_id`; Import-Writer schreibt `todesort` wie `geburtsort`. | Importvertrag v1 unverändert, kein Datenumzug; `person_flach` unberührt. | PR-C2. |
+| **U-1.34-E6-elternteil** | Welche Elternschaft zählt für „Elternteil nicht zugeordnet"? | Jeder Elternschaftstyp; ein Platzhalter-Elternteil gilt als zugeordnet. | — | PR-C2. |
+| **U-1.34-E7-kernangaben** | Nenner der Vollständigkeit. | Name (belegt über Hauptform), Geschlecht (nur vorhanden), Geburtsdatum/-ort, Todesdatum/-ort nur bei `verstorben`, Vater und Mutter getrennt; Platzhalter ausgenommen; abrunden. | ADR-031. | PR-D. |
+| **U-1.34-E8-kein-portraet** | Regel „kein Porträt" jetzt schon? | Bauen, aber `aktiv: false`. | — | PR-C2. |
+| **U-1.34-E9-name** | Spaltenname und Sichtbarkeit. | Spalte `kennung`, im Code `personKennung`; nicht in `person_flach`/Suche. | `abl_*`-Trigger unverändert. | — |
+| **U-1.34-E10-rueckgabe** | Gibt `person.anlegen` die Kennung zurück? | Nein, weiter `{ id }`. | Kennung über `person.detail`. | — |
+| **U-1.34-E11-weitere-regeln** | Weitere Regeln aus Vorgaben §5.6. | Später. | — | Eigenes Paket. |
+| **U-1.34-E12-nie-neu-vergeben** | Die Rücknahme eines Großimports per Schnappschuss setzte den Zähler auf den Stand vor dem Import zurück. | „Nie neu vergeben" gilt ausnahmslos: `importZuruecknehmen` sichert den Zählerstand und zieht ihn danach nur vor, wenn der wiederhergestellte kleiner ist (der „nur vorwärts"-Trigger feuert nie). | Umgesetzt in PR-A (`src/main/journal/undo.ts`, Test in `import-schreiben-kennungen.test.ts`). | Die Schnappschuss-Wiederherstellung durch den Nutzer (`src/main/schnappschuss/wiederherstellen.ts`) setzt den Zähler weiterhin zurück — Owner-Entscheidung, ob E12 auch dort gilt. |
+| **U-1.34-E13-null-kennung** | Undo eines Journaleintrags von vor 0007 setzt eine Person ohne Kennung wieder ein. | NULL zulassen; UI zeigt „–". | `person.kennung` bleibt nullable, UNIQUE erlaubt mehrere NULL. | UI mit AP-1.30. |
+| **U-1.34-E14-ausnahmeliste** | Der Undo-Bitgleich-Abzug nimmt Tabellen pauschal aus. | Ausnahmeliste in PR-B fest pinnen (siehe B1). | — | PR-B. |
+| **U-1.34-B1-pauschale-ausnahme** | `test/invarianten/_kanonischer-abzug.ts` nimmt alle `NICHT_JOURNALISIERT`-Tabellen pauschal aus — `kennung_zaehler` fällt damit ohne Gegenprobe heraus; PR-A ist darum ohne PR-B grün. | PR-B pinnt die Liste explizit und prüft gegen (`undo-bitgleich-ausnahmen`, `kennung-nie-neu-vergeben`). | Reihenfolge PR-A → PR-B zwingend; PR-A ändert `test/invarianten` nicht. | PR-B. |
+| **U-1.34-B2-nullable** | NOT NULL für `person.kennung`? | Nein: kein NOT NULL per ALTER, kein Tabellenneubau, kein NOT-NULL-Trigger (brächen das Undo alter Journaleinträge über `rohEinfuegen`). | Garantie über den einzigen Schreibweg `personRepo.einfuegen` → `kennungZiehen` + Tests. | — |
+
+---

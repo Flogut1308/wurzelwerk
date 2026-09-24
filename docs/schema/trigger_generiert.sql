@@ -115,21 +115,21 @@ CREATE TRIGGER jrn_aussage_zitat_ai AFTER INSERT ON aussage_zitat
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', NEW.aussage_id || '|' || NEW.zitat_id, NULL, json_object('aussage_id', NEW.aussage_id, 'zitat_id', NEW.zitat_id, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'insert');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', NEW.aussage_id || '|' || NEW.zitat_id, NULL, json_object('aussage_id', NEW.aussage_id, 'zitat_id', NEW.zitat_id, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'feld', NEW.feld, 'textanker_von', NEW.textanker_von, 'textanker_bis', NEW.textanker_bis), 'insert');
 END;
 
 CREATE TRIGGER jrn_aussage_zitat_au AFTER UPDATE ON aussage_zitat
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', OLD.aussage_id || '|' || OLD.zitat_id, json_object('aussage_id', OLD.aussage_id, 'zitat_id', OLD.zitat_id, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), json_object('aussage_id', NEW.aussage_id, 'zitat_id', NEW.zitat_id, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am), 'update');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', OLD.aussage_id || '|' || OLD.zitat_id, json_object('aussage_id', OLD.aussage_id, 'zitat_id', OLD.zitat_id, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'feld', OLD.feld, 'textanker_von', OLD.textanker_von, 'textanker_bis', OLD.textanker_bis), json_object('aussage_id', NEW.aussage_id, 'zitat_id', NEW.zitat_id, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'feld', NEW.feld, 'textanker_von', NEW.textanker_von, 'textanker_bis', NEW.textanker_bis), 'update');
 END;
 
 CREATE TRIGGER jrn_aussage_zitat_ad AFTER DELETE ON aussage_zitat
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', OLD.aussage_id || '|' || OLD.zitat_id, json_object('aussage_id', OLD.aussage_id, 'zitat_id', OLD.zitat_id, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am), NULL, 'delete');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'aussage_zitat', OLD.aussage_id || '|' || OLD.zitat_id, json_object('aussage_id', OLD.aussage_id, 'zitat_id', OLD.zitat_id, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'feld', OLD.feld, 'textanker_von', OLD.textanker_von, 'textanker_bis', OLD.textanker_bis), NULL, 'delete');
 END;
 
 CREATE TRIGGER jrn_beteiligung_ai AFTER INSERT ON beteiligung
@@ -598,21 +598,21 @@ CREATE TRIGGER jrn_person_ai AFTER INSERT ON person
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', NEW.id, NULL, json_object('id', NEW.id, 'geschlecht', NEW.geschlecht, 'lebend_status', NEW.lebend_status, 'privat', NEW.privat, 'notiz', NEW.notiz, 'gesperrt_bis', NEW.gesperrt_bis, 'ist_platzhalter', NEW.ist_platzhalter, 'platzhalter_grund', NEW.platzhalter_grund, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'unsicherheit', NEW.unsicherheit), 'insert');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', NEW.id, NULL, json_object('id', NEW.id, 'geschlecht', NEW.geschlecht, 'lebend_status', NEW.lebend_status, 'privat', NEW.privat, 'notiz', NEW.notiz, 'gesperrt_bis', NEW.gesperrt_bis, 'ist_platzhalter', NEW.ist_platzhalter, 'platzhalter_grund', NEW.platzhalter_grund, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'unsicherheit', NEW.unsicherheit, 'kennung', NEW.kennung), 'insert');
 END;
 
 CREATE TRIGGER jrn_person_au AFTER UPDATE ON person
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', OLD.id, json_object('id', OLD.id, 'geschlecht', OLD.geschlecht, 'lebend_status', OLD.lebend_status, 'privat', OLD.privat, 'notiz', OLD.notiz, 'gesperrt_bis', OLD.gesperrt_bis, 'ist_platzhalter', OLD.ist_platzhalter, 'platzhalter_grund', OLD.platzhalter_grund, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'unsicherheit', OLD.unsicherheit), json_object('id', NEW.id, 'geschlecht', NEW.geschlecht, 'lebend_status', NEW.lebend_status, 'privat', NEW.privat, 'notiz', NEW.notiz, 'gesperrt_bis', NEW.gesperrt_bis, 'ist_platzhalter', NEW.ist_platzhalter, 'platzhalter_grund', NEW.platzhalter_grund, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'unsicherheit', NEW.unsicherheit), 'update');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', OLD.id, json_object('id', OLD.id, 'geschlecht', OLD.geschlecht, 'lebend_status', OLD.lebend_status, 'privat', OLD.privat, 'notiz', OLD.notiz, 'gesperrt_bis', OLD.gesperrt_bis, 'ist_platzhalter', OLD.ist_platzhalter, 'platzhalter_grund', OLD.platzhalter_grund, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'unsicherheit', OLD.unsicherheit, 'kennung', OLD.kennung), json_object('id', NEW.id, 'geschlecht', NEW.geschlecht, 'lebend_status', NEW.lebend_status, 'privat', NEW.privat, 'notiz', NEW.notiz, 'gesperrt_bis', NEW.gesperrt_bis, 'ist_platzhalter', NEW.ist_platzhalter, 'platzhalter_grund', NEW.platzhalter_grund, 'erstellt_am', NEW.erstellt_am, 'geaendert_am', NEW.geaendert_am, 'unsicherheit', NEW.unsicherheit, 'kennung', NEW.kennung), 'update');
 END;
 
 CREATE TRIGGER jrn_person_ad AFTER DELETE ON person
 WHEN (SELECT aktiv FROM journal_kontext WHERE id = 1) = 1
 BEGIN
   INSERT INTO aenderung (id, transaktion_id, reihenfolge, tabelle, datensatz_id, wert_alt_json, wert_neu_json, operation)
-  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', OLD.id, json_object('id', OLD.id, 'geschlecht', OLD.geschlecht, 'lebend_status', OLD.lebend_status, 'privat', OLD.privat, 'notiz', OLD.notiz, 'gesperrt_bis', OLD.gesperrt_bis, 'ist_platzhalter', OLD.ist_platzhalter, 'platzhalter_grund', OLD.platzhalter_grund, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'unsicherheit', OLD.unsicherheit), NULL, 'delete');
+  VALUES (uuid7(), (SELECT transaktion_id FROM journal_kontext WHERE id = 1), (SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM aenderung WHERE transaktion_id = (SELECT transaktion_id FROM journal_kontext WHERE id = 1)), 'person', OLD.id, json_object('id', OLD.id, 'geschlecht', OLD.geschlecht, 'lebend_status', OLD.lebend_status, 'privat', OLD.privat, 'notiz', OLD.notiz, 'gesperrt_bis', OLD.gesperrt_bis, 'ist_platzhalter', OLD.ist_platzhalter, 'platzhalter_grund', OLD.platzhalter_grund, 'erstellt_am', OLD.erstellt_am, 'geaendert_am', OLD.geaendert_am, 'unsicherheit', OLD.unsicherheit, 'kennung', OLD.kennung), NULL, 'delete');
 END;
 
 CREATE TRIGGER jrn_persona_ai AFTER INSERT ON persona

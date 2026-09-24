@@ -22,6 +22,8 @@ import { dirname, join } from 'node:path'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
+import { oeffnen } from '../datenbank/verbindung'
+import { zaehlerMindestensSetzen, zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
 import { mitHauptnameConstraintAus } from '../repositories/name-form-repo'
 import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from '../schnappschuss/dateiname'
@@ -77,6 +79,13 @@ function importRuecknahmeSperren(ziel: JournalTransaktionZiel): void {
  * Nur erreichbar über `undo()`, wenn `ziel` eine Import-Transaktion mit `snapshot_pfad != null`
  * ist — und laut ADR-019 nur solange sie die NEUESTE Transaktion ist, was `undoZiel()`s
  * `ORDER BY lfd DESC LIMIT 1` bereits garantiert.
+ *
+ * AP-1.34 (E12): der Schnappschuss trägt den Zählerstand von VOR dem Import — die im Import
+ * vergebenen Kennungen würden sonst neu vergeben. Darum wird `kennung_zaehler` vor dem Schließen
+ * gesichert und nach dem Zurückkopieren auf `max(alt, wiederhergestellt)` gezogen („nie neu
+ * vergeben" gilt ausnahmslos). Geschrieben wird nur, wo der wiederhergestellte Stand kleiner ist —
+ * der „nur vorwärts"-Trigger (`chk_kennung_zaehler_vorwaerts`) bleibt damit unberührt. Scheitert das
+ * Nachziehen, wird die Rücknahme wie beim Kopierfehler zurückgerollt.
  */
 function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel, jetzt: () => number = Date.now): UndoErgebnis {
   if (ziel.snapshotPfad === null) {
@@ -87,6 +96,7 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
   const snapshotsPfad = join(dirname(dbPfad), 'snapshots')
   const ersetztPfad = join(snapshotsPfad, `${ERSETZT_PRAEFIX}${kolonfreieZeit(jetzt())}${SCHNAPPSCHUSS_ENDUNG}`)
 
+  const zaehlerVorher = zaehlerTabelleVorhanden(db) ? zaehlerstaendeLesen(db) : []
   db.close()
 
   try {
@@ -102,8 +112,37 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
     renameSync(ersetztPfad, dbPfad)
     throw new WurzelFehler('DATEI_KEIN_PLATZ', u instanceof Error ? u.message : String(u))
   }
+  try {
+    zaehlerNachziehen(dbPfad, zaehlerVorher)
+  } catch (u) {
+    renameSync(ersetztPfad, dbPfad)
+    throw new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
+  }
 
   return { transaktionId: ziel.id, beschreibung: ziel.beschreibung }
+}
+
+/**
+ * E12-Hälfte von `importZuruecknehmen()`: öffnet die wiederhergestellte Datei kurz und zieht jeden
+ * gesicherten Zähler auf mindestens seinen alten Stand. Ein einzelnes UPDATE je Bereich auf eine
+ * NICHT_JOURNALISIERTE Tabelle — keine Journalklammer nötig. Kennt die wiederhergestellte Datei den
+ * Zähler nicht (Schnappschuss älter als Migration 0007), bleibt sie unberührt (E13).
+ */
+function zaehlerNachziehen(dbPfad: string, zaehlerVorher: ReturnType<typeof zaehlerstaendeLesen>): void {
+  if (zaehlerVorher.length === 0) {
+    return
+  }
+  const wiederhergestellt = oeffnen(dbPfad)
+  try {
+    if (!zaehlerTabelleVorhanden(wiederhergestellt)) {
+      return
+    }
+    for (const zaehler of zaehlerVorher) {
+      zaehlerMindestensSetzen(wiederhergestellt, zaehler.bereich, zaehler.naechste)
+    }
+  } finally {
+    wiederhergestellt.close()
+  }
 }
 
 /**
