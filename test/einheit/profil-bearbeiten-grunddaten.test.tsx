@@ -39,6 +39,7 @@ function kopf(ueberschreibung: Partial<PersonDetailKopf> = {}): PersonDetailKopf
     geschlecht: null,
     platzhalter_grund: null,
     kennung: null,
+    lebend_status: null,
     ...ueberschreibung,
   }
 }

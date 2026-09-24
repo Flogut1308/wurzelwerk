@@ -26,7 +26,7 @@ import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
 import { NameTypEnum, SchriftEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
-import { GeschlechtEnum, PlatzhalterGrundEnum } from './person'
+import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 import type { Textanker } from './befehle'
 
@@ -57,6 +57,8 @@ export interface PersonDetailKopf {
    * Undo eines Journaleintrags von vor 0007). Anzeige „P-0142"/„–" nur über `kennungAnzeige`
    * (src/core/person/kennung.ts) — kein Text hier, keine Kennung in `person_flach`/Suche (E9). */
   readonly kennung: number | null
+  /** `person.lebend_status` (AP-1.34 PR-C2a) — `null` = nicht erfasst. Read-only wie `geschlecht`. */
+  readonly lebend_status: z.infer<typeof LebendStatusEnum> | null
 }
 
 /** Eine `name`-Zeile dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — read-only Spiegel der
@@ -209,6 +211,21 @@ export interface PersonDetailGesundheitseintrag {
  * `abfrage:person.detail` die Namensliste liefert" — sie tat es vorher nicht; ergänzt hier statt
  * eines zweiten Abfragekanals, weil die Profilseite ohnehin schon EINEN vollständigen
  * Personen-Datensatz lädt). */
+/** Herkunft des Sterbeorts (AP-1.34 PR-C2a, §31 U-1.34-E5): die Aussage `todesort` ist führend,
+ * sonst der Ort des Tod-Ereignisses (Rolle `verstorbener`). Auflösung im Kern
+ * (`src/core/person/sterbeort.ts`). */
+export const SterbeortHerkunftEnum = z.enum(['aussage', 'ereignis'])
+
+/** Sterbeort der Person. `ort_id`/`ort_name` sind `null`, wenn die führende Aussage nur einen
+ * freien Text trägt (dann steht der Text im Grunddatenfeld `todesort`) bzw. der Ort keinen Namen
+ * hat. `aussage_id` nur bei `herkunft = 'aussage'`. */
+export interface PersonDetailSterbeort {
+  readonly herkunft: z.infer<typeof SterbeortHerkunftEnum>
+  readonly ort_id: string | null
+  readonly ort_name: string | null
+  readonly aussage_id: string | null
+}
+
 export interface PersonDetailAus {
   readonly kopf: PersonDetailKopf
   readonly namen: readonly PersonDetailName[]
@@ -217,4 +234,6 @@ export interface PersonDetailAus {
   readonly beziehungen: readonly PersonDetailBeziehung[]
   readonly gesundheit: readonly PersonDetailGesundheitseintrag[]
   readonly notiz: string | null
+  /** AP-1.34 PR-C2a: `null` = weder Aussage `todesort` noch Tod-Ereignis mit Ort. */
+  readonly sterbeort: PersonDetailSterbeort | null
 }

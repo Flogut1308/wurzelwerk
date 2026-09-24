@@ -24,8 +24,9 @@ import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
+import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
-import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../shared/schemata/person'
+import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../shared/schemata/person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
 import type {
   PersonDetailAus,
@@ -36,6 +37,7 @@ import type {
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
   PersonDetailName,
+  PersonDetailSterbeort,
 } from '../../shared/schemata/person-detail'
 import { datensatzExistiert } from '../repositories/basis'
 
@@ -49,6 +51,7 @@ interface KopfZeile {
   readonly geschlecht: string | null
   readonly platzhalter_grund: string | null
   readonly kennung: number | null
+  readonly lebend_status: string | null
 }
 
 /** `person.kennung` beim Lesen prüfen (CHECK `kennung >= 1`, docs/schema/0007_kennung_textanker.sql)
@@ -62,7 +65,8 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
       KopfZeile
     >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.konfidenz_min AS konfidenz_min,
               p.ist_platzhalter AS ist_platzhalter, p.privat AS privat, p.notiz AS notiz,
-              p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund, p.kennung AS kennung
+              p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund, p.kennung AS kennung,
+              p.lebend_status AS lebend_status
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
        WHERE pf.person_id = @personId`,
@@ -282,7 +286,7 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
  * Bugfix (vorbestehend, `docs/80_Offene_Fragen.md` §22 U-1.25-profil-fixture): jedes andere
  * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst gegen `person_flach` auf —
  * die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
-const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'wohnort'])
+const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'todesort', 'wohnort'])
 
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`
  * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id` — Letzteres
@@ -469,6 +473,42 @@ function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readon
   }))
 }
 
+interface TodEreignisZeile {
+  readonly id: string
+  readonly ort_id: string | null
+}
+
+/** Tod-Ereignisse, an denen die Person als `verstorbener` beteiligt ist (AP-1.34 PR-C2a, §31
+ * U-1.34-E5) — der Rückfall für den Sterbeort. Andere Rollen (`informant`, `pfarrer`, …) und andere
+ * Ereignistypen zählen bewusst nicht. `DISTINCT`: eine doppelte Beteiligung derselben Person im
+ * selben Ereignis ist kein zweites Ereignis. */
+function todEreignisseLaden(db: Database.Database, personId: string): readonly TodEreignisZeile[] {
+  return db
+    .prepare<
+      { readonly personId: string },
+      TodEreignisZeile
+    >(`SELECT DISTINCT e.id AS id, e.ort_id AS ort_id
+       FROM beteiligung b
+       JOIN ereignis e ON e.id = b.ereignis_id
+       WHERE b.person_id = @personId AND b.rolle = 'verstorbener' AND e.typ = 'tod'
+       ORDER BY e.id`,
+    )
+    .all({ personId })
+}
+
+/** Sterbeort (AP-1.34 PR-C2a): Auswahl im Kern (`sterbeortAufloesen`), hier nur Laden + Namens-
+ * auflösung. Der Ortsname kommt wie bei `geburtsort` aus dem bevorzugten `ortsname`. */
+function sterbeortBauen(db: Database.Database, personId: string, aussagen: readonly AussageZeile[]): PersonDetailSterbeort | null {
+  const todesorte = aussagen
+    .filter((aussage) => aussage.praedikat === 'todesort')
+    .map((aussage) => ({ id: aussage.id, istBevorzugt: aussage.ist_bevorzugt === 1, wertRefId: aussage.wert_ref_id, wertText: aussage.wert_text }))
+  const todEreignisse = todEreignisseLaden(db, personId).map((zeile) => ({ id: zeile.id, ortId: zeile.ort_id }))
+  const sterbeort = sterbeortAufloesen(todesorte, todEreignisse)
+  if (sterbeort === null) return null
+  const ortName = sterbeort.ortId === null ? null : (ortsnamenLaden(db, [sterbeort.ortId]).get(sterbeort.ortId) ?? null)
+  return { herkunft: sterbeort.herkunft, ort_id: sterbeort.ortId, ort_name: ortName, aussage_id: sterbeort.aussageId }
+}
+
 interface ElternKindZeile {
   readonly person_id: string
   readonly anzeigename: string
@@ -616,6 +656,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
       platzhalter_grund: kopfZeile.platzhalter_grund === null ? null : PlatzhalterGrundEnum.parse(kopfZeile.platzhalter_grund),
       kennung: KennungSchema.parse(kopfZeile.kennung),
+      lebend_status: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
     },
     namen: namenLaden(db, ein.personId),
     grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),
@@ -623,5 +664,6 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     beziehungen: beziehungenLaden(db, ein.personId),
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
+    sterbeort: sterbeortBauen(db, ein.personId, aussagen),
   }
 }
