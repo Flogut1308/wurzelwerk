@@ -295,6 +295,36 @@ export interface AktionNameLoeschen {
   readonly nameZielRoh: number
 }
 
+/**
+ * AP-1.33 PR-B ERWEITERUNG: `hauptname.wechseln` (`src/main/befehle/hauptname-wechseln.ts`) — macht
+ * eine bestehende, NICHT bevorzugte Form zur bevorzugten ihrer Person. `nameZielRoh` wählt die neue
+ * Form aus `zustand.namen`; die alte (bisher bevorzugte) liest `aktionAusfuehren()` zur
+ * Ausführungszeit aus `name_form` nach (der Generator trackt `ist_bevorzugt` nicht — `name.anlegen`
+ * und `name.loeschen` entscheiden das selbst, s. `loeschenMitNachruecken`). Ist die gewählte Form
+ * schon die bevorzugte, ist die Aktion ein No-op (der Handler würde ohnehin nichts schreiben).
+ */
+export interface AktionHauptnameWechseln {
+  readonly art: 'hauptnameWechseln'
+  readonly nameZielRoh: number
+}
+
+/**
+ * AP-1.33 PR-B ERWEITERUNG („MEHRFORMEN-DECKUNG", Muster wie „DEMOTE-DECKUNG"): `name.anlegen` für
+ * eine Person, die BEREITS eine Form hat (`nameZielRoh` wählt eine bestehende Form, ihre Person
+ * bekommt eine weitere). `nameAnlegen` verteilt Formen gleichmäßig über alle Personen — Personen mit
+ * zwei oder mehr Formen, die `hauptname.wechseln` und das Nachrücken in `name.loeschen`
+ * (`loeschenMitNachruecken`) erst erreichbar machen, entstehen so nur selten. Diese Aktion erzeugt
+ * sie gezielt. Temporäre Zählung (NICHT committet) über `{ seed: 20260924, numRuns: 300 }` ohne
+ * diese Aktion: `hauptname.wechseln` 6, Nachrücken 1 echte Treffer; Zahlen mit ihr im PR-Bericht.
+ */
+export interface AktionNameWeitereFormAnlegen {
+  readonly art: 'nameWeitereFormAnlegen'
+  readonly nameZielRoh: number
+  readonly typ: NameTyp
+  readonly nachname: string
+  readonly vornamen: string
+}
+
 export interface AktionElternschaftAnlegen {
   readonly art: 'elternschaftAnlegen'
   readonly elternteilZielRoh: number
@@ -661,6 +691,8 @@ export type Aktion =
   | AktionNameAnlegen
   | AktionNameAendern
   | AktionNameLoeschen
+  | AktionHauptnameWechseln
+  | AktionNameWeitereFormAnlegen
   | AktionElternschaftAnlegen
   | AktionElternschaftAendern
   | AktionElternschaftLoeschen
@@ -751,6 +783,23 @@ function nameAendernAktionArbitrary(): fc.Arbitrary<AktionNameAendern> {
 
 function nameLoeschenAktionArbitrary(): fc.Arbitrary<AktionNameLoeschen> {
   return fc.nat().map((nameZielRoh): AktionNameLoeschen => ({ art: 'nameLoeschen', nameZielRoh }))
+}
+
+/** AP-1.33 PR-B: s. Typkommentar `AktionNameWeitereFormAnlegen`. */
+function nameWeitereFormAnlegenAktionArbitrary(): fc.Arbitrary<AktionNameWeitereFormAnlegen> {
+  return fc
+    .record({
+      nameZielRoh: fc.nat(),
+      typ: fc.constantFrom(...NameTypEnum.options),
+      nachname: fc.string(),
+      vornamen: fc.string(),
+    })
+    .map((r): AktionNameWeitereFormAnlegen => ({ art: 'nameWeitereFormAnlegen', ...r }))
+}
+
+/** AP-1.33 PR-B: s. Typkommentar `AktionHauptnameWechseln`. */
+function hauptnameWechselnAktionArbitrary(): fc.Arbitrary<AktionHauptnameWechseln> {
+  return fc.nat().map((nameZielRoh): AktionHauptnameWechseln => ({ art: 'hauptnameWechseln', nameZielRoh }))
 }
 
 function elternschaftAnlegenAktionArbitrary(): fc.Arbitrary<AktionElternschaftAnlegen> {
@@ -1150,7 +1199,10 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * `negativbefundAnlegen` liegen ebenfalls bei 2, ihre `aendern`/`loeschen`-Geschwister bei 1 —
  * dasselbe Muster wie bei `name`/`elternschaft`/… oben. AP-1.29 PR-B: `aussageAendern` liegt bei 2
  * (analog den `aendern`-Geschwistern anderer Entitäten), `aussageZitatAnlegen` bei 2,
- * `aussageZitatLoeschen` bei 1 — dasselbe Muster.
+ * `aussageZitatLoeschen` bei 1 — dasselbe Muster. AP-1.33 PR-B: `hauptnameWechseln` bei 2 — er
+ * braucht eine Person mit MINDESTENS ZWEI Formen und eine nicht bevorzugte davon als Ziel, feuert
+ * also seltener als ein gewöhnliches `aendern`; `nameWeitereFormAnlegen` bei 2 erzeugt genau diese
+ * Personen (Typkommentar „MEHRFORMEN-DECKUNG", Trefferzahlen im PR-Bericht).
  */
 function aktionArbitrary(): fc.Arbitrary<Aktion> {
   return fc.oneof(
@@ -1165,6 +1217,8 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: nameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: nameAendernAktionArbitrary() },
     { weight: 1, arbitrary: nameLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: hauptnameWechselnAktionArbitrary() },
+    { weight: 2, arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftAendernAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
@@ -1697,6 +1751,38 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       fuehreAus(db, 'name.loeschen', { id: ziel.id })
       zustand.namen = zustand.namen.filter((n) => n.id !== ziel.id)
       zustand.aussageTripel = zustand.aussageTripel.filter((t) => !(t.subjektTyp === 'name' && t.subjektId === ziel.id))
+      return
+    }
+
+    case 'nameWeitereFormAnlegen': {
+      const vorhandene = zielAusListe(zustand.namen, aktion.nameZielRoh)
+      if (vorhandene === undefined) {
+        return
+      }
+      const { id } = fuehreAus(db, 'name.anlegen', {
+        personId: vorhandene.personId,
+        typ: aktion.typ,
+        nachname: aktion.nachname,
+        vornamen: aktion.vornamen,
+      })
+      zustand.namen.push({ id, personId: vorhandene.personId })
+      return
+    }
+
+    case 'hauptnameWechseln': {
+      const neu = zielAusListe(zustand.namen, aktion.nameZielRoh)
+      if (neu === undefined) {
+        return
+      }
+      const alt = db
+        .prepare<{ readonly personId: string }, { readonly id: string }>(
+          'SELECT id FROM name_form WHERE person_id = @personId AND ist_bevorzugt = 1',
+        )
+        .get({ personId: neu.personId })
+      if (alt === undefined || alt.id === neu.id) {
+        return
+      }
+      fuehreAus(db, 'hauptname.wechseln', { personId: neu.personId, alt: alt.id, neu: neu.id })
       return
     }
 
