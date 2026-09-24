@@ -306,6 +306,31 @@ describe('name.loeschen (AP-1.12)', () => {
       db.close()
     }
   })
+  // AP-1.33 PR-B-Folgepunkt (hueter E3): `loeschenMitNachruecken` (name-form-repo.ts) rückt beim
+  // Löschen der bevorzugten Form DETERMINISTISCH die verbliebene Form mit der niedrigsten `id` nach.
+  // Die Invariante „genau ein Hauptname" zählt nur und `undo-bitgleich` ist symmetrisch — eine
+  // Mutation auf „höchste id" überlebte beide. Mit drei Formen bleiben zwei Kandidaten übrig.
+  it('Löschen der bevorzugten Form rückt die verbliebene Form mit der niedrigsten id nach', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id: hauptform } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
+      const { id: formB } = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', nachname: 'Schmidt' })
+      const { id: formC } = fuehreAus(db, 'name.anlegen', { personId, typ: 'vulgo', nachname: 'Schulz' })
+      expect(nameLesen(db, hauptform)?.ist_bevorzugt).toBe(1)
+      const [niedrigste, hoechste] = [formB, formC].sort()
+      if (niedrigste === undefined || hoechste === undefined) {
+        throw new Error('unerreichbar: zwei Formen angelegt.')
+      }
+
+      fuehreAus(db, 'name.loeschen', { id: hauptform })
+
+      expect(nameLesen(db, niedrigste)?.ist_bevorzugt).toBe(1)
+      expect(nameLesen(db, hoechste)?.ist_bevorzugt).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('hauptname.wechseln (AP-1.33)', () => {
