@@ -95,6 +95,9 @@ export type Zweig =
   | 'ablehnung.ankerAusserhalb'
   | 'ablehnung.ankerOhneTranskript'
   | 'ablehnung.ankerErsatzpaar'
+  /** Welche Grenze das Ersatzpaar teilt (hueter PR #119, H5). */
+  | 'ablehnung.ankerErsatzpaarVon'
+  | 'ablehnung.ankerErsatzpaarBis'
   | 'ablehnung.feldNichtExistenz'
   | 'ablehnung.feldFalscherTyp'
 
@@ -127,6 +130,8 @@ export const BELEG_PFLICHTZWEIGE: readonly Zweig[] = [
   'ablehnung.ankerAusserhalb',
   'ablehnung.ankerOhneTranskript',
   'ablehnung.ankerErsatzpaar',
+  'ablehnung.ankerErsatzpaarVon',
+  'ablehnung.ankerErsatzpaarBis',
   'ablehnung.feldNichtExistenz',
   'ablehnung.feldFalscherTyp',
   'zitat.entwertet',
@@ -951,7 +956,7 @@ function rundum<T>(liste: readonly T[], roh: number): readonly T[] {
 
 /** Ein für `fehler` ungültiger, aber schema-konformer Anker gegen `transkript` — oder `undefined`,
  * wenn dieses Transkript den Fehler nicht hergibt. */
-function ungueltigerAnker(fehler: AblehnungFehler, transkript: string | null): Textanker | undefined {
+function ungueltigerAnker(fehler: AblehnungFehler, transkript: string | null, seiteRoh: number): Textanker | undefined {
   switch (fehler) {
     case 'ankerAusserhalb':
       return transkript === null ? undefined : { von: transkript.length, bis: transkript.length + 1 }
@@ -961,9 +966,12 @@ function ungueltigerAnker(fehler: AblehnungFehler, transkript: string | null): T
       if (transkript === null) {
         return undefined
       }
+      // `seiteRoh` gerade: `von` teilt das Paar, sonst `bis` (hueter PR #119, H5 — beide Grenzen der
+      // F4-Prüfung werden herausgefordert). `{ i - 1, i }` ist gültig bis auf `bis`: an `i - 1` steht
+      // das High-Surrogate, dort beginnt das Paar, `von` teilt also nichts.
       for (let i = 1; i < transkript.length; i += 1) {
         if (teiltPaar(transkript, i)) {
-          return { von: i, bis: i + 1 }
+          return ersatzpaarSeite(seiteRoh) === 'Von' ? { von: i, bis: i + 1 } : { von: i - 1, bis: i }
         }
       }
       return undefined
@@ -992,6 +1000,10 @@ function ungueltigesFeld(fehler: AblehnungFehler, kopf: AussageKopfZeile, roh: n
   return undefined
 }
 
+function ersatzpaarSeite(seiteRoh: number): 'Von' | 'Bis' {
+  return seiteRoh % 2 === 0 ? 'Von' : 'Bis'
+}
+
 function istAnkerFehler(fehler: AblehnungFehler): boolean {
   return fehler === 'ankerAusserhalb' || fehler === 'ankerOhneTranskript' || fehler === 'ankerErsatzpaar'
 }
@@ -1005,7 +1017,7 @@ function ablehnungAnlegenFinden(db: Tx, zustand: BelegZustand, aktion: AktionBel
     zustand.aussageZitatVerknuepfungen.some((v) => v.aussageId === aussageId && v.zitatId === zitatId)
   if (istAnkerFehler(aktion.fehler)) {
     for (const zitatId of rundum(zustand.zitatIds, aktion.zweitRoh)) {
-      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, zitatId).transkript)
+      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, zitatId).transkript, aktion.zweitRoh)
       const aussage = anker === undefined ? undefined : rundum(zustand.aussagen, aktion.zielRoh).find((a) => !verknuepft(a.id, zitatId))
       if (anker !== undefined && aussage !== undefined) {
         return { befehl: 'anlegen', ein: { aussageId: aussage.id, zitatId, textanker: anker } }
@@ -1028,7 +1040,7 @@ function ablehnungAendernFinden(db: Tx, zustand: BelegZustand, aktion: AktionBel
     const zeile = verknuepfungLesen(db, v)
     const altFeld = BelegFeldEnum.nullable().parse(zeile.feld)
     if (istAnkerFehler(aktion.fehler)) {
-      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, v.zitatId).transkript)
+      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, v.zitatId).transkript, aktion.zweitRoh)
       if (anker !== undefined) {
         return { befehl: 'aendern', ein: { aussageId: v.aussageId, zitatId: v.zitatId, feld: altFeld, textanker: anker } }
       }
@@ -1069,4 +1081,7 @@ export function belegAblehnenAusfuehren(db: Tx, zustand: BelegZustand, aktion: A
   }
   const art = istAnkerFehler(aktion.fehler) ? 'anker' : 'feld'
   zweige.push(`ablehnung.${art}.${aktion.befehl}`, `ablehnung.${aktion.fehler}`)
+  if (aktion.fehler === 'ankerErsatzpaar') {
+    zweige.push(`ablehnung.ankerErsatzpaar${ersatzpaarSeite(aktion.zweitRoh)}`)
+  }
 }
