@@ -240,8 +240,11 @@ import {
   aussageZitatAnlegenAusfuehren,
   befehl,
   transkriptArbitrary,
+  zitatAendernAktionArbitrary,
+  zitatAendernAusfuehren,
   type AktionAussageZitatAendern,
   type AktionAussageZitatAnlegen,
+  type AktionZitatAendern,
   type BelegAenderungInfo,
   type Zweig,
 } from './_befehlsfolge-beleg'
@@ -644,14 +647,8 @@ export interface AktionZitatAnlegen {
   readonly konfidenz: number
 }
 
-export interface AktionZitatAendern {
-  readonly art: 'zitatAendern'
-  readonly zitatZielRoh: number
-  readonly quelleZielRoh: number
-  readonly seite: string
-  readonly transkript: string
-  readonly konfidenz: number
-}
+// `AktionZitatAendern` (AP-1.17 PR-B, mit Textanker-Wirkung erweitert AP-1.34 PR-B2) steht in
+// `_befehlsfolge-beleg.ts`.
 
 export interface AktionZitatLoeschen {
   readonly art: 'zitatLoeschen'
@@ -1130,18 +1127,6 @@ function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
-}
-
-function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
-  return fc
-    .record({
-      zitatZielRoh: fc.nat(),
-      quelleZielRoh: fc.nat(),
-      seite: fc.string(),
-      transkript: transkriptArbitrary(),
-      konfidenz: fc.integer({ min: 1, max: 4 }),
-    })
-    .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
 }
 
 function zitatLoeschenAktionArbitrary(): fc.Arbitrary<AktionZitatLoeschen> {
@@ -2327,21 +2312,9 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
     }
 
     case 'zitatAendern': {
-      const zitatId = zielAusListe(zustand.zitatIds, aktion.zitatZielRoh)
-      if (zitatId === undefined) {
-        return
-      }
-      const quelleId = zielAusListe(zustand.quelleIds, aktion.quelleZielRoh)
-      if (quelleId === undefined) {
-        return
-      }
-      befehl(zweige, db, 'zitat.aendern', {
-        id: zitatId,
-        quelleId,
-        seite: aktion.seite,
-        transkript: aktion.transkript,
-        konfidenz: aktion.konfidenz,
-      })
+      // AP-1.34 PR-B2: Transkript aus dem alten abgeleitet (Anker bleibt/entwertet), s.
+      // `_befehlsfolge-beleg.ts`.
+      zitatAendernAusfuehren(db, zustand, aktion, zweige)
       return
     }
 

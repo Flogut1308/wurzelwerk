@@ -25,6 +25,13 @@ import { AussageSubjektTypEnum } from '../../src/shared/schemata/gemeinsam'
 /** Die Bausteine der Transkripte (s. Modul-Kommentar). */
 const TRANSKRIPT_BAUSTEINE: readonly string[] = ['a', 'Z', ' ', "'", 'ä', 'ß', 'Ё', 'ł', 'é', '👶', '👨‍👩‍👧']
 
+/** Ein nichtleeres Stück aus 1 bis 3 Bausteinen — Einschub für `zitat.aendern` (`im`/`vor`). */
+function bausteinArbitrary(): fc.Arbitrary<string> {
+  return fc
+    .array(fc.constantFrom(...TRANSKRIPT_BAUSTEINE), { minLength: 1, maxLength: 3 })
+    .map((teile) => teile.join(''))
+}
+
 /** Ein Transkript aus 0 bis 12 Bausteinen (auch leer). */
 export function transkriptArbitrary(): fc.Arbitrary<string> {
   return fc
@@ -64,6 +71,19 @@ export type Zweig =
   | 'beleg.aendern.noop'
   | 'beleg.aendern.feldGesetzt'
   | 'beleg.aendern.feldEntfernt'
+  /** `zitat.aendern` nach Datenbankergebnis am Bezugsanker (s. `AktionZitatAendern`): gleiches
+   * Transkript → Anker bleibt; nur hinter dem Ausschnitt geändert → bleibt; im Ausschnitt, davor,
+   * gekürzt oder weggelassen → entwertet. */
+  | 'zitat.gleich.bleibt'
+  | 'zitat.hinter.bleibt'
+  | 'zitat.im.entwertet'
+  | 'zitat.vor.entwertet'
+  | 'zitat.kuerzen.entwertet'
+  | 'zitat.weglassen.entwertet'
+  /** Eine Transkriptänderung, bei der ein Anker desselben Zitats bleibt und ein anderer entwertet wird. */
+  | 'zitat.gemischt'
+  /** Irgendein Anker wurde entwertet (für „Undo einer Entwertung" in den Tests). */
+  | 'zitat.entwertet'
 
 /** Pflichtzweige, die über `{ seed, numRuns }` beider Invarianten-Tests nie 0 sein dürfen. */
 export const PFLICHTZWEIGE: readonly Zweig[] = [
@@ -90,6 +110,13 @@ export const PFLICHTZWEIGE: readonly Zweig[] = [
   'beleg.aendern.noop',
   'beleg.aendern.feldGesetzt',
   'beleg.aendern.feldEntfernt',
+  'zitat.gleich.bleibt',
+  'zitat.hinter.bleibt',
+  'zitat.im.entwertet',
+  'zitat.vor.entwertet',
+  'zitat.kuerzen.entwertet',
+  'zitat.weglassen.entwertet',
+  'zitat.gemischt',
 ]
 
 /** Führt einen Befehl über den echten Bus aus und vermerkt `befehl:<name>` in `zweige`. */
@@ -129,6 +156,7 @@ export interface BelegAenderungInfo {
 export interface BelegZustand {
   readonly aussagen: readonly BelegAussageInfo[]
   readonly zitatIds: readonly string[]
+  readonly quelleIds: readonly string[]
   aussageZitatVerknuepfungen: BelegVerknuepfungInfo[]
   belegAenderung: BelegAenderungInfo | undefined
 }
@@ -457,5 +485,189 @@ export function aussageZitatAendernAusfuehren(db: Tx, zustand: BelegZustand, akt
     zweige.push('beleg.aendern.feldGesetzt')
   } else if (neuesFeld === null && altFeld !== null) {
     zweige.push('beleg.aendern.feldEntfernt')
+  }
+}
+
+// -----------------------------------------------------------------------------------------------
+// zitat.aendern mit Wirkung auf Textanker (E4, §31 U-1.34-E4)
+// -----------------------------------------------------------------------------------------------
+
+type ZitatModus = 'frei' | 'gleich' | 'hinter' | 'im' | 'vor' | 'kuerzen' | 'weglassen'
+
+/**
+ * AP-1.17 PR-B, erweitert AP-1.34 PR-B2: `zitat.aendern`. Das Zitat wird zu ~80 % (`bezugWahlRoh`)
+ * über eine Verknüpfung MIT Anker gewählt — dieser Anker ist der Bezug; sonst frei aus
+ * `zustand.zitatIds` (Bezug = erster Anker dieses Zitats, falls es einen gibt). Das neue Transkript
+ * leitet `modus` aus dem alten ab:
+ * - `frei`: `transkript` (unabhängig vom alten),
+ * - `gleich`: gleiches Transkript, andere `seite` (Anker bleiben unberührt),
+ * - `hinter`: `alt.slice(0, bis)` + anderes Suffix (Anker bleibt),
+ * - `im`: der Ausschnitt [von, bis) durch einen anderen Baustein ersetzt (entwertet),
+ * - `vor`: ein Baustein vor `von` eingefügt (entwertet — E4 verschiebt nicht, R1),
+ * - `kuerzen`: auf eine Länge < `bis` gekürzt (entwertet),
+ * - `weglassen`: Schlüssel `transkript` fehlt → NULL (entwertet alle Anker).
+ * Ohne Bezug oder ohne altes Transkript fallen `hinter`/`im`/`vor`/`kuerzen` auf `transkript` zurück.
+ * Gezählt wird das tatsächliche Datenbankergebnis, nicht der Modus.
+ */
+export interface AktionZitatAendern {
+  readonly art: 'zitatAendern'
+  readonly modus: ZitatModus
+  readonly bezugWahlRoh: number
+  readonly bezugZielRoh: number
+  readonly zitatZielRoh: number
+  readonly quelleZielRoh: number
+  readonly seite: string
+  readonly transkript: string
+  readonly baustein: string
+  readonly kuerzRoh: number
+  readonly konfidenz: number
+}
+
+export function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
+  return fc
+    .record({
+      modus: fc.constantFrom<ZitatModus>('frei', 'gleich', 'hinter', 'im', 'vor', 'kuerzen', 'weglassen'),
+      bezugWahlRoh: fc.nat(),
+      bezugZielRoh: fc.nat(),
+      zitatZielRoh: fc.nat(),
+      quelleZielRoh: fc.nat(),
+      seite: fc.string(),
+      transkript: transkriptArbitrary(),
+      baustein: bausteinArbitrary(),
+      kuerzRoh: fc.nat(),
+      konfidenz: fc.integer({ min: 1, max: 4 }),
+    })
+    .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
+}
+
+interface VerknuepfungMitAnker {
+  readonly verknuepfung: BelegVerknuepfungInfo
+  readonly anker: Textanker
+}
+
+/** Alle Verknüpfungen mit gesetztem Anker, in Einfügereihenfolge des Zustands (nie `ORDER BY id`). */
+function verknuepfungenMitAnker(db: Tx, verknuepfungen: readonly BelegVerknuepfungInfo[]): readonly VerknuepfungMitAnker[] {
+  const ergebnis: VerknuepfungMitAnker[] = []
+  for (const verknuepfung of verknuepfungen) {
+    const anker = ankerVon(verknuepfungLesen(db, verknuepfung))
+    if (anker !== null) {
+      ergebnis.push({ verknuepfung, anker })
+    }
+  }
+  return ergebnis
+}
+
+function transkriptAbleiten(aktion: AktionZitatAendern, alt: string | null, bezug: Textanker | undefined): string | undefined {
+  switch (aktion.modus) {
+    case 'frei':
+      return aktion.transkript
+    case 'gleich':
+      return alt ?? undefined
+    case 'weglassen':
+      return undefined
+    default:
+      break
+  }
+  if (alt === null || bezug === undefined) {
+    return aktion.transkript
+  }
+  const { von, bis } = bezug
+  switch (aktion.modus) {
+    case 'hinter': {
+      const rest = aktion.transkript === alt.slice(bis) ? `${aktion.transkript}ß` : aktion.transkript
+      return alt.slice(0, bis) + rest
+    }
+    case 'im': {
+      const einschub = aktion.baustein === alt.slice(von, bis) ? `${aktion.baustein}a` : aktion.baustein
+      return alt.slice(0, von) + einschub + alt.slice(bis)
+    }
+    case 'vor':
+      return alt.slice(0, von) + aktion.baustein + alt.slice(von)
+    case 'kuerzen': {
+      let laenge = aktion.kuerzRoh % bis
+      if (teiltPaar(alt, laenge)) {
+        laenge -= 1 // nie ein einsames Surrogat erzeugen (s. Modul-Kommentar)
+      }
+      return alt.slice(0, laenge)
+    }
+    default: {
+      const nieErreicht: never = aktion.modus
+      throw new Error(`transkriptAbleiten(): unbehandelter Modus ${JSON.stringify(nieErreicht)}`)
+    }
+  }
+}
+
+const ENTWERTET_ZWEIG: { readonly [M in ZitatModus]?: Zweig } = {
+  im: 'zitat.im.entwertet',
+  vor: 'zitat.vor.entwertet',
+  kuerzen: 'zitat.kuerzen.entwertet',
+  weglassen: 'zitat.weglassen.entwertet',
+}
+
+export function zitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionZitatAendern, zweige: Zweig[]): void {
+  const quelleId = ausListe(zustand.quelleIds, aktion.quelleZielRoh)
+  if (quelleId === undefined) {
+    return
+  }
+  const alleMitAnker = verknuepfungenMitAnker(db, zustand.aussageZitatVerknuepfungen)
+  let bezug: VerknuepfungMitAnker | undefined
+  let zitatId: string
+  const bezugGewaehlt = aktion.bezugWahlRoh % 100 < 80 ? ausListe(alleMitAnker, aktion.bezugZielRoh) : undefined
+  if (bezugGewaehlt === undefined) {
+    const frei = ausListe(zustand.zitatIds, aktion.zitatZielRoh)
+    if (frei === undefined) {
+      return
+    }
+    zitatId = frei
+    bezug = alleMitAnker.find((e) => e.verknuepfung.zitatId === frei)
+  } else {
+    bezug = bezugGewaehlt
+    zitatId = bezugGewaehlt.verknuepfung.zitatId
+  }
+
+  const alt = zitatLesen(db, zitatId)
+  const ankerVorher = alleMitAnker.filter((e) => e.verknuepfung.zitatId === zitatId)
+  const neu = transkriptAbleiten(aktion, alt.transkript, bezug?.anker)
+  const seite = aktion.modus === 'gleich' ? `${alt.seite ?? ''}g` : aktion.seite
+  befehl(zweige, db, 'zitat.aendern', {
+    id: zitatId,
+    quelleId,
+    seite,
+    konfidenz: aktion.konfidenz,
+    ...(neu === undefined ? {} : { transkript: neu }),
+  })
+
+  const geaendert = zitatLesen(db, zitatId).transkript !== alt.transkript
+  let bleibt = 0
+  let entwertet = 0
+  let bezugBleibt: boolean | undefined
+  for (const e of ankerVorher) {
+    const nachher = ankerVon(verknuepfungLesen(db, e.verknuepfung))
+    const dieserBleibt = nachher !== null && nachher.von === e.anker.von && nachher.bis === e.anker.bis
+    if (dieserBleibt) {
+      bleibt += 1
+    } else {
+      entwertet += 1
+    }
+    if (bezug !== undefined && e.verknuepfung === bezug.verknuepfung) {
+      bezugBleibt = dieserBleibt
+    }
+  }
+
+  if (bezugBleibt === true && aktion.modus === 'gleich' && !geaendert) {
+    zweige.push('zitat.gleich.bleibt')
+  }
+  if (bezugBleibt === true && aktion.modus === 'hinter' && geaendert) {
+    zweige.push('zitat.hinter.bleibt')
+  }
+  const entwertetZweig = ENTWERTET_ZWEIG[aktion.modus]
+  if (bezugBleibt === false && geaendert && entwertetZweig !== undefined) {
+    zweige.push(entwertetZweig)
+  }
+  if (geaendert && bleibt > 0 && entwertet > 0) {
+    zweige.push('zitat.gemischt')
+  }
+  if (entwertet > 0) {
+    zweige.push('zitat.entwertet')
   }
 }
