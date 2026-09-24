@@ -19,7 +19,7 @@ import type { BefehlAus, BefehlEin, BefehlName } from '../../src/main/befehle/re
 import type { Tx } from '../../src/main/repositories/basis'
 import { ankerPruefen } from '../../src/core/beleg/textanker'
 import type { Textanker } from '../../src/shared/schemata/befehle'
-import { BELEG_FELDER_JE_SUBJEKT, type BelegFeld } from '../../src/shared/schemata/aussage-zitat'
+import { BELEG_FELDER_JE_SUBJEKT, BelegFeldEnum, type BelegFeld } from '../../src/shared/schemata/aussage-zitat'
 import { AussageSubjektTypEnum } from '../../src/shared/schemata/gemeinsam'
 
 /** Die Bausteine der Transkripte (s. Modul-Kommentar). */
@@ -56,6 +56,14 @@ export type Zweig =
   | 'beleg.anlegen.grenzeNebenErsatzpaar'
   | 'beleg.anlegen.feld'
   | 'beleg.anlegen.ankerUndFeld'
+  /** `aussage_zitat.aendern` nach Datenbankergebnis: Anker neu (vorher keiner), ersetzt (vorher ein
+   * anderer), entfernt; No-op ohne neue Transaktion; feld gesetzt/geändert bzw. entfernt. */
+  | 'beleg.aendern.setzen'
+  | 'beleg.aendern.ersetzen'
+  | 'beleg.aendern.entfernen'
+  | 'beleg.aendern.noop'
+  | 'beleg.aendern.feldGesetzt'
+  | 'beleg.aendern.feldEntfernt'
 
 /** Pflichtzweige, die über `{ seed, numRuns }` beider Invarianten-Tests nie 0 sein dürfen. */
 export const PFLICHTZWEIGE: readonly Zweig[] = [
@@ -76,6 +84,12 @@ export const PFLICHTZWEIGE: readonly Zweig[] = [
   'beleg.anlegen.grenzeNebenErsatzpaar',
   'beleg.anlegen.feld',
   'beleg.anlegen.ankerUndFeld',
+  'beleg.aendern.setzen',
+  'beleg.aendern.ersetzen',
+  'beleg.aendern.entfernen',
+  'beleg.aendern.noop',
+  'beleg.aendern.feldGesetzt',
+  'beleg.aendern.feldEntfernt',
 ]
 
 /** Führt einen Befehl über den echten Bus aus und vermerkt `befehl:<name>` in `zweige`. */
@@ -160,6 +174,42 @@ function aussageKopfLesen(db: Tx, id: string): AussageKopfZeile {
     throw new Error(`aussageKopfLesen(): Aussage ${id} fehlt, obwohl sie im Generatorzustand steht.`)
   }
   return zeile
+}
+
+export interface VerknuepfungZeile {
+  readonly feld: string | null
+  readonly textanker_von: number | null
+  readonly textanker_bis: number | null
+}
+
+function verknuepfungLesen(db: Tx, v: BelegVerknuepfungInfo): VerknuepfungZeile {
+  const zeile = db
+    .prepare<BelegVerknuepfungInfo, VerknuepfungZeile>(
+      'SELECT feld, textanker_von, textanker_bis FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId',
+    )
+    .get({ aussageId: v.aussageId, zitatId: v.zitatId })
+  if (zeile === undefined) {
+    throw new Error(`verknuepfungLesen(): Verknüpfung ${v.aussageId}/${v.zitatId} fehlt, obwohl sie im Generatorzustand steht.`)
+  }
+  return zeile
+}
+
+/** Fingerabdruck des Journals (Anzahl + höchste `lfd` der `transaktion`-Zeilen): gleich vorher und
+ * nachher heißt „keine neue Transaktion" (No-op oder abgelehnter Befehl). */
+function txFingerabdruck(db: Tx): string {
+  const zeile = db
+    .prepare<[], { readonly anzahl: number; readonly hoechste: number | null }>(
+      'SELECT COUNT(*) AS anzahl, MAX(lfd) AS hoechste FROM transaktion',
+    )
+    .get()
+  if (zeile === undefined) {
+    throw new Error('txFingerabdruck(): COUNT liefert immer eine Zeile — unerreichbar.')
+  }
+  return `${zeile.anzahl}:${zeile.hoechste ?? 'leer'}`
+}
+
+function ankerVon(zeile: VerknuepfungZeile): Textanker | null {
+  return zeile.textanker_von === null || zeile.textanker_bis === null ? null : { von: zeile.textanker_von, bis: zeile.textanker_bis }
 }
 
 function istHoch(einheit: number): boolean {
@@ -319,5 +369,93 @@ export function aussageZitatAnlegenAusfuehren(db: Tx, zustand: BelegZustand, akt
   }
   if (feld !== undefined) {
     zweige.push(anker === undefined ? 'beleg.anlegen.feld' : 'beleg.anlegen.ankerUndFeld')
+  }
+}
+
+// -----------------------------------------------------------------------------------------------
+// aussage_zitat.aendern (AP-1.34 PR-C1b, §31 U-1.34-F2)
+// -----------------------------------------------------------------------------------------------
+
+/**
+ * `aussage_zitat.aendern` auf eine BESTEHENDE Verknüpfung (`zustand.aussageZitatVerknuepfungen`,
+ * leer → No-op). `ankerModus`: `neu` berechnet einen gültigen Anker aus `ankerRoh` (ob das
+ * „setzen" oder „ersetzen" ist, entscheidet der Vorzustand — gezählt wird das Datenbankergebnis;
+ * leeres/NULL-Transkript → kein Anker), `entfernen` schickt `null`, `noop` schickt Anker UND
+ * feld unverändert aus der Datenbank zurück — dann darf KEINE Transaktion entstehen, sonst wirft der
+ * Generator (der No-op-Zweig des Handlers, AP-0.22). `feldModus` (außer bei `noop`): `behalten`,
+ * `setzen` (nur an einer Existenz-Aussage möglich, sonst wie `behalten`), `entfernen`.
+ */
+export interface AktionAussageZitatAendern {
+  readonly art: 'aussageZitatAendern'
+  readonly verknuepfungZielRoh: number
+  readonly ankerModus: 'neu' | 'entfernen' | 'noop'
+  readonly ankerRoh: AnkerRoh
+  readonly feldModus: 'behalten' | 'setzen' | 'entfernen'
+  readonly feldRoh: number
+}
+
+export function aussageZitatAendernAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAendern> {
+  return fc
+    .record({
+      verknuepfungZielRoh: fc.nat(),
+      ankerModus: fc.constantFrom<AktionAussageZitatAendern['ankerModus']>('neu', 'neu', 'entfernen', 'noop'),
+      ankerRoh: ankerRohArbitrary(),
+      feldModus: fc.constantFrom<AktionAussageZitatAendern['feldModus']>('behalten', 'setzen', 'setzen', 'entfernen'),
+      feldRoh: fc.nat(),
+    })
+    .map((r): AktionAussageZitatAendern => ({ art: 'aussageZitatAendern', ...r }))
+}
+
+export function aussageZitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionAussageZitatAendern, zweige: Zweig[]): void {
+  const ziel = ausListe(zustand.aussageZitatVerknuepfungen, aktion.verknuepfungZielRoh)
+  if (ziel === undefined) {
+    return
+  }
+  const vorher = verknuepfungLesen(db, ziel)
+  const altFeld = BelegFeldEnum.nullable().parse(vorher.feld)
+  const altAnker = ankerVon(vorher)
+
+  let feld: BelegFeld | null
+  let anker: Textanker | null
+  if (aktion.ankerModus === 'noop') {
+    feld = altFeld
+    anker = altAnker
+  } else {
+    anker = aktion.ankerModus === 'entfernen' ? null : (ankerAusRoh(zitatLesen(db, ziel.zitatId).transkript, aktion.ankerRoh) ?? null)
+    if (aktion.feldModus === 'entfernen') {
+      feld = null
+    } else if (aktion.feldModus === 'setzen') {
+      feld = feldAusRoh(aussageKopfLesen(db, ziel.aussageId), aktion.feldRoh) ?? altFeld
+    } else {
+      feld = altFeld
+    }
+  }
+
+  const txVorher = txFingerabdruck(db)
+  befehl(zweige, db, 'aussage_zitat.aendern', { aussageId: ziel.aussageId, zitatId: ziel.zitatId, feld, textanker: anker })
+  zustand.belegAenderung = { aussageId: ziel.aussageId, zitatId: ziel.zitatId, feld, von: anker?.von ?? null, bis: anker?.bis ?? null }
+  const neueTransaktion = txFingerabdruck(db) !== txVorher
+
+  if (aktion.ankerModus === 'noop') {
+    if (neueTransaktion) {
+      throw new Error('aussage_zitat.aendern mit unveränderten Werten hat eine Transaktion erzeugt (No-op-Zweig, AP-0.22).')
+    }
+    zweige.push('beleg.aendern.noop')
+    return
+  }
+
+  const nachher = ankerVon(verknuepfungLesen(db, ziel))
+  if (altAnker === null && nachher !== null) {
+    zweige.push('beleg.aendern.setzen')
+  } else if (altAnker !== null && nachher !== null && (altAnker.von !== nachher.von || altAnker.bis !== nachher.bis)) {
+    zweige.push('beleg.aendern.ersetzen')
+  } else if (altAnker !== null && nachher === null) {
+    zweige.push('beleg.aendern.entfernen')
+  }
+  const neuesFeld = verknuepfungLesen(db, ziel).feld
+  if (neuesFeld !== null && neuesFeld !== altFeld) {
+    zweige.push('beleg.aendern.feldGesetzt')
+  } else if (neuesFeld === null && altFeld !== null) {
+    zweige.push('beleg.aendern.feldEntfernt')
   }
 }

@@ -234,10 +234,13 @@ import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
 import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
 import {
+  aussageZitatAendernAktionArbitrary,
+  aussageZitatAendernAusfuehren,
   aussageZitatAnlegenAktionArbitrary,
   aussageZitatAnlegenAusfuehren,
   befehl,
   transkriptArbitrary,
+  type AktionAussageZitatAendern,
   type AktionAussageZitatAnlegen,
   type BelegAenderungInfo,
   type Zweig,
@@ -707,6 +710,7 @@ export type Aktion =
   | AktionAussageFaktAendern
   | AktionAussageAendern
   | AktionAussageZitatAnlegen
+  | AktionAussageZitatAendern
   | AktionAussageZitatLoeschen
   | AktionOrtAnlegen
   | AktionOrtAendern
@@ -1226,6 +1230,7 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
     { weight: 2, arbitrary: aussageAendernAktionArbitrary() },
     { weight: 2, arbitrary: aussageZitatAnlegenAktionArbitrary() },
+    { weight: 2, arbitrary: aussageZitatAendernAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
@@ -2049,6 +2054,12 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
     case 'aussageZitatAnlegen': {
       // AP-1.34 PR-B2: mit Textanker und feld, s. `_befehlsfolge-beleg.ts`.
       aussageZitatAnlegenAusfuehren(db, zustand, aktion, zweige)
+      return
+    }
+
+    case 'aussageZitatAendern': {
+      // AP-1.34 PR-B2: s. `_befehlsfolge-beleg.ts`.
+      aussageZitatAendernAusfuehren(db, zustand, aktion, zweige)
       return
     }
 
