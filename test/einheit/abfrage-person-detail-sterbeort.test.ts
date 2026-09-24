@@ -17,6 +17,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
+import { praedikatSchluessel } from '../../src/renderer/ansichten/profil/profil-schluessel'
 
 type Db = ReturnType<typeof oeffnen>
 
@@ -109,5 +110,9 @@ describe('person.detail — Sterbeort (AP-1.34, E5)', () => {
     } finally {
       db.close()
     }
+  })
+
+  it('D4: das Prädikat todesort hat einen i18n-Schlüssel (Existenz in profil.json prüft i18n-vollstaendig)', () => {
+    expect(praedikatSchluessel('todesort')).toBe('praedikat_todesort')
   })
 })

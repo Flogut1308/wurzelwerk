@@ -194,6 +194,7 @@ export const PRAEDIKAT_SCHLUESSEL: Readonly<Record<string, string>> = {
   geburtsdatum: 'praedikat_geburtsdatum',
   geburtsort: 'praedikat_geburtsort',
   todesdatum: 'praedikat_todesdatum',
+  todesort: 'praedikat_todesort',
   todesursache: 'praedikat_todesursache',
   alter_bei_tod: 'praedikat_alter_bei_tod',
   beruf: 'praedikat_beruf',
