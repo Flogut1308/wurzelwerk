@@ -309,14 +309,17 @@ describe('name.loeschen (AP-1.12)', () => {
   // AP-1.33 PR-B-Folgepunkt (hueter E3): `loeschenMitNachruecken` (name-form-repo.ts) rückt beim
   // Löschen der bevorzugten Form DETERMINISTISCH die verbliebene Form mit der niedrigsten `id` nach.
   // Die Invariante „genau ein Hauptname" zählt nur und `undo-bitgleich` ist symmetrisch — eine
-  // Mutation auf „höchste id" überlebte beide. Mit drei Formen bleiben zwei Kandidaten übrig.
+  // Mutation auf „höchste id" überlebte beide. Mit drei Formen bleiben zwei Kandidaten übrig; `typ`
+  // und `nachname` laufen bewusst GEGEN die id-Reihenfolge (die früher angelegte Form hat die
+  // kleinere UUIDv7, aber den alphabetisch späteren `typ`/`nachname`), damit auch ein Nachrücken nach
+  // Rolle oder Nachname rot wird (hueter #110, H1).
   it('Löschen der bevorzugten Form rückt die verbliebene Form mit der niedrigsten id nach', () => {
     const db = neueTestDatenbank()
     try {
       const personId = neuePerson(db)
       const { id: hauptform } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Müller' })
-      const { id: formB } = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', nachname: 'Schmidt' })
-      const { id: formC } = fuehreAus(db, 'name.anlegen', { personId, typ: 'vulgo', nachname: 'Schulz' })
+      const { id: formB } = fuehreAus(db, 'name.anlegen', { personId, typ: 'vulgo', nachname: 'Zander' })
+      const { id: formC } = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', nachname: 'Adler' })
       expect(nameLesen(db, hauptform)?.ist_bevorzugt).toBe(1)
       const [niedrigste, hoechste] = [formB, formC].sort()
       if (niedrigste === undefined || hoechste === undefined) {

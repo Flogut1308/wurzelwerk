@@ -108,8 +108,12 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
   // Bestandteile kommen in zufälliger Reihenfolge an (die DB liefert keine garantierte). `vatersname`
   // ist bewusst NICHT im Generator: `rekonstruiereFlach` übergeht ihn derzeit ganz — ob das so
   // gewollt ist, ist offen (docs/80 §30, U-1.33-vatersname-anzeige), und ein Test soll es nicht
-  // stillschweigend als richtig festschreiben.
-  it('der Text der gewählten Form folgt „Titel Vornamen Präfix Nachname Zusatz", sonst original_text', () => {
+  // stillschweigend als richtig festschreiben. Grenzen dieser Property (hueter #110, H3): nur
+  // nicht-leere Wörter ohne Leerzeichen, höchstens EIN Titel/Präfix/Nachname/Zusatz — das Verwerfen
+  // weiterer Titel/Präfixe/Zusätze (`ersterWert`), das Verketten mehrerer Nachnamen (`verkette`) und
+  // der Filter auf reine Leerzeichen-Segmente bleiben hier ungeprüft. Der Rückfall ohne Bestandteile
+  // hat einen eigenen Fall unten (sonst erreicht ihn der Generator praktisch nie, hueter #110, A1).
+  it('der Text der gewählten Form folgt „Titel Vornamen Präfix Nachname Zusatz"', () => {
     const wort = fc.stringMatching(/^[A-Za-zÄÖÜäöüß]{1,6}$/)
     const bestandteile = fc.record({
       titel: fc.option(wort, { nil: null }),
@@ -147,6 +151,24 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
         },
       ),
       { seed: 20260924, numRuns: 1000 },
+    )
+  })
+
+  it('ohne Bestandteile ist der Text original_text, ohne original_text der leere Text', () => {
+    fc.assert(
+      fc.property(fc.option(fc.string({ maxLength: 12 }), { nil: null }), (originalText) => {
+        const form: AnzeigeForm = {
+          formId: 'form-00',
+          sprache: null,
+          schrift: null,
+          istBevorzugt: true,
+          umschriftVon: null,
+          originalText,
+          teile: [],
+        }
+        expect(anzeigenameFuer([form])?.text).toBe(originalText ?? '')
+      }),
+      { seed: 20260924, numRuns: 200 },
     )
   })
 
