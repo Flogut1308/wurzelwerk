@@ -209,8 +209,8 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
 
 - `feld TEXT` — NULL = der Beleg gilt für die ganze Aussage; sonst das belegte **Attribut des
   Subjekts** der Aussage. Bewusst **ohne** DB-CHECK, die Wertliste ist ein Zod-Enum im Code (E3,
-  `src/shared/schemata/aussage-zitat.ts`, AP-1.34 PR-C1b, §31 U-1.34-F1 — *Vorschlag, im PR zu
-  bestätigen*). Je `aussage.subjekt_typ` eine eigene Liste; eine Datumsspaltengruppe (§2.3) ist
+  `src/shared/schemata/aussage-zitat.ts`, AP-1.34 PR-C1b, §31 U-1.34-F1 — *bestätigt (Nutzer
+  24.09.2026)*). Je `aussage.subjekt_typ` eine eigene Liste; eine Datumsspaltengruppe (§2.3) ist
   **ein** Feld:
 
   | `subjekt_typ` | erlaubte `feld`-Werte |
@@ -223,7 +223,9 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
   | `name` | `vornamen`, `rufname`, `nachname`, `praefix`, `titel_vor`, `zusatz_nach` |
   | `diagnose`, `risikofaktor` | keine — nur NULL (M-08) |
 
-  `aussage_zitat.anlegen`/`.aendern` prüfen die Passung zum `subjekt_typ` (sonst
+  `aussage_zitat.anlegen`/`.aendern` prüfen die Passung zum `subjekt_typ` und lassen `feld` ≠ NULL
+  **nur an einer Existenz-Aussage** zu (`praedikat='existenz'`, ADR-026; Nutzer 24.09.2026) — an
+  jeder anderen Aussage ist die Aussage selbst schon das belegte Attribut (sonst
   `VALIDIERUNG_WERTEBEREICH`). Beim Lesen wird ein unbekannter Wert toleriert und unverändert als
   Text durchgereicht (`person.detail`), nicht auf NULL abgebildet.
 - `textanker_von`, `textanker_bis INTEGER` — der Ausschnitt des Zitat-Transkripts, auf den sich der

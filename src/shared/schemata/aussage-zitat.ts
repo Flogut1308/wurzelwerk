@@ -6,7 +6,8 @@
 // Aussage, je `aussage.subjekt_typ` eine eigene Liste; NULL = der Beleg gilt für die ganze Aussage.
 // Kein DB-CHECK (E3) — neue Werte kommen ohne Migration. Der Schreibweg (`aussage_zitat.anlegen`/
 // `.aendern`) prüft gegen `BelegFeldEnum` (Zod) UND die Passung zum Subjekttyp (`belegFeldPasst`).
-// Die Liste ist ein Vorschlag, den der Eigentümer im PR bestätigt (Begründung je Typ: §31 F1).
+// Die Liste ist bestätigt (Nutzer 24.09.2026, Begründung je Typ: §31 F1). `feld` ≠ NULL nur an einer
+// Existenz-Aussage — das prüft der Handler (`belegFeldPruefen`, §31 U-1.34-C1b-feld-praedikat).
 import { z } from 'zod'
 import type { AussageSubjektTypEnum } from './gemeinsam'
 

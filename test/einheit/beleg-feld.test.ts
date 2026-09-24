@@ -15,7 +15,7 @@ describe('Wertliste aussage_zitat.feld (AP-1.34 PR-C1b, F1)', () => {
     expect(Object.keys(BELEG_FELDER_JE_SUBJEKT).sort()).toEqual([...AussageSubjektTypEnum.options].sort())
   })
 
-  it('F1b die Vorschlagsliste je Subjekttyp (im PR zu bestätigen)', () => {
+  it('F1b die bestätigte Liste je Subjekttyp (Nutzer 24.09.2026)', () => {
     expect(BELEG_FELDER_JE_SUBJEKT).toEqual({
       person: ['geschlecht', 'lebend_status'],
       ereignis: ['datum', 'ort', 'beschreibung'],
