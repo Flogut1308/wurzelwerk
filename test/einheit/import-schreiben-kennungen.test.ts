@@ -17,6 +17,7 @@ import { importTrockenlaufDurchfuehren } from '../../src/main/befehle/import-tro
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { SCHEMA_VERSION } from '../../src/main/datenbank/migration/registrierung'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { undo } from '../../src/main/journal/undo'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { schreibeImport } from '../../src/main/import/schreiben'
@@ -447,6 +448,49 @@ describe('Import-Rücknahme mit Schnappschuss vor 0007 (AP-1.34 A2c, H6)', () =>
     const dbNach = oeffnen(dbPfad)
     try {
       expect(personenAnzahl(dbNach)).toBe(803)
+      expect(zaehlerstand(dbNach)).toBe(804)
+    } finally {
+      dbNach.close()
+    }
+  }, 90_000)
+
+  it('H6-F2 (hueter-H3): scheitert die Übernahme an einer Kennungskollision, wird der Fremdfehler zu INTERN_UNERWARTET und die Rücknahme zurückgerollt', () => {
+    const db = oeffnen(dbPfad)
+    const { kleineIds, snapshotPfad } = kleinUndGrossImportieren(db)
+    const [erste] = kleineIds
+    if (erste === undefined) {
+      throw new Error('kleinUndGrossImportieren() lieferte keine ID.')
+    }
+    // Erzwungene Kollision wie H6b-F (wiederherstellen.test.ts): eine kleine Person trägt in der
+    // ersetzten Datei den Zählerstand (804) als Kennung — X (ohne Treffer, sortiert zuerst) bekommt
+    // ebenfalls 804 -> UNIQUE idx_person_kennung, ein SqliteError und kein WurzelFehler.
+    journalAus(db, 'Testvorbereitung (AP-1.34, A2c): Kennungskollision in der ersetzten Datei erzwingen.')
+    db.prepare('UPDATE person SET kennung = @kennung WHERE id = @id').run({ id: erste, kennung: 804 })
+    journalAn(db)
+    const kennungenVorher = kennungenNachId(db)
+    durchV6Ersetzen(snapshotPfad, [X_ID, ...kleineIds])
+
+    let gefangen: unknown
+    try {
+      undo(db)
+    } catch (u) {
+      gefangen = u
+    }
+    expect(gefangen).toBeInstanceOf(WurzelFehler)
+    if (gefangen instanceof WurzelFehler) {
+      expect(gefangen.code).toBe('INTERN_UNERWARTET')
+      // Gescheitert ist genau die Übernahme (nicht Kopie oder Öffnen).
+      expect(gefangen.message).toMatch(/UNIQUE constraint failed: person\.kennung/)
+    }
+
+    // Zurückgerollt: der Stand NACH dem Großimport liegt wieder unter dbPfad, keine ersetzt-Datei.
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(readdirSync(dirname(snapshotPfad)).filter((name) => name.startsWith('ersetzt-'))).toHaveLength(0)
+    const dbNach = oeffnen(dbPfad)
+    try {
+      expect(dbNach.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      expect(personenAnzahl(dbNach)).toBe(803)
+      expect(kennungenNachId(dbNach)).toEqual(kennungenVorher)
       expect(zaehlerstand(dbNach)).toBe(804)
     } finally {
       dbNach.close()
