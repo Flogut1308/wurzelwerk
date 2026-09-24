@@ -22,6 +22,7 @@ import type { Textanker } from '../../src/shared/schemata/befehle'
 import { BELEG_FELDER_JE_SUBJEKT, BelegFeldEnum, type BelegFeld } from '../../src/shared/schemata/aussage-zitat'
 import { AussageSubjektTypEnum } from '../../src/shared/schemata/gemeinsam'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
+import { QuelleTypEnum } from '../../src/shared/schemata/quelle'
 
 /** Die Bausteine der Transkripte (s. Modul-Kommentar). */
 const TRANSKRIPT_BAUSTEINE: readonly string[] = ['a', 'Z', ' ', "'", 'ä', 'ß', 'Ё', 'ł', 'é', '👶', '👨‍👩‍👧']
@@ -97,19 +98,9 @@ export type Zweig =
   | 'ablehnung.feldNichtExistenz'
   | 'ablehnung.feldFalscherTyp'
 
-/** Pflichtzweige, die über `{ seed, numRuns }` beider Invarianten-Tests nie 0 sein dürfen. */
-export const PFLICHTZWEIGE: readonly Zweig[] = [
-  'befehl:hauptname.wechseln',
-  'nachruecken',
-  'demote',
-  'befehl:beteiligung.loeschen',
-  'befehl:aussage_zitat.loeschen',
-  'befehl:ort.anlegen',
-  'befehl:ortszugehoerigkeit.anlegen',
-  'befehl:ort-externe-id.loeschen',
-  'befehl:quelle.aendern',
-  'befehl:zitat.loeschen',
-  'befehl:negativbefund.loeschen',
+/** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `undo-bitgleich.test.ts` UND
+ * `textanker-gueltig.test.ts` je mehr als 0 Treffer. */
+export const BELEG_PFLICHTZWEIGE: readonly Zweig[] = [
   'beleg.anlegen.ohneAnker',
   'beleg.anlegen.anker',
   'beleg.anlegen.ankerNichtAscii',
@@ -138,6 +129,58 @@ export const PFLICHTZWEIGE: readonly Zweig[] = [
   'ablehnung.ankerErsatzpaar',
   'ablehnung.feldNichtExistenz',
   'ablehnung.feldFalscherTyp',
+  'zitat.entwertet',
+]
+
+/** Bestands-Pflichtzweige (nur `undo-bitgleich.test.ts`): JEDER Befehl, den der Generator erzeugt,
+ * dazu Demote und Nachrücken. Eine Gewichtsänderung, die einen Befehl verdrängt (in AP-1.34 PR-B2
+ * gemessen: `ortszugehoerigkeit.aendern`/`.loeschen` bei 0), wird so rot statt still ungeprüft. */
+export const BESTAND_PFLICHTZWEIGE: readonly Zweig[] = [
+  'befehl:archiv.aendern',
+  'befehl:archiv.anlegen',
+  'befehl:aussage.aendern',
+  'befehl:aussage.anlegen',
+  'befehl:aussage.loeschen',
+  'befehl:aussage_zitat.aendern',
+  'befehl:aussage_zitat.anlegen',
+  'befehl:aussage_zitat.loeschen',
+  'befehl:beteiligung.loeschen',
+  'befehl:elternschaft.aendern',
+  'befehl:elternschaft.anlegen',
+  'befehl:elternschaft.loeschen',
+  'befehl:ereignis.aendern',
+  'befehl:ereignis.anlegen',
+  'befehl:ereignis.loeschen',
+  'befehl:hauptname.wechseln',
+  'befehl:name.aendern',
+  'befehl:name.anlegen',
+  'befehl:name.loeschen',
+  'befehl:negativbefund.aendern',
+  'befehl:negativbefund.anlegen',
+  'befehl:negativbefund.loeschen',
+  'befehl:ort-externe-id.anlegen',
+  'befehl:ort-externe-id.loeschen',
+  'befehl:ort.aendern',
+  'befehl:ort.anlegen',
+  'befehl:ortsname.aendern',
+  'befehl:ortsname.anlegen',
+  'befehl:ortsname.loeschen',
+  'befehl:ortszugehoerigkeit.aendern',
+  'befehl:ortszugehoerigkeit.anlegen',
+  'befehl:ortszugehoerigkeit.loeschen',
+  'befehl:partnerschaft.aendern',
+  'befehl:partnerschaft.anlegen',
+  'befehl:partnerschaft.loeschen',
+  'befehl:person.anlegen',
+  'befehl:person.feldSetzen',
+  'befehl:person.loeschen',
+  'befehl:quelle.aendern',
+  'befehl:quelle.anlegen',
+  'befehl:zitat.aendern',
+  'befehl:zitat.anlegen',
+  'befehl:zitat.loeschen',
+  'demote',
+  'nachruecken',
 ]
 
 /** Führt einen Befehl über den echten Bus aus und vermerkt `befehl:<name>` in `zweige`. */
@@ -173,14 +216,20 @@ export interface BelegAenderungInfo {
   readonly bis: number | null
 }
 
-/** Der Teil des Generatorzustands, den dieses Modul liest/pflegt (strukturell, s. Modul-Kommentar). */
+/** Der Teil des Generatorzustands, den dieses Modul liest/pflegt (strukturell, s. Modul-Kommentar).
+ * `aussageVorlauf` liefert der Generator: legt genau EINE Person bzw. — wenn schon eine existiert —
+ * ein Ereignis (mit Existenz-Aussage) über seine eigene Zustandspflege an (Vorlauf-Schritt 3). */
 export interface BelegZustand {
   readonly aussagen: readonly BelegAussageInfo[]
-  readonly zitatIds: readonly string[]
-  readonly quelleIds: readonly string[]
+  zitatIds: string[]
+  quelleIds: string[]
   aussageZitatVerknuepfungen: BelegVerknuepfungInfo[]
   belegAenderung: BelegAenderungInfo | undefined
 }
+
+/** Vom Generator geliefert (s. `BelegZustand`): genau ein `fuehreAus()`, das eine Aussage schafft
+ * oder vorbereitet. */
+export type AussageVorlauf = (zweige: Zweig[]) => void
 
 /** Wie `zielAusListe()` im Generator (hier dupliziert, damit dieses Modul den Generator nicht
  * importiert): `roh` modulo Länge, `undefined` bei leerer Liste. */
@@ -337,16 +386,140 @@ function feldAusRoh(kopf: AussageKopfZeile, roh: number): BelegFeld | undefined 
   return ausListe(BELEG_FELDER_JE_SUBJEKT[typ], roh)
 }
 
-/** Wählt eine Aussage — bei geradem `wahlRoh` bevorzugt eine Existenz-Aussage (~50 %), sonst aus
- * allen (Einfügereihenfolge des Zustands). */
-function aussageWaehlen(aussagen: readonly BelegAussageInfo[], wahlRoh: number, zielRoh: number): BelegAussageInfo | undefined {
+/** Wählt eine Aussage, die mit `zitatId` noch NICHT verknüpft ist — bei geradem `wahlRoh`
+ * bevorzugt eine Existenz-Aussage (~50 %), sonst aus allen; ab `zielRoh` rundum in
+ * Einfügereihenfolge des Zustands (statt No-op bei einer schon vergebenen Kombination — nur so
+ * sammeln sich mehrere Anker an EINEM Zitat). */
+function aussageWaehlen(zustand: BelegZustand, zitatId: string, wahlRoh: number, zielRoh: number): BelegAussageInfo | undefined {
+  const frei = (a: BelegAussageInfo): boolean =>
+    !zustand.aussageZitatVerknuepfungen.some((v) => v.aussageId === a.id && v.zitatId === zitatId)
   if (wahlRoh % 2 === 0) {
-    const existenz = aussagen.filter((a) => a.istExistenz)
-    if (existenz.length > 0) {
-      return ausListe(existenz, zielRoh)
+    const existenz = rundum(
+      zustand.aussagen.filter((a) => a.istExistenz),
+      zielRoh,
+    ).find(frei)
+    if (existenz !== undefined) {
+      return existenz
     }
   }
-  return ausListe(aussagen, zielRoh)
+  return rundum(zustand.aussagen, zielRoh).find(frei)
+}
+
+/**
+ * Wählt das Zitat für `aussage_zitat.anlegen` gewichtet (Einfügereihenfolge des Zustands): ~60 %
+ * eines, das schon einen Anker trägt (mehrere Anker an EINEM Zitat — nur so entsteht bei
+ * `zitat.aendern` ein gemischter Ausgang), ~20 % eines mit nichtleerem Transkript (nur dort ist ein
+ * Anker möglich), sonst irgendeins. Leere Teilmenge → nächste Stufe.
+ */
+function zitatWaehlen(db: Tx, zustand: BelegZustand, wahlRoh: number, zielRoh: number): string | undefined {
+  const stufe = wahlRoh % 100
+  if (stufe < 60) {
+    const mitAnker: string[] = []
+    for (const e of verknuepfungenMitAnker(db, zustand.aussageZitatVerknuepfungen)) {
+      if (!mitAnker.includes(e.verknuepfung.zitatId)) {
+        mitAnker.push(e.verknuepfung.zitatId)
+      }
+    }
+    const gewaehlt = ausListe(mitAnker, zielRoh)
+    if (gewaehlt !== undefined) {
+      return gewaehlt
+    }
+  }
+  if (stufe < 80) {
+    const mitText = zustand.zitatIds.filter((id) => {
+      const { transkript } = zitatLesen(db, id)
+      return transkript !== null && transkript.length > 0
+    })
+    const gewaehlt = ausListe(mitText, zielRoh)
+    if (gewaehlt !== undefined) {
+      return gewaehlt
+    }
+  }
+  return ausListe(zustand.zitatIds, zielRoh)
+}
+
+// -----------------------------------------------------------------------------------------------
+// VORLAUF: der nächste fehlende Schritt der Beleg-Kette
+// -----------------------------------------------------------------------------------------------
+
+/**
+ * Ein Anker braucht die Kette `quelle.anlegen` → `zitat.anlegen` (mit Transkript) →
+ * `aussage_zitat.anlegen` IN DIESER REIHENFOLGE innerhalb derselben Folge, und erst danach haben
+ * `zitat.aendern`/`aussage_zitat.aendern` einen Anker, auf den sie wirken. Über Gewichte allein
+ * entstand diese Kette zu selten (gemessen AP-1.34 PR-B2: einzelne Zweige bei 0–2 Treffern in 100
+ * bzw. 300 Läufen), weil die meisten Beleg-Aktionen VOR ihrem Vorgänger fielen und No-ops blieben.
+ * Findet eine Beleg-Aktion ihr Ziel nicht, führt sie darum stattdessen den NÄCHSTEN FEHLENDEN
+ * Kettenschritt aus — weiterhin GENAU EIN `fuehreAus()` je Aktion (ein Schnappschuss je Aktion in
+ * `undo-bitgleich`), keine Befehlskette: 1. Quelle, 2. Zitat mit Transkript, 3. (noch keine
+ * Aussage) Person bzw. Ereignis mit Existenz-Aussage über den Generator (`AussageVorlauf`),
+ * 4. die Verknüpfung über dieselbe Logik wie `aussageZitatAnlegen` (immer mit Anker-Rohwerten, an
+ *    einem Zitat, das schon einen Anker trägt, falls es eins gibt — so entstehen Zitate mit mehreren
+ *    Ankern, die `zitat.aendern` für einen gemischten Ausgang braucht).
+ */
+export interface VorlaufRoh {
+  readonly quelleTypRoh: number
+  readonly transkript: string
+  readonly existenzWahlRoh: number
+  readonly aussageZielRoh: number
+  readonly zitatWahlRoh: number
+  readonly zitatZielRoh: number
+  readonly ankerRoh: AnkerRoh
+  readonly feldRoh: number
+}
+
+export function vorlaufRohArbitrary(): fc.Arbitrary<VorlaufRoh> {
+  return fc.record({
+    quelleTypRoh: fc.nat(),
+    transkript: fc.array(fc.constantFrom(...TRANSKRIPT_BAUSTEINE), { minLength: 2, maxLength: 10 }).map((teile) => teile.join('')),
+    existenzWahlRoh: fc.nat(),
+    aussageZielRoh: fc.nat(),
+    zitatWahlRoh: fc.nat(),
+    zitatZielRoh: fc.nat(),
+    ankerRoh: ankerRohArbitrary(),
+    feldRoh: fc.nat(),
+  })
+}
+
+function vorlauf(db: Tx, zustand: BelegZustand, roh: VorlaufRoh, zweige: Zweig[], aussageVorlauf: AussageVorlauf): void {
+  const quelleId = zustand.quelleIds[zustand.quelleIds.length - 1]
+  if (quelleId === undefined) {
+    const typ = ausListe(QuelleTypEnum.options, roh.quelleTypRoh)
+    if (typ === undefined) {
+      throw new Error('vorlauf(): QuelleTypEnum ist leer — unerreichbar.')
+    }
+    const { id } = befehl(zweige, db, 'quelle.anlegen', { typ, titel: 'Vorlauf' })
+    zustand.quelleIds.push(id)
+    return
+  }
+  const mitText = zustand.zitatIds.some((id) => {
+    const { transkript } = zitatLesen(db, id)
+    return transkript !== null && transkript.length > 0
+  })
+  if (!mitText) {
+    const { id } = befehl(zweige, db, 'zitat.anlegen', { quelleId, transkript: roh.transkript })
+    zustand.zitatIds.push(id)
+    return
+  }
+  if (zustand.aussagen.length === 0) {
+    aussageVorlauf(zweige)
+    return
+  }
+  aussageZitatAnlegenAusfuehren(
+    db,
+    zustand,
+    {
+      art: 'aussageZitatAnlegen',
+      existenzWahlRoh: roh.existenzWahlRoh,
+      aussageZielRoh: roh.aussageZielRoh,
+      zitatWahlRoh: roh.zitatWahlRoh % 60, // immer ein Zitat mit Anker, sonst eins mit Transkript (`zitatWaehlen()`)
+      zitatZielRoh: roh.zitatZielRoh,
+      ankerRoh: roh.ankerRoh,
+      feldRoh: roh.feldRoh,
+      vorlauf: undefined,
+    },
+    zweige,
+    aussageVorlauf,
+  )
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -355,8 +528,9 @@ function aussageWaehlen(aussagen: readonly BelegAussageInfo[], wahlRoh: number, 
 
 /**
  * AP-1.29 PR-B, erweitert AP-1.34 PR-B2: `aussage_zitat.anlegen` — verknüpft eine BESTEHENDE
- * `aussage` mit einem BESTEHENDEN `zitat`; leere Listen oder eine schon vergebene Kombination
- * (zusammengesetzter Primärschlüssel) machen die Aktion zum No-op. `ankerRoh`/`feldRoh`: `undefined`
+ * `aussage` mit einem BESTEHENDEN `zitat` (`zitatWaehlen()`, dann eine damit noch nicht verknüpfte
+ * Aussage, `aussageWaehlen()` — der zusammengesetzte Primärschlüssel wird nie verletzt); ist jede
+ * Aussage schon verknüpft, bleibt die Aktion ein No-op, fehlt Zitat oder Aussage ganz: Vorlauf. `ankerRoh`/`feldRoh`: `undefined`
  * = weglassen. Der Anker wird gegen das gelesene Transkript berechnet (`ankerAusRoh()`), `feld` nur
  * an einer Existenz-Aussage gesetzt (`feldAusRoh()`) — immer gültige Eingaben; die ungültigen
  * erzeugt die Ablehnungs-Aktion.
@@ -365,9 +539,13 @@ export interface AktionAussageZitatAnlegen {
   readonly art: 'aussageZitatAnlegen'
   readonly existenzWahlRoh: number
   readonly aussageZielRoh: number
+  readonly zitatWahlRoh: number
   readonly zitatZielRoh: number
   readonly ankerRoh: AnkerRoh | undefined
   readonly feldRoh: number | undefined
+  /** Fehlt noch jedes Zitat oder jede Aussage: Vorlauf (s. `VorlaufRoh`) statt No-op. `undefined` =
+   * kein Vorlauf (nur der interne Aufruf aus `vorlauf()` selbst). */
+  readonly vorlauf: VorlaufRoh | undefined
 }
 
 export function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAnlegen> {
@@ -375,23 +553,32 @@ export function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussage
     .record({
       existenzWahlRoh: fc.nat(),
       aussageZielRoh: fc.nat(),
+      zitatWahlRoh: fc.nat(),
       zitatZielRoh: fc.nat(),
-      ankerRoh: fc.option(ankerRohArbitrary(), { nil: undefined, freq: 2 }),
+      ankerRoh: fc.option(ankerRohArbitrary(), { nil: undefined, freq: 4 }),
       feldRoh: fc.option(fc.nat(), { nil: undefined, freq: 2 }),
+      vorlauf: vorlaufRohArbitrary(),
     })
     .map((r): AktionAussageZitatAnlegen => ({ art: 'aussageZitatAnlegen', ...r }))
 }
 
-export function aussageZitatAnlegenAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionAussageZitatAnlegen, zweige: Zweig[]): void {
-  const aussage = aussageWaehlen(zustand.aussagen, aktion.existenzWahlRoh, aktion.aussageZielRoh)
-  if (aussage === undefined) {
+export function aussageZitatAnlegenAusfuehren(
+  db: Tx,
+  zustand: BelegZustand,
+  aktion: AktionAussageZitatAnlegen,
+  zweige: Zweig[],
+  aussageVorlauf: AussageVorlauf,
+): void {
+  if ((zustand.zitatIds.length === 0 || zustand.aussagen.length === 0) && aktion.vorlauf !== undefined) {
+    vorlauf(db, zustand, aktion.vorlauf, zweige, aussageVorlauf)
     return
   }
-  const zitatId = ausListe(zustand.zitatIds, aktion.zitatZielRoh)
+  const zitatId = zitatWaehlen(db, zustand, aktion.zitatWahlRoh, aktion.zitatZielRoh)
   if (zitatId === undefined) {
     return
   }
-  if (zustand.aussageZitatVerknuepfungen.some((v) => v.aussageId === aussage.id && v.zitatId === zitatId)) {
+  const aussage = aussageWaehlen(zustand, zitatId, aktion.existenzWahlRoh, aktion.aussageZielRoh)
+  if (aussage === undefined) {
     return
   }
   const { transkript } = zitatLesen(db, zitatId)
@@ -441,6 +628,8 @@ export interface AktionAussageZitatAendern {
   readonly ankerRoh: AnkerRoh
   readonly feldModus: 'behalten' | 'setzen' | 'entfernen'
   readonly feldRoh: number
+  /** Noch keine Verknüpfung: Vorlauf statt No-op (s. `VorlaufRoh`). */
+  readonly vorlauf: VorlaufRoh
 }
 
 export function aussageZitatAendernAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAendern> {
@@ -451,13 +640,21 @@ export function aussageZitatAendernAktionArbitrary(): fc.Arbitrary<AktionAussage
       ankerRoh: ankerRohArbitrary(),
       feldModus: fc.constantFrom<AktionAussageZitatAendern['feldModus']>('behalten', 'setzen', 'setzen', 'entfernen'),
       feldRoh: fc.nat(),
+      vorlauf: vorlaufRohArbitrary(),
     })
     .map((r): AktionAussageZitatAendern => ({ art: 'aussageZitatAendern', ...r }))
 }
 
-export function aussageZitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionAussageZitatAendern, zweige: Zweig[]): void {
+export function aussageZitatAendernAusfuehren(
+  db: Tx,
+  zustand: BelegZustand,
+  aktion: AktionAussageZitatAendern,
+  zweige: Zweig[],
+  aussageVorlauf: AussageVorlauf,
+): void {
   const ziel = ausListe(zustand.aussageZitatVerknuepfungen, aktion.verknuepfungZielRoh)
   if (ziel === undefined) {
+    vorlauf(db, zustand, aktion.vorlauf, zweige, aussageVorlauf)
     return
   }
   const vorher = verknuepfungLesen(db, ziel)
@@ -517,15 +714,20 @@ type ZitatModus = 'frei' | 'gleich' | 'hinter' | 'im' | 'vor' | 'kuerzen' | 'weg
 
 /**
  * AP-1.17 PR-B, erweitert AP-1.34 PR-B2: `zitat.aendern`. Das Zitat wird zu ~80 % (`bezugWahlRoh`)
- * über eine Verknüpfung MIT Anker gewählt — dieser Anker ist der Bezug; sonst frei aus
- * `zustand.zitatIds` (Bezug = erster Anker dieses Zitats, falls es einen gibt). Das neue Transkript
+ * über eine Verknüpfung MIT Anker gewählt (davon ~3/4 an einem Zitat mit mehreren Ankern;
+ * `hinter`/`im`/`vor`/`kuerzen` wechseln danach innerhalb des Zitats auf den Anker, an dem ein
+ * gemischter Ausgang möglich ist) — dieser Anker ist der Bezug; sonst frei aus `zustand.zitatIds`
+ * (Bezug = erster Anker dieses Zitats, falls es einen gibt). Gibt es den gewünschten Bezug (noch)
+ * nicht, läuft stattdessen der Vorlauf (`VorlaufRoh`, er legt einen weiteren Anker an). Das neue Transkript
  * leitet `modus` aus dem alten ab:
  * - `frei`: `transkript` (unabhängig vom alten),
  * - `gleich`: gleiches Transkript, andere `seite` (Anker bleiben unberührt),
- * - `hinter`: `alt.slice(0, bis)` + anderes Suffix (Anker bleibt),
+ * - `hinter`: `alt.slice(0, bis)` + anderes Suffix, geschnitten hinter dem Anker mit dem kleinsten
+ *   `bis` dieses Zitats (er wird der Bezug und bleibt; weiter reichende Anker werden entwertet),
  * - `im`: der Ausschnitt [von, bis) durch einen anderen Baustein ersetzt (entwertet),
  * - `vor`: ein Baustein vor `von` eingefügt (entwertet — E4 verschiebt nicht, R1),
- * - `kuerzen`: auf eine Länge < `bis` gekürzt (entwertet),
+ * - `kuerzen`: auf eine Länge < `bis` gekürzt (entwertet) — bei diesen drei ist der Bezug der Anker
+ *   mit dem größten `von` des Zitats,
  * - `weglassen`: Schlüssel `transkript` fehlt → NULL (entwertet alle Anker).
  * Ohne Bezug oder ohne altes Transkript fallen `hinter`/`im`/`vor`/`kuerzen` auf `transkript` zurück.
  * Gezählt wird das tatsächliche Datenbankergebnis, nicht der Modus.
@@ -542,6 +744,8 @@ export interface AktionZitatAendern {
   readonly baustein: string
   readonly kuerzRoh: number
   readonly konfidenz: number
+  /** Bezug gewünscht (~80 %), aber noch kein Anker vorhanden: Vorlauf statt Änderung ohne Bezug. */
+  readonly vorlauf: VorlaufRoh
 }
 
 export function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
@@ -557,6 +761,7 @@ export function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> 
       baustein: bausteinArbitrary(),
       kuerzRoh: fc.nat(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
+      vorlauf: vorlaufRohArbitrary(),
     })
     .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
 }
@@ -576,6 +781,16 @@ function verknuepfungenMitAnker(db: Tx, verknuepfungen: readonly BelegVerknuepfu
     }
   }
   return ergebnis
+}
+
+/** Die Anker an Zitaten mit MEHREREN Ankern (nur dort ist ein gemischter Ausgang möglich). */
+function ankerAnMehrfachZitaten(alleMitAnker: readonly VerknuepfungMitAnker[]): readonly VerknuepfungMitAnker[] {
+  return alleMitAnker.filter((e) => alleMitAnker.filter((f) => f.verknuepfung.zitatId === e.verknuepfung.zitatId).length >= 2)
+}
+
+/** `bezugWahlRoh % 100 < 60`: der Bezug soll an einem Zitat mit mehreren Ankern liegen. */
+function mehrfachGewuenscht(aktion: AktionZitatAendern): boolean {
+  return aktion.bezugWahlRoh % 100 < 60
 }
 
 function transkriptAbleiten(aktion: AktionZitatAendern, alt: string | null, bezug: Textanker | undefined): string | undefined {
@@ -625,15 +840,29 @@ const ENTWERTET_ZWEIG: { readonly [M in ZitatModus]?: Zweig } = {
   weglassen: 'zitat.weglassen.entwertet',
 }
 
-export function zitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionZitatAendern, zweige: Zweig[]): void {
+export function zitatAendernAusfuehren(
+  db: Tx,
+  zustand: BelegZustand,
+  aktion: AktionZitatAendern,
+  zweige: Zweig[],
+  aussageVorlauf: AussageVorlauf,
+): void {
+  const alleMitAnker = verknuepfungenMitAnker(db, zustand.aussageZitatVerknuepfungen)
+  const mehrfach = ankerAnMehrfachZitaten(alleMitAnker)
+  const bezugGewuenscht = aktion.bezugWahlRoh % 100 < 80
+  if ((bezugGewuenscht && alleMitAnker.length === 0) || (mehrfachGewuenscht(aktion) && mehrfach.length === 0)) {
+    vorlauf(db, zustand, aktion.vorlauf, zweige, aussageVorlauf)
+    return
+  }
   const quelleId = ausListe(zustand.quelleIds, aktion.quelleZielRoh)
   if (quelleId === undefined) {
     return
   }
-  const alleMitAnker = verknuepfungenMitAnker(db, zustand.aussageZitatVerknuepfungen)
   let bezug: VerknuepfungMitAnker | undefined
   let zitatId: string
-  const bezugGewaehlt = aktion.bezugWahlRoh % 100 < 80 ? ausListe(alleMitAnker, aktion.bezugZielRoh) : undefined
+  const bezugGewaehlt = bezugGewuenscht
+    ? ausListe(mehrfachGewuenscht(aktion) ? mehrfach : alleMitAnker, aktion.bezugZielRoh)
+    : undefined
   if (bezugGewaehlt === undefined) {
     const frei = ausListe(zustand.zitatIds, aktion.zitatZielRoh)
     if (frei === undefined) {
@@ -648,6 +877,21 @@ export function zitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: Ak
 
   const alt = zitatLesen(db, zitatId)
   const ankerVorher = alleMitAnker.filter((e) => e.verknuepfung.zitatId === zitatId)
+  // Bezug je Modus so, dass ein gemischter Ausgang (`zitat.gemischt`) möglich wird, wenn das Zitat
+  // mehrere Anker trägt: `hinter` schneidet hinter dem Anker mit dem KLEINSTEN `bis` (er bleibt,
+  // weiter reichende werden entwertet); `im`/`vor`/`kuerzen` wirken am Anker mit dem GRÖSSTEN `von`
+  // (er wird entwertet, früher endende Anker können bleiben).
+  for (const e of ankerVorher) {
+    if (aktion.modus === 'hinter' && (bezug === undefined || e.anker.bis < bezug.anker.bis)) {
+      bezug = e
+    }
+    if (
+      (aktion.modus === 'im' || aktion.modus === 'vor' || aktion.modus === 'kuerzen') &&
+      (bezug === undefined || e.anker.von > bezug.anker.von)
+    ) {
+      bezug = e
+    }
+  }
   const neu = transkriptAbleiten(aktion, alt.transkript, bezug?.anker)
   const seite = aktion.modus === 'gleich' ? `${alt.seite ?? ''}g` : aktion.seite
   befehl(zweige, db, 'zitat.aendern', {

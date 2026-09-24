@@ -264,6 +264,7 @@ import {
   type AktionBelegAblehnen,
   type AktionAussageZitatAnlegen,
   type AktionZitatAendern,
+  type AussageVorlauf,
   type BelegAenderungInfo,
   type Zweig,
 } from './_befehlsfolge-beleg'
@@ -1143,7 +1144,7 @@ function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
     .record({
       quelleZielRoh: fc.nat(),
       seite: fc.string(),
-      transkript: fc.option(transkriptArbitrary(), { nil: undefined }),
+      transkript: fc.option(transkriptArbitrary(), { nil: undefined, freq: 2 }),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
@@ -1204,12 +1205,26 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * braucht eine Person mit MINDESTENS ZWEI Formen und eine nicht bevorzugte davon als Ziel, feuert
  * also seltener als ein gewöhnliches `aendern`; `nameWeitereFormAnlegen` bei 2 erzeugt genau diese
  * Personen (Typkommentar „MEHRFORMEN-DECKUNG", Trefferzahlen im PR-Bericht).
+ *
+ * AP-1.34 PR-B2 (BELEG-DECKUNG, Eigentümer-Entscheidung E-B2-1 (c): Deckungszähler „nie 0" je
+ * Zweig committet, `BELEG_PFLICHTZWEIGE`/`BESTAND_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`): die
+ * Beleg-Aktionen tragen das meiste Gewicht (`aussageZitatAnlegen` 4, `zitatAendern` 6,
+ * `aussageZitatAendern` 3, `belegAblehnen` 2), weil jede von ihnen erst am Ende der Kette Quelle →
+ * Zitat → Aussage → Verknüpfung mit Anker wirkt; der Vorlauf (`VorlaufRoh`) schafft die fehlenden
+ * Kettenglieder. Zum Ausgleich (Gesamtgewicht 74 statt 66 auf main, Laufzeit) sind reichlich
+ * gedeckte Aktionen auf 1 gesenkt: `feldSetzen`, `aussageAendern`, `ortsnameAnlegen`, `ortExterneIdAnlegen`,
+ * `archivAnlegen`, `quelleAnlegen` (der Vorlauf legt Quellen bei Bedarf selbst an),
+ * `negativbefundAnlegen`. `nameLoeschen` (Nachrücken) und `nameWeitereFormAnlegen` steigen auf 2
+ * bzw. 3, weil die Beleg-Gewichte die Namenszweige sonst unter wenige Treffer drückten. Belegte
+ * Zählerstände (vorher/nachher) stehen im PR-Bericht. `ortAnlegen` bleibt bei 2: mit 1 fielen
+ * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen, seitdem `BESTAND_PFLICHTZWEIGE`);
+ * `ortszugehoerigkeitAnlegen` steigt aus demselben Grund auf 3.
  */
 function aktionArbitrary(): fc.Arbitrary<Aktion> {
   return fc.oneof(
     { weight: 3, arbitrary: personAnlegenEinArbitrary().map((ein): AktionAnlegen => ({ art: 'anlegen', ein })) },
     {
-      weight: 2,
+      weight: 1,
       arbitrary: fc
         .record({ zielRoh: fc.nat(), feldwert: feldwertArbitrary() })
         .map((r): AktionFeldSetzen => ({ art: 'feldSetzen', zielRoh: r.zielRoh, feldwert: r.feldwert })),
@@ -1217,9 +1232,9 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: fc.nat().map((zielRoh): AktionLoeschen => ({ art: 'loeschen', zielRoh })) },
     { weight: 2, arbitrary: nameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: nameAendernAktionArbitrary() },
-    { weight: 1, arbitrary: nameLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: nameLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: hauptnameWechselnAktionArbitrary() },
-    { weight: 2, arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
+    { weight: 3, arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftAendernAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
@@ -1233,29 +1248,29 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
-    { weight: 2, arbitrary: aussageAendernAktionArbitrary() },
-    { weight: 2, arbitrary: aussageZitatAnlegenAktionArbitrary() },
-    { weight: 2, arbitrary: aussageZitatAendernAktionArbitrary() },
-    { weight: 1, arbitrary: belegAblehnenAktionArbitrary() },
+    { weight: 1, arbitrary: aussageAendernAktionArbitrary() },
+    { weight: 4, arbitrary: aussageZitatAnlegenAktionArbitrary() },
+    { weight: 3, arbitrary: aussageZitatAendernAktionArbitrary() },
+    { weight: 2, arbitrary: belegAblehnenAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
-    { weight: 2, arbitrary: ortsnameAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortsnameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
+    { weight: 3, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: archivAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: archivAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: archivAendernAktionArbitrary() },
-    { weight: 2, arbitrary: quelleAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: quelleAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: quelleAendernAktionArbitrary() },
     { weight: 2, arbitrary: zitatAnlegenAktionArbitrary() },
-    { weight: 1, arbitrary: zitatAendernAktionArbitrary() },
+    { weight: 6, arbitrary: zitatAendernAktionArbitrary() },
     { weight: 1, arbitrary: zitatLoeschenAktionArbitrary() },
-    { weight: 2, arbitrary: negativbefundAnlegenAktionArbitrary() },
+    { weight: 1, arbitrary: negativbefundAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundAendernAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundLoeschenAktionArbitrary() },
   )
@@ -1713,6 +1728,25 @@ function nachrueckenFaellig(db: Tx, nameId: string, personId: string): boolean {
   return zeile !== undefined && zeile.bevorzugt > 0 && zeile.weitere > 0
 }
 
+/** Vorlauf-Schritt 3 der Beleg-Kette (`_befehlsfolge-beleg.ts`, `AussageVorlauf`): noch keine
+ * Person → eine Person anlegen; sonst ein Ereignis mit der ersten Person anlegen (bringt eine
+ * Existenz-Aussage mit, an der auch `feld` zulässig ist). Beides über `aktionAusfuehrenIn()`, damit
+ * die Zustandspflege dieselbe bleibt. */
+function aussageVorlaufFuer(db: Tx, zustand: Zustand): AussageVorlauf {
+  return (zweige) => {
+    if (zustand.personIds.length === 0) {
+      aktionAusfuehrenIn(db, zustand, { art: 'anlegen', ein: { privat: 0, ist_platzhalter: 0 } }, zweige)
+      return
+    }
+    aktionAusfuehrenIn(
+      db,
+      zustand,
+      { art: 'ereignisAnlegen', personZielRoh: 0, typ: 'geburt', rolle: 'hauptperson', konfidenz: 3, beschreibung: 'Vorlauf' },
+      zweige,
+    )
+  }
+}
+
 function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zweig[]): void {
   switch (aktion.art) {
     case 'anlegen': {
@@ -2059,13 +2093,13 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
 
     case 'aussageZitatAnlegen': {
       // AP-1.34 PR-B2: mit Textanker und feld, s. `_befehlsfolge-beleg.ts`.
-      aussageZitatAnlegenAusfuehren(db, zustand, aktion, zweige)
+      aussageZitatAnlegenAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
       return
     }
 
     case 'aussageZitatAendern': {
       // AP-1.34 PR-B2: s. `_befehlsfolge-beleg.ts`.
-      aussageZitatAendernAusfuehren(db, zustand, aktion, zweige)
+      aussageZitatAendernAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
       return
     }
 
@@ -2341,7 +2375,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
     case 'zitatAendern': {
       // AP-1.34 PR-B2: Transkript aus dem alten abgeleitet (Anker bleibt/entwertet), s.
       // `_befehlsfolge-beleg.ts`.
-      zitatAendernAusfuehren(db, zustand, aktion, zweige)
+      zitatAendernAusfuehren(db, zustand, aktion, zweige, aussageVorlaufFuer(db, zustand))
       return
     }
 
