@@ -2,7 +2,7 @@
 // schließen, aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` verschieben (NIE löschen),
 // gewählten Schnappschuss zurückkopieren, wieder öffnen.
 import Database from 'better-sqlite3'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -306,12 +306,28 @@ const X_ID = '00000000-0000-7000-8000-000000000001'
  * der `journalAus`-Scanner (`test/invarianten/_journal-aufrufer.ts`) sieht nur `src/`.
  */
 function v6SchnappschussBauen(bauordner: string, snapshotsPfad: string, id: string, personIds: readonly string[]): void {
+  altSchnappschussBauen(FIXTURE_V6_PFAD, 6, bauordner, snapshotsPfad, id, personIds)
+}
+
+/**
+ * Wie `v6SchnappschussBauen`, aber aus einer beliebigen eingefrorenen Fixture vor 0007 (hueter-H1:
+ * v5 → Migration 6 und 7). Kopiert wird nur die Hauptdatei — die eingecheckten `-wal/-shm` der
+ * Fixtures bleiben liegen; `user_version` belegt, dass die Hauptdatei allein den Stand trägt.
+ */
+function altSchnappschussBauen(
+  fixturePfad: string,
+  erwarteteVersion: number,
+  bauordner: string,
+  snapshotsPfad: string,
+  id: string,
+  personIds: readonly string[],
+): void {
   const bauPfad = join(bauordner, `${id}-bau.sqlite`)
-  copyFileSync(FIXTURE_V6_PFAD, bauPfad)
+  copyFileSync(fixturePfad, bauPfad)
   const db = oeffnen(bauPfad)
   try {
-    expect(db.pragma('user_version', { simple: true })).toBe(6)
-    journalAus(db, 'Testvorbereitung (AP-1.34, A2b): v6-Schnappschuss ohne armierte Transaktion befüllen.')
+    expect(db.pragma('user_version', { simple: true })).toBe(erwarteteVersion)
+    journalAus(db, 'Testvorbereitung (AP-1.34, A2b): Schnappschuss vor 0007 ohne armierte Transaktion befüllen.')
     const einfuegen = db.prepare('INSERT INTO person (id, privat, ist_platzhalter) VALUES (@id, 0, 0)')
     for (const personId of personIds) {
       einfuegen.run({ id: personId })
@@ -476,6 +492,119 @@ describe('H6b: Schnappschuss vor 0007 übernimmt die Kennungen der ersetzten Dat
     expect(existsSync(dbPfad)).toBe(true)
     expect(alleKennungen(dbPfad)).toEqual(vorher)
     expect(personZaehler(dbPfad)).toBe(6)
+    const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
+    expect(ersetzteDateien).toHaveLength(0)
+
+    expect(() => offenesProjektDatenbank()).toThrow(WurzelFehler)
+    const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
+    expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })
+    expect(alleKennungen(dbPfad)).toEqual(vorher)
+  })
+})
+
+const FIXTURE_V5_PFAD = join(process.cwd(), 'fixtures', 'datenbanken', 'schema-v5.sqlite')
+
+/**
+ * Überschreibt die Wurzelseite des Index `indexName` in `pfad` mit Fremdbytes. Die Datei öffnet
+ * danach weiter (Seite 1 mit dem Schema bleibt heil), aber `PRAGMA quick_check` scheitert an der
+ * ungültigen B-Baum-Seite. Die Datei muss vollständig in der Hauptdatei stehen (kein `-wal`).
+ */
+function indexSeiteBeschaedigen(pfad: string, indexName: string): void {
+  const db = new Database(pfad, { readonly: true })
+  let seitengroesse: number
+  let wurzelseite: number
+  try {
+    const groesse: unknown = db.pragma('page_size', { simple: true })
+    const zeile = db
+      .prepare<{ readonly name: string }, { readonly rootpage: number }>("SELECT rootpage FROM sqlite_master WHERE type = 'index' AND name = @name")
+      .get({ name: indexName })
+    if (typeof groesse !== 'number' || zeile === undefined) {
+      throw new Error('Seitengröße oder Wurzelseite nicht lesbar.')
+    }
+    seitengroesse = groesse
+    wurzelseite = zeile.rootpage
+  } finally {
+    db.close()
+  }
+  expect(existsSync(`${pfad}-wal`)).toBe(false)
+  expect(wurzelseite).toBeGreaterThan(1)
+  const inhalt = readFileSync(pfad)
+  inhalt.fill(0xab, (wurzelseite - 1) * seitengroesse, wurzelseite * seitengroesse)
+  writeFileSync(pfad, inhalt)
+}
+
+function quickCheckErgebnis(pfad: string): unknown {
+  const db = new Database(pfad, { readonly: true })
+  try {
+    return db.pragma('quick_check', { simple: true })
+  } finally {
+    db.close()
+  }
+}
+
+describe('Wiederherstellen über mehrere Migrationen und mit beschädigter Seite (AP-1.34, hueter-H1/H2)', () => {
+  let elternordner: string
+  let bauordner: string
+
+  beforeEach(() => {
+    elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-wiederherstellen-h1h2-'))
+    bauordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-wiederherstellen-h1h2-bau-'))
+  })
+
+  afterEach(() => {
+    projektSchliessen()
+    rmSync(elternordner, { recursive: true, force: true })
+    rmSync(bauordner, { recursive: true, force: true })
+  })
+
+  it('H6b-T5: ein v5-Schnappschuss (Migration 6 und 7) übernimmt die Kennungen genau bei Version 7 — Treffer behalten ihre Kennung, X bekommt 6, Zähler 7', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    const [p1, p2, p3, p4, p5] = fuenfPersonen()
+    expect(alleKennungen(dbPfad)).toEqual({ [p1]: 1, [p2]: 2, [p3]: 3, [p4]: 4, [p5]: 5 })
+    expect(personZaehler(dbPfad)).toBe(6)
+
+    altSchnappschussBauen(FIXTURE_V5_PFAD, 5, bauordner, snapshotsPfad, 'v5-alt', [p2, p4, p5, X_ID])
+
+    schnappschussWiederherstellen({ id: 'v5-alt' }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))
+
+    expect(alleKennungen(dbPfad)).toEqual({ [X_ID]: 6, [p2]: 2, [p4]: 4, [p5]: 5 })
+    expect(personZaehler(dbPfad)).toBe(7)
+    const neu = fuehreAus(offenesProjektDatenbank(), 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personKennung(dbPfad, neu.id)).toBe(7)
+  })
+
+  it('H2: ein Schnappschuss, der öffnet, aber quick_check nicht besteht, wird nicht übernommen — Rückrollen, alter Inhalt, keine ersetzt-Datei, Projekt wieder öffenbar', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    personenAnlegen(3)
+    const eintrag = schnappschussErzeugen(offenesProjektDatenbank(), { snapshotsPfad }, () => Date.UTC(2026, 8, 24, 8, 0, 0))
+    personenAnlegen(1)
+    const vorher = alleKennungen(dbPfad)
+    expect(Object.keys(vorher)).toHaveLength(4)
+    expect(personZaehler(dbPfad)).toBe(5)
+
+    const schnappschussPfad = join(snapshotsPfad, `${eintrag.id}.sqlite`)
+    indexSeiteBeschaedigen(schnappschussPfad, 'idx_person_kennung')
+    // Vorbedingung des Fixtures: öffnet über den Produktivweg, quick_check scheitert.
+    expect(() => oeffnen(schnappschussPfad).close()).not.toThrow()
+    expect(quickCheckErgebnis(schnappschussPfad)).not.toBe('ok')
+
+    try {
+      schnappschussWiederherstellen({ id: eintrag.id }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.message).toMatch(/DATENBANK_INTEGRITAET/)
+      }
+    }
+
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(alleKennungen(dbPfad)).toEqual(vorher)
+    expect(personZaehler(dbPfad)).toBe(5)
     const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
     expect(ersetzteDateien).toHaveLength(0)
 
