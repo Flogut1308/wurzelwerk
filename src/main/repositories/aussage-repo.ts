@@ -6,6 +6,7 @@
 import { z } from 'zod'
 import type { Tx } from './basis'
 import type { DatumSpaltengruppe } from '../import/datum-spalten'
+import { type AussageZitat, aussageZitatSchema } from '../../shared/schemata/aussage-zitat'
 
 /** Nutzlast von `einfuegen()`: alle Spalten von `aussage` (docs/schema/0002_kern.sql §2.7 +
  * docs/schema/0005_import_luecken.sql: `unsicherheit`, `gueltig_von`, `gueltig_bis`). */
@@ -181,12 +182,13 @@ export function aktualisieren(tx: Tx, ein: AussageAktualisierenEin): void {
 }
 
 /** Nutzlast von `zitatVerknuepfen()`: Spalten von `aussage_zitat` (docs/schema/0002_kern.sql §2.7,
- * Verknüpfungstabelle ohne eigenes `id`). `textankerVon`/`textankerBis` (0007, AP-1.34 PR-C1a)
- * sind optional, Standard NULL — nur `aussage_zitat.anlegen` setzt sie, nach der Prüfung gegen das
- * Transkript. `feld` (0007) schreibt dieser Weg noch nicht (PR-C1b), es bleibt NULL. */
+ * Verknüpfungstabelle ohne eigenes `id`). `feld`/`textankerVon`/`textankerBis` (0007, AP-1.34
+ * PR-C1a/C1b) sind optional, Standard NULL — nur `aussage_zitat.anlegen` setzt sie, nach der
+ * Prüfung gegen Subjekttyp bzw. Transkript. */
 export interface AussageZitatVerknuepfenEin {
   readonly aussageId: string
   readonly zitatId: string
+  readonly feld?: string | undefined
   readonly textankerVon?: number | undefined
   readonly textankerBis?: number | undefined
   readonly erstelltAm: number
@@ -196,11 +198,12 @@ export interface AussageZitatVerknuepfenEin {
 /** Verknüpft eine `aussage`-Zeile mit einem `zitat` (benannte Parameter, CLAUDE.md §6). */
 export function zitatVerknuepfen(tx: Tx, ein: AussageZitatVerknuepfenEin): void {
   tx.prepare(
-    `INSERT INTO aussage_zitat (aussage_id, zitat_id, textanker_von, textanker_bis, erstellt_am, geaendert_am)
-     VALUES (@aussageId, @zitatId, @textankerVon, @textankerBis, @erstelltAm, @geaendertAm)`,
+    `INSERT INTO aussage_zitat (aussage_id, zitat_id, feld, textanker_von, textanker_bis, erstellt_am, geaendert_am)
+     VALUES (@aussageId, @zitatId, @feld, @textankerVon, @textankerBis, @erstelltAm, @geaendertAm)`,
   ).run({
     aussageId: ein.aussageId,
     zitatId: ein.zitatId,
+    feld: ein.feld ?? null,
     textankerVon: ein.textankerVon ?? null,
     textankerBis: ein.textankerBis ?? null,
     erstelltAm: ein.erstelltAm,
@@ -220,6 +223,45 @@ export function verknuepfungExistiert(tx: Tx, aussageId: string, zitatId: string
     )
     .get({ aussageId, zitatId })
   return zeile !== undefined
+}
+
+/** Liest eine `aussage_zitat`-Verknüpfung (Spalten explizit, CLAUDE.md §6) oder `undefined`. `feld`
+ * bleibt ein freier String (unbekannte Werte toleriert, §31 U-1.34-F1). Für `aussage_zitat.aendern`. */
+export function verknuepfungLesen(tx: Tx, aussageId: string, zitatId: string): AussageZitat | undefined {
+  const roh = tx
+    .prepare<{ readonly aussageId: string; readonly zitatId: string }, unknown>(
+      `SELECT aussage_id, zitat_id, feld, textanker_von, textanker_bis
+       FROM aussage_zitat WHERE aussage_id = @aussageId AND zitat_id = @zitatId`,
+    )
+    .get({ aussageId, zitatId })
+  return roh === undefined ? undefined : aussageZitatSchema.parse(roh)
+}
+
+/** Nutzlast von `verknuepfungAktualisieren()`: die per `aussage_zitat.aendern` ersetzbaren Spalten. */
+export interface VerknuepfungAktualisierenEin {
+  readonly aussageId: string
+  readonly zitatId: string
+  readonly feld: string | null
+  readonly textankerVon: number | null
+  readonly textankerBis: number | null
+  readonly geaendertAm: number
+}
+
+/** Ersetzt `feld` und Textanker einer Verknüpfung (AP-1.34 PR-C1b) — zweiter UPDATE-Weg auf
+ * `aussage_zitat` neben `ankerAufheben`; journalisiert über `jrn_aussage_zitat_au`. */
+export function verknuepfungAktualisieren(tx: Tx, ein: VerknuepfungAktualisierenEin): void {
+  tx.prepare(
+    `UPDATE aussage_zitat
+     SET feld = @feld, textanker_von = @textankerVon, textanker_bis = @textankerBis, geaendert_am = @geaendertAm
+     WHERE aussage_id = @aussageId AND zitat_id = @zitatId`,
+  ).run({
+    aussageId: ein.aussageId,
+    zitatId: ein.zitatId,
+    feld: ein.feld,
+    textankerVon: ein.textankerVon,
+    textankerBis: ein.textankerBis,
+    geaendertAm: ein.geaendertAm,
+  })
 }
 
 /** Ein gesetzter Textanker eines Zitats (AP-1.34 PR-C1a): die Aussage und ihr Intervall [von, bis). */
@@ -250,7 +292,7 @@ export function ankerJeZitatLesen(tx: Tx, zitatId: string): readonly AnkerZeile[
 }
 
 /** Entwertet den Textanker einer Verknüpfung (`textanker_von = textanker_bis = NULL`, E4) — `feld`
- * bleibt. Einziger UPDATE-Weg auf `aussage_zitat`; die `jrn_aussage_zitat_au`-Trigger journalisieren
+ * bleibt. Einer von zwei UPDATE-Wegen auf `aussage_zitat` (neben `verknuepfungAktualisieren`); die `jrn_aussage_zitat_au`-Trigger journalisieren
  * ihn wie jeden Schreibvorgang. */
 export function ankerAufheben(tx: Tx, aussageId: string, zitatId: string, geaendertAm: number): void {
   tx.prepare(

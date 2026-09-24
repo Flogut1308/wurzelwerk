@@ -16,6 +16,7 @@
 //   von `hat_widerspruch` UNABHÄNGIGE E21-Signal "es gibt konkurrierende Angaben" — bleibt `true`,
 //   auch wenn eine Bevorzugung den Widerspruch bereits aufgelöst hat.
 import type Database from 'better-sqlite3'
+import { z } from 'zod'
 import { anzahlUnterscheidbareWerte, hatWiderspruch, type AussageFuerWiderspruch } from '../../core/aussage/widerspruch'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
@@ -47,7 +48,12 @@ interface KopfZeile {
   readonly notiz: string | null
   readonly geschlecht: string | null
   readonly platzhalter_grund: string | null
+  readonly kennung: number | null
 }
+
+/** `person.kennung` beim Lesen prüfen (CHECK `kennung >= 1`, docs/schema/0007_kennung_textanker.sql)
+ * — `kennungAnzeige` (src/core/person/kennung.ts) wirft bei allem anderen. */
+const KennungSchema = z.number().int().min(1).nullable()
 
 function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefined {
   return db
@@ -56,7 +62,7 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
       KopfZeile
     >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.konfidenz_min AS konfidenz_min,
               p.ist_platzhalter AS ist_platzhalter, p.privat AS privat, p.notiz AS notiz,
-              p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund
+              p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund, p.kennung AS kennung
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
        WHERE pf.person_id = @personId`,
@@ -196,6 +202,10 @@ function belegzahlJePraedikatLaden(db: Database.Database, personId: string): Rea
 
 interface BelegZeile {
   readonly aussage_id: string
+  readonly zitat_id: string
+  readonly feld: string | null
+  readonly textanker_von: number | null
+  readonly textanker_bis: number | null
   readonly transkript: string | null
   readonly quelle_id: string
   readonly quelle_typ: string
@@ -222,7 +232,8 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
     .prepare<
       Record<string, string>,
       BelegZeile
-    >(`SELECT az.aussage_id AS aussage_id, z.transkript AS transkript,
+    >(`SELECT az.aussage_id AS aussage_id, az.zitat_id AS zitat_id, az.feld AS feld,
+              az.textanker_von AS textanker_von, az.textanker_bis AS textanker_bis, z.transkript AS transkript,
               q.id AS quelle_id, q.typ AS quelle_typ, q.titel AS quelle_titel, q.signatur AS quelle_signatur,
               q.unmittelbarkeit AS quelle_unmittelbarkeit, a.name AS archiv_name,
               z.seite AS zitat_seite, z.eintragsnummer AS zitat_eintragsnummer,
@@ -238,6 +249,7 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
 
   for (const zeile of zeilen) {
     const beleg: PersonDetailBeleg = {
+      zitat_id: zeile.zitat_id,
       quelle: {
         id: zeile.quelle_id,
         typ: QuelleTypEnum.parse(zeile.quelle_typ),
@@ -253,6 +265,9 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
         digitalisat_url: zeile.zitat_digitalisat_url,
       },
       transkript: zeile.transkript,
+      feld: zeile.feld,
+      // DB-CHECK „beide oder keine" (0007): ein halber Anker ist nicht speicherbar.
+      textanker: zeile.textanker_von !== null && zeile.textanker_bis !== null ? { von: zeile.textanker_von, bis: zeile.textanker_bis } : null,
     }
     const liste = karte.get(zeile.aussage_id) ?? []
     liste.push(beleg)
@@ -600,6 +615,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       privat: kopfZeile.privat === 1,
       geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
       platzhalter_grund: kopfZeile.platzhalter_grund === null ? null : PlatzhalterGrundEnum.parse(kopfZeile.platzhalter_grund),
+      kennung: KennungSchema.parse(kopfZeile.kennung),
     },
     namen: namenLaden(db, ein.personId),
     grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),

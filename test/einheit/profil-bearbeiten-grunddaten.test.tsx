@@ -38,6 +38,7 @@ function kopf(ueberschreibung: Partial<PersonDetailKopf> = {}): PersonDetailKopf
     privat: false,
     geschlecht: null,
     platzhalter_grund: null,
+    kennung: null,
     ...ueberschreibung,
   }
 }
