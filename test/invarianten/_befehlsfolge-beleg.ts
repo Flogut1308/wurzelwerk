@@ -155,8 +155,8 @@ export interface BelegVerknuepfungInfo {
   readonly zitatId: string
 }
 
-/** Was `aussage_zitat.aendern` zuletzt angefordert hat — für I2 in `textanker-gueltig.test.ts`
- * (die bearbeitete Verknüpfung muss danach genau diese Werte tragen). */
+/** Was `aussage_zitat.aendern` bzw. `.anlegen` zuletzt angefordert hat — für I2 in
+ * `textanker-gueltig.test.ts` (die Verknüpfung muss danach genau diese Werte tragen). */
 export interface BelegAenderungInfo {
   readonly aussageId: string
   readonly zitatId: string
@@ -174,6 +174,9 @@ export interface BelegZustand {
   quelleIds: string[]
   aussageZitatVerknuepfungen: BelegVerknuepfungInfo[]
   belegAenderung: BelegAenderungInfo | undefined
+  /** Anforderung des zuletzt ausgeführten `aussage_zitat.anlegen` (auch aus dem Vorlauf) — für I2
+   * (neue Zeile trägt genau diese Werte, hueter PR #119 H3). */
+  belegAnlage: BelegAenderungInfo | undefined
 }
 
 /** Vom Generator geliefert (s. `BelegZustand`): genau ein `fuehreAus()`, das eine Aussage schafft
@@ -540,21 +543,27 @@ export function aussageZitatAnlegenAusfuehren(
     ...(feld === undefined ? {} : { feld }),
     ...(anker === undefined ? {} : { textanker: anker }),
   })
-  zustand.aussageZitatVerknuepfungen.push({ aussageId: aussage.id, zitatId })
+  const verknuepfung = { aussageId: aussage.id, zitatId }
+  zustand.aussageZitatVerknuepfungen.push(verknuepfung)
+  zustand.belegAnlage = { aussageId: aussage.id, zitatId, feld: feld ?? null, von: anker?.von ?? null, bis: anker?.bis ?? null }
 
-  if (anker === undefined || transkript === null) {
+  // Zweige am DATENBANKERGEBNIS (hueter PR #119, H3): die angelegte Zeile zurücklesen, nicht die
+  // Anforderung zählen — speichert der Handler Anker oder feld nicht, fällt der Zweig weg.
+  const gespeichert = verknuepfungLesen(db, verknuepfung)
+  const gespeicherterAnker = ankerVon(gespeichert)
+  if (gespeicherterAnker === null || transkript === null) {
     zweige.push('beleg.anlegen.ohneAnker')
   } else {
     zweige.push('beleg.anlegen.anker')
-    if (ausschnittNichtAscii(transkript, anker)) {
+    if (ausschnittNichtAscii(transkript, gespeicherterAnker)) {
       zweige.push('beleg.anlegen.ankerNichtAscii')
     }
-    if (grenzeNebenPaar(transkript, anker.von) || grenzeNebenPaar(transkript, anker.bis)) {
+    if (grenzeNebenPaar(transkript, gespeicherterAnker.von) || grenzeNebenPaar(transkript, gespeicherterAnker.bis)) {
       zweige.push('beleg.anlegen.grenzeNebenErsatzpaar')
     }
   }
-  if (feld !== undefined) {
-    zweige.push(anker === undefined ? 'beleg.anlegen.feld' : 'beleg.anlegen.ankerUndFeld')
+  if (gespeichert.feld !== null) {
+    zweige.push(gespeicherterAnker === null ? 'beleg.anlegen.feld' : 'beleg.anlegen.ankerUndFeld')
   }
 }
 

@@ -1461,6 +1461,9 @@ export interface Zustand {
   /** AP-1.34 PR-B2: Anforderung des zuletzt ausgeführten `aussage_zitat.aendern` — zu Beginn jeder
    * Aktion zurückgesetzt (s. `aktionAusfuehren()`), für I2 in `textanker-gueltig.test.ts`. */
   belegAenderung: BelegAenderungInfo | undefined
+  /** AP-1.34 PR-B2 (hueter PR #119 H3): Anforderung des zuletzt ausgeführten `aussage_zitat.anlegen`,
+   * wie `belegAenderung` zu Beginn jeder Aktion zurückgesetzt. */
+  belegAnlage: BelegAenderungInfo | undefined
 }
 
 export function neuerZustand(): Zustand {
@@ -1483,6 +1486,7 @@ export function neuerZustand(): Zustand {
     zitatIds: [],
     negativbefundIds: [],
     belegAenderung: undefined,
+    belegAnlage: undefined,
   }
 }
 
@@ -1719,6 +1723,7 @@ function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, akt
 export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): readonly Zweig[] {
   const zweige: Zweig[] = []
   zustand.belegAenderung = undefined
+  zustand.belegAnlage = undefined
   aktionAusfuehrenIn(db, zustand, aktion, zweige)
   return zweige
 }

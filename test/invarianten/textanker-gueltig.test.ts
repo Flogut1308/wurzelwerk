@@ -21,7 +21,9 @@
 //   Verknüpfungen von Zitaten mit unverändertem Transkript bleiben vollständig unverändert
 //   (einschließlich `geaendert_am`). Einzige Ausnahme: die Verknüpfung, die der Schritt per
 //   `aussage_zitat.aendern` bearbeitet hat — sie trägt danach genau die angeforderten Werte
-//   (`zustand.belegAenderung`; beim No-op die alten).
+//   (`zustand.belegAenderung`; beim No-op die alten). Eine NEUE Zeile gibt es nur als die per
+//   `aussage_zitat.anlegen` angeforderte, mit genau deren feld/von/bis (`zustand.belegAnlage`); eine
+//   Zeile VERSCHWINDET nur nach einem Lösch-/Kaskadenbefehl (hueter PR #119, H3/H4).
 // - I3 (F1, C1b-feld-praedikat): `feld ≠ NULL` nur an einer Existenz-Aussage und nur mit einem Wert
 //   aus `BELEG_FELDER_JE_SUBJEKT[subjekt_typ]`.
 //
@@ -185,17 +187,53 @@ function pruefeI1I3(belege: ReadonlyMap<string, BelegZeile>, wann: string): void
 
 // --- I2: E4-Stabilität um einen Schritt ----------------------------------------------------------
 
+/** Befehle, nach denen eine Verknüpfung verschwinden darf: das Lösen selbst und die Löschbefehle,
+ * deren Kaskade `aussage_zitat` erreicht (CASCADE auf `aussage_id`/`zitat_id`; die drei Kanten-/
+ * Ereignis-Löschbefehle löschen ihre Aussagen über `loeschenNachSubjekt`). */
+const LOESCHT_VERKNUEPFUNGEN: readonly Zweig[] = [
+  'befehl:aussage_zitat.loeschen',
+  'befehl:aussage.loeschen',
+  'befehl:zitat.loeschen',
+  'befehl:elternschaft.loeschen',
+  'befehl:partnerschaft.loeschen',
+  'befehl:ereignis.loeschen',
+]
+
+function werteGleich(z: BelegZeile, soll: BelegAenderungInfo): boolean {
+  return z.feld === soll.feld && z.textanker_von === soll.von && z.textanker_bis === soll.bis
+}
+
 function pruefeI2(
   vorher: ReadonlyMap<string, BelegZeile>,
   nachher: ReadonlyMap<string, BelegZeile>,
   transkriptVorher: ReadonlyMap<string, string | null>,
   transkriptNachher: ReadonlyMap<string, string | null>,
   bearbeitet: BelegAenderungInfo | undefined,
+  angelegt: BelegAenderungInfo | undefined,
+  zweige: readonly Zweig[],
 ): void {
+  // Neue Zeilen (hueter PR #119, H3): nur die eine per `aussage_zitat.anlegen` angeforderte, und
+  // sie trägt genau feld/von/bis der Anforderung.
+  for (const [k, a] of nachher) {
+    if (vorher.has(k)) {
+      continue
+    }
+    if (angelegt === undefined || k !== schluessel(angelegt.aussageId, angelegt.zitatId)) {
+      throw new Error(`I2: unerwartete neue Verknüpfung ${k}`)
+    }
+    if (!werteGleich(a, angelegt)) {
+      throw new Error(`I2: aussage_zitat.anlegen an ${k} ergab ${eigeneSpalten(a)} statt ${JSON.stringify(angelegt)}`)
+    }
+  }
+  const loeschenErlaubt = zweige.some((z) => LOESCHT_VERKNUEPFUNGEN.includes(z))
   for (const [k, b] of vorher) {
     const a = nachher.get(k)
     if (a === undefined) {
-      continue // gelöst oder mit Aussage/Zitat gelöscht — nicht Gegenstand von I2
+      // Verschwinden nur nach einem Lösch-/Kaskadenbefehl (hueter PR #119, H4).
+      if (!loeschenErlaubt) {
+        throw new Error(`I2: Verknüpfung ${k} verschwand ohne Lösch-/Kaskadenbefehl (Zweige: ${zweige.join(', ')})`)
+      }
+      continue
     }
     if (bearbeitet !== undefined && k === schluessel(bearbeitet.aussageId, bearbeitet.zitatId)) {
       const erhalten = [a.feld, a.textanker_von, a.textanker_bis]
@@ -269,7 +307,7 @@ describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, N
             const belegeNachher = belegeLesen(db)
             const transkripteNachher = transkripteLesen(db)
             pruefeI1I3(belegeNachher, `nach Schritt ${nr} (${aktion.art})`)
-            pruefeI2(belege, belegeNachher, transkripte, transkripteNachher, zustand.belegAenderung)
+            pruefeI2(belege, belegeNachher, transkripte, transkripteNachher, zustand.belegAenderung, zustand.belegAnlage, zweige)
 
             // Undo-Schritte wie in `undo-bitgleich.test.ts`: neue oberste Transaktion = neuer
             // Schritt; gleiche (No-op/Koaleszenz) = derselbe Schritt, Zweige kommen dazu.
