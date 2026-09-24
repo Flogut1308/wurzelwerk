@@ -78,7 +78,8 @@ function importRuecknahmeSperren(ziel: JournalTransaktionZiel): void {
  *
  * Nur erreichbar über `undo()`, wenn `ziel` eine Import-Transaktion mit `snapshot_pfad != null`
  * ist — und laut ADR-019 nur solange sie die NEUESTE Transaktion ist, was `undoZiel()`s
- * `ORDER BY lfd DESC LIMIT 1` bereits garantiert. *
+ * `ORDER BY lfd DESC LIMIT 1` bereits garantiert.
+ *
  * AP-1.34 (E12): der Schnappschuss trägt den Zählerstand von VOR dem Import — die im Import
  * vergebenen Kennungen würden sonst neu vergeben. Darum wird `kennung_zaehler` vor dem Schließen
  * gesichert und nach dem Zurückkopieren auf `max(alt, wiederhergestellt)` gezogen („nie neu

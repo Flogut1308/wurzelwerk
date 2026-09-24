@@ -19,6 +19,7 @@ import {
   InformationsartEnum,
   IntensitaetEnum,
   KalenderEnum,
+  KennungBereichEnum,
   LebendStatusEnum,
   NameFormReihenfolgeEnum,
   NameFormRolleEnum,
@@ -38,8 +39,6 @@ import {
   UnmittelbarkeitEnum,
   VerfahrenEnum,
 } from '../../src/shared/schemata'
-import * as schemataModul from '../../src/shared/schemata'
-import { z } from 'zod'
 import {
   anwenderTabellenNamen,
   checkInSpaltenAusSql,
@@ -65,29 +64,6 @@ const DATUMSGRUPPEN_ENUM_SPALTEN: Record<string, EnumMitOptionen> = {
   modifikator: DatumModifikatorEnum,
   praezision: DatumPraezisionEnum,
   zweitkalender: KalenderEnum,
-}
-
-const EnumMitOptionenSchema = z.object({ options: z.array(z.string()) })
-
-/**
- * AP-1.34: Zod-Enum per Namen aus `src/shared/schemata` nachschlagen, geprüft über Zod (kein `as`).
- * Nur für Aufzählungen, deren Enum mit der Migration erst entsteht (hier `KennungBereichEnum` für
- * `kennung_zaehler.bereich`, docs/schema/0007_kennung_textanker.sql): so ist ein fehlendes Enum
- * ein Laufzeit-Rot mit klarer Meldung statt eines Typfehlers, der die ganze Datei nicht laden ließe.
- * Sobald das Enum existiert, darf der Eintrag unten auf einen direkten Import umgestellt werden
- * (gleich streng).
- */
-function spaeterEnum(name: string): EnumMitOptionen {
-  return {
-    get options(): readonly string[] {
-      const kandidat: unknown = Reflect.get(schemataModul, name)
-      const geprueft = EnumMitOptionenSchema.safeParse(kandidat)
-      if (!geprueft.success) {
-        throw new Error(`Zod-Enum "${name}" fehlt in src/shared/schemata (oder hat keine .options).`)
-      }
-      return geprueft.data.options
-    },
-  }
 }
 
 function datumsgruppenZuordnungen(tabelle: string, praefix: string): readonly AufzaehlungsZuordnung[] {
@@ -161,7 +137,7 @@ const AUFZAEHLUNGS_ZUORDNUNGEN: readonly AufzaehlungsZuordnung[] = [
   { tabelle: 'suche_fts_quelle', spalte: 'quelle_typ', zodEnum: SucheFtsQuelleTypEnum },
   // docs/schema/0007_kennung_textanker.sql (AP-1.34): kennung_zaehler ist NICHT_JOURNALISIERT, trägt
   // aber eine beobachtete Aufzählung (CHECK (bereich IN ('person'))), analog suche_fts_quelle oben.
-  { tabelle: 'kennung_zaehler', spalte: 'bereich', zodEnum: spaeterEnum('KennungBereichEnum') },
+  { tabelle: 'kennung_zaehler', spalte: 'bereich', zodEnum: KennungBereichEnum },
 ]
 
 /** Spalten mit `CHECK (spalte IN (…))` in 0001_grundgeruest.sql, außerhalb des AP-0.6-Umfangs (s. o.). */
