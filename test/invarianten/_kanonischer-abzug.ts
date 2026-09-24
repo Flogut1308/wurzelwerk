@@ -31,7 +31,9 @@
 // 2. Abgeleitet (55_Architektur.md §5.3): `person_flach`/`name_phonetik`/`suche_fts_quelle`, die
 //    virtuelle FTS5-Tabelle `suche_fts` und ihre vier von SQLite automatisch angelegten
 //    Schattentabellen (`suche_fts_data`/`_idx`/`_docsize`/`_config`). Sie werden in
-//    `test/invarianten/abgeleitet-gleich.test.ts` gegen `alleAbgeleitetenNeuAufbauen` geprüft -
+//    `test/invarianten/abgeleitet-gleich.test.ts` gegen `alleAbgeleitetenNeuAufbauen` geprüft
+//    (rohe Schreibfolgen ohne Undo; nach Undo bisher nur `person_flach` in
+//    `test/einheit/undo-abgeleitet.test.ts`, Folgepunkt U-1.34-B4 in docs/80 §31) -
 //    hier NICHT nochmal, sonst würde ein von einem Undo-Schritt nicht mitgepflegter abgeleiteter
 //    Wert fälschlich als "Bitgleichheit verletzt" durchgehen, obwohl die Basistabellen längst
 //    wieder korrekt sind.

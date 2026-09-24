@@ -95,7 +95,12 @@ describe('Invariante: eine vergebene Kennung wird nie neu vergeben (AP-1.34, E14
           // Gegenprobe zur Vorweg-Anlage: die Zusicherung unten ist nicht leer.
           expect(gesehen.size).toBeGreaterThan(0)
 
+          // Obergrenze: ein Undo, das nicht weiterkommt, soll klar rot werden statt im Timeout.
+          let schritte = 0
           while (undoZiel(db) !== undefined) {
+            if (++schritte > folge.length + 1) {
+              throw new Error(`Undo kommt nach ${String(schritte)} Schritten nicht zum Ende`)
+            }
             undo(db)
           }
           expect(alleKennungen(db)).toEqual([])
