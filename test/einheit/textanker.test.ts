@@ -47,6 +47,17 @@ describe('K1 ankerPruefen', () => {
     expect(ankerPruefen(MIT_EMOJI, 0, 8)).toBe('teilt_ersatzpaar')
     expect(ankerPruefen(MIT_EMOJI, 7, 8)).toBe('teilt_ersatzpaar')
   })
+
+  // hueter PR #117 H1: Nur ein vollständiges Paar (High vor, Low hinter der Grenze) wird geteilt.
+  // Einsame Surrogate an der Grenze sind kein Paar und bleiben gültig.
+  it('einsames High-Surrogate vor der Grenze teilt kein Paar', () => {
+    expect(ankerPruefen('a\uD83Db', 0, 2)).toBe('ok')
+  })
+
+  it('einsames Low-Surrogate hinter der Grenze teilt kein Paar', () => {
+    expect(ankerPruefen('a\uDC00b', 0, 1)).toBe('ok')
+    expect(ankerPruefen('a\uDC00b', 1, 3)).toBe('ok')
+  })
 })
 
 describe('ausschnitt', () => {

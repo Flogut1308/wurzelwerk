@@ -191,6 +191,16 @@ describe('aussage_zitat.anlegen mit Textanker (AP-1.34 PR-C1a)', () => {
       const code = fehlerCode(() => fuehreAus(db, 'aussage_zitat.anlegen', { aussageId, zitatId, textanker: { von: 8, bis: 10 } }))
 
       expect(code).toBe('VALIDIERUNG_WERTEBEREICH')
+      // hueter PR #117 H3 / CLAUDE.md §7: die Meldung trägt nur den Prüfcode, keinen Transkript-Inhalt.
+      let meldung = ''
+      try {
+        fuehreAus(db, 'aussage_zitat.anlegen', { aussageId, zitatId, textanker: { von: 8, bis: 10 } })
+      } catch (u) {
+        meldung = u instanceof Error ? u.message : String(u)
+      }
+      expect(meldung).not.toBe('')
+      expect(meldung).not.toContain('Müller')
+      expect(meldung).not.toContain('1850')
       expect(verknuepfungLesen(db, aussageId, zitatId)).toBeUndefined()
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
 
