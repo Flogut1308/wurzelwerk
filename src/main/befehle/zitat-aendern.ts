@@ -4,10 +4,16 @@
 // `quelle-aendern.ts::gespraechsdatumUnveraendert`); stimmen ALLE Felder bereits mit `ein` überein,
 // bleibt der Aufruf ein No-op (kein Repo-Schreibvorgang, kein neuer `geaendert_am`-Zeitstempel) —
 // der Befehlsbus verwirft die dadurch leere Transaktion vollständig.
+// AP-1.34 PR-C1a (B-01, §31 U-1.34-E4): ändert sich das Transkript, werden in DERSELBEN Transaktion
+// genau die Textanker entwertet, deren Ausschnitt [von, bis) nicht an derselben Position textgleich
+// bleibt (`ankerBleibt`, src/core/beleg/textanker.ts) — ein Befehl, ein Undo-Schritt. Ein
+// weggelassenes `transkript` setzt es auf NULL und entwertet damit alle Anker.
 import type { ZitatAendernEin } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { datensatzExistiert, type Tx } from '../repositories/basis'
 import * as belegRepo from '../repositories/beleg-repo'
+import * as aussageRepo from '../repositories/aussage-repo'
+import { ankerBleibt } from '../../core/beleg/textanker'
 import type { ZitatZeile } from '../repositories/beleg-repo'
 import { datumSpalten, type DatumSpaltengruppe } from '../import/datum-spalten'
 
@@ -58,6 +64,16 @@ export function zitatAendern(tx: Tx, ein: ZitatAendernEin): null {
     return null
   }
 
+  const jetzt = Date.now()
+  const neuesTranskript = ein.transkript ?? null
+  if (neuesTranskript !== vorher.transkript) {
+    for (const anker of aussageRepo.ankerJeZitatLesen(tx, ein.id)) {
+      if (!ankerBleibt(vorher.transkript, neuesTranskript, anker.textanker_von, anker.textanker_bis)) {
+        aussageRepo.ankerAufheben(tx, anker.aussage_id, ein.id, jetzt)
+      }
+    }
+  }
+
   belegRepo.zitatAktualisieren(tx, {
     id: ein.id,
     quelleId: ein.quelleId,
@@ -68,11 +84,11 @@ export function zitatAendern(tx: Tx, ein: ZitatAendernEin): null {
     zugriffsdatum: neuesZugriffsdatum,
     zeitmarkeSekunden: ein.zeitmarkeSekunden ?? null,
     digitalisatUrl: ein.digitalisatUrl ?? null,
-    transkript: ein.transkript ?? null,
+    transkript: neuesTranskript,
     uebersetzung: ein.uebersetzung ?? null,
     konfidenz: ein.konfidenz ?? null,
     mediumId: ein.mediumId ?? null,
-    geaendertAm: Date.now(),
+    geaendertAm: jetzt,
   })
   return null
 }
