@@ -65,10 +65,10 @@
 //
 // DECKUNGSZÄHLER (AP-1.34 PR-B2, Eigentümer-Entscheidung E-B2-1 (c)): `aktionAusfuehren()` meldet
 // die tatsächlich getroffenen Zweige (`Zweig`, `_befehlsfolge-beleg.ts`). Nach `fc.assert` muss jeder
-// Beleg-Zweig (`BELEG_PFLICHTZWEIGE`: Textanker/feld bei `aussage_zitat.anlegen`/`.aendern`,
-// `zitat.aendern` bleibt/entwertet, Ablehnungen), jeder vom Generator erzeugte Befehl samt Demote
-// und Nachrücken (`BESTAND_PFLICHTZWEIGE`) und das Undo eines Schritts, der einen Anker entwertet
-// hat (`undo.entwertung`), mehr als 0 Treffer haben. Früher standen solche Zahlen nur im PR-Bericht
+// vom Generator erzeugte Befehl samt Demote und Nachrücken (`BESTAND_PFLICHTZWEIGE`) und das Undo
+// eines Schritts, der einen Anker entwertet hat (`undo.entwertung`), Treffer haben. Dieser Test
+// nutzt das Generator-Profil `bestand` (main-Gewichte, hueter PR #119 H1/H2); die feinen
+// Beleg-Zweige prüft `textanker-gueltig.test.ts` mit dem Profil `beleg`. Früher standen solche Zahlen nur im PR-Bericht
 // einer temporären, nicht committeten Zählung — ein später verdrängter Zweig (z. B. durch eine
 // Gewichtsänderung) blieb dann still ungeprüft. Fällt ein Zähler auf 0: Gewichtung im Generator
 // korrigieren, nie Seed oder `numRuns`. Ein abgelehnter Befehl (`belegAblehnen`, E-B2-2) erzeugt
@@ -96,7 +96,7 @@ import { undo } from '../../src/main/journal/undo'
 import { undoZiel } from '../../src/main/repositories/journal-repo'
 import { kanonischerAbzug } from './_kanonischer-abzug'
 import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand, type Zweig } from './_befehlsfolge-generator'
-import { BELEG_PFLICHTZWEIGE, BESTAND_PFLICHTZWEIGE } from './_befehlsfolge-beleg'
+import { BESTAND_PFLICHTZWEIGE } from './_befehlsfolge-beleg'
 
 function neueTestDatenbank(): ReturnType<typeof oeffnen> {
   const db = oeffnen(':memory:')
@@ -173,7 +173,7 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
     )
 
     // E-B2-1 (c): kein Pflichtzweig darf leer grün sein (s. Modul-Kommentar DECKUNGSZÄHLER).
-    for (const z of [...BELEG_PFLICHTZWEIGE, ...BESTAND_PFLICHTZWEIGE, 'undo.entwertung' as const]) {
+    for (const z of [...BESTAND_PFLICHTZWEIGE, 'undo.entwertung' as const]) {
       expect(zaehler.get(z) ?? 0, `Deckungszweig ${z}`).toBeGreaterThan(0)
     }
   }, 180_000)

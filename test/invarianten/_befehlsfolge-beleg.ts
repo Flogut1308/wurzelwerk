@@ -548,7 +548,8 @@ export interface AktionAussageZitatAnlegen {
   readonly vorlauf: VorlaufRoh | undefined
 }
 
-export function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageZitatAnlegen> {
+/** `profil` (s. `GeneratorProfil` im Generator): nur `beleg` erzeugt einen Vorlauf. */
+export function aussageZitatAnlegenAktionArbitrary(profil: 'bestand' | 'beleg'): fc.Arbitrary<AktionAussageZitatAnlegen> {
   return fc
     .record({
       existenzWahlRoh: fc.nat(),
@@ -557,7 +558,7 @@ export function aussageZitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussage
       zitatZielRoh: fc.nat(),
       ankerRoh: fc.option(ankerRohArbitrary(), { nil: undefined, freq: 4 }),
       feldRoh: fc.option(fc.nat(), { nil: undefined, freq: 2 }),
-      vorlauf: vorlaufRohArbitrary(),
+      vorlauf: profil === 'beleg' ? vorlaufRohArbitrary() : fc.constant(undefined),
     })
     .map((r): AktionAussageZitatAnlegen => ({ art: 'aussageZitatAnlegen', ...r }))
 }
@@ -744,11 +745,13 @@ export interface AktionZitatAendern {
   readonly baustein: string
   readonly kuerzRoh: number
   readonly konfidenz: number
-  /** Bezug gewünscht (~80 %), aber noch kein Anker vorhanden: Vorlauf statt Änderung ohne Bezug. */
-  readonly vorlauf: VorlaufRoh
+  /** Bezug gewünscht (~80 %), aber noch kein Anker vorhanden: Vorlauf statt Änderung ohne Bezug.
+   * `undefined` (Profil `bestand`): dann freie Zitatwahl wie auf main. */
+  readonly vorlauf: VorlaufRoh | undefined
 }
 
-export function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
+/** `profil` (s. `GeneratorProfil` im Generator): nur `beleg` erzeugt einen Vorlauf. */
+export function zitatAendernAktionArbitrary(profil: 'bestand' | 'beleg'): fc.Arbitrary<AktionZitatAendern> {
   return fc
     .record({
       modus: fc.constantFrom<ZitatModus>('frei', 'gleich', 'hinter', 'im', 'vor', 'kuerzen', 'weglassen'),
@@ -761,7 +764,7 @@ export function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> 
       baustein: bausteinArbitrary(),
       kuerzRoh: fc.nat(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
-      vorlauf: vorlaufRohArbitrary(),
+      vorlauf: profil === 'beleg' ? vorlaufRohArbitrary() : fc.constant(undefined),
     })
     .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
 }
@@ -850,7 +853,8 @@ export function zitatAendernAusfuehren(
   const alleMitAnker = verknuepfungenMitAnker(db, zustand.aussageZitatVerknuepfungen)
   const mehrfach = ankerAnMehrfachZitaten(alleMitAnker)
   const bezugGewuenscht = aktion.bezugWahlRoh % 100 < 80
-  if ((bezugGewuenscht && alleMitAnker.length === 0) || (mehrfachGewuenscht(aktion) && mehrfach.length === 0)) {
+  const bezugFehlt = (bezugGewuenscht && alleMitAnker.length === 0) || (mehrfachGewuenscht(aktion) && mehrfach.length === 0)
+  if (bezugFehlt && aktion.vorlauf !== undefined) {
     vorlauf(db, zustand, aktion.vorlauf, zweige, aussageVorlauf)
     return
   }
@@ -861,7 +865,7 @@ export function zitatAendernAusfuehren(
   let bezug: VerknuepfungMitAnker | undefined
   let zitatId: string
   const bezugGewaehlt = bezugGewuenscht
-    ? ausListe(mehrfachGewuenscht(aktion) ? mehrfach : alleMitAnker, aktion.bezugZielRoh)
+    ? ausListe(mehrfachGewuenscht(aktion) && mehrfach.length > 0 ? mehrfach : alleMitAnker, aktion.bezugZielRoh)
     : undefined
   if (bezugGewaehlt === undefined) {
     const frei = ausListe(zustand.zitatIds, aktion.zitatZielRoh)

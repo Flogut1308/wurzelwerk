@@ -251,7 +251,7 @@ interface Schritt {
 describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, Nachtrag 24.09.2026; §31 E4/F1/F4)', () => {
   it('I1–I3 nach jedem Schritt einer Befehlsfolge, I1/I3 nach jedem Undo bis zum Anfang', () => {
     fc.assert(
-      fc.property(befehlsfolgeArbitrary(), (folge) => {
+      fc.property(befehlsfolgeArbitrary({ profil: 'beleg' }), (folge) => {
         const db = neueTestDatenbank()
         try {
           const zustand = neuerZustand()
@@ -309,7 +309,9 @@ describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, N
         }
       }),
       // Fester Seed (CLAUDE.md §13, Determinismus), eigener Seed neben undo-bitgleich (20260910).
-      { seed: 20260925, numRuns: 100 },
+      // 250 Läufe mit dem Generator-Profil `beleg` (hueter PR #119, H1/H6): lokal ~13 s,
+      // hochgerechnet Windows (Faktor ~4) ~52 s — unter der Vorgabe ~60 s.
+      { seed: 20260925, numRuns: 250 },
     )
 
     // E-B2-1 (c): kein Pflichtzweig darf leer grün sein.

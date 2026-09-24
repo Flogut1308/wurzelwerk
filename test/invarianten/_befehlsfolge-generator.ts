@@ -1139,12 +1139,14 @@ function quelleAendernAktionArbitrary(): fc.Arbitrary<AktionQuelleAendern> {
     .map((r): AktionQuelleAendern => ({ art: 'quelleAendern', ...r }))
 }
 
-function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
+/** `profil` `beleg` lässt das Transkript öfter weg (1:1 statt 1:2) — Zitate ohne Transkript braucht
+ * die Ablehnung „Anker ohne Transkript" (hueter PR #119, H6). */
+function zitatAnlegenAktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<AktionZitatAnlegen> {
   return fc
     .record({
       quelleZielRoh: fc.nat(),
       seite: fc.string(),
-      transkript: fc.option(transkriptArbitrary(), { nil: undefined, freq: 2 }),
+      transkript: fc.option(transkriptArbitrary(), { nil: undefined, freq: profil === 'beleg' ? 1 : 2 }),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
@@ -1188,6 +1190,20 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
 }
 
 /**
+ * AP-1.34 PR-B2 (hueter PR #119, H1/H2 — Eigentümer-Entscheidung „zwei Profile", 24.09.2026):
+ * - `bestand` (Standard; `undo-bitgleich` und alle bisherigen Aufrufer): EXAKT die Gewichte von
+ *   main (d0a095b) für alle Bestandsaktionen, dazu kleine Gewichte (1) für die neuen Beleg-Aktionen
+ *   `aussageZitatAendern` und `belegAblehnen`. Nur `aussageZitatAendern` hat hier den Vorlauf
+ *   (`VorlaufRoh`) — `aussageZitatAnlegen`/`zitatAendern` verhalten sich ohne Ziel wie auf main
+ *   (No-op bzw. freie Zitatwahl). So bleibt die Deckung der Bestandsbefehle und die Laufzeit auf
+ *   main-Niveau (mit den Beleg-Gewichten verloren 13 Bestandsbefehle Treffer, Windows-CI 138,9 s
+ *   statt 111,5 s), und jeder neue Befehl feuert trotzdem (Journal-Lücken wie M7 bleiben gedeckt).
+ * - `beleg` (nur `textanker-gueltig.test.ts`): die Beleg-Gewichte (s. Kommentar an
+ *   `aktionArbitrary()`) mit Vorlauf in allen Beleg-Aktionen.
+ */
+export type GeneratorProfil = 'bestand' | 'beleg'
+
+/**
  * Arbitrary für eine einzelne `Aktion`. Gewichte: `anlegen` (Person) bleibt mit Abstand am
  * höchsten (3), weil praktisch jede neue Aktion — die eigenen `person.*`-Aktionen ausgenommen —
  * mindestens eine bestehende Person referenziert; ohne genügend früh angelegte Personen blieben
@@ -1207,8 +1223,9 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * Personen (Typkommentar „MEHRFORMEN-DECKUNG", Trefferzahlen im PR-Bericht).
  *
  * AP-1.34 PR-B2 (BELEG-DECKUNG, Eigentümer-Entscheidung E-B2-1 (c): Deckungszähler „nie 0" je
- * Zweig committet, `BELEG_PFLICHTZWEIGE`/`BESTAND_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`): die
- * Beleg-Aktionen tragen das meiste Gewicht (`aussageZitatAnlegen` 4, `zitatAendern` 6,
+ * Zweig committet, `BELEG_PFLICHTZWEIGE`/`BESTAND_PFLICHTZWEIGE` in `_befehlsfolge-beleg.ts`). Die
+ * folgenden Werte gelten NUR im Profil `beleg` (`g(bestand, beleg)`, zweiter Wert; s. `GeneratorProfil`
+ * — das Profil `bestand` behält die main-Gewichte): die Beleg-Aktionen tragen das meiste Gewicht (`aussageZitatAnlegen` 4, `zitatAendern` 6,
  * `aussageZitatAendern` 3, `belegAblehnen` 2), weil jede von ihnen erst am Ende der Kette Quelle →
  * Zitat → Aussage → Verknüpfung mit Anker wirkt; der Vorlauf (`VorlaufRoh`) schafft die fehlenden
  * Kettenglieder. Zum Ausgleich (Gesamtgewicht 74 statt 66 auf main, Laufzeit) sind reichlich
@@ -1220,11 +1237,13 @@ function negativbefundLoeschenAktionArbitrary(): fc.Arbitrary<AktionNegativbefun
  * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen, seitdem `BESTAND_PFLICHTZWEIGE`);
  * `ortszugehoerigkeitAnlegen` steigt aus demselben Grund auf 3.
  */
-function aktionArbitrary(): fc.Arbitrary<Aktion> {
+function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
+  // `g(bestand, beleg)`: Gewicht je Profil (s. `GeneratorProfil`).
+  const g = (bestand: number, beleg: number): number => (profil === 'bestand' ? bestand : beleg)
   return fc.oneof(
     { weight: 3, arbitrary: personAnlegenEinArbitrary().map((ein): AktionAnlegen => ({ art: 'anlegen', ein })) },
     {
-      weight: 1,
+      weight: g(2, 1),
       arbitrary: fc
         .record({ zielRoh: fc.nat(), feldwert: feldwertArbitrary() })
         .map((r): AktionFeldSetzen => ({ art: 'feldSetzen', zielRoh: r.zielRoh, feldwert: r.feldwert })),
@@ -1232,9 +1251,9 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: fc.nat().map((zielRoh): AktionLoeschen => ({ art: 'loeschen', zielRoh })) },
     { weight: 2, arbitrary: nameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: nameAendernAktionArbitrary() },
-    { weight: 2, arbitrary: nameLoeschenAktionArbitrary() },
+    { weight: g(1, 2), arbitrary: nameLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: hauptnameWechselnAktionArbitrary() },
-    { weight: 3, arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
+    { weight: g(2, 3), arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftAendernAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
@@ -1248,29 +1267,29 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
-    { weight: 1, arbitrary: aussageAendernAktionArbitrary() },
-    { weight: 4, arbitrary: aussageZitatAnlegenAktionArbitrary() },
-    { weight: 3, arbitrary: aussageZitatAendernAktionArbitrary() },
-    { weight: 2, arbitrary: belegAblehnenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: aussageAendernAktionArbitrary() },
+    { weight: g(2, 4), arbitrary: aussageZitatAnlegenAktionArbitrary(profil) },
+    { weight: g(1, 3), arbitrary: aussageZitatAendernAktionArbitrary() },
+    { weight: g(1, 2), arbitrary: belegAblehnenAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
-    { weight: 1, arbitrary: ortsnameAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortsnameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
-    { weight: 3, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
+    { weight: g(2, 3), arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
-    { weight: 1, arbitrary: ortExterneIdAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortExterneIdAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
-    { weight: 1, arbitrary: archivAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: archivAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: archivAendernAktionArbitrary() },
-    { weight: 1, arbitrary: quelleAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: quelleAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: quelleAendernAktionArbitrary() },
-    { weight: 2, arbitrary: zitatAnlegenAktionArbitrary() },
-    { weight: 6, arbitrary: zitatAendernAktionArbitrary() },
+    { weight: 2, arbitrary: zitatAnlegenAktionArbitrary(profil) },
+    { weight: g(1, 6), arbitrary: zitatAendernAktionArbitrary(profil) },
     { weight: 1, arbitrary: zitatLoeschenAktionArbitrary() },
-    { weight: 1, arbitrary: negativbefundAnlegenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: negativbefundAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundAendernAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundLoeschenAktionArbitrary() },
   )
@@ -1312,8 +1331,8 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
  * über 0, `aussageZitatLoeschen` mit knappem, aber durch den festen Seed STABILEM Abstand).
  * Laufzeit lokal weiterhin deutlich unter dem 180s-`it()`-Timeout (s. `undo-bitgleich.test.ts`,
  * ~21s statt ~17s zuvor). */
-export function befehlsfolgeArbitrary(): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(), { minLength: 30, maxLength: 52 })
+export function befehlsfolgeArbitrary(optionen: { readonly profil: GeneratorProfil } = { profil: 'bestand' }): fc.Arbitrary<readonly Aktion[]> {
+  return fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
