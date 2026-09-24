@@ -3,6 +3,7 @@
 // `person-repo.ts`-Kopf). Trägt sowohl die Vertrags-`aussagen[]` als auch die importinternen
 // Existenz-/abgeleiteten Aussagen (ADR-026, 50_Datenmodell.md §2.7) — beide landen in derselben
 // Tabelle, es gibt keinen zweiten `aussage`-Schreibpfad.
+import { z } from 'zod'
 import type { Tx } from './basis'
 import type { DatumSpaltengruppe } from '../import/datum-spalten'
 
@@ -219,6 +220,43 @@ export function verknuepfungExistiert(tx: Tx, aussageId: string, zitatId: string
     )
     .get({ aussageId, zitatId })
   return zeile !== undefined
+}
+
+/** Ein gesetzter Textanker eines Zitats (AP-1.34 PR-C1a): die Aussage und ihr Intervall [von, bis). */
+export interface AnkerZeile {
+  readonly aussage_id: string
+  readonly textanker_von: number
+  readonly textanker_bis: number
+}
+
+const ankerZeileSchema: z.ZodType<AnkerZeile> = z.object({
+  aussage_id: z.string(),
+  textanker_von: z.number().int().min(0),
+  textanker_bis: z.number().int(),
+})
+
+/** Alle gesetzten Textanker an einem `zitat` (Spalten explizit, CLAUDE.md §6), sortiert nach
+ * `aussage_id`. Verknüpfungen ohne Anker fehlen. Für `zitat.aendern` (E4). */
+export function ankerJeZitatLesen(tx: Tx, zitatId: string): readonly AnkerZeile[] {
+  return tx
+    .prepare<{ readonly zitatId: string }, unknown>(
+      `SELECT aussage_id, textanker_von, textanker_bis
+       FROM aussage_zitat
+       WHERE zitat_id = @zitatId AND textanker_von IS NOT NULL
+       ORDER BY aussage_id`,
+    )
+    .all({ zitatId })
+    .map((roh) => ankerZeileSchema.parse(roh))
+}
+
+/** Entwertet den Textanker einer Verknüpfung (`textanker_von = textanker_bis = NULL`, E4) — `feld`
+ * bleibt. Einziger UPDATE-Weg auf `aussage_zitat`; die `jrn_aussage_zitat_au`-Trigger journalisieren
+ * ihn wie jeden Schreibvorgang. */
+export function ankerAufheben(tx: Tx, aussageId: string, zitatId: string, geaendertAm: number): void {
+  tx.prepare(
+    `UPDATE aussage_zitat SET textanker_von = NULL, textanker_bis = NULL, geaendert_am = @geaendertAm
+     WHERE aussage_id = @aussageId AND zitat_id = @zitatId`,
+  ).run({ aussageId, zitatId, geaendertAm })
 }
 
 /** Löst eine `aussage_zitat`-Verknüpfung wieder — anders als `loeschen()`/`loeschenNachSubjekt()`
