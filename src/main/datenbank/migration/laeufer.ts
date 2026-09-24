@@ -35,6 +35,18 @@ export interface LaeufenOptionen {
    * Aufrufer (`src/main/projekt/projekt-dienst.ts`), der die Pfade kennt.
    */
   readonly schnappschussVor?: (db: Database.Database) => void
+  /**
+   * Aufrufer-Hook (AP-1.34, U-1.34-O1): läuft je angewendeter Version genau einmal — nach dem
+   * Migrations-SQL, vor dem Eintrag in `schema_migration`, innerhalb derselben `BEGIN … COMMIT` und
+   * bei ausgeschaltetem Journal (`journalAus` der Migrations-Klammer; kein eigener `journalAus`).
+   * Schreibt der Hook, entstehen darum keine Journalzeilen (gewollt: wie die Migration selbst).
+   * Wirft er, wird genau diese Version zurückgerollt (`user_version` bleibt auf der Vorversion).
+   * Nie aufgerufen, wenn die Datei schon aktuell ist. Einziger Produktivaufrufer:
+   * `src/main/schnappschuss/kennung-angleichen.ts` (Kennungsübernahme bei Version 7, A2b) — damit
+   * hängt das Ergebnis einer Migration von einer Aufrufer-Eingabe ab (`docs/architektur.md` §9.3);
+   * `projektOeffnen` und `test/migration/historisch.test.ts` setzen keinen Hook.
+   */
+  readonly nachMigrationsSql?: (db: Database.Database, version: number) => void
 }
 
 function tabelleExistiert(db: Database.Database, name: string): boolean {
@@ -94,9 +106,13 @@ interface AnwendenKontext {
   readonly inhaltLesen: (eintrag: MigrationEintrag) => Buffer
   readonly jetzt: () => number
   readonly appVersion: string
+  readonly nachMigrationsSql: ((db: Database.Database, version: number) => void) | undefined
 }
 
-/** Wendet genau eine Migration an: BEGIN → SQL → schema_migration-Zeile → user_version → COMMIT. */
+/**
+ * Wendet genau eine Migration an: BEGIN → SQL → Aufrufer-Hook (`nachMigrationsSql`, optional) →
+ * schema_migration-Zeile → user_version → COMMIT.
+ */
 function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEintrag, ktx: AnwendenKontext): void {
   const rohInhalt = ktx.inhaltLesen(eintrag)
   const berechnet = pruefsummeBerechnen(rohInhalt)
@@ -134,6 +150,7 @@ function einzelneMigrationAnwenden(db: Database.Database, eintrag: MigrationEint
       )
     }
     db.exec(rohInhalt.toString('utf8'))
+    ktx.nachMigrationsSql?.(db, eintrag.version)
     db.prepare(
       'INSERT INTO schema_migration (version, datei, pruefsumme, angewendet_am, app_version) ' +
         'VALUES (@version, @datei, @pruefsumme, @angewendetAm, @appVersion)',
@@ -194,7 +211,7 @@ export function migrieren(db: Database.Database, opts: LaeufenOptionen = {}): vo
     .sort((a, b) => a.version - b.version)
 
   for (const eintrag of ausstehend) {
-    einzelneMigrationAnwenden(db, eintrag, { inhaltLesen, jetzt, appVersion })
+    einzelneMigrationAnwenden(db, eintrag, { inhaltLesen, jetzt, appVersion, nachMigrationsSql: opts.nachMigrationsSql })
   }
 
   // 55_Architektur.md §4.4: "als letzter Schritt jeder Migration" - einmal nach der gesamten
