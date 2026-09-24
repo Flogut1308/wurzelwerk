@@ -2,7 +2,7 @@
 // schließen, aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` verschieben (NIE löschen),
 // gewählten Schnappschuss zurückkopieren, wieder öffnen.
 import Database from 'better-sqlite3'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -170,6 +170,122 @@ describe('schnappschussWiederherstellen() (55_Architektur.md §6.2/§6.4, AP-0.1
     // Das Projekt ist NICHT mehr offen (der Fehlschlag passiert nach projektSchliessen(), vor
     // dem erneuten projektOeffnen()) - lässt sich aber unverändert wieder öffnen, statt an einem
     // fehlenden baum.sqlite zu scheitern (der eigentliche Kern der Auflage: kein "Projekt steckt").
+    expect(() => offenesProjektDatenbank()).toThrow(WurzelFehler)
+    const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
+    expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })
+    expect(personenAnzahl(dbPfad)).toBe(1)
+  })
+})
+
+function personZaehler(pfad: string): number {
+  const db = new Database(pfad, { readonly: true })
+  try {
+    const zeile = db
+      .prepare<[], { readonly naechste: number }>("SELECT naechste FROM kennung_zaehler WHERE bereich = 'person'")
+      .get()
+    if (zeile === undefined) {
+      throw new Error('kennung_zaehler hat keine Zeile für person.')
+    }
+    return zeile.naechste
+  } finally {
+    db.close()
+  }
+}
+
+function personKennung(pfad: string, id: string): number | null {
+  const db = new Database(pfad, { readonly: true })
+  try {
+    const zeile = db.prepare<{ readonly id: string }, { readonly kennung: number | null }>('SELECT kennung FROM person WHERE id = @id').get({ id })
+    if (zeile === undefined) {
+      throw new Error('Person nicht gefunden.')
+    }
+    return zeile.kennung
+  } finally {
+    db.close()
+  }
+}
+
+describe('schnappschussWiederherstellen() senkt den Kennungszähler nie (AP-1.34, A2a)', () => {
+  let elternordner: string
+
+  beforeEach(() => {
+    elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-wiederherstellen-kennung-'))
+  })
+
+  afterEach(() => {
+    projektSchliessen()
+    rmSync(elternordner, { recursive: true, force: true })
+  })
+
+  it('A2-T1: nach dem Wiederherstellen steht der Zähler auf dem Stand vor der Wiederherstellung, die nächste Person bekommt keine bereits vergebene Kennung', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    const db = offenesProjektDatenbank()
+
+    const a = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personKennung(dbPfad, a.id)).toBe(1)
+    const eintrag = schnappschussErzeugen(db, { snapshotsPfad }, () => Date.UTC(2026, 8, 24, 8, 0, 0))
+    const b = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    const c = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personKennung(dbPfad, b.id)).toBe(2)
+    expect(personKennung(dbPfad, c.id)).toBe(3)
+    expect(personZaehler(dbPfad)).toBe(4)
+
+    schnappschussWiederherstellen({ id: eintrag.id }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))
+
+    expect(personenAnzahl(dbPfad)).toBe(1)
+    // O-3: der Schnappschuss behält seine eigenen Kennungen.
+    expect(personKennung(dbPfad, a.id)).toBe(1)
+    expect(personZaehler(dbPfad)).toBe(4)
+
+    const neu = fuehreAus(offenesProjektDatenbank(), 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personKennung(dbPfad, neu.id)).toBe(4)
+  })
+
+  it('A2-T2: Schnappschuss sofort wiederhergestellt (Gleichstand) wirft nicht und lässt den Zähler unverändert', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    const db = offenesProjektDatenbank()
+    fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personZaehler(dbPfad)).toBe(3)
+    const eintrag = schnappschussErzeugen(db, { snapshotsPfad }, () => Date.UTC(2026, 8, 24, 8, 0, 0))
+
+    expect(() => schnappschussWiederherstellen({ id: eintrag.id }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))).not.toThrow()
+
+    expect(personZaehler(dbPfad)).toBe(3)
+    expect(() => offenesProjektDatenbank()).not.toThrow()
+  })
+
+  it('A2-T3: scheitert das Nachziehen (Schnappschuss-Datei mit Fremdbytes), wird zurückgerollt - alter Inhalt, keine ersetzt-Datei, Projekt wieder öffenbar', () => {
+    const projekt = projektAnlegen({ elternordner, name: 'Testbaum' })
+    const dbPfad = join(projekt.pfad, 'baum.sqlite')
+    const snapshotsPfad = join(projekt.pfad, 'snapshots')
+    fuehreAus(offenesProjektDatenbank(), 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+    expect(personenAnzahl(dbPfad)).toBe(1)
+
+    // Kopieren gelingt, erst das Öffnen zum Nachziehen scheitert (SQLITE_NOTADB).
+    mkdirSync(snapshotsPfad, { recursive: true })
+    writeFileSync(join(snapshotsPfad, 'fremd.sqlite'), Buffer.from('das ist keine SQLite-Datei, sondern Fremdbytes '.repeat(200)))
+
+    try {
+      schnappschussWiederherstellen({ id: 'fremd' }, ktx, () => Date.UTC(2026, 8, 24, 9, 0, 0))
+      expect.unreachable()
+    } catch (u) {
+      expect(u).toBeInstanceOf(WurzelFehler)
+      if (u instanceof WurzelFehler) {
+        expect(u.code).toBe('INTERN_UNERWARTET')
+      }
+    }
+
+    expect(existsSync(dbPfad)).toBe(true)
+    expect(personenAnzahl(dbPfad)).toBe(1)
+    expect(personZaehler(dbPfad)).toBe(2)
+    const ersetzteDateien = readdirSync(snapshotsPfad).filter((name) => name.startsWith('ersetzt-'))
+    expect(ersetzteDateien).toHaveLength(0)
+
     expect(() => offenesProjektDatenbank()).toThrow(WurzelFehler)
     const wiedergeoeffnet = projektOeffnen({ pfad: projekt.pfad }, ktx)
     expect(wiedergeoeffnet).toEqual({ status: 'geoeffnet', projekt })

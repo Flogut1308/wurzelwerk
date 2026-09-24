@@ -22,11 +22,11 @@ import { dirname, join } from 'node:path'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { UndoErgebnis } from '../../shared/ipc/vertrag'
 import { alsBekannteTabelle, rohEinfuegen, rohErsetzen, rohLoeschen, zeileSchema, type ZeileWerte } from '../repositories/basis'
-import { oeffnen } from '../datenbank/verbindung'
-import { zaehlerMindestensSetzen, zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
+import { zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
 import { mitHauptnameConstraintAus } from '../repositories/name-form-repo'
 import { aenderungen, betroffene, redoZiel, statusSetzen, undoZiel, type JournalTransaktionZiel } from '../repositories/journal-repo'
 import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from '../schnappschuss/dateiname'
+import { zaehlerNachziehen } from '../schnappschuss/kennung-angleichen'
 import { journalAn, journalAus } from './kontext'
 
 // `UndoErgebnis` stand bis AP-0.10 PR-A1 als rein interner Typ hier (kein Renderer-Aufrufer
@@ -120,29 +120,6 @@ function importZuruecknehmen(db: Database.Database, ziel: JournalTransaktionZiel
   }
 
   return { transaktionId: ziel.id, beschreibung: ziel.beschreibung }
-}
-
-/**
- * E12-Hälfte von `importZuruecknehmen()`: öffnet die wiederhergestellte Datei kurz und zieht jeden
- * gesicherten Zähler auf mindestens seinen alten Stand. Ein einzelnes UPDATE je Bereich auf eine
- * NICHT_JOURNALISIERTE Tabelle — keine Journalklammer nötig. Kennt die wiederhergestellte Datei den
- * Zähler nicht (Schnappschuss älter als Migration 0007), bleibt sie unberührt (E13).
- */
-function zaehlerNachziehen(dbPfad: string, zaehlerVorher: ReturnType<typeof zaehlerstaendeLesen>): void {
-  if (zaehlerVorher.length === 0) {
-    return
-  }
-  const wiederhergestellt = oeffnen(dbPfad)
-  try {
-    if (!zaehlerTabelleVorhanden(wiederhergestellt)) {
-      return
-    }
-    for (const zaehler of zaehlerVorher) {
-      zaehlerMindestensSetzen(wiederhergestellt, zaehler.bereich, zaehler.naechste)
-    }
-  } finally {
-    wiederhergestellt.close()
-  }
 }
 
 /**
