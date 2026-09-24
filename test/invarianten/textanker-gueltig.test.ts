@@ -348,7 +348,7 @@ describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, N
       }),
       // Fester Seed (CLAUDE.md §13, Determinismus), eigener Seed neben undo-bitgleich (20260910).
       // 250 Läufe mit dem Generator-Profil `beleg` (hueter PR #119, H1/H6): lokal ~13 s,
-      // hochgerechnet Windows (Faktor ~4) ~52 s — unter der Vorgabe ~60 s.
+      // hochgerechnet Windows (Faktor ~4,4, gemessen 111,5 s/25,4 s bei undo-bitgleich auf main) ~57 s — unter der Vorgabe ~60 s; CI cbc9189: 53,9 s.
       { seed: 20260925, numRuns: 250 },
     )
 

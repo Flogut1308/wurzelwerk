@@ -101,8 +101,9 @@ export type Zweig =
   | 'ablehnung.feldNichtExistenz'
   | 'ablehnung.feldFalscherTyp'
 
-/** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `undo-bitgleich.test.ts` UND
- * `textanker-gueltig.test.ts` je mehr als 0 Treffer. */
+/** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
+ * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
+ * hueter-Review PR #119 stattdessen je Befehl die Schwelle gegen main (ADR-009-Nachtrag). */
 export const BELEG_PFLICHTZWEIGE: readonly Zweig[] = [
   'beleg.anlegen.ohneAnker',
   'beleg.anlegen.anker',
