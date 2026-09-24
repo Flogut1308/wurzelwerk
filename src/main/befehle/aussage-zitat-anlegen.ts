@@ -6,15 +6,37 @@
 // AP-1.34 PR-C1a (B-01): optionaler Textanker [von, bis) — geprüft gegen das Transkript des Zitats
 // (`ankerPruefen`, src/core/beleg/textanker.ts: Transkript vorhanden, innerhalb, kein geteiltes
 // Ersatzpaar F4). Ein ungültiger Anker wirft VOR jedem Schreibvorgang.
-import type { AussageZitatAnlegenEin } from '../../shared/schemata/befehle'
+// AP-1.34 PR-C1b (§31 U-1.34-F1): optionales `feld` — muss ein Attribut des `subjekt_typ` der
+// Aussage sein (`belegFeldPasst`, src/shared/schemata/aussage-zitat.ts), sonst
+// `VALIDIERUNG_WERTEBEREICH` VOR jedem Schreibvorgang. Beide Prüfungen teilt `aussage_zitat.aendern`.
+import type { AussageZitatAnlegenEin, Textanker } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
-import { datensatzExistiert, type Tx } from '../repositories/basis'
+import { AussageSubjektTypEnum } from '../../shared/schemata/gemeinsam'
+import { belegFeldPasst } from '../../shared/schemata/aussage-zitat'
+import type { Tx } from '../repositories/basis'
 import * as aussageRepo from '../repositories/aussage-repo'
 import * as belegRepo from '../repositories/beleg-repo'
 import { ankerPruefen } from '../../core/beleg/textanker'
 
+/** Wirft `VALIDIERUNG_WERTEBEREICH`, wenn `feld` kein Attribut des Subjekttyps `subjektTyp` ist. */
+export function belegFeldPruefen(subjektTyp: string, feld: string): void {
+  const typ = AussageSubjektTypEnum.safeParse(subjektTyp)
+  if (!typ.success || !belegFeldPasst(typ.data, feld)) {
+    throw new WurzelFehler('VALIDIERUNG_WERTEBEREICH', `Feld "${feld}" passt nicht zum Subjekttyp "${subjektTyp}".`)
+  }
+}
+
+/** Wirft `VALIDIERUNG_WERTEBEREICH`, wenn der Anker gegen das Transkript nicht `ok` ist (F4). */
+export function belegAnkerPruefen(transkript: string | null, anker: Textanker): void {
+  const pruefung = ankerPruefen(transkript, anker.von, anker.bis)
+  if (pruefung !== 'ok') {
+    throw new WurzelFehler('VALIDIERUNG_WERTEBEREICH', `Textanker ungültig: ${pruefung}.`)
+  }
+}
+
 export function aussageZitatAnlegen(tx: Tx, ein: AussageZitatAnlegenEin): null {
-  if (!datensatzExistiert(tx, 'aussage', ein.aussageId)) {
+  const aussage = aussageRepo.lesen(tx, ein.aussageId)
+  if (aussage === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_AUSSAGE')
   }
   const zitat = belegRepo.zitatLesen(tx, ein.zitatId)
@@ -25,18 +47,19 @@ export function aussageZitatAnlegen(tx: Tx, ein: AussageZitatAnlegenEin): null {
     throw new WurzelFehler('KONFLIKT_BEREITS_VORHANDEN')
   }
 
+  if (ein.feld !== undefined) {
+    belegFeldPruefen(aussage.subjekt_typ, ein.feld)
+  }
   const anker = ein.textanker
   if (anker !== undefined) {
-    const pruefung = ankerPruefen(zitat.transkript, anker.von, anker.bis)
-    if (pruefung !== 'ok') {
-      throw new WurzelFehler('VALIDIERUNG_WERTEBEREICH', `Textanker ungültig: ${pruefung}.`)
-    }
+    belegAnkerPruefen(zitat.transkript, anker)
   }
 
   const jetzt = Date.now()
   aussageRepo.zitatVerknuepfen(tx, {
     aussageId: ein.aussageId,
     zitatId: ein.zitatId,
+    feld: ein.feld,
     textankerVon: anker?.von,
     textankerBis: anker?.bis,
     erstelltAm: jetzt,

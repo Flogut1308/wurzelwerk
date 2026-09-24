@@ -22,6 +22,7 @@ import { OrtszugehoerigkeitArtEnum } from './ortszugehoerigkeit'
 import { ExterneIdSystemEnum } from './ort-externe-id'
 import { type Datumswert, datumswertSchema } from './import-v1'
 import { InformationsartEnum, QuelleArtEnum, QuelleFormEnum, QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
+import { type BelegFeld, BelegFeldEnum } from './aussage-zitat'
 
 /** Liste bestehender `zitat.id`-Werte, mit denen eine neue Aussage verknüpft wird (AP-1.12) —
  * bewusst NUR Kennungen, keine `quelle`/`zitat`-Anlage in diesem Arbeitspaket (das bleibt dem
@@ -561,16 +562,21 @@ export const textankerSchema: z.ZodType<Textanker> = z
     }
   })
 
-/** Nutzlast von `befehl:aussage_zitat.anlegen`. `textanker` optional (AP-1.34 PR-C1a). */
+/** Nutzlast von `befehl:aussage_zitat.anlegen`. `textanker` optional (AP-1.34 PR-C1a); `feld`
+ * optional (AP-1.34 PR-C1b, §31 U-1.34-F1) — fehlt es, gilt der Beleg für die ganze Aussage (NULL).
+ * Das Schema prüft nur die Wertliste; ob `feld` zum `subjekt_typ` der Aussage passt, prüft der
+ * Handler (`belegFeldPasst`). */
 export interface AussageZitatAnlegenEin {
   readonly aussageId: string
   readonly zitatId: string
+  readonly feld?: BelegFeld | undefined
   readonly textanker?: Textanker | undefined
 }
 
 export const aussageZitatAnlegenEinSchema: z.ZodType<AussageZitatAnlegenEin> = z.object({
   aussageId: z.string(),
   zitatId: z.string(),
+  feld: BelegFeldEnum.optional(),
   textanker: textankerSchema.optional(),
 })
 
