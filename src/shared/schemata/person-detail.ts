@@ -21,6 +21,7 @@
 // einzelnen Beleg, weil sie in `docs/schema/0002_kern.sql` Spalten von `aussage` sind, nicht von
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
+import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
@@ -205,16 +206,10 @@ export interface PersonDetailGesundheitseintrag {
   readonly notiz: string | null
 }
 
-/** Antwort von `abfrage:person.detail`.
- *
- * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
- * `abfrage:person.detail` die Namensliste liefert" — sie tat es vorher nicht; ergänzt hier statt
- * eines zweiten Abfragekanals, weil die Profilseite ohnehin schon EINEN vollständigen
- * Personen-Datensatz lädt). */
 /** Herkunft des Sterbeorts (AP-1.34 PR-C2a, §31 U-1.34-E5): die Aussage `todesort` ist führend,
  * sonst der Ort des Tod-Ereignisses (Rolle `verstorbener`). Auflösung im Kern
  * (`src/core/person/sterbeort.ts`). */
-export const SterbeortHerkunftEnum = z.enum(['aussage', 'ereignis'])
+export const SterbeortHerkunftEnum = z.enum(STERBEORT_HERKUNFT)
 
 /** Sterbeort der Person. `ort_id`/`ort_name` sind `null`, wenn die führende Aussage nur einen
  * freien Text trägt (dann steht der Text im Grunddatenfeld `todesort`) bzw. der Ort keinen Namen
@@ -226,6 +221,12 @@ export interface PersonDetailSterbeort {
   readonly aussage_id: string | null
 }
 
+/** Antwort von `abfrage:person.detail`.
+ *
+ * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
+ * `abfrage:person.detail` die Namensliste liefert" — sie tat es vorher nicht; ergänzt hier statt
+ * eines zweiten Abfragekanals, weil die Profilseite ohnehin schon EINEN vollständigen
+ * Personen-Datensatz lädt). */
 export interface PersonDetailAus {
   readonly kopf: PersonDetailKopf
   readonly namen: readonly PersonDetailName[]

@@ -25,7 +25,10 @@ export interface SterbeortTodEreignis {
   readonly ortId: string | null
 }
 
-export type SterbeortHerkunft = 'aussage' | 'ereignis'
+/** Einzige Quelle der Herkunftswerte; `src/shared/schemata/person-detail.ts` baut sein Zod-Enum daraus. */
+export const STERBEORT_HERKUNFT = ['aussage', 'ereignis'] as const
+
+export type SterbeortHerkunft = (typeof STERBEORT_HERKUNFT)[number]
 
 export interface Sterbeort {
   readonly herkunft: SterbeortHerkunft
