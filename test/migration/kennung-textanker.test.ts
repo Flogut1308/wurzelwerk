@@ -291,6 +291,47 @@ describe('test/migration/kennung-textanker (AP-1.34, docs/schema/0007_kennung_te
     }
   })
 
+  it('Zähler wird nie per REPLACE zurückgesetzt: INSERT OR REPLACE / REPLACE INTO / UPSERT rückwärts scheitern; normaler Ablauf geht', () => {
+    // hueter-H2 (PR #111): REPLACE löst einen Konflikt durch Löschen der alten Zeile — ohne
+    // DELETE-Trigger (recursive_triggers ist aus) — und umginge so beide Zähler-Trigger.
+    const db = oeffnen(dbPfad)
+    try {
+      setzeFixture(db)
+      migrieren(db)
+      const stand = zaehlerstand(db)
+      expect(stand).toBeGreaterThan(1)
+
+      expect(() => db.prepare("INSERT OR REPLACE INTO kennung_zaehler (bereich, naechste) VALUES ('person', 1)").run()).toThrow(
+        /kennung_zaehler/,
+      )
+      expect(() => db.prepare("REPLACE INTO kennung_zaehler (bereich, naechste) VALUES ('person', 1)").run()).toThrow(
+        /kennung_zaehler/,
+      )
+      // UPSERT rückwärts: scheitert ebenfalls. Ohne chk_kennung_zaehler_kein_ersetzen am UPDATE-
+      // Trigger („nur vorwaerts", Konfliktzweig ist ein UPDATE); mit ihm schon am BEFORE INSERT,
+      // das vor der Konfliktprüfung feuert.
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO kennung_zaehler (bereich, naechste) VALUES ('person', 1) ON CONFLICT (bereich) DO UPDATE SET naechste = excluded.naechste",
+          )
+          .run(),
+      ).toThrow(/kennung_zaehler/)
+      expect(zaehlerstand(db)).toBe(stand)
+
+      // Gegenprobe: der normale Ablauf (kennungZiehen, UPDATE … RETURNING) läuft weiter.
+      const gezogen = db
+        .prepare<[], { readonly gezogen: number }>(
+          "UPDATE kennung_zaehler SET naechste = naechste + 1 WHERE bereich = 'person' RETURNING naechste - 1 AS gezogen",
+        )
+        .get()
+      expect(gezogen?.gezogen).toBe(stand)
+      expect(zaehlerstand(db)).toBe(stand + 1)
+    } finally {
+      db.close()
+    }
+  })
+
   it('aussage_zitat: neue Spalten feld/textanker_von/textanker_bis existieren und sind im Bestand NULL', () => {
     const db = oeffnen(dbPfad)
     try {
