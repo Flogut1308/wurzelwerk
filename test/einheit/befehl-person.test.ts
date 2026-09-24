@@ -15,6 +15,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { redo, undo } from '../../src/main/journal/undo'
+import { REGISTRIERUNG } from '../../src/main/befehle/registrierung'
 import { redoZiel } from '../../src/main/repositories/journal-repo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
@@ -243,6 +244,132 @@ describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.2
 
       redo(db) // funktioniert weiterhin - Wert wieder 200
       expect(personLesen(db, id)?.geaendert_am).not.toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// AP-1.34 PR-A (Vorgaben §2.2/§5.5, keine A-ID; freigegebener Plan AP-1.34): fortlaufende
+// Personen-Kennung aus `kennung_zaehler`. Die Kennung wird hier bewusst über SQL gelesen
+// (`person.kennung`, `kennung_zaehler.naechste`), nicht über ein Repository-Feld — so ist der
+// Rot-Grund vor dem Fix ein Laufzeitfehler („no such column: kennung" / „no such table:
+// kennung_zaehler"), kein Typfehler.
+// ---------------------------------------------------------------------------------------------
+
+function kennungLesen(db: ReturnType<typeof oeffnen>, id: string): number | null | undefined {
+  return db
+    .prepare<{ readonly id: string }, { readonly kennung: number | null }>('SELECT kennung FROM person WHERE id = @id')
+    .get({ id })?.kennung
+}
+
+function zaehlerstand(db: ReturnType<typeof oeffnen>): number {
+  const zeile = db
+    .prepare<[], { readonly naechste: number }>("SELECT naechste FROM kennung_zaehler WHERE bereich = 'person'")
+    .get()
+  if (zeile === undefined) {
+    throw new Error("zaehlerstand(): kennung_zaehler hat keine Zeile für bereich = 'person'.")
+  }
+  return zeile.naechste
+}
+
+/** `wert_neu_json` der insert-Journalzeile als geprüftes Objekt (kein `any`, CLAUDE.md §4). */
+function kennungImInsertJournal(db: ReturnType<typeof oeffnen>, id: string): unknown {
+  const insert = aenderungenFuerPerson(db, id).find((zeile) => zeile.operation === 'insert')
+  if (insert?.wert_neu_json === null || insert?.wert_neu_json === undefined) {
+    throw new Error('kennungImInsertJournal(): keine insert-Journalzeile mit wert_neu_json.')
+  }
+  const roh: unknown = JSON.parse(insert.wert_neu_json)
+  if (typeof roh !== 'object' || roh === null || !('kennung' in roh)) {
+    return undefined
+  }
+  return roh.kennung
+}
+
+describe('person.anlegen — Kennung aus kennung_zaehler (AP-1.34)', () => {
+  it('frische Datenbank: Zähler steht auf 1, anlegen vergibt 1, dann 2; Zähler danach 3', () => {
+    const db = neueTestDatenbank()
+    try {
+      expect(zaehlerstand(db)).toBe(1)
+
+      const { id: erste } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, erste)).toBe(1)
+      expect(zaehlerstand(db)).toBe(2)
+
+      const { id: zweite } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, zweite)).toBe(2)
+      expect(zaehlerstand(db)).toBe(3)
+
+      // Die Kennung steht im Journal (jrn_person_ai), damit Redo sie wiederherstellen kann.
+      expect(kennungImInsertJournal(db, erste)).toBe(1)
+      expect(kennungImInsertJournal(db, zweite)).toBe(2)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('anlegen → undo → anlegen vergibt die nächste Nummer, nicht die zurückgenommene (nie neu vergeben)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id: erste } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, erste)).toBe(1)
+
+      undo(db)
+      expect(personLesen(db, erste)).toBeUndefined()
+      // Undo lässt den Zähler stehen (kennung_zaehler ist NICHT_JOURNALISIERT).
+      expect(zaehlerstand(db)).toBe(2)
+
+      const { id: zweite } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, zweite)).toBe(2)
+      expect(zaehlerstand(db)).toBe(3)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Redo stellt die ursprüngliche Kennung aus dem Journal her und verbraucht keine neue Nummer', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, id)).toBe(1)
+
+      undo(db)
+      expect(personLesen(db, id)).toBeUndefined()
+
+      redo(db)
+      expect(kennungLesen(db, id)).toBe(1)
+      expect(zaehlerstand(db)).toBe(2)
+
+      // Gegenprobe: die nächste Anlage bekommt 2 — Redo hat weder gezogen noch den Zähler bewegt.
+      const { id: naechste } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      expect(kennungLesen(db, naechste)).toBe(2)
+    } finally {
+      db.close()
+    }
+  })
+
+  it("person.feldSetzen('kennung') wird vom Befehlsschema abgewiesen; andere Felder lassen die Kennung stehen", () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const kennungVorher = kennungLesen(db, id)
+      expect(kennungVorher).toBe(1)
+
+      // Genau das Schema, das der Bus als ersten Schritt anwendet (`def.schema.parse(ein)`,
+      // src/main/befehle/bus.ts) — über `unknown` statt eines unzulässigen Aufrufs von fuehreAus,
+      // damit die Abweisung zur Laufzeit geprüft wird und kein Typfehler den Test ersetzt.
+      const schema = REGISTRIERUNG['person.feldSetzen'].schema
+      const unzulaessig: unknown = { id, feld: 'kennung', wert: 99 }
+      expect(schema.safeParse(unzulaessig).success).toBe(false)
+
+      // Gegenprobe: dasselbe Schema nimmt ein zulässiges Feld an …
+      const zulaessig: unknown = { id, feld: 'notiz', wert: 'Notiz' }
+      expect(schema.safeParse(zulaessig).success).toBe(true)
+
+      // … und dessen Ausführung lässt die Kennung unverändert.
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'notiz', wert: 'Notiz' })
+      expect(kennungLesen(db, id)).toBe(kennungVorher)
     } finally {
       db.close()
     }

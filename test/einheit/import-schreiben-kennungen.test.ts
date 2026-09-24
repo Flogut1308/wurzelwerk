@@ -1,9 +1,22 @@
 // AP-1.3d: Kennungsauflösung (56_Import_Vertrag.md §2.1) — `tmp:` wird zu einer gültigen, in sich
 // konsistenten UUID v7; `db:` OHNE `ueberschreiben` verändert die bestehende Zeile nicht (§2.1
 // "Schutzregel für db:": "referenziert nur, ersetzt nichts").
-import { readFileSync } from 'node:fs'
+//
+// AP-1.34 PR-A (Vorgaben §2.2/§5.5, keine A-ID) ergänzt unten die fortlaufende Personen-Kennung
+// (`person.kennung` aus `kennung_zaehler`) für den Importweg: fortlaufend über Importe hinweg,
+// Trockenlauf verbraucht keine Nummer, und E12 — die Rücknahme eines Großimports per Schnappschuss
+// setzt den Zähler NICHT zurück („nie neu vergeben" gilt ausnahmslos).
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import type Database from 'better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { importAusfuehren } from '../../src/main/befehle/import-ausfuehren'
+import { importTrockenlaufDurchfuehren } from '../../src/main/befehle/import-trockenlauf'
+import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { oeffnen } from '../../src/main/datenbank/verbindung'
+import { undo } from '../../src/main/journal/undo'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { schreibeImport } from '../../src/main/import/schreiben'
 import { einfuegen as personEinfuegen, lesen as personLesen } from '../../src/main/repositories/person-repo'
@@ -103,4 +116,156 @@ describe('schreibeImport() — Kennungsauflösung (AP-1.3d, 56_Import_Vertrag.md
       .get({ id: bestehendeId })
     expect(existenzAnzahl?.anzahl).toBe(1)
   })
+})
+
+// ---------------------------------------------------------------------------------------------
+// AP-1.34 PR-A: Kennungsvergabe im Importweg. Kennung und Zählerstand werden über SQL gelesen
+// (`person.kennung`, `kennung_zaehler.naechste`) — vor dem Fix ist der Rot-Grund darum ein
+// Laufzeitfehler („no such column: kennung" / „no such table: kennung_zaehler"), kein Typfehler.
+// ---------------------------------------------------------------------------------------------
+
+/** Deterministische Importdatei mit `anzahl` Personen; `praefix` hält Namen und damit die
+ * Prüfsumme je Datei verschieden (sonst griffe die Doppelimport-Erkennung). */
+function baueImport(anzahl: number, praefix: string): unknown {
+  const personen = Array.from({ length: anzahl }, (_, i) => ({
+    id: `tmp:${praefix}${String(i)}`,
+    geschlecht: 'M',
+    lebend_status: 'verstorben',
+    namen: [{ typ: 'geburtsname', vornamen: `Vorname${praefix}${String(i)}`, nachname: `Nachname${praefix}${String(i)}`, ist_bevorzugt: true }],
+    konfidenz: 4,
+    belege: [{ quelle: 'tmp:q1', konfidenz: 4 }],
+  }))
+  return {
+    vertrag: 'wurzelwerk-import/v1',
+    erzeugt: { am: '2026-09-24', werkzeug: 'test' },
+    zusammenfassung: { personen: anzahl, notizen_unverarbeitet: 0 },
+    quellen: [{ id: 'tmp:q1', typ: 'sonstiges', titel: `Generierte Testquelle (AP-1.34, ${praefix})` }],
+    personen,
+    notizen_unverarbeitet: [],
+  }
+}
+
+function kennungenAufsteigend(db: Database.Database): readonly (number | null)[] {
+  return db
+    .prepare<[], { readonly kennung: number | null }>('SELECT kennung FROM person ORDER BY kennung')
+    .all()
+    .map((zeile) => zeile.kennung)
+}
+
+function zaehlerstand(db: Database.Database): number {
+  const zeile = db
+    .prepare<[], { readonly naechste: number }>("SELECT naechste FROM kennung_zaehler WHERE bereich = 'person'")
+    .get()
+  if (zeile === undefined) {
+    throw new Error("zaehlerstand(): kennung_zaehler hat keine Zeile für bereich = 'person'.")
+  }
+  return zeile.naechste
+}
+
+function personenAnzahl(db: Database.Database): number {
+  const zeile = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM person').get()
+  if (zeile === undefined) {
+    throw new Error('personenAnzahl(): COUNT(*) lieferte keine Zeile.')
+  }
+  return zeile.anzahl
+}
+
+function bereich(von: number, bis: number): readonly number[] {
+  return Array.from({ length: bis - von + 1 }, (_, i) => von + i)
+}
+
+describe('Import — fortlaufende Personen-Kennung (AP-1.34 PR-A)', () => {
+  let ordner: string
+  let dbPfad: string
+
+  beforeEach(() => {
+    ordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-import-kennung-'))
+    dbPfad = join(ordner, 'baum.sqlite')
+  })
+
+  afterEach(() => {
+    rmSync(ordner, { recursive: true, force: true })
+  })
+
+  function schreibeDatei(name: string, inhalt: unknown): string {
+    const pfad = join(ordner, name)
+    writeFileSync(pfad, JSON.stringify(inhalt), 'utf8')
+    return pfad
+  }
+
+  it('importierte Personen bekommen fortlaufende Kennungen, über zwei Importe hinweg lückenlos', () => {
+    const db = oeffnen(dbPfad)
+    try {
+      migrieren(db)
+      const erster = importAusfuehren(db, { pfad: schreibeDatei('erster.json', baueImport(3, 'a')) })
+      expect(erster.importGesperrt).toBe(false)
+      expect(kennungenAufsteigend(db)).toEqual([1, 2, 3])
+      expect(zaehlerstand(db)).toBe(4)
+
+      const zweiter = importAusfuehren(db, { pfad: schreibeDatei('zweiter.json', baueImport(2, 'b')) })
+      expect(zweiter.importGesperrt).toBe(false)
+      expect(kennungenAufsteigend(db)).toEqual([1, 2, 3, 4, 5])
+      expect(zaehlerstand(db)).toBe(6)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Trockenlauf verbraucht keine Nummer — auch nicht die Sondierung innerhalb von importAusfuehren()', () => {
+    const db = oeffnen(dbPfad)
+    try {
+      migrieren(db)
+      const pfad = schreibeDatei('trocken.json', baueImport(3, 't'))
+      expect(zaehlerstand(db)).toBe(1)
+
+      const bericht = importTrockenlaufDurchfuehren(db, pfad)
+      expect(bericht.importGesperrt).toBe(false)
+      expect(personenAnzahl(db)).toBe(0)
+      expect(zaehlerstand(db)).toBe(1)
+
+      // Gegenprobe: der echte Import (der intern selbst erst sondiert) beginnt bei 1, nicht bei 4
+      // oder 7 — sonst hätten Trockenlauf oder Sondierung Nummern verbraucht.
+      importAusfuehren(db, { pfad })
+      expect(kennungenAufsteigend(db)).toEqual([1, 2, 3])
+      expect(zaehlerstand(db)).toBe(4)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E12: Rücknahme eines Großimports per Schnappschuss setzt den Zähler nicht zurück', () => {
+    const kleinPfad = schreibeDatei('klein.json', baueImport(3, 'k'))
+    const grossPfad = schreibeDatei('gross.json', baueImport(800, 'g'))
+    const danachPfad = schreibeDatei('danach.json', baueImport(1, 'd'))
+
+    const db = oeffnen(dbPfad)
+    migrieren(db)
+    importAusfuehren(db, { pfad: kleinPfad })
+    expect(kennungenAufsteigend(db)).toEqual([1, 2, 3])
+    expect(zaehlerstand(db)).toBe(4)
+
+    const bericht = importAusfuehren(db, { pfad: grossPfad })
+    expect(bericht.zusammenfassung.ruecknahmeArt).toBe('schnappschuss')
+    expect(kennungenAufsteigend(db)).toEqual(bereich(1, 803))
+    expect(zaehlerstand(db)).toBe(804)
+
+    // undo() schließt `db` (Datei-Wiederherstellungsweg, AP-1.5) — weiter über eine neue Verbindung.
+    undo(db)
+
+    const dbNach = oeffnen(dbPfad)
+    try {
+      // Die Rücknahme hat wirklich stattgefunden: nur die drei Personen von vorher sind da …
+      expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3])
+      // … aber der Zähler steht auf max(alt, wiederhergestellt) = 804, nicht auf dem Schnappschuss-
+      // stand 4 — die Nummern 4..803 waren vergeben und werden nie neu vergeben.
+      expect(zaehlerstand(dbNach)).toBe(804)
+
+      importAusfuehren(dbNach, { pfad: danachPfad })
+      expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3, 804])
+      expect(zaehlerstand(dbNach)).toBe(805)
+    } finally {
+      dbNach.close()
+    }
+    // Großzügiger Timeout wie in import-undo-gross.test.ts (Schnappschuss-Roundtrip auf Windows-CI).
+  }, 90_000)
 })
