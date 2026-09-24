@@ -1028,6 +1028,18 @@ grob und unbequem: Projekt schließen, Datei ersetzen (die alte wird nach
 laufenden Betrieb würde bedeuten, dass Fenster und Abfragecache auf einen Datenbestand zeigen,
 den es nicht mehr gibt.
 
+**Kennungen beim Wiederherstellen (AP-1.34, A2a/A2b).** Vor dem Schließen werden die Zählerstände
+(`kennung_zaehler`) und die Zuordnung `person.id → person.kennung` der ersetzten Datei gesichert.
+Die zurückkopierte Datei wird **vor dem Öffnen** migriert
+(`src/main/schnappschuss/kennung-angleichen.ts`): Liegt der Schnappschuss vor Migration 0007,
+übernehmen seine Personen im Migrations-Hook (§9.3) die Kennungen der ersetzten Datei, Personen
+ohne Treffer werden in `ORDER BY id` ab dem gesicherten Zählerstand nummeriert; ab v7 behält der
+Schnappschuss seine Kennungen. Danach wird jeder Zähler nur vorgezogen, nie gesenkt — eine
+vergebene Nummer wird nie neu vergeben (E12). Das anschließende Öffnen findet eine aktuelle Datei
+vor (Migration No-op). Scheitert das Angleichen, wird die ersetzte Datei zurückbenannt; das Projekt
+bleibt im Vorher-Zustand öffenbar. Einen zusätzlichen Schnappschuss „vor jeder Migration" gibt es
+auf diesem Weg nicht: der Vor-Migrations-Stand ist die unveränderte Quelldatei in `snapshots/`.
+
 ### 6.3 Der Widerspruch zwischen ADR-003 und ADR-010 — und seine Auflösung (ADR-019)
 
 ADR-003 sagt: „Bei Massenimporten Journal aus, Snapshot vorher."
@@ -1048,7 +1060,9 @@ Rücknahmearten er bekommt. Das gehört in den Trockenlauf-Bericht (`56_Import_V
 Nur möglich, solange der Import die **neueste** Transaktion ist. Ablauf: Bestätigungsdialog, der
 ausdrücklich sagt, dass der Stand von vor dem Import wiederhergestellt wird → Projekt schließen
 → aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` → Schnappschuss zurückkopieren → öffnen.
-Der Redo-Stapel ist danach leer, und das steht auch im Dialog.
+Der Redo-Stapel ist danach leer, und das steht auch im Dialog. Der Kennungszähler wird wie beim
+Wiederherstellen (§6.2) gesichert und nur vorgezogen (E12); die Migration vor dem Öffnen mit
+Kennungsübernahme für Import-Schnappschüsse vor 0007 folgt mit AP-1.34 A2c.
 
 Ist der Import nicht die neueste Transaktion, ist er nicht rücknehmbar; die Oberfläche zeigt
 statt „Rückgängig" den Weg „Schnappschuss wiederherstellen" mit der Warnung, was dabei verloren
@@ -1285,7 +1299,8 @@ Verlockend, aber eine Falle: Eine `down`-Migration wird geschrieben, nie ausgef�
 getestet, und im Notfall — wenn man sie braucht — stellt sich heraus, dass sie Daten verwirft,
 die es beim Schreiben noch nicht gab. Das Sicherheitsnetz hier ist der Schnappschuss **vor**
 jeder Migration (§6.2). Der ist bitgenau, braucht keinen Code und funktioniert auch für
-Migrationen, an die niemand gedacht hat.
+Migrationen, an die niemand gedacht hat. Beim Wiederherstellen eines Schnappschusses (§6.2) ist
+dieser Vor-Stand die Quelldatei selbst — sie bleibt unverändert in `snapshots/` liegen.
 
 ### 9.3 Der Ablauf beim Öffnen
 
@@ -1298,7 +1313,7 @@ Datei öffnen (WAL, Pragmas)
    │     Abweichung → abbrechen: "Migrationsdatei wurde nachträglich geändert"
    ├─ user_version < SCHEMA_VERSION
    │     ├─ Schnappschuss
-   │     └─ für jede fehlende Version: BEGIN → SQL → schema_migration → user_version → COMMIT
+   │     └─ für jede fehlende Version: BEGIN → SQL → [Aufrufer-Hook] → schema_migration → user_version → COMMIT
    ├─ Trigger löschen und neu erzeugen            (§4.4 — immer, nicht nur bei Änderung)
    ├─ Journal aufräumen                           (§4.6)
    └─ bereit
@@ -1310,6 +1325,16 @@ Vorfall: Migration 0002 ist schon in echten Projektdateien angewendet, jemand (o
 Schemata bei identischer Versionsnummer. Das ist praktisch nicht mehr zu entwirren. Mit
 Prüfsumme fällt es beim nächsten Öffnen sofort auf, mit einer Meldung, die sagt, was passiert
 ist. **Eine angewendete Migration wird nie geändert — es wird eine neue geschrieben.**
+
+**Aufrufer-Hook (AP-1.34, U-1.34-O1).** `migrieren()` nimmt optional `nachMigrationsSql(db,
+version)` entgegen. Der Hook läuft je angewendeter Version genau einmal nach dem Migrations-SQL,
+innerhalb derselben Transaktion und bei ausgeschaltetem Journal (die Journal-Klammer der
+Migration, kein eigener `journalAus`); was er schreibt, erzeugt darum keine Journalzeilen. Wirft
+er, wird genau diese Version zurückgerollt. Damit hängt das Ergebnis einer Migration erstmals von
+einer Eingabe des Aufrufers ab — bewusst eng gehalten: einziger Produktivaufrufer ist das
+Wiederherstellen eines Schnappschusses (Kennungsübernahme bei Version 7, §6.2). Der normale
+Öffnen-Pfad (`projektOeffnen`) und `test/migration/historisch.test.ts` setzen keinen Hook; für
+sie ist jede Migration weiter allein durch ihre Datei bestimmt.
 
 ### 9.4 Wie eine Migration getestet wird
 
