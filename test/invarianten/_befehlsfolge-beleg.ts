@@ -1012,10 +1012,13 @@ function ungueltigerAnker(fehler: AblehnungFehler, transkript: string | null): T
 }
 
 /** Ein für `fehler` ungültiges, aber in `BelegFeldEnum` enthaltenes `feld` für die Aussage — oder
- * `undefined`, wenn diese Aussage den Fehler nicht hergibt. */
+ * `undefined`, wenn diese Aussage den Fehler nicht hergibt. Jeder Fehler verletzt GENAU EINE Regel:
+ * `feldNichtExistenz` nimmt ein Feld, das zum Subjekttyp PASST (sonst lehnte schon die Typprüfung
+ * ab und eine fehlende Existenz-Regel fiele nicht auf — Mutationsprobe M8c, AP-1.34 PR-B2);
+ * `feldFalscherTyp` eins, das nicht passt, an einer Existenz-Aussage. */
 function ungueltigesFeld(fehler: AblehnungFehler, kopf: AussageKopfZeile, roh: number): BelegFeld | undefined {
   if (fehler === 'feldNichtExistenz') {
-    return kopf.praedikat === 'existenz' ? undefined : ausListe(BelegFeldEnum.options, roh)
+    return kopf.praedikat === 'existenz' ? undefined : ausListe(BELEG_FELDER_JE_SUBJEKT[AussageSubjektTypEnum.parse(kopf.subjekt_typ)], roh)
   }
   if (fehler === 'feldFalscherTyp' && kopf.praedikat === 'existenz') {
     const passend = BELEG_FELDER_JE_SUBJEKT[AussageSubjektTypEnum.parse(kopf.subjekt_typ)]
