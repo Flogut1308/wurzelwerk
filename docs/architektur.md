@@ -1060,9 +1060,15 @@ Rücknahmearten er bekommt. Das gehört in den Trockenlauf-Bericht (`56_Import_V
 Nur möglich, solange der Import die **neueste** Transaktion ist. Ablauf: Bestätigungsdialog, der
 ausdrücklich sagt, dass der Stand von vor dem Import wiederhergestellt wird → Projekt schließen
 → aktuelle Datei nach `snapshots/ersetzt-<Zeit>.sqlite` → Schnappschuss zurückkopieren → öffnen.
-Der Redo-Stapel ist danach leer, und das steht auch im Dialog. Der Kennungszähler wird wie beim
-Wiederherstellen (§6.2) gesichert und nur vorgezogen (E12); die Migration vor dem Öffnen mit
-Kennungsübernahme für Import-Schnappschüsse vor 0007 folgt mit AP-1.34 A2c.
+Der Redo-Stapel ist danach leer, und das steht auch im Dialog. Kennungen werden wie beim
+Wiederherstellen (§6.2) behandelt (AP-1.34 A2c): Zählerstände und die Zuordnung
+`person.id → person.kennung` der ersetzten Datei werden gesichert, die zurückkopierte Datei wird
+**vor jeder Weiterverwendung** migriert (`wiederhergestellteDateiAngleichen`). Ein
+Import-Schnappschuss vor 0007 übernimmt dabei im Migrations-Hook (§9.3) die Kennungen der
+ersetzten Datei, Personen ohne Treffer werden ab dem gesicherten Zählerstand nummeriert; ab v7
+behält er seine Kennungen. Jeder Zähler wird nur vorgezogen (E12). Scheitert das Angleichen, wird
+die ersetzte Datei zurückbenannt; ein typisierter Fehler (z. B. `PROJEKT_NEUERE_SCHEMAVERSION`)
+behält seinen Code. Die Migrationsdateien kommen wie beim Öffnen aus `schemaBasisverzeichnis()`.
 
 Ist der Import nicht die neueste Transaktion, ist er nicht rücknehmbar; die Oberfläche zeigt
 statt „Rückgängig" den Weg „Schnappschuss wiederherstellen" mit der Warnung, was dabei verloren
