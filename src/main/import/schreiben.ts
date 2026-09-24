@@ -15,7 +15,7 @@
 //  Pass 2 (Insert in FK-Reihenfolge): ort(+ortsname) → medium → person(+name) → quelle →
 //    interview_sitzung → ereignis(+beteiligung) → elternschaft/partnerschaft(+partnerschaft_person)
 //    → diagnose/risikofaktor → aussage+aussage_zitat (ZULETZT). Die Existenz-Aussagen (ADR-026)
-//    und die abgeleiteten geburtsdatum/todesdatum/geburtsort-Aussagen werden darum NICHT sofort
+//    und die abgeleiteten geburtsdatum/geburtsort/todesdatum/todesort-Aussagen werden darum NICHT sofort
 //    neben ihrem jeweiligen Objekt geschrieben, sondern während der Objekt-Durchläufe nur
 //    GESAMMELT (`aussagenAufgaben`) — jede Aussage braucht über `belege[].quelle` eine bereits
 //    existierende `quelle`-Zeile, und `quelle` selbst wird erst NACH `person` geschrieben (ihr
@@ -379,7 +379,7 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
     zaehle('interview_sitzung')
   })
 
-  // 6. ereignis + beteiligung — Existenz-Aussage + abgeleitete geburtsdatum/todesdatum/geburtsort
+  // 6. ereignis + beteiligung — Existenz-Aussage + abgeleitete geburtsdatum/geburtsort/todesdatum/todesort
   //    NUR für typ='geburt'/'tod' (56_Import_Vertrag.md §3.5, ADR-026); alle Aussagen gemerkt, nicht
   //    sofort geschrieben (s. Moduldoku).
   datei.ereignisse?.forEach((e) => {
@@ -441,14 +441,27 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
     if (e.typ === 'tod' && e.datum !== undefined) {
       const verstorbener = e.beteiligungen.find((b) => b.rolle === 'verstorbener')
       if (verstorbener !== undefined) {
+        const subjektId = aufloesen(verstorbener.person)
         aussagenAufgaben.push({
           subjektTyp: 'person',
-          subjektId: aufloesen(verstorbener.person),
+          subjektId,
           praedikat: 'todesdatum',
           datum: datumSpalten(e.datum),
           konfidenz: e.konfidenz,
           belege: e.belege,
         })
+        // AP-1.34 PR-C2a (§31 U-1.34-E5): `todesort` symmetrisch zu `geburtsort` — nur mit Datum
+        // UND Ort, gleiche Konfidenz/Belege. Vertrag v1 unverändert (Quelle: `ereignisse[].ort`).
+        if (e.ort !== undefined) {
+          aussagenAufgaben.push({
+            subjektTyp: 'person',
+            subjektId,
+            praedikat: 'todesort',
+            wertRefId: aufloesen(e.ort),
+            konfidenz: e.konfidenz,
+            belege: e.belege,
+          })
+        }
       }
     }
   })
