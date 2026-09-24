@@ -179,11 +179,15 @@ export function aktualisieren(tx: Tx, ein: AussageAktualisierenEin): void {
   })
 }
 
-/** Nutzlast von `zitatVerknuepfen()`: alle Spalten von `aussage_zitat`
- * (docs/schema/0002_kern.sql §2.7, Verknüpfungstabelle ohne eigenes `id`). */
+/** Nutzlast von `zitatVerknuepfen()`: Spalten von `aussage_zitat` (docs/schema/0002_kern.sql §2.7,
+ * Verknüpfungstabelle ohne eigenes `id`). `textankerVon`/`textankerBis` (0007, AP-1.34 PR-C1a)
+ * sind optional, Standard NULL — nur `aussage_zitat.anlegen` setzt sie, nach der Prüfung gegen das
+ * Transkript. `feld` (0007) schreibt dieser Weg noch nicht (PR-C1b), es bleibt NULL. */
 export interface AussageZitatVerknuepfenEin {
   readonly aussageId: string
   readonly zitatId: string
+  readonly textankerVon?: number | undefined
+  readonly textankerBis?: number | undefined
   readonly erstelltAm: number
   readonly geaendertAm: number
 }
@@ -191,11 +195,13 @@ export interface AussageZitatVerknuepfenEin {
 /** Verknüpft eine `aussage`-Zeile mit einem `zitat` (benannte Parameter, CLAUDE.md §6). */
 export function zitatVerknuepfen(tx: Tx, ein: AussageZitatVerknuepfenEin): void {
   tx.prepare(
-    `INSERT INTO aussage_zitat (aussage_id, zitat_id, erstellt_am, geaendert_am)
-     VALUES (@aussageId, @zitatId, @erstelltAm, @geaendertAm)`,
+    `INSERT INTO aussage_zitat (aussage_id, zitat_id, textanker_von, textanker_bis, erstellt_am, geaendert_am)
+     VALUES (@aussageId, @zitatId, @textankerVon, @textankerBis, @erstelltAm, @geaendertAm)`,
   ).run({
     aussageId: ein.aussageId,
     zitatId: ein.zitatId,
+    textankerVon: ein.textankerVon ?? null,
+    textankerBis: ein.textankerBis ?? null,
     erstelltAm: ein.erstelltAm,
     geaendertAm: ein.geaendertAm,
   })

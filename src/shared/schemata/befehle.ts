@@ -538,18 +538,40 @@ export const aussageLoeschenEinSchema: z.ZodType<AussageLoeschenEin> = z.object(
 // `aussage`- oder `zitat`-Zeile selbst zu berühren. `aussage_zitat` hat KEIN eigenes `id`
 // (zusammengesetzter Primärschlüssel `(aussage_id, zitat_id)`, analog `ort_externe_id`) — darum
 // zwei Befehle statt drei: eine bestehende Verknüpfung ändert man nicht, man löst sie und legt eine
-// neue an.
+// neue an. (Ein Befehl zum Ändern von `feld`/Textanker folgt mit AP-1.34 PR-C1b, §31 U-1.34-F2.)
 // -----------------------------------------------------------------------------------------------
 
-/** Nutzlast von `befehl:aussage_zitat.anlegen`. */
+/** Textanker eines Belegs (AP-1.34 PR-C1a, B-01, docs/schema/0007_kennung_textanker.sql):
+ * halboffenes Intervall [von, bis) in UTF-16-Codeeinheiten des Zitat-Transkripts. Als Objekt, damit
+ * ein halber Anker typseitig unmöglich ist; `bis > von` prüft das Schema, Länge und Ersatzpaare
+ * (F4) prüft der Handler gegen das Transkript (`src/core/beleg/textanker.ts`). */
+export interface Textanker {
+  readonly von: number
+  readonly bis: number
+}
+
+export const textankerSchema: z.ZodType<Textanker> = z
+  .object({
+    von: z.number().int().min(0),
+    bis: z.number().int(),
+  })
+  .superRefine((anker, ctx) => {
+    if (anker.bis <= anker.von) {
+      ctx.addIssue({ code: 'custom', path: ['bis'], message: 'Textanker: bis muss größer als von sein.' })
+    }
+  })
+
+/** Nutzlast von `befehl:aussage_zitat.anlegen`. `textanker` optional (AP-1.34 PR-C1a). */
 export interface AussageZitatAnlegenEin {
   readonly aussageId: string
   readonly zitatId: string
+  readonly textanker?: Textanker | undefined
 }
 
 export const aussageZitatAnlegenEinSchema: z.ZodType<AussageZitatAnlegenEin> = z.object({
   aussageId: z.string(),
   zitatId: z.string(),
+  textanker: textankerSchema.optional(),
 })
 
 /** Nutzlast von `befehl:aussage_zitat.loeschen`. */
