@@ -234,6 +234,7 @@ import { fuehreAus } from '../../src/main/befehle/bus'
 import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
 import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
+import { transkriptArbitrary } from './_befehlsfolge-beleg'
 
 /**
  * Verteilendes `Omit` (`T extends unknown ? ... : never` erzwingt die Verteilung über jedes
@@ -633,12 +634,15 @@ export interface AktionQuelleAendern {
 }
 
 /** `quelleZielRoh` braucht eine bereits bestehende `quelleId` (Pflichtfeld) — leere
- * `zustand.quelleIds` macht die Aktion zum No-op (s. Kopfkommentar). */
+ * `zustand.quelleIds` macht die Aktion zum No-op (s. Kopfkommentar). AP-1.34 PR-B2: `transkript`
+ * aus `transkriptArbitrary()` (`_befehlsfolge-beleg.ts`, Umlaute/Emoji statt nur ASCII) und
+ * optional — `undefined` lässt den Schlüssel weg (bedingtes Spreaden, `exactOptionalPropertyTypes`),
+ * das Zitat hat dann KEIN Transkript (NULL): der Fall „Anker ohne Transkript" (§31 U-1.34-E4/F4). */
 export interface AktionZitatAnlegen {
   readonly art: 'zitatAnlegen'
   readonly quelleZielRoh: number
   readonly seite: string
-  readonly transkript: string
+  readonly transkript: string | undefined
   readonly konfidenz: number
 }
 
@@ -1130,7 +1134,7 @@ function zitatAnlegenAktionArbitrary(): fc.Arbitrary<AktionZitatAnlegen> {
     .record({
       quelleZielRoh: fc.nat(),
       seite: fc.string(),
-      transkript: fc.string(),
+      transkript: fc.option(transkriptArbitrary(), { nil: undefined }),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAnlegen => ({ art: 'zitatAnlegen', ...r }))
@@ -1142,7 +1146,7 @@ function zitatAendernAktionArbitrary(): fc.Arbitrary<AktionZitatAendern> {
       zitatZielRoh: fc.nat(),
       quelleZielRoh: fc.nat(),
       seite: fc.string(),
-      transkript: fc.string(),
+      transkript: transkriptArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
     .map((r): AktionZitatAendern => ({ art: 'zitatAendern', ...r }))
@@ -2281,8 +2285,8 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): void
       const { id } = fuehreAus(db, 'zitat.anlegen', {
         quelleId,
         seite: aktion.seite,
-        transkript: aktion.transkript,
         konfidenz: aktion.konfidenz,
+        ...(aktion.transkript === undefined ? {} : { transkript: aktion.transkript }),
       })
       zustand.zitatIds.push(id)
       return
