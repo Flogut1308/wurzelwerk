@@ -20,6 +20,7 @@ import { undo } from '../../src/main/journal/undo'
 import { frischeDatenbankMitAbgeleitetemSchema } from './_hilfen-abgeleitet'
 import { schreibeImport } from '../../src/main/import/schreiben'
 import { einfuegen as personEinfuegen, lesen as personLesen } from '../../src/main/repositories/person-repo'
+import { RUECKNAHME_SCHWELLE_ZEILEN } from '../../src/shared/import/trockenlauf-bericht'
 import { importDateiSchema } from '../../src/shared/schemata/import-v1'
 
 const UUID_V7_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -267,5 +268,49 @@ describe('Import — fortlaufende Personen-Kennung (AP-1.34 PR-A)', () => {
       dbNach.close()
     }
     // Großzügiger Timeout wie in import-undo-gross.test.ts (Schnappschuss-Roundtrip auf Windows-CI).
+  }, 90_000)
+
+  it('E12: Rücknahme eines Großimports OHNE neue Personen gelingt, der Zähler bleibt unverändert', () => {
+    // hueter-H1 (PR #111): zieht der Großimport keine neue Nummer, sind alter und wiederhergestellter
+    // Zählerstand gleich. Der Filter `naechste < @mindestens` in `zaehlerMindestensSetzen` muss den
+    // Gleichstand dann ungeschrieben lassen — sonst feuert `chk_kennung_zaehler_vorwaerts` und die
+    // Rücknahme bricht ab. Groß wird der Import hier allein über Quellen (> Schwelle geänderte Zeilen).
+    const kleinPfad = schreibeDatei('klein.json', baueImport(3, 'k'))
+    const quellen = Array.from({ length: RUECKNAHME_SCHWELLE_ZEILEN + 50 }, (_, i) => ({
+      id: `tmp:q${String(i)}`,
+      typ: 'sonstiges',
+      titel: `Generierte Testquelle ohne Personen (AP-1.34, ${String(i)})`,
+    }))
+    const grossPfad = schreibeDatei('gross-ohne-personen.json', {
+      vertrag: 'wurzelwerk-import/v1',
+      erzeugt: { am: '2026-09-24', werkzeug: 'test' },
+      zusammenfassung: { personen: 0, notizen_unverarbeitet: 0 },
+      quellen,
+      notizen_unverarbeitet: [],
+    })
+
+    const db = oeffnen(dbPfad)
+    migrieren(db)
+    importAusfuehren(db, { pfad: kleinPfad })
+    expect(zaehlerstand(db)).toBe(4)
+
+    const bericht = importAusfuehren(db, { pfad: grossPfad })
+    expect(bericht.importGesperrt).toBe(false)
+    expect(bericht.zusammenfassung.ruecknahmeArt).toBe('schnappschuss')
+    expect(personenAnzahl(db)).toBe(3)
+    expect(zaehlerstand(db)).toBe(4)
+
+    // undo() schließt `db` (Datei-Wiederherstellungsweg, AP-1.5) — weiter über eine neue Verbindung.
+    expect(() => undo(db)).not.toThrow()
+
+    const dbNach = oeffnen(dbPfad)
+    try {
+      const quellenAnzahl = dbNach.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM quelle').get()
+      expect(quellenAnzahl?.anzahl).toBe(1) // nur die Quelle des kleinen Imports: Rücknahme erfolgt
+      expect(kennungenAufsteigend(dbNach)).toEqual([1, 2, 3])
+      expect(zaehlerstand(dbNach)).toBe(4)
+    } finally {
+      dbNach.close()
+    }
   }, 90_000)
 })
