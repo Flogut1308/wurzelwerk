@@ -207,13 +207,29 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
 **Feldbezug und Textanker eines Belegs (Migration `0007_kennung_textanker.sql`, AP-1.34, B-01).**
 `aussage_zitat` trägt seit 0007 drei weitere Spalten:
 
-- `feld TEXT` — NULL = der Beleg gilt für die ganze Aussage; sonst das belegte Attribut. Bewusst
-  **ohne** DB-CHECK, die Wertliste ist ein Zod-Enum im Code (E3; kommt mit AP-1.34 PR-C1b, §31
-  U-1.34-F1). Beim Lesen wird ein unbekannter Wert toleriert.
+- `feld TEXT` — NULL = der Beleg gilt für die ganze Aussage; sonst das belegte **Attribut des
+  Subjekts** der Aussage. Bewusst **ohne** DB-CHECK, die Wertliste ist ein Zod-Enum im Code (E3,
+  `src/shared/schemata/aussage-zitat.ts`, AP-1.34 PR-C1b, §31 U-1.34-F1 — *Vorschlag, im PR zu
+  bestätigen*). Je `aussage.subjekt_typ` eine eigene Liste; eine Datumsspaltengruppe (§2.3) ist
+  **ein** Feld:
+
+  | `subjekt_typ` | erlaubte `feld`-Werte |
+  |---|---|
+  | `person` | `geschlecht`, `lebend_status` (Geburt/Tod sind eigene Aussagen, schon feldgenau) |
+  | `ereignis` | `datum`, `ort`, `beschreibung` |
+  | `elternschaft` | `typ` |
+  | `partnerschaft` | `beginn`, `ende`, `ende_grund` |
+  | `ort` | `koordinaten`, `existiert_von`, `existiert_bis` |
+  | `name` | `vornamen`, `rufname`, `nachname`, `praefix`, `titel_vor`, `zusatz_nach` |
+  | `diagnose`, `risikofaktor` | keine — nur NULL (M-08) |
+
+  `aussage_zitat.anlegen`/`.aendern` prüfen die Passung zum `subjekt_typ` (sonst
+  `VALIDIERUNG_WERTEBEREICH`). Beim Lesen wird ein unbekannter Wert toleriert und unverändert als
+  Text durchgereicht (`person.detail`), nicht auf NULL abgebildet.
 - `textanker_von`, `textanker_bis INTEGER` — der Ausschnitt des Zitat-Transkripts, auf den sich der
   Beleg stützt: halboffenes Intervall **[von, bis) in UTF-16-Codeeinheiten** (= JavaScript-String-
   Index, `transkript.slice(von, bis)`). Beide gesetzt oder beide NULL, `von ≥ 0`, `bis > von`
-  (DB-CHECK). Beim Setzen (`aussage_zitat.anlegen`) prüft der Handler zusätzlich: Transkript
+  (DB-CHECK). Beim Setzen (`aussage_zitat.anlegen`, `aussage_zitat.aendern`) prüft der Handler zusätzlich: Transkript
   vorhanden, `bis ≤ Länge`, und **keine Grenze teilt ein UTF-16-Ersatzpaar** (F4, Nutzer
   24.09.2026) — sonst `VALIDIERUNG_WERTEBEREICH`, nichts wird geschrieben.
 - **Entwerten (E4):** ändert `zitat.aendern` das Transkript, bleibt ein Anker genau dann, wenn das
