@@ -156,6 +156,33 @@ describe('aussage_zitat.anlegen mit feld (AP-1.34 PR-C1b)', () => {
     }
   })
 
+  it('FA6 feld nur an der Existenz-Aussage (Eigentümer 24.09.2026): an einer beruf-Aussage → VALIDIERUNG_WERTEBEREICH, ohne feld weiter ok', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const berufAussage = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 3,
+      }).id
+      const zitatId = neuesZitat(db)
+      const anzahlVorher = transaktionAnzahl(db)
+
+      expect(fehlerCode(() => fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: berufAussage, zitatId, feld: 'geschlecht' }))).toBe(
+        'VALIDIERUNG_WERTEBEREICH',
+      )
+      expect(verknuepfungLesen(db, berufAussage, zitatId)).toBeUndefined()
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: berufAussage, zitatId, textanker: { von: 0, bis: 7 } })
+      expect(verknuepfungLesen(db, berufAussage, zitatId)).toEqual({ feld: null, textanker_von: 0, textanker_bis: 7 })
+    } finally {
+      db.close()
+    }
+  })
+
   it('FA5 unbekannter feld-Wert scheitert am Zod-Schema', () => {
     const basis = { aussageId: 'a', zitatId: 'z' }
     expect(aussageZitatAnlegenEinSchema.safeParse({ ...basis, feld: 'datum' }).success).toBe(true)

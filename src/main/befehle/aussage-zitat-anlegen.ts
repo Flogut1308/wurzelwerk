@@ -8,7 +8,10 @@
 // Ersatzpaar F4). Ein ungültiger Anker wirft VOR jedem Schreibvorgang.
 // AP-1.34 PR-C1b (§31 U-1.34-F1): optionales `feld` — muss ein Attribut des `subjekt_typ` der
 // Aussage sein (`belegFeldPasst`, src/shared/schemata/aussage-zitat.ts), sonst
-// `VALIDIERUNG_WERTEBEREICH` VOR jedem Schreibvorgang. Beide Prüfungen teilt `aussage_zitat.aendern`.
+// `VALIDIERUNG_WERTEBEREICH` VOR jedem Schreibvorgang. Zusätzlich (Eigentümer 24.09.2026, §31
+// U-1.34-C1b-feld-praedikat): `feld` ≠ NULL nur an einer Existenz-Aussage (`praedikat='existenz'`,
+// ADR-026) — an jeder anderen Aussage ist die Aussage selbst schon das belegte Attribut. Beide
+// Prüfungen teilt `aussage_zitat.aendern`.
 import type { AussageZitatAnlegenEin, Textanker } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { AussageSubjektTypEnum } from '../../shared/schemata/gemeinsam'
@@ -18,8 +21,13 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import * as belegRepo from '../repositories/beleg-repo'
 import { ankerPruefen } from '../../core/beleg/textanker'
 
-/** Wirft `VALIDIERUNG_WERTEBEREICH`, wenn `feld` kein Attribut des Subjekttyps `subjektTyp` ist. */
-export function belegFeldPruefen(subjektTyp: string, feld: string): void {
+/** Wirft `VALIDIERUNG_WERTEBEREICH`, wenn die Aussage keine Existenz-Aussage ist oder `feld` kein
+ * Attribut ihres Subjekttyps ist. */
+export function belegFeldPruefen(aussage: { readonly subjekt_typ: string; readonly praedikat: string }, feld: string): void {
+  if (aussage.praedikat !== 'existenz') {
+    throw new WurzelFehler('VALIDIERUNG_WERTEBEREICH', `Feld "${feld}" ist nur an einer Existenz-Aussage zulässig.`)
+  }
+  const subjektTyp = aussage.subjekt_typ
   const typ = AussageSubjektTypEnum.safeParse(subjektTyp)
   if (!typ.success || !belegFeldPasst(typ.data, feld)) {
     throw new WurzelFehler('VALIDIERUNG_WERTEBEREICH', `Feld "${feld}" passt nicht zum Subjekttyp "${subjektTyp}".`)
@@ -48,7 +56,7 @@ export function aussageZitatAnlegen(tx: Tx, ein: AussageZitatAnlegenEin): null {
   }
 
   if (ein.feld !== undefined) {
-    belegFeldPruefen(aussage.subjekt_typ, ein.feld)
+    belegFeldPruefen(aussage, ein.feld)
   }
   const anker = ein.textanker
   if (anker !== undefined) {

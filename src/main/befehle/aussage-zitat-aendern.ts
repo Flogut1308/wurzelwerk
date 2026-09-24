@@ -5,8 +5,8 @@
 // - Fehlt die Verknüpfung: `NICHT_GEFUNDEN_AUSSAGE_ZITAT` (auch wenn Aussage und Zitat bestehen).
 // - AP-0.22: stimmen `feld` und Anker schon überein, bleibt der Aufruf ein No-op (kein Schreib-
 //   vorgang, kein neues `geaendert_am`) — der Befehlsbus verwirft die leere Transaktion.
-// - Sonst dieselben Prüfungen wie `aussage_zitat.anlegen` VOR dem Schreiben: `feld` passt zum
-//   `subjekt_typ` der Aussage, der Anker ist gegen das Transkript des Zitats `ok` (F4).
+// - Sonst dieselben Prüfungen wie `aussage_zitat.anlegen` VOR dem Schreiben: `feld` nur an einer
+//   Existenz-Aussage und passend zum `subjekt_typ`, der Anker ist gegen das Transkript `ok` (F4).
 import type { AussageZitatAendernEin } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
@@ -32,7 +32,7 @@ export function aussageZitatAendern(tx: Tx, ein: AussageZitatAendernEin): null {
       // Defensiv (CLAUDE.md §4: kein `!`): die Verknüpfung hat einen FK auf `aussage` (CASCADE).
       throw new WurzelFehler('INTERN_UNERWARTET', `aussage fehlt für bestehende Verknüpfung "${ein.aussageId}".`)
     }
-    belegFeldPruefen(aussage.subjekt_typ, ein.feld)
+    belegFeldPruefen(aussage, ein.feld)
   }
   if (ein.textanker !== null) {
     const zitat = belegRepo.zitatLesen(tx, ein.zitatId)

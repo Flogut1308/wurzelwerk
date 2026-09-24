@@ -297,6 +297,35 @@ describe('aussage_zitat.aendern (AP-1.34 PR-C1b, F2)', () => {
     }
   })
 
+  it('AE8b feld nur an der Existenz-Aussage (Eigentümer 24.09.2026): an einer beruf-Aussage → VALIDIERUNG_WERTEBEREICH, feld null weiter ok', () => {
+    const db = neueTestDatenbank()
+    try {
+      const a = aufbauen(db)
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const berufAussage = fuehreAus(db, 'aussage.anlegen', {
+        subjektTyp: 'person',
+        subjektId: personId,
+        praedikat: 'beruf',
+        wertText: 'Schmied',
+        konfidenz: 3,
+      }).id
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: berufAussage, zitatId: a.zitatId })
+      const vorher = abzug(db)
+      const anzahlVorher = transaktionAnzahl(db)
+
+      expect(
+        fehlerCode(() => fuehreAus(db, 'aussage_zitat.aendern', { aussageId: berufAussage, zitatId: a.zitatId, feld: 'geschlecht', textanker: { von: 14, bis: 20 } })),
+      ).toBe('VALIDIERUNG_WERTEBEREICH')
+      expect(abzug(db)).toBe(vorher)
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+
+      fuehreAus(db, 'aussage_zitat.aendern', { aussageId: berufAussage, zitatId: a.zitatId, feld: null, textanker: { von: 14, bis: 20 } })
+      expect(verknuepfung(db, berufAussage, a.zitatId)).toMatchObject({ feld: null, textanker_von: 14, textanker_bis: 20 })
+    } finally {
+      db.close()
+    }
+  })
+
   it('AE9 Schema: feld und textanker sind Pflicht (null erlaubt), unbekannte Werte scheitern', () => {
     const basis = { aussageId: 'a', zitatId: 'z' }
     expect(aussageZitatAendernEinSchema.safeParse({ ...basis, feld: null, textanker: null }).success).toBe(true)
