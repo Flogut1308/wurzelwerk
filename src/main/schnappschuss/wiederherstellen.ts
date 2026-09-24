@@ -8,8 +8,10 @@ import { join } from 'node:path'
 import type { Kontext } from '../ipc/huelle'
 import type { SchnappschussWiederherstellenEin } from '../../shared/ipc/vertrag'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
-import { offenesProjektPfade, projektOeffnen, projektSchliessen } from '../projekt/projekt-dienst'
+import { offenesProjektDatenbank, offenesProjektPfade, projektOeffnen, projektSchliessen } from '../projekt/projekt-dienst'
+import { zaehlerstaendeLesen, zaehlerTabelleVorhanden } from '../repositories/kennung-repo'
 import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from './dateiname'
+import { zaehlerNachziehen } from './kennung-angleichen'
 
 /**
  * Stellt den unter `ein.id` bekannten Schnappschuss wieder her (55_Architektur.md §6.2/§6.4).
@@ -17,6 +19,15 @@ import { ERSETZT_PRAEFIX, kolonfreieZeit, SCHNAPPSCHUSS_ENDUNG } from './dateina
  * `DATEI_NICHT_LESBAR`, wenn kein Schnappschuss mit dieser `id` existiert - beides GEPRÜFT, bevor
  * das Projekt geschlossen wird (ein Fehlschlag darf das offene Projekt nicht antasten). `jetzt` ist
  * injizierbar (Standard `Date.now`) — Test-Seam für den Dateinamen von `ersetzt-<Zeit>.sqlite`.
+ *
+ * AP-1.34 (A2a, Nutzer 24.09.2026): „nie neu vergeben" gilt wie bei `importZuruecknehmen()` (E12)
+ * — der Schnappschuss trägt den Zählerstand seiner Entstehung, Kennungen aus der Zeit danach würden
+ * sonst erneut vergeben. Darum wird `kennung_zaehler` vor dem Schließen gesichert und nach dem
+ * Zurückkopieren je Bereich nur vorgezogen (`zaehlerNachziehen`, nie gesenkt; bei Gleichstand wird
+ * nichts geschrieben, `chk_kennung_zaehler_vorwaerts` feuert nicht). Ein Schnappschuss ≥v7 behält
+ * seine eigenen Kennungen (O-3). Kennt der Schnappschuss den Zähler nicht (<v7), bleibt er hier
+ * unberührt — das deckt A2b über den Migrationslauf ab. Scheitert das Nachziehen, wird wie beim
+ * Kopierfehler zurückgerollt; das Projekt bleibt wieder öffenbar.
  */
 export function schnappschussWiederherstellen(
   ein: SchnappschussWiederherstellenEin,
@@ -33,6 +44,9 @@ export function schnappschussWiederherstellen(
   const ordnerPfad = pfade.ordnerPfad
   const ersetztPfad = join(pfade.snapshotsPfad, `${ERSETZT_PRAEFIX}${kolonfreieZeit(jetzt())}${SCHNAPPSCHUSS_ENDUNG}`)
 
+  const bisherigeDb = offenesProjektDatenbank()
+  const zaehlerVorher = zaehlerTabelleVorhanden(bisherigeDb) ? zaehlerstaendeLesen(bisherigeDb) : []
+
   projektSchliessen()
 
   try {
@@ -48,6 +62,16 @@ export function schnappschussWiederherstellen(
     // erneuter Wiederherstellungsversuch würde sonst schon an der fehlenden Datei scheitern.
     renameSync(ersetztPfad, pfade.dbPfad)
     throw new WurzelFehler('DATEI_KEIN_PLATZ')
+  }
+
+  try {
+    // Schließt seinen Handle auch im Fehlerfall selbst (Windows: vor dem rename unten zu).
+    zaehlerNachziehen(pfade.dbPfad, zaehlerVorher)
+  } catch (u) {
+    // Wie der Rückroll oben (Muster `importZuruecknehmen()`): die kopierte Datei wird durch die
+    // ersetzte überschrieben, das Projekt bleibt im Vorher-Zustand öffenbar.
+    renameSync(ersetztPfad, pfade.dbPfad)
+    throw new WurzelFehler('INTERN_UNERWARTET', u instanceof Error ? u.message : String(u))
   }
 
   projektOeffnen({ pfad: ordnerPfad }, ktx)
