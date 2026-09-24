@@ -21,6 +21,7 @@ import { ankerPruefen } from '../../src/core/beleg/textanker'
 import type { Textanker } from '../../src/shared/schemata/befehle'
 import { BELEG_FELDER_JE_SUBJEKT, BelegFeldEnum, type BelegFeld } from '../../src/shared/schemata/aussage-zitat'
 import { AussageSubjektTypEnum } from '../../src/shared/schemata/gemeinsam'
+import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 
 /** Die Bausteine der Transkripte (s. Modul-Kommentar). */
 const TRANSKRIPT_BAUSTEINE: readonly string[] = ['a', 'Z', ' ', "'", 'ä', 'ß', 'Ё', 'ł', 'é', '👶', '👨‍👩‍👧']
@@ -84,6 +85,17 @@ export type Zweig =
   | 'zitat.gemischt'
   /** Irgendein Anker wurde entwertet (für „Undo einer Entwertung" in den Tests). */
   | 'zitat.entwertet'
+  /** Ablehnungs-Aktion (E-B2-2): ungültiger Anker bzw. ungültiges feld, abgelehnt über
+   * `aussage_zitat.anlegen` bzw. `.aendern` — und je Fehlerart. */
+  | 'ablehnung.anker.anlegen'
+  | 'ablehnung.anker.aendern'
+  | 'ablehnung.feld.anlegen'
+  | 'ablehnung.feld.aendern'
+  | 'ablehnung.ankerAusserhalb'
+  | 'ablehnung.ankerOhneTranskript'
+  | 'ablehnung.ankerErsatzpaar'
+  | 'ablehnung.feldNichtExistenz'
+  | 'ablehnung.feldFalscherTyp'
 
 /** Pflichtzweige, die über `{ seed, numRuns }` beider Invarianten-Tests nie 0 sein dürfen. */
 export const PFLICHTZWEIGE: readonly Zweig[] = [
@@ -117,6 +129,15 @@ export const PFLICHTZWEIGE: readonly Zweig[] = [
   'zitat.kuerzen.entwertet',
   'zitat.weglassen.entwertet',
   'zitat.gemischt',
+  'ablehnung.anker.anlegen',
+  'ablehnung.anker.aendern',
+  'ablehnung.feld.anlegen',
+  'ablehnung.feld.aendern',
+  'ablehnung.ankerAusserhalb',
+  'ablehnung.ankerOhneTranskript',
+  'ablehnung.ankerErsatzpaar',
+  'ablehnung.feldNichtExistenz',
+  'ablehnung.feldFalscherTyp',
 ]
 
 /** Führt einen Befehl über den echten Bus aus und vermerkt `befehl:<name>` in `zweige`. */
@@ -670,4 +691,173 @@ export function zitatAendernAusfuehren(db: Tx, zustand: BelegZustand, aktion: Ak
   if (entwertet > 0) {
     zweige.push('zitat.entwertet')
   }
+}
+
+// -----------------------------------------------------------------------------------------------
+// Ablehnungs-Aktion (AP-1.34 PR-B2, Eigentümer-Entscheidung E-B2-2 (b))
+// -----------------------------------------------------------------------------------------------
+
+type AblehnungFehler = 'ankerAusserhalb' | 'ankerOhneTranskript' | 'ankerErsatzpaar' | 'feldNichtExistenz' | 'feldFalscherTyp'
+
+/**
+ * GRUNDSATZÄNDERUNG (E-B2-2): bis AP-1.34 PR-B2 erzeugte der Generator ausschließlich gültige
+ * Eingaben (Kopfkommentar `_befehlsfolge-generator.ts`). Diese Aktion ist die bewusste Ausnahme:
+ * sie schickt einen UNGÜLTIGEN Anker (außerhalb des Transkripts, ohne Transkript, Grenze mitten in
+ * einem Ersatzpaar — F4) bzw. ein UNGÜLTIGES `feld` (an einer Nicht-Existenz-Aussage, nicht zum
+ * Subjekttyp passend) über `aussage_zitat.anlegen` oder `.aendern` und verlangt die Ablehnung:
+ * `WurzelFehler('VALIDIERUNG_WERTEBEREICH')` und KEINE neue Transaktion; alles andere wirft. Grund:
+ * die Invarianten prüfen nur, was in der Datenbank steht — ohne diese Aktion bliebe ein entfernter
+ * Handler-Schutz (`belegAnkerPruefen`/`belegFeldPruefen`) unbemerkt, solange der Generator ihn nie
+ * herausfordert (Mutationsprobe M8). Die Eingaben bleiben SCHEMA-konform (Zod lässt sie durch),
+ * damit genau die Handlerprüfung greift. Ein Ablehnen erzeugt keinen Undo-Schritt: `undo-bitgleich`
+ * ersetzt dann den letzten Schnappschuss durch einen identischen (Fall „gleiche oberste Transaktion").
+ * Kein passendes Ziel → No-op.
+ */
+export interface AktionBelegAblehnen {
+  readonly art: 'belegAblehnen'
+  readonly befehl: 'anlegen' | 'aendern'
+  readonly fehler: AblehnungFehler
+  readonly zielRoh: number
+  readonly zweitRoh: number
+  readonly feldRoh: number
+}
+
+export function belegAblehnenAktionArbitrary(): fc.Arbitrary<AktionBelegAblehnen> {
+  return fc
+    .record({
+      befehl: fc.constantFrom<AktionBelegAblehnen['befehl']>('anlegen', 'aendern'),
+      fehler: fc.constantFrom<AblehnungFehler>('ankerAusserhalb', 'ankerOhneTranskript', 'ankerErsatzpaar', 'feldNichtExistenz', 'feldFalscherTyp'),
+      zielRoh: fc.nat(),
+      zweitRoh: fc.nat(),
+      feldRoh: fc.nat(),
+    })
+    .map((r): AktionBelegAblehnen => ({ art: 'belegAblehnen', ...r }))
+}
+
+/** `liste` ab Index `roh % länge` rundum — deterministische Kandidatenfolge in Einfügereihenfolge. */
+function rundum<T>(liste: readonly T[], roh: number): readonly T[] {
+  if (liste.length === 0) {
+    return []
+  }
+  const start = roh % liste.length
+  return [...liste.slice(start), ...liste.slice(0, start)]
+}
+
+/** Ein für `fehler` ungültiger, aber schema-konformer Anker gegen `transkript` — oder `undefined`,
+ * wenn dieses Transkript den Fehler nicht hergibt. */
+function ungueltigerAnker(fehler: AblehnungFehler, transkript: string | null): Textanker | undefined {
+  switch (fehler) {
+    case 'ankerAusserhalb':
+      return transkript === null ? undefined : { von: transkript.length, bis: transkript.length + 1 }
+    case 'ankerOhneTranskript':
+      return transkript === null ? { von: 0, bis: 1 } : undefined
+    case 'ankerErsatzpaar': {
+      if (transkript === null) {
+        return undefined
+      }
+      for (let i = 1; i < transkript.length; i += 1) {
+        if (teiltPaar(transkript, i)) {
+          return { von: i, bis: i + 1 }
+        }
+      }
+      return undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+/** Ein für `fehler` ungültiges, aber in `BelegFeldEnum` enthaltenes `feld` für die Aussage — oder
+ * `undefined`, wenn diese Aussage den Fehler nicht hergibt. */
+function ungueltigesFeld(fehler: AblehnungFehler, kopf: AussageKopfZeile, roh: number): BelegFeld | undefined {
+  if (fehler === 'feldNichtExistenz') {
+    return kopf.praedikat === 'existenz' ? undefined : ausListe(BelegFeldEnum.options, roh)
+  }
+  if (fehler === 'feldFalscherTyp' && kopf.praedikat === 'existenz') {
+    const passend = BELEG_FELDER_JE_SUBJEKT[AussageSubjektTypEnum.parse(kopf.subjekt_typ)]
+    return ausListe(
+      BelegFeldEnum.options.filter((f) => !passend.includes(f)),
+      roh,
+    )
+  }
+  return undefined
+}
+
+function istAnkerFehler(fehler: AblehnungFehler): boolean {
+  return fehler === 'ankerAusserhalb' || fehler === 'ankerOhneTranskript' || fehler === 'ankerErsatzpaar'
+}
+
+type AblehnungNutzlast =
+  | { readonly befehl: 'anlegen'; readonly ein: BefehlEin<'aussage_zitat.anlegen'> }
+  | { readonly befehl: 'aendern'; readonly ein: BefehlEin<'aussage_zitat.aendern'> }
+
+function ablehnungAnlegenFinden(db: Tx, zustand: BelegZustand, aktion: AktionBelegAblehnen): AblehnungNutzlast | undefined {
+  const verknuepft = (aussageId: string, zitatId: string): boolean =>
+    zustand.aussageZitatVerknuepfungen.some((v) => v.aussageId === aussageId && v.zitatId === zitatId)
+  if (istAnkerFehler(aktion.fehler)) {
+    for (const zitatId of rundum(zustand.zitatIds, aktion.zweitRoh)) {
+      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, zitatId).transkript)
+      const aussage = anker === undefined ? undefined : rundum(zustand.aussagen, aktion.zielRoh).find((a) => !verknuepft(a.id, zitatId))
+      if (anker !== undefined && aussage !== undefined) {
+        return { befehl: 'anlegen', ein: { aussageId: aussage.id, zitatId, textanker: anker } }
+      }
+    }
+    return undefined
+  }
+  for (const aussage of rundum(zustand.aussagen, aktion.zielRoh)) {
+    const feld = ungueltigesFeld(aktion.fehler, aussageKopfLesen(db, aussage.id), aktion.feldRoh)
+    const zitatId = feld === undefined ? undefined : rundum(zustand.zitatIds, aktion.zweitRoh).find((z) => !verknuepft(aussage.id, z))
+    if (feld !== undefined && zitatId !== undefined) {
+      return { befehl: 'anlegen', ein: { aussageId: aussage.id, zitatId, feld } }
+    }
+  }
+  return undefined
+}
+
+function ablehnungAendernFinden(db: Tx, zustand: BelegZustand, aktion: AktionBelegAblehnen): AblehnungNutzlast | undefined {
+  for (const v of rundum(zustand.aussageZitatVerknuepfungen, aktion.zielRoh)) {
+    const zeile = verknuepfungLesen(db, v)
+    const altFeld = BelegFeldEnum.nullable().parse(zeile.feld)
+    if (istAnkerFehler(aktion.fehler)) {
+      const anker = ungueltigerAnker(aktion.fehler, zitatLesen(db, v.zitatId).transkript)
+      if (anker !== undefined) {
+        return { befehl: 'aendern', ein: { aussageId: v.aussageId, zitatId: v.zitatId, feld: altFeld, textanker: anker } }
+      }
+    } else {
+      const feld = ungueltigesFeld(aktion.fehler, aussageKopfLesen(db, v.aussageId), aktion.feldRoh)
+      if (feld !== undefined) {
+        return { befehl: 'aendern', ein: { aussageId: v.aussageId, zitatId: v.zitatId, feld, textanker: ankerVon(zeile) } }
+      }
+    }
+  }
+  return undefined
+}
+
+export function belegAblehnenAusfuehren(db: Tx, zustand: BelegZustand, aktion: AktionBelegAblehnen, zweige: Zweig[]): void {
+  const nutzlast =
+    aktion.befehl === 'anlegen' ? ablehnungAnlegenFinden(db, zustand, aktion) : ablehnungAendernFinden(db, zustand, aktion)
+  if (nutzlast === undefined) {
+    return
+  }
+  const txVorher = txFingerabdruck(db)
+  let fehler: unknown
+  try {
+    if (nutzlast.befehl === 'anlegen') {
+      befehl(zweige, db, 'aussage_zitat.anlegen', nutzlast.ein)
+    } else {
+      befehl(zweige, db, 'aussage_zitat.aendern', nutzlast.ein)
+    }
+  } catch (e) {
+    fehler = e
+  }
+  if (!(fehler instanceof WurzelFehler) || fehler.code !== 'VALIDIERUNG_WERTEBEREICH') {
+    throw new Error(
+      `Ablehnung erwartet (${aktion.fehler} über aussage_zitat.${aktion.befehl}, VALIDIERUNG_WERTEBEREICH), erhalten: ${fehler === undefined ? 'kein Fehler' : String(fehler)}`,
+    )
+  }
+  if (txFingerabdruck(db) !== txVorher) {
+    throw new Error(`Abgelehnter Befehl aussage_zitat.${aktion.befehl} hat eine Transaktion hinterlassen.`)
+  }
+  const art = istAnkerFehler(aktion.fehler) ? 'anker' : 'feld'
+  zweige.push(`ablehnung.${art}.${aktion.befehl}`, `ablehnung.${aktion.fehler}`)
 }

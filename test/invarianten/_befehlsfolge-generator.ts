@@ -22,7 +22,8 @@
 // `ereignis.anlegen/aendern/loeschen` und `aussage.anlegen/loeschen` ab — dasselbe
 // "Index-modulo-Länge-oder-No-op"-Muster wie oben, konsequent auf alle neuen Referenzen
 // (`personId`, `nameId`, `elternschaftId`, `partnerschaftId`, `ereignisId`, `aussageId`)
-// ausgeweitet. Bewusste Vereinfachungen, jede für sich gültige (nicht invalide!) Eingaben:
+// ausgeweitet. Bewusste Vereinfachungen, jede für sich gültige (nicht invalide!) Eingaben — einzige
+// Ausnahme seit AP-1.34 PR-B2: die Ablehnungs-Aktion `belegAblehnen` (s. unten, E-B2-2):
 //
 // - KEINE `belege`/`zitatId`-Referenzen: optional in jedem betroffenen Schema, das Weglassen
 //   bleibt darum immer schema-konform. Eine `zitat`-Fixture anzulegen bräuchte einen rohen
@@ -206,6 +207,21 @@
 //   `zustand.archivIds`/`quelleIds` bleiben darum reine `string[]` ohne Löschpfad von außen —
 //   anders als `zustand.zitatIds` (`zitat.loeschen` existiert) und `zustand.negativbefundIds`
 //   (eigener Löschbefehl UND CASCADE über `person.loeschen`, s. oben).
+//
+// AP-1.34 PR-B2 ERWEITERUNG (Beleg-Teil in `_befehlsfolge-beleg.ts`, Eigentümer-Entscheidungen
+// 24.09.2026 E-B2-1..E-B2-4): `aussage_zitat.anlegen` mit Textanker und `feld`, `aussage_zitat.
+// aendern`, `zitat.aendern` mit gezielt abgeleiteten Transkripten (Anker bleibt/entwertet, E4) und
+// Transkripte mit Umlauten/Emoji. `aktionAusfuehren()` meldet die getroffenen Deckungszweige
+// (`Zweig`), die `undo-bitgleich.test.ts` und `textanker-gueltig.test.ts` zählen. Eine Aktion löst
+// weiterhin HÖCHSTENS EINEN erfolgreichen `fuehreAus()` aus (ein Schnappschuss je Aktion in
+// `undo-bitgleich`) — Deckung entsteht über gewichtete Zielwahl, nicht über Befehlsketten.
+//
+// GRUNDSATZÄNDERUNG „NICHT NUR GÜLTIGE EINGABEN" (E-B2-2): alles oben Gesagte über „gültige statt
+// zufällig scheiternde Eingaben" gilt weiter für JEDE Aktion außer `belegAblehnen`. Diese eine
+// Aktion schickt absichtlich einen ungültigen Anker bzw. ein ungültiges `feld` und VERLANGT die
+// Ablehnung (`VALIDIERUNG_WERTEBEREICH`, keine neue Transaktion) — sonst wirft der Generator.
+// Begründung: die Invarianten sehen nur, was in der Datenbank steht; ein entfernter Handler-Schutz
+// fiele ohne einen Generator, der ihn herausfordert, nie auf (Typkommentar `AktionBelegAblehnen`).
 import fc from 'fast-check'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../src/shared/schemata/person'
 import { NameTypEnum } from '../../src/shared/schemata/name'
@@ -239,10 +255,13 @@ import {
   aussageZitatAnlegenAktionArbitrary,
   aussageZitatAnlegenAusfuehren,
   befehl,
+  belegAblehnenAktionArbitrary,
+  belegAblehnenAusfuehren,
   transkriptArbitrary,
   zitatAendernAktionArbitrary,
   zitatAendernAusfuehren,
   type AktionAussageZitatAendern,
+  type AktionBelegAblehnen,
   type AktionAussageZitatAnlegen,
   type AktionZitatAendern,
   type BelegAenderungInfo,
@@ -708,6 +727,7 @@ export type Aktion =
   | AktionAussageAendern
   | AktionAussageZitatAnlegen
   | AktionAussageZitatAendern
+  | AktionBelegAblehnen
   | AktionAussageZitatLoeschen
   | AktionOrtAnlegen
   | AktionOrtAendern
@@ -1216,6 +1236,7 @@ function aktionArbitrary(): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: aussageAendernAktionArbitrary() },
     { weight: 2, arbitrary: aussageZitatAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: aussageZitatAendernAktionArbitrary() },
+    { weight: 1, arbitrary: belegAblehnenAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortAendernAktionArbitrary() },
@@ -2045,6 +2066,12 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
     case 'aussageZitatAendern': {
       // AP-1.34 PR-B2: s. `_befehlsfolge-beleg.ts`.
       aussageZitatAendernAusfuehren(db, zustand, aktion, zweige)
+      return
+    }
+
+    case 'belegAblehnen': {
+      // AP-1.34 PR-B2 (E-B2-2): bewusst ungültige Eingabe, Ablehnung verlangt — s. `_befehlsfolge-beleg.ts`.
+      belegAblehnenAusfuehren(db, zustand, aktion, zweige)
       return
     }
 
