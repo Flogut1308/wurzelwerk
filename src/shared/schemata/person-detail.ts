@@ -28,6 +28,7 @@ import { NameTypEnum, SchriftEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
 import { GeschlechtEnum, PlatzhalterGrundEnum } from './person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
+import type { Textanker } from './befehle'
 
 /** Nutzlast von `abfrage:person.detail`. */
 export interface PersonDetailEin {
@@ -52,6 +53,10 @@ export interface PersonDetailKopf {
   readonly privat: boolean
   readonly geschlecht: z.infer<typeof GeschlechtEnum> | null
   readonly platzhalter_grund: z.infer<typeof PlatzhalterGrundEnum> | null
+  /** `person.kennung` (AP-1.34 PR-C1b, §31 U-1.34-E1/E10): die ROHE Zahl ≥ 1; NULL möglich (E13,
+   * Undo eines Journaleintrags von vor 0007). Anzeige „P-0142"/„–" nur über `kennungAnzeige`
+   * (src/core/person/kennung.ts) — kein Text hier, keine Kennung in `person_flach`/Suche (E9). */
+  readonly kennung: number | null
 }
 
 /** Eine `name`-Zeile dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — read-only Spiegel der
@@ -101,9 +106,18 @@ export interface PersonDetailBelegZitat {
  * Quelle → Zitat → Transkript (Stufe 3, `zitat.transkript`, hier auf oberster Ebene, weil er der
  * am häufigsten gezeigte Teil ist, nicht in `zitat` verschachtelt). */
 export interface PersonDetailBeleg {
+  /** `aussage_zitat.zitat_id` (AP-1.34 PR-C1b, F3) — Schlüssel für `befehl:aussage_zitat.aendern`. */
+  readonly zitat_id: string
   readonly quelle: PersonDetailBelegQuelle
   readonly zitat: PersonDetailBelegZitat
   readonly transkript: string | null
+  /** `aussage_zitat.feld` (AP-1.34 PR-C1b, F1/F3): das belegte Attribut des Subjekts, NULL = ganze
+   * Aussage. Bewusst `string`, nicht `BelegFeld`: ein Wert außerhalb der heutigen Wertliste (Altbestand,
+   * künftige Version, kein DB-CHECK, E3) wird unverändert durchgereicht statt die Abfrage abzubrechen
+   * oder still auf NULL zu fallen — die Anzeige prüft ihn mit `BelegFeldEnum.safeParse`. */
+  readonly feld: string | null
+  /** Ausschnitt [von, bis) des Transkripts in UTF-16-Codeeinheiten (B-01, §31 U-1.34-R2) oder NULL. */
+  readonly textanker: Textanker | null
 }
 
 /** Eine einzelne `aussage`-Zeile eines Grunddaten-Felds, mit ihren Belegen. */

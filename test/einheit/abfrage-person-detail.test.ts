@@ -247,6 +247,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(bevorzugteAussage?.begruendung).toBe('Der Grabstein ist die staerkere Quelle. Bevorzugt gegenueber Ernas Erinnerung.')
       expect(bevorzugteAussage?.belege).toEqual([
         {
+          zitat_id: zitatGrabstein,
           quelle: {
             id: quelleGrabstein,
             typ: 'grabstein',
@@ -262,6 +263,8 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
             digitalisat_url: 'https://beispiel.invalid/grabstein.jpg',
           },
           transkript: 'AUGUST WRUCK 1890 - 1961',
+          feld: null,
+          textanker: null,
         },
       ])
 
@@ -270,6 +273,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(nichtBevorzugteAussage?.begruendung).toBeNull()
       expect(nichtBevorzugteAussage?.belege).toEqual([
         {
+          zitat_id: zitatErna,
           quelle: {
             id: quelleErna,
             typ: 'muendlich',
@@ -285,6 +289,8 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
             digitalisat_url: null,
           },
           transkript: 'der ist gestorben, als ich in die Schule kam, das war 58 oder 59',
+          feld: null,
+          textanker: null,
         },
       ])
 
