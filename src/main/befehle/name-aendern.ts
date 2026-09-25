@@ -75,6 +75,7 @@ export function nameAendern(tx: Tx, ein: NameAendernEin): null {
       praefix: ein.praefix ?? null,
       titelVor: ein.titelVor ?? null,
       zusatzNach: ein.zusatzNach ?? null,
+      vatersname: null,
       originalText: ein.originalText ?? null,
       sprache: ein.sprache ?? null,
       gueltigVon: ein.gueltigVon ?? null,

@@ -51,6 +51,7 @@ function frischesNameObjekt(): PersonDetailName {
     praefix: null,
     titel_vor: null,
     zusatz_nach: null,
+    vatersname: null,
     rufname_text: null,
     rufname_index: null,
     umschrift_von: null,
