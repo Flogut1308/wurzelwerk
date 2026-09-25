@@ -57,6 +57,9 @@ export type Zweig =
   | 'demote'
   /** `name.loeschen` der bevorzugten Form einer Person mit weiteren Formen (Nachrücken). */
   | 'nachruecken'
+  /** `aussage.aendern` mit `datumBeibehalten: true` an einer Aussage, die vorher ein Datum trug —
+   * nach dem Befehl dieselbe Datumsgruppe in allen elf Spalten (AP-1.30 PR 4c, V-E5-erhalt). */
+  | 'aussage.aendern.datumBeibehalten'
   | 'beleg.anlegen.ohneAnker'
   | 'beleg.anlegen.anker'
   /** Der Ausschnitt enthält eine Nicht-ASCII-Codeeinheit. */

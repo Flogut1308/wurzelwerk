@@ -35,6 +35,12 @@
 //   `Datumswert` hat eine eigene mehrteilige `superRefine`-Gültigkeitslogik
 //   (`src/shared/schemata/import-v1.ts`), die hier keinen zusätzlichen Mehrzeilen-Fall aufdeckt.
 //   Alle drei Felder sind optional, das Weglassen ist schema-konform.
+//   AUSNAHME seit AP-1.30 Vorarbeiten Teil 3, PR 4c (docs/80 §32 V-E5-erhalt): `aussage.anlegen`
+//   trägt mit Gewicht 1:1 ein `datum` aus einem kleinen, festen Vorrat gültiger Vertragswerte
+//   (`AUSSAGE_DATUMSWERTE` unten — auch die Altbestandsform mit Zweitkalender, Doppeljahr und
+//   Originaltext), `aussage.aendern` mit Gewicht 1:1 `datumBeibehalten: true`. Erst damit gibt es
+//   Aussagen MIT Datum, an denen das Signal überhaupt etwas zu erhalten hat (Zweig
+//   `aussage.aendern.datumBeibehalten`, s. `aussageAendernAusfuehren`-Fall in `aktionAusfuehrenIn()`).
 // - `elternschaft.anlegen`: die beiden Personen werden über `zweiVerschiedeneAusListe()`
 //   IMMER verschieden gewählt (keine Selbstkante) UND vorab mit der ECHTEN Produktivfunktion
 //   `wuerdeZyklusErzeugen()` (`src/core/graph/zyklus.ts`, dieselbe reine Funktion, die
@@ -249,6 +255,7 @@ import type {
   OrtExterneIdAnlegenEin,
   QuelleAnlegenEin,
 } from '../../src/shared/schemata/befehle'
+import type { Datumswert } from '../../src/shared/schemata/import-v1'
 import type { Tx } from '../../src/main/repositories/basis'
 import { wuerdeZyklusErzeugen, type Elternkante } from '../../src/core/graph/zyklus'
 import { wuerdeZyklusErzeugen as ortWuerdeZyklusErzeugen, type Ortskante } from '../../src/core/ort/zyklus'
@@ -461,6 +468,10 @@ export interface AktionAussageAnlegen {
    * `undefined` ganz FEHLT statt explizit `undefined` zu sein (dasselbe Problem in die andere
    * Richtung). */
   readonly istBevorzugt: 0 | 1 | undefined
+  /** AP-1.30 PR 4c: `undefined` oder ein Wert aus `AUSSAGE_DATUMSWERTE` — derselbe „immer
+   * vorhandene Schlüssel"-Grund wie bei `istBevorzugt`. Die generierten Prädikate (`beruf`,
+   * `konfession`) sind keine Orts-Prädikate, ein Datum ist an ihnen zulässig (`ortswert.ts`). */
+  readonly datum: Datumswert | undefined
 }
 
 export interface AktionAussageLoeschen {
@@ -483,6 +494,10 @@ export interface AktionAussageLoeschen {
  * bekommen IMMER einen konkreten Wert (nie `undefined`) — analog `AktionOrtAendern` oben, jedes
  * Feld ist im Schema optional, ein konkreter Wert bleibt genauso schema-konform und erspart das
  * bedingte Spreaden.
+ *
+ * AP-1.30 Vorarbeiten Teil 3, PR 4c (V-E5-erhalt): `datumBeibehalten` (Gewicht 1:1) schickt das
+ * Signal `datumBeibehalten: true` — nie zusammen mit `datum` (der Vertrag lehnt das ab). Ohne das
+ * Signal bleibt es beim bisherigen Fall ohne `datum`, der ein gespeichertes Datum entfernt (O10).
  */
 export interface AktionAussageAendern {
   readonly art: 'aussageAendern'
@@ -493,6 +508,7 @@ export interface AktionAussageAendern {
   readonly unsicherheit: string
   readonly gueltigVon: number
   readonly gueltigBis: number
+  readonly datumBeibehalten: boolean
 }
 
 // `AktionAussageZitatAnlegen` (AP-1.29 PR-B, mit Textanker/feld erweitert AP-1.34 PR-B2) steht in
@@ -929,9 +945,32 @@ function aussageAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageAnlegen> {
       wert: aussageWertArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
       istBevorzugt: fc.option(fc.constantFrom<0 | 1>(0, 1), { nil: undefined }),
+      datum: fc.oneof(fc.constant(undefined), fc.constantFrom(...AUSSAGE_DATUMSWERTE)),
     })
     .map((r): AktionAussageAnlegen => ({ art: 'aussageAnlegen', ...r }))
 }
+
+/** AP-1.30 PR 4c: fester Vorrat gültiger Vertrags-Datumswerte (`datumswertSchema`,
+ * `src/shared/schemata/import-v1.ts`) statt einer freien Arbitrary — die mehrteilige
+ * `superRefine`-Logik dort (Originaltext-Pflicht, `wert2` bei Zeitraum, `zweitkalender` zu
+ * `zweitwert`) bleibt so sicher erfüllt. Gedeckt sind alle elf Spalten der Datumsgruppe: der
+ * einfache Fall, ein Zeitraum mit `wert2`, ein unscharfer Wert mit Apostroph im Originaltext und
+ * die Altbestandsform (Julianisch mit Zweitkalender, Zweitwert und Doppeljahr), an der ein
+ * „Beibehalten per Rundreise" am ehesten bräche (docs/80 §32 V-E5-erhalt). */
+const AUSSAGE_DATUMSWERTE: readonly Datumswert[] = [
+  { modifikator: 'exakt', praezision: 'jahr', wert1: '1850' },
+  { modifikator: 'zwischen', praezision: 'jahr', wert1: '1750', wert2: '1760', original_text: 'zwischen 1750 und 1760' },
+  { modifikator: 'etwa', praezision: 'monat', wert1: '1812-06', original_text: "um Juni 1812 (lt. d'Aboville)" },
+  {
+    kalender: 'julian',
+    modifikator: 'exakt',
+    praezision: 'tag',
+    wert1: '1749-02-14',
+    zweitkalender: 'gregorian',
+    zweitwert: '1749-02-25',
+    doppeljahr: '1748/49',
+  },
+]
 
 function aussageLoeschenAktionArbitrary(): fc.Arbitrary<AktionAussageLoeschen> {
   return fc.nat().map((aussageZielRoh): AktionAussageLoeschen => ({ art: 'aussageLoeschen', aussageZielRoh }))
@@ -965,6 +1004,7 @@ function aussageAendernAktionArbitrary(): fc.Arbitrary<AktionAussageAendern> {
       unsicherheit: fc.string(),
       gueltigVon: fc.integer(),
       gueltigBis: fc.integer(),
+      datumBeibehalten: fc.boolean(),
     })
     .map((r): AktionAussageAendern => ({ art: 'aussageAendern', ...r }))
 }
@@ -1239,6 +1279,12 @@ export type GeneratorProfil = 'bestand' | 'beleg'
  * Zählerstände (vorher/nachher) stehen im PR-Bericht. `ortAnlegen` bleibt bei 2: mit 1 fielen
  * `ortszugehoerigkeit.aendern`/`.loeschen` auf 0 Treffer (gemessen; seitdem prüft `undo-bitgleich.test.ts` jeden Befehl gegen eine Schwelle);
  * `ortszugehoerigkeitAnlegen` steigt aus demselben Grund auf 3.
+ *
+ * AP-1.30 Vorarbeiten Teil 3, PR 4c: die neuen Felder `datum` (`aussage.anlegen`) und
+ * `datumBeibehalten` (`aussage.aendern`) verschieben den Zufallsstrom des festen Seeds; danach fiel
+ * `partnerschaft.loeschen` im Profil `bestand` auf 5 Treffer (Schwelle 6, main 12). Korrektur über
+ * die Gewichtung (ADR-009-Nachtrag, nie Seed/`numRuns`): `partnerschaftLoeschen` steigt im Profil
+ * `bestand` auf 2 (danach 23 Treffer); alle übrigen Schwellen bleiben erfüllt.
  */
 function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
   // `g(bestand, beleg)`: Gewicht je Profil (s. `GeneratorProfil`).
@@ -1262,7 +1308,7 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: partnerschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: partnerschaftAendernAktionArbitrary() },
-    { weight: 1, arbitrary: partnerschaftLoeschenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: partnerschaftLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ereignisAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ereignisAendernAktionArbitrary() },
     { weight: 1, arbitrary: ereignisLoeschenAktionArbitrary() },
@@ -1703,6 +1749,7 @@ function aussageWertFeld(wert: AktionAussageWert): { readonly wertText: string }
  * `AktionAussageAnlegen`). */
 function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, aktion: AktionAussageAnlegen): AussageAnlegenEin {
   const bevorzugtFeld = aktion.istBevorzugt === undefined ? {} : { istBevorzugt: aktion.istBevorzugt }
+  const datumFeld = aktion.datum === undefined ? {} : { datum: aktion.datum }
   return {
     subjektTyp: kind,
     subjektId,
@@ -1710,7 +1757,25 @@ function aussageAnlegenEinBauen(kind: AussageSubjektKind, subjektId: string, akt
     konfidenz: aktion.konfidenz,
     ...aussageWertFeld(aktion.wert),
     ...bevorzugtFeld,
+    ...datumFeld,
   }
+}
+
+/** AP-1.30 PR 4c: die elf Spalten der `datum_*`-Gruppe einer Aussage als kanonische Zeichenkette
+ * (Spalten aufgezählt, CLAUDE.md §6) — `undefined`, wenn die Zeile fehlt. Für den Zweig
+ * `aussage.aendern.datumBeibehalten`, am Datenbankergebnis gemessen. */
+function datumsgruppeLesen(db: Tx, id: string): { readonly gesetzt: boolean; readonly abzug: string } | undefined {
+  const zeile = db
+    .prepare<{ readonly id: string }, Readonly<Record<string, string | number | null>>>(
+      `SELECT datum_kalender, datum_modifikator, datum_praezision, datum_wert1, datum_wert2, datum_originaltext,
+              datum_sort_von, datum_sort_bis, datum_zweitkalender, datum_zweitwert, datum_doppeljahr
+         FROM aussage WHERE id = @id`,
+    )
+    .get({ id })
+  if (zeile === undefined) {
+    return undefined
+  }
+  return { gesetzt: zeile['datum_modifikator'] !== null, abzug: JSON.stringify(zeile) }
 }
 
 /**
@@ -2106,6 +2171,8 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
+      // AP-1.30 PR 4c (V-E5-erhalt): Datumsgruppe vorher/nachher am Datenbankergebnis vergleichen.
+      const datumVorher = aktion.datumBeibehalten ? datumsgruppeLesen(db, ziel.id) : undefined
       befehl(zweige, db, 'aussage.aendern', {
         id: ziel.id,
         konfidenz: aktion.konfidenz,
@@ -2114,7 +2181,21 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         gueltigVon: aktion.gueltigVon,
         gueltigBis: aktion.gueltigBis,
         ...aussageWertFeld(aktion.wert),
+        ...(aktion.datumBeibehalten ? { datumBeibehalten: true as const } : {}),
       })
+      if (datumVorher !== undefined) {
+        const datumGleich = datumsgruppeLesen(db, ziel.id)?.abzug === datumVorher.abzug
+        // Zweig nur bei gleicher Datumsgruppe (am Datenbankergebnis, nicht an der Anforderung).
+        if (datumGleich && datumVorher.gesetzt) {
+          zweige.push('aussage.aendern.datumBeibehalten')
+        }
+        // Ein verlorenes oder verändertes Datum trotz Signal ist ein Vertragsbruch des Handlers
+        // (`aussage-aendern.ts`) — Undo stellt ihn bitgleich zurück, `undo-bitgleich` allein sähe
+        // ihn darum nicht. Der Generator wirft, statt den Zweig nur nicht zu zählen.
+        if (!datumGleich) {
+          throw new Error('aussage.aendern mit datumBeibehalten hat die gespeicherte Datumsgruppe verändert (V-E5-erhalt).')
+        }
+      }
       return
     }
 
