@@ -46,6 +46,13 @@ function name(ueberschreibung: Partial<PersonDetailName> = {}): PersonDetailName
     titel_vor: null,
     zusatz_nach: null,
     rufname_text: null,
+    rufname_index: null,
+    umschrift_von: null,
+    umschrift_norm: null,
+    sprache: null,
+    gueltig_von: null,
+    gueltig_bis: null,
+    original_text: 'August Wruck',
     ...ueberschreibung,
   }
 }
@@ -61,6 +68,15 @@ describe('profil-bearbeiten-logik: Namen (AP-1.14a)', () => {
       titelVor: '',
       zusatzNach: '',
       rufname: '',
+      // AP-1.30 PR 2a: nicht angezeigte Felder werden mitgetragen; der montierte original_text zählt
+      // nicht als wortgetreu.
+      rufnameIndex: null,
+      umschriftVon: null,
+      umschriftNorm: null,
+      sprache: null,
+      gueltigVon: null,
+      gueltigBis: null,
+      originalTextWortgetreu: null,
     })
   })
 

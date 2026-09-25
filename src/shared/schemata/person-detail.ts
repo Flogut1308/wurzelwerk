@@ -31,7 +31,7 @@ import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
-import { NameTypEnum, SchriftEnum } from './name'
+import { NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
 import type { PersonListeDatumsgruppe } from './person-liste'
@@ -73,7 +73,14 @@ export interface PersonDetailKopf {
 /** Eine `name`-Zeile dieser Person (AP-1.14a, Kernfelder-Schreibmaske) — read-only Spiegel der
  * `name`-Tabelle (docs/schema/0002_kern.sql §2.2), NUR die Spalten, die die Kernfelder-Maske
  * bearbeitet (`befehl:name.anlegen`/`.aendern`). Kein `konfidenz`/`beleg`-Slot (ADR-026: Name
- * trägt keine Aussage). */
+ * trägt keine Aussage).
+ *
+ * AP-1.30 PR 2a (Bugfix Namens-Rundreise): `befehl:name.aendern` ersetzt die GANZE Form — darum trägt
+ * dieses Lesemodell JEDES Feld, das der Befehl annimmt (außer `ist_bevorzugt`, das der Befehl bewusst
+ * ignoriert, AP-1.33), auch wenn die Maske es nicht anzeigt; die Profil-Logik reicht es unverändert
+ * zurück. `rufname_index` ist die Position des markierten Vornamens (Rekonstruktion), `original_text`
+ * der gespeicherte Anzeigetext (automatisch montiert oder wortgetreu). Geprüft durch
+ * `test/einheit/profil-name-rundreise.test.ts` über die Schlüssel von `nameAendernEinSchema`. */
 export interface PersonDetailName {
   readonly id: string
   readonly typ: z.infer<typeof NameTypEnum>
@@ -84,6 +91,13 @@ export interface PersonDetailName {
   readonly titel_vor: string | null
   readonly zusatz_nach: string | null
   readonly rufname_text: string | null
+  readonly rufname_index: number | null
+  readonly umschrift_von: string | null
+  readonly umschrift_norm: z.infer<typeof UmschriftNormEnum> | null
+  readonly sprache: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
+  readonly original_text: string | null
 }
 
 /** Stufe 1 eines Belegs (S-08): die Quelle selbst — `docs/schema/0002_kern.sql` §2.7/§2.15.

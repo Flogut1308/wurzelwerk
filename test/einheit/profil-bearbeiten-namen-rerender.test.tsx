@@ -52,6 +52,13 @@ function frischesNameObjekt(): PersonDetailName {
     titel_vor: null,
     zusatz_nach: null,
     rufname_text: null,
+    rufname_index: null,
+    umschrift_von: null,
+    umschrift_norm: null,
+    sprache: null,
+    gueltig_von: null,
+    gueltig_bis: null,
+    original_text: 'August Wruck',
   }
 }
 

@@ -215,6 +215,14 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
           titel_vor: null,
           zusatz_nach: null,
           rufname_text: null,
+          // AP-1.30 PR 2a: das Lesemodell trägt jedes Feld, das `name.aendern` annimmt.
+          rufname_index: null,
+          umschrift_von: null,
+          umschrift_norm: null,
+          sprache: null,
+          gueltig_von: null,
+          gueltig_bis: null,
+          original_text: 'August Wruck',
         },
       ])
       expect(ergebnis.kopf.geschlecht).toBeNull()
