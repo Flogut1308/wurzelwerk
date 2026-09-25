@@ -160,6 +160,9 @@ test.describe('Ablauf 08 — Person bearbeiten: Reiter', () => {
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
     await expect(editor.getByRole('tab', { name: /^Person/ })).toHaveAttribute('aria-selected', 'true')
     await expect(editor.getByRole('tab', { name: /^Notizen/ })).toHaveAttribute('aria-selected', 'false')
+    // Frischer Editor ohne eigenen Schreibvorgang: kein Speicherstatus im Kopf (V-130-7-speicherfehler),
+    // obwohl der vorige Editor derselben Person geschrieben hat.
+    await expect(editor.locator('.wz-speicherstatus')).toHaveCount(0)
 
     // AP-1.30 PR 7c (V-130-7-tasten): Taste 3 wählt „Leben" (der Hauptprozess beobachtet die Ziffer
     // über `before-input-event`, der Renderer wählt den Reiter), der Fokus folgt auf den Reiter.
@@ -198,5 +201,9 @@ test.describe('Ablauf 08 — Person bearbeiten: Reiter', () => {
     await expect(notizenReiter).toHaveAttribute('aria-selected', 'true')
     await expect(editor.getByRole('tab', { name: /^Namen/ })).toHaveAttribute('aria-selected', 'false')
     await expect.poll(async () => (await personDetail(personId)).notiz, { timeout: AUTOSAVE_DEBOUNCE_MS * 10 }).toBe('Start neu2')
+
+    // AP-1.30 PR 7c (V-130-7-speicherfehler): nach dem Schreiben steht „Gespeichert" im Kopf dieses
+    // Editors (vorher, s. oben beim Wiederöffnen, stand dort nichts).
+    await expect(editor.getByRole('status')).toHaveText('Gespeichert · gerade eben')
   })
 })

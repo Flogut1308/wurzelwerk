@@ -67,6 +67,14 @@
   min-width: 0;
 }
 
+/* Speicherstatus rechts im Kopf vor „Schließen" (Artboard 1a), auf Höhe der Schaltfläche. */
+.wz-person-bearbeiten__kopf-speicherstatus {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: var(--wz-abstand-32);
+}
+
 .wz-person-bearbeiten__koerper {
   flex: 1 1 auto;
   min-height: 0;

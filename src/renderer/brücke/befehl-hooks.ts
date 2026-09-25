@@ -12,7 +12,7 @@
 // Architekturgrenzen (CLAUDE.md §2/§11): kein `metaKey`, keine Zeichenkettenliterale in JSX (hier
 // ohnehin kein JSX), kein direkter Zugriff auf `main`/better-sqlite3/Node — nur `./aufrufen` (die
 // typisierte IPC-Brücke) und `window.wurzelwerk.abonnieren` (vom Preload freigegeben).
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
@@ -25,6 +25,7 @@ import {
   zustandsbibliothekOeffnenNutzlastSchema,
 } from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
+import { SchreibBeobachterKontext, beobachtetAusfuehren, schreibFeldNameAendern, schreibFeldPersonFeldSetzen } from './schreib-beobachter'
 
 /**
  * Entpackt ein `Ergebnis<T>` zu `T` oder wirft den enthaltenen `AppFehler` — TanStack Query fängt
@@ -47,9 +48,13 @@ export function usePersonAnlegen(): UseMutationResult<{ readonly id: string }, A
   })
 }
 
+/** `befehl:person.feldSetzen`. Ein Autosave-Schreibweg: meldet sich beim `SchreibBeobachter` der
+ * umgebenden Ansicht (Speicherstatus im Editor, AP-1.30 PR 7c), ohne einen läuft er unverändert. */
 export function usePersonFeldSetzen(): UseMutationResult<null, AppFehler, Ein<'befehl:person.feldSetzen'>> {
+  const beobachter = useContext(SchreibBeobachterKontext)
   return useMutation({
-    mutationFn: (ein: Ein<'befehl:person.feldSetzen'>) => ergebnisEntpacken(aufrufen('befehl:person.feldSetzen', ein)),
+    mutationFn: (ein: Ein<'befehl:person.feldSetzen'>) =>
+      beobachtetAusfuehren(beobachter, schreibFeldPersonFeldSetzen(ein), () => ergebnisEntpacken(aufrufen('befehl:person.feldSetzen', ein))),
   })
 }
 
@@ -66,10 +71,13 @@ export function useNameAnlegen(): UseMutationResult<{ readonly id: string }, App
   })
 }
 
-/** `befehl:name.aendern` (AP-1.12, AP-1.14a). */
+/** `befehl:name.aendern` (AP-1.12, AP-1.14a). Autosave-Schreibweg mit `SchreibBeobachter` wie
+ * `usePersonFeldSetzen` (AP-1.30 PR 7c). */
 export function useNameAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:name.aendern'>> {
+  const beobachter = useContext(SchreibBeobachterKontext)
   return useMutation({
-    mutationFn: (ein: Ein<'befehl:name.aendern'>) => ergebnisEntpacken(aufrufen('befehl:name.aendern', ein)),
+    mutationFn: (ein: Ein<'befehl:name.aendern'>) =>
+      beobachtetAusfuehren(beobachter, schreibFeldNameAendern(ein), () => ergebnisEntpacken(aufrufen('befehl:name.aendern', ein))),
   })
 }
 
