@@ -106,6 +106,11 @@ describe('Umschrift-Stufe nur für die Umschrift der Hauptform mit Anzeigetext (
     expect(anzeigenameFuer([b, umschriftVonB, a])).toEqual({ text: 'Иванов', quelle: 'hauptname', formId: 'a' })
   })
 
+  it('verweist die Hauptform auf sich selbst, ist sie nicht ihre eigene Umschrift (Stufe 3, hueter #135)', () => {
+    const haupt = form({ formId: 'h', istBevorzugt: true, umschriftVon: 'h', teile: [teil('nachname', 'Ivanov')] })
+    expect(anzeigenameFuer([haupt])).toEqual({ text: 'Ivanov', quelle: 'hauptname', formId: 'h' })
+  })
+
   it('ist die Hauptform selbst Umschrift einer anderen Form, meldet sie Stufe 3 (§32 V-4b-quelle)', () => {
     const quelle = form({ formId: 'q', schrift: 'Cyrl', teile: [teil('nachname', 'Иванов')] })
     const haupt = form({ formId: 'h', istBevorzugt: true, umschriftVon: 'q', teile: [teil('nachname', 'Ivanov')] })
