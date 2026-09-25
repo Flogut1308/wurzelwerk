@@ -152,7 +152,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
             </ol>
           </nav>
         </header>
-  
+
         {abfrage.isPending ? (
           <div className="wz-person-bearbeiten__koerper">
             <ProfilLaedt />
@@ -190,7 +190,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
             </div>
           </>
         ) : null}
-  
+
         <footer className="wz-person-bearbeiten__fussleiste">
           <Text rolle="technisch" farbe="tertiaer" als="span">
             {t('bearbeitungsstatus_hinweis')}

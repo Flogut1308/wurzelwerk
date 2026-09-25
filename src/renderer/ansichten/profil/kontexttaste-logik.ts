@@ -17,6 +17,12 @@ const MODAL_SELEKTOR = '[aria-modal="true"], dialog[open]'
  * Seitenschublade im Editor ist `aria-modal`, ebenso jeder künftige Dialog).
  */
 export function darfKontexttasteWirken(editor: Element, dokument: Document): boolean {
+  // Fokus-Rennbedingung (hueter #161): geprüft wird der Fokus beim EINTREFFEN von
+  // `ereignis:kontexttaste`, nicht beim Tastendruck — dazwischen liegt ein IPC-Weg. Wechselt der
+  // Fokus in diesem Fenster (z. B. aus dem Textfeld heraus), kann die Taste einen Reiter wählen,
+  // obwohl sie in einem Textfeld gedrückt wurde, oder umgekehrt nicht wirken. Die Ziffer selbst geht
+  // dabei nie verloren: der Hauptprozess blockiert sie nicht (`kontexttasten-beobachter.ts`, kein
+  // `preventDefault()`), in einem fokussierten Textfeld landet sie also immer als Text.
   const fokus = dokument.activeElement
   if (fokus !== null && fokus.closest(EINGABE_SELEKTOR) !== null) return false
   for (const modal of dokument.querySelectorAll(MODAL_SELEKTOR)) {
