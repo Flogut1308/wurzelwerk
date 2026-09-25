@@ -194,6 +194,12 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
       const ohneOrt = verstorbenOhneTodesort(db)
       todEreignis(db, ohneOrt, { belegt: true })
       expect(fehlend(db, ohneOrt)).toEqual(['todesort'])
+
+      // hueter-H3: eine belegte Aussage am Tod-Ereignis, die NICHT die Existenz-Aussage ist, belegt den Ort nicht.
+      const fremdeAussage = verstorbenOhneTodesort(db)
+      const ereignisId = todEreignis(db, fremdeAussage, { ortId: ort(db) })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'ereignis', subjektId: ereignisId, praedikat: 'todesursache', wertText: 'Fieber', konfidenz: 3, belege: [zitat(db)] })
+      expect(fehlend(db, fremdeAussage)).toEqual(['todesort'])
     })
   })
 
