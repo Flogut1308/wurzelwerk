@@ -150,13 +150,46 @@ export interface PersonDetailBeleg {
   readonly textanker: Textanker | null
 }
 
-/** Eine einzelne `aussage`-Zeile eines Grunddaten-Felds, mit ihren Belegen. */
+/** Die gespeicherte Datumsgruppe einer Aussage (`datum_*`, docs/schema/0002_kern.sql §2.7) — roh,
+ * Spalte für Spalte, auch in Altbestands-Formen (Zweitkalender, Doppeljahr, Sortierwerte, die
+ * `datumSpalten` so nicht erzeugte). `string` statt der Enum-Typen: die Werte kommen aus der Zeile,
+ * nicht aus einer Eingabe; wer daraus einen Vertrags-`Datumswert` baut, prüft ihn mit Zod. */
+export interface PersonDetailAussageDatum {
+  readonly kalender: string | null
+  readonly modifikator: string | null
+  readonly praezision: string | null
+  readonly wert1: string | null
+  readonly wert2: string | null
+  readonly originaltext: string | null
+  readonly sort_von: number | null
+  readonly sort_bis: number | null
+  readonly zweitkalender: string | null
+  readonly zweitwert: string | null
+  readonly doppeljahr: string | null
+}
+
+/** Eine einzelne `aussage`-Zeile eines Grunddaten-Felds, mit ihren Belegen.
+ *
+ * AP-1.30 PR 9a (Rundreise, gleiche Fehlerklasse wie V-130-2a): `befehl:aussage.aendern` ersetzt alle
+ * Werte der Zeile — darum trägt dieses Lesemodell JEDES Feld, das der Befehl annimmt (Rohwerte
+ * `wert_text`/`wert_zahl`/`wert_ref_id`, die Datumsgruppe, `unsicherheit`, `gueltig_von`/`bis`), neben
+ * dem Anzeigewert `wert`. Die Abbildung zurück in den Befehl steht in
+ * `src/renderer/ansichten/profil/profil-aussage-logik.ts`; geprüft durch
+ * `test/einheit/profil-aussage-rundreise.test.ts` über die Schlüssel von `aussageAendernEinSchema`.
+ * `datum` ist `null`, wenn keine Spalte der Gruppe gesetzt ist. */
 export interface PersonDetailAussage {
   readonly aussage_id: string
   readonly wert: string | null
+  readonly wert_text: string | null
+  readonly wert_zahl: number | null
+  readonly wert_ref_id: string | null
+  readonly datum: PersonDetailAussageDatum | null
   readonly konfidenz: number | null
   readonly ist_bevorzugt: boolean
   readonly begruendung: string | null
+  readonly unsicherheit: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
   readonly belege: readonly PersonDetailBeleg[]
 }
 
