@@ -11,9 +11,11 @@
 import type { ReiterId } from '../person/reiter'
 import { BESTAND_HINWEIS_CODES, type BestandHinweis, type BestandHinweisCode } from './regeln'
 
-/** Felder, an denen eine Feldwarnung hängen kann. `todesdatum` ist das Grunddatenfeld (Prädikat),
- * `kinder`/`eltern` die Beziehungsgruppen, `ereignisse` die Ereignisliste im Reiter „Leben". */
-export const FELDWARNUNG_FELDER = ['todesdatum', 'kinder', 'eltern', 'ereignisse'] as const
+/** Felder, an denen eine Feldwarnung hängen kann. `todesdatum`/`geburtsort`/`todesort` sind
+ * Grunddatenfelder (Prädikate), `kinder`/`eltern` die Beziehungsgruppen, `ereignisse` die
+ * Ereignisliste und `angaben` die übrigen Angaben im Reiter „Leben". Teilmenge von `EDITOR_FELDER`
+ * (src/core/person/offene-punkte.ts). */
+export const FELDWARNUNG_FELDER = ['todesdatum', 'geburtsort', 'todesort', 'kinder', 'eltern', 'ereignisse', 'angaben'] as const
 
 export type FeldwarnungFeld = (typeof FELDWARNUNG_FELDER)[number]
 
@@ -26,8 +28,12 @@ export interface Feldwarnung extends FeldZiel {
   readonly code: BestandHinweisCode
 }
 
-/** Vollständige Zuordnung; ein neuer Code in `BESTAND_HINWEIS_CODES` ist hier ein Typfehler. */
-export function feldZielFuer(code: BestandHinweisCode): FeldZiel {
+/** Vollständige Zuordnung; ein neuer Code in `BESTAND_HINWEIS_CODES` ist hier ein Typfehler.
+ * `praedikat` zählt nur bei `ort_mit_datum` (Vorarbeiten AP-1.30 Teil 3, E5): Feld des Prädikats
+ * im Reiter „Person" (`geburtsort`, `todesort`), sonst (`wohnort`, fehlend) die übrigen Angaben im
+ * Reiter „Leben" — dieselbe Zuordnung wie `widerspruchZielFuer` (src/core/person/offene-punkte.ts),
+ * dort liegt eine Wohnort-Aussage im Editor. */
+export function feldZielFuer(code: BestandHinweisCode, praedikat?: string): FeldZiel {
   switch (code) {
     case 'tod_vor_geburt':
     case 'bestattung_vor_tod':
@@ -41,6 +47,9 @@ export function feldZielFuer(code: BestandHinweisCode): FeldZiel {
       return { reiter: 'beziehungen', feld: 'eltern' }
     case 'ereignis_vor_ortsexistenz':
       return { reiter: 'leben', feld: 'ereignisse' }
+    case 'ort_mit_datum':
+      if (praedikat === 'geburtsort' || praedikat === 'todesort') return { reiter: 'person', feld: praedikat }
+      return { reiter: 'leben', feld: 'angaben' }
     default: {
       const unbekannt: never = code
       throw new RangeError(`feldZielFuer: unbekannter Hinweiscode "${String(unbekannt)}".`)
@@ -59,6 +68,6 @@ function rang(code: BestandHinweisCode): number {
 export function feldwarnungenFuer(hinweise: readonly BestandHinweis[], personId: string): readonly Feldwarnung[] {
   return hinweise
     .filter((hinweis) => hinweis.personId === personId)
-    .map((hinweis) => ({ code: hinweis.code, ...feldZielFuer(hinweis.code) }))
+    .map((hinweis) => ({ code: hinweis.code, ...feldZielFuer(hinweis.code, hinweis.praedikat) }))
     .sort((a, b) => rang(a.code) - rang(b.code))
 }

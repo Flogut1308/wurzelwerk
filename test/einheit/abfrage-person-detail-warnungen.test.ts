@@ -209,7 +209,7 @@ describe('person.detail — Feldwarnungen (AP-1.34 PR-C2b)', () => {
       })
     }
 
-    it('die Seeds 11–13 decken als Feldwarnung alle acht Hinweiscodes ab (hueter PR #121 H1)', () => {
+    it('die Seeds 11–13 decken als Feldwarnung alle Hinweiscodes ab (hueter PR #121 H1)', () => {
       const gesehen = new Map<string, number>()
       for (const seed of [11, 12, 13]) {
         mitDb((db) => {
@@ -222,6 +222,79 @@ describe('person.detail — Feldwarnungen (AP-1.34 PR-C2b)', () => {
       for (const code of BESTAND_HINWEIS_CODES) expect(gesehen.get(code) ?? 0, code).toBeGreaterThan(0)
       // tod_vor_geburt entsteht sonst nur zufällig und selten — der Generator erzwingt es.
       expect(gesehen.get('tod_vor_geburt') ?? 0).toBeGreaterThanOrEqual(3 * 5)
+    })
+  })
+})
+
+// Vorarbeiten AP-1.30 Teil 3 (docs/80 §32, E5): Orts-Aussagen mit Datum im Altbestand (roh
+// eingefügt — `aussage.anlegen`/`.aendern` lehnen sie seit Teil 2 ab) erscheinen als Prüfhinweis
+// `ort_mit_datum`, je Aussage einer; Feld = das Feld des Prädikats, `wohnort` bei den Angaben.
+describe('W8: ort_mit_datum (AP-1.30 Vorarbeiten Teil 3, E5)', () => {
+  type Datumsteil = { readonly datum_kalender?: string; readonly datum_modifikator?: string; readonly datum_praezision?: string; readonly datum_wert1?: string; readonly datum_originaltext?: string; readonly datum_sort_von?: number; readonly datum_sort_bis?: number; readonly gueltig_von?: number; readonly gueltig_bis?: number }
+  function ortsAussage(db: Db, personId: string, praedikat: string, teil: Datumsteil): void {
+    db.prepare(
+      `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, datum_kalender, datum_modifikator, datum_praezision, datum_wert1, datum_originaltext, datum_sort_von, datum_sort_bis, gueltig_von, gueltig_bis, ist_bevorzugt)
+       VALUES (@id, 'person', @personId, @praedikat, 'Ortstext', @kal, @mod, @prae, @w1, @orig, @sv, @sb, @gv, @gb, 1)`,
+    ).run({
+      id: nid('a'),
+      personId,
+      praedikat,
+      kal: teil.datum_kalender ?? null,
+      mod: teil.datum_modifikator ?? null,
+      prae: teil.datum_praezision ?? null,
+      w1: teil.datum_wert1 ?? null,
+      orig: teil.datum_originaltext ?? null,
+      sv: teil.datum_sort_von ?? null,
+      sb: teil.datum_sort_bis ?? null,
+      gv: teil.gueltig_von ?? null,
+      gb: teil.gueltig_bis ?? null,
+    })
+  }
+  const VOLLES_DATUM: Datumsteil = { datum_kalender: 'gregorian', datum_modifikator: 'exakt', datum_praezision: 'jahr', datum_wert1: '1850', datum_sort_von: JDN(1850), datum_sort_bis: JDN(1851) - 1 }
+
+  it('Orts-Aussagen mit Datum: je Aussage ein Hinweis, Feld des Prädikats (wohnort → Leben/Angaben)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      ortsAussage(db, p, 'geburtsort', VOLLES_DATUM)
+      // Ein Bruchstück der Datumsgruppe (nur Originaltext) ist ebenfalls ein Datum.
+      ortsAussage(db, p, 'todesort', { datum_originaltext: 'um 1900' })
+      ortsAussage(db, p, 'wohnort', VOLLES_DATUM)
+      expect(personDetail(db, { personId: p }).warnungen).toEqual([
+        { code: 'ort_mit_datum', reiter: 'person', feld: 'geburtsort' },
+        { code: 'ort_mit_datum', reiter: 'person', feld: 'todesort' },
+        { code: 'ort_mit_datum', reiter: 'leben', feld: 'angaben' },
+      ])
+      expect(pruefhinweise(db).eintraege.filter((h) => h.personId === p).map((h) => h.code)).toEqual(['ort_mit_datum', 'ort_mit_datum', 'ort_mit_datum'])
+    })
+  })
+
+  it('nur Personen-Aussagen zählen: eine Orts-Aussage mit Datum an einem anderen Subjekt gleicher Id erzeugt keinen Hinweis (hueter #145, 2a)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      // Gleiche subjekt_id wie die Person, aber subjekt_typ ereignis bzw. name: ohne den Subjekt-Filter
+      // der Lader fiele der Hinweis fälschlich der Person zu.
+      for (const subjektTyp of ['ereignis', 'name'] as const) {
+        db.prepare(
+          `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, datum_modifikator, datum_praezision, datum_wert1, ist_bevorzugt)
+           VALUES (@id, @subjektTyp, @p, 'geburtsort', 'Ortstext', 'exakt', 'jahr', '1850', 1)`,
+        ).run({ id: nid('a'), subjektTyp, p })
+      }
+      expect(personDetail(db, { personId: p }).warnungen.filter((w) => w.code === 'ort_mit_datum')).toEqual([])
+      expect(pruefhinweise(db).eintraege.filter((h) => h.code === 'ort_mit_datum')).toEqual([])
+    })
+  })
+
+  it('nur Gültigkeitszeitraum, anderes Prädikat mit Datum, Platzhalter: kein Hinweis', () => {
+    mitDb((db) => {
+      const p = person(db)
+      ortsAussage(db, p, 'wohnort', { gueltig_von: JDN(1780), gueltig_bis: JDN(1795) })
+      ortsAussage(db, p, 'geburtsort', {})
+      ortsAussage(db, p, 'beruf', VOLLES_DATUM)
+      const pl = person(db, { platzhalter: true })
+      ortsAussage(db, pl, 'geburtsort', VOLLES_DATUM)
+      expect(codes(db, p)).toEqual([])
+      expect(codes(db, pl)).toEqual([])
+      expect(pruefhinweise(db).eintraege.map((h) => h.code)).not.toContain('ort_mit_datum')
     })
   })
 })

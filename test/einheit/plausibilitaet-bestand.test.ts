@@ -15,6 +15,7 @@ const LEERE_EINGABE: BestandEingabe = {
   partnerschaften: [],
   orte: [],
   ereignisse: [],
+  aussagen: [],
 }
 
 function codes(eingabe: BestandEingabe): readonly string[] {
@@ -227,5 +228,65 @@ describe('pruefeBestand() — Bestandsprüfung (AP-1.8, F-07)', () => {
       ereignisse: [{ ortId: 'ort', datum: { von: JAHR(1920), bis: JAHR(1920) }, beteiligteIds: ['a'] }],
     }
     expect(codes(nicht)).not.toContain('ereignis_vor_ortsexistenz')
+  })
+})
+
+// Vorarbeiten AP-1.30 Teil 3 (docs/80 §32, Eigentümer-Entscheidung E5): Orts-Aussagen mit Datum im
+// Altbestand werden nicht gelöscht, sondern als Prüfhinweis sichtbar. „Datum" = die Datumsgruppe der
+// Aussage (`datum_*`), NICHT der Gültigkeitszeitraum (`gueltig_von`/`gueltig_bis`, V-5b-zeitraum).
+describe('pruefeBestand() — ort_mit_datum (AP-1.30 Vorarbeiten Teil 3, E5)', () => {
+  const person = { id: 'a', istPlatzhalter: false } as const
+
+  it('eine Orts-Aussage mit Datum ergibt je Aussage einen Hinweis an der Person, mit Prädikat', () => {
+    const eingabe: BestandEingabe = {
+      ...LEERE_EINGABE,
+      personen: [person],
+      aussagen: [
+        { personId: 'a', praedikat: 'geburtsort', hatDatum: true },
+        { personId: 'a', praedikat: 'wohnort', hatDatum: true },
+        { personId: 'a', praedikat: 'todesort', hatDatum: true },
+      ],
+    }
+    expect(pruefeBestand(eingabe)).toEqual([
+      { code: 'ort_mit_datum', personId: 'a', praedikat: 'geburtsort' },
+      { code: 'ort_mit_datum', personId: 'a', praedikat: 'wohnort' },
+      { code: 'ort_mit_datum', personId: 'a', praedikat: 'todesort' },
+    ])
+  })
+
+  it('ohne Datum (auch mit Gültigkeitszeitraum, der hier gar nicht als Datum zählt) kein Hinweis', () => {
+    const eingabe: BestandEingabe = {
+      ...LEERE_EINGABE,
+      personen: [person],
+      aussagen: [
+        { personId: 'a', praedikat: 'geburtsort', hatDatum: false },
+        { personId: 'a', praedikat: 'wohnort', hatDatum: false },
+      ],
+    }
+    expect(codes(eingabe)).not.toContain('ort_mit_datum')
+  })
+
+  it('ein anderes Prädikat mit Datum löst nichts aus', () => {
+    const eingabe: BestandEingabe = {
+      ...LEERE_EINGABE,
+      personen: [person],
+      aussagen: [
+        { personId: 'a', praedikat: 'beruf', hatDatum: true },
+        { personId: 'a', praedikat: 'geburtsdatum', hatDatum: true },
+      ],
+    }
+    expect(codes(eingabe)).not.toContain('ort_mit_datum')
+  })
+
+  it('Platzhalter und unbekannte Personen werden übersprungen (A-17)', () => {
+    const eingabe: BestandEingabe = {
+      ...LEERE_EINGABE,
+      personen: [{ id: 'pl', istPlatzhalter: true }],
+      aussagen: [
+        { personId: 'pl', praedikat: 'geburtsort', hatDatum: true },
+        { personId: 'fehlt', praedikat: 'wohnort', hatDatum: true },
+      ],
+    }
+    expect(codes(eingabe)).not.toContain('ort_mit_datum')
   })
 })

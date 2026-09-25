@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ProjektInfo } from '../../../shared/ipc/vertrag'
 import type { PersonListeFilter, PersonListeZeile } from '../../../shared/schemata/person-liste'
+import type { PruefhinweisEintrag } from '../../../shared/schemata/pruefhinweise'
 import { aufrufen } from '../../brücke/aufrufen'
 import { usePersonListe, usePruefhinweise, useSuche } from '../../brücke/abfrage-hooks'
 import { Blaetterleiste } from '../../bausteine/blaetterleiste'
@@ -18,7 +19,7 @@ import { Text } from '../../bausteine/text'
 import { Umschalter } from '../../bausteine/umschalter'
 import { ImportAssistent } from '../import/import-assistent'
 import { ProfilAnsicht } from '../profil/profil-ansicht'
-import { pruefhinweisCodeSchluessel } from './pruefhinweis-schluessel'
+import { pruefhinweisCodeSchluessel, pruefhinweisWasTunSchluessel } from './pruefhinweis-schluessel'
 import './listen-ansicht.css'
 
 /** Entscheidung D (`docs/arbeitspakete.md` AP-1.6): der Renderer setzt `proSeite` fest auf 100,
@@ -238,6 +239,7 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
                     <Text rolle="hilfe" als="span">
                       {tPruef(pruefhinweisCodeSchluessel(eintrag.code))}
                     </Text>
+                    <PruefhinweisWasTun code={eintrag.code} />
                   </div>
                   <Schaltflaeche
                     variante="sekundaer"
@@ -255,5 +257,18 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
         </Seitenschublade>
       ) : null}
     </div>
+  )
+}
+
+/** Handlungsanweisung unter dem Hinweistext, nur für Codes, die eine haben (Vorarbeiten AP-1.30
+ * Teil 3, E5: `ort_mit_datum`). Gleiche Textrolle wie der Hinweis — kein neuer Baustein. */
+function PruefhinweisWasTun({ code }: { readonly code: PruefhinweisEintrag['code'] }) {
+  const { t } = useTranslation('pruefhinweise')
+  const schluessel = pruefhinweisWasTunSchluessel(code)
+  if (schluessel === null) return null
+  return (
+    <Text rolle="hilfe" als="span">
+      {t(schluessel)}
+    </Text>
   )
 }

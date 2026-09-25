@@ -319,6 +319,7 @@ export function pruefePlausibilitaet(eingabe: PlausibilitaetEingabe): readonly P
 // IMP-3xx-Codes"). Bleibt reine Funktion — kein Node, kein SQL, kein Import aus `src/shared`/
 // `src/main` (CLAUDE.md §2/§4), Datumsvergleiche wie oben ausschließlich über JDN-Intervalle.
 import { findeZyklusKnoten, type Elternkante } from '../graph/zyklus'
+import { istOrtsPraedikat } from '../person/ort-wert'
 
 export interface BestandPerson {
   readonly id: string
@@ -355,15 +356,27 @@ export interface BestandEreignis {
   readonly beteiligteIds: readonly string[]
 }
 
+/** Eine Aussage an einer Person, soweit `ort_mit_datum` sie braucht (Vorarbeiten AP-1.30 Teil 3,
+ * E5). `hatDatum` = mindestens eine Spalte der Datumsgruppe (`datum_*`) ist gesetzt — der
+ * Gültigkeitszeitraum (`gueltig_von`/`gueltig_bis`) zählt NICHT als Datum (§32 V-5b-zeitraum). Der
+ * Lader darf auf Orts-Prädikate vorfiltern; die Regel prüft das Prädikat trotzdem selbst. */
+export interface BestandAussage {
+  readonly personId: string
+  readonly praedikat: string
+  readonly hatDatum: boolean
+}
+
 export interface BestandEingabe {
   readonly personen: readonly BestandPerson[]
   readonly elternschaften: readonly BestandElternschaft[]
   readonly partnerschaften: readonly BestandPartnerschaft[]
   readonly orte: readonly BestandOrt[]
   readonly ereignisse: readonly BestandEreignis[]
+  readonly aussagen: readonly BestandAussage[]
 }
 
-/** Die acht Bestandsregeln (AP-1.8-Abnahme, 57_Phase0_Arbeitspakete.md Z.1307) — bewusst NICHT die
+/** Die acht Bestandsregeln (AP-1.8-Abnahme, 57_Phase0_Arbeitspakete.md Z.1307) plus `ort_mit_datum`
+ * (Vorarbeiten AP-1.30 Teil 3, Eigentümer-Entscheidung E5, docs/80 §32) — bewusst NICHT die
  * IMP-3xx-Codes (die gelten nur für die gerade importierte Datei, s. Kopfkommentar). */
 export const BESTAND_HINWEIS_CODES = [
   'tod_vor_geburt',
@@ -374,6 +387,7 @@ export const BESTAND_HINWEIS_CODES = [
   'alter_ueber_110',
   'zyklus',
   'ereignis_vor_ortsexistenz',
+  'ort_mit_datum',
 ] as const
 
 /** Einzige Quelle: `BESTAND_HINWEIS_CODES` (AP-1.34 PR-C2b — die Feldwarnungen ordnen nach dieser
@@ -386,6 +400,9 @@ export interface BestandHinweis {
    * Person"). Bei Regeln mit mehreren Beteiligten (Zyklus, Ereignis) EIN Hinweis JE betroffener
    * Person — die Liste zeigt dann mehrere Zeilen mit demselben `code`. */
   readonly personId: string
+  /** Nur bei `ort_mit_datum`: das Orts-Prädikat der betroffenen Aussage — bestimmt das Feld der
+   * Feldwarnung (`feldZielFuer`, ./feldwarnungen.ts). Festes Vokabular, kein Inhalt. */
+  readonly praedikat?: string
 }
 
 function bestandPersonenKarte(personen: readonly BestandPerson[]): ReadonlyMap<string, BestandPerson> {
@@ -508,8 +525,24 @@ function pruefeBestandEreignisOrtExistenz(ereignisse: readonly BestandEreignis[]
   return hinweise
 }
 
+/** ort_mit_datum (Vorarbeiten AP-1.30 Teil 3, E5, docs/80 §32): eine Orts-Aussage (`geburtsort`,
+ * `todesort`, `wohnort`, `istOrtsPraedikat`) mit Datum. `aussage.anlegen`/`.aendern` lehnen das seit
+ * Teil 2 ab (`ortswertVerletzung`); Altbestand und ältere Importe können es enthalten. Nichts wird
+ * gelöscht — der Hinweis macht es sichtbar. EIN Hinweis JE betroffener Aussage, in Eingabereihenfolge;
+ * Platzhalter und unbekannte Personen werden übersprungen (A-17). */
+function pruefeBestandOrtMitDatum(aussagen: readonly BestandAussage[], personenKarte: ReadonlyMap<string, BestandPerson>): readonly BestandHinweis[] {
+  const hinweise: BestandHinweis[] = []
+  for (const aussage of aussagen) {
+    if (!aussage.hatDatum || !istOrtsPraedikat(aussage.praedikat)) continue
+    const person = personenKarte.get(aussage.personId)
+    if (person === undefined || person.istPlatzhalter) continue
+    hinweise.push({ code: 'ort_mit_datum', personId: person.id, praedikat: aussage.praedikat })
+  }
+  return hinweise
+}
+
 /**
- * Führt alle acht Bestandsregeln (AP-1.8-Abnahme) gegen den GESAMTEN Bestand aus. Reine Funktion —
+ * Führt alle Bestandsregeln (AP-1.8-Abnahme, dazu `ort_mit_datum`) gegen den GESAMTEN Bestand aus. Reine Funktion —
  * die Reihenfolge der zurückgegebenen Hinweise folgt der Reihenfolge der Regeln in der Abnahme, nicht
  * ihrer Fundstelle im Bestand. Platzhalterpersonen werden von jeder Regel übersprungen (A-17).
  */
@@ -524,5 +557,6 @@ export function pruefeBestand(eingabe: BestandEingabe): readonly BestandHinweis[
     ...pruefeBestandLebensdauer(eingabe.personen),
     ...pruefeBestandZyklus(eingabe.elternschaften, personenKarte),
     ...pruefeBestandEreignisOrtExistenz(eingabe.ereignisse, orteKarte, personenKarte),
+    ...pruefeBestandOrtMitDatum(eingabe.aussagen, personenKarte),
   ]
 }

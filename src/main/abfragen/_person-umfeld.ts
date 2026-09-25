@@ -13,6 +13,7 @@
 // - ereignis_vor_ortsexistenz: jedes Ereignis mit Ort und Datum, an dem P beteiligt ist, mit ALLEN
 //   Beteiligungszeilen (eine doppelte Beteiligung von P ergibt wie im Gesamtbestand zwei Hinweise)
 //   und dem Ort samt Existenzzeitraum.
+// - ort_mit_datum (Vorarbeiten AP-1.30 Teil 3, E5): Ps Aussagen an Orts-Prädikaten mit Datum.
 // - zyklus: nicht über `pruefeBestand` (dessen `findeZyklusKnoten` meldet nur den ersten Zyklus des
 //   Gesamtgraphen), sondern über die Vorfahrenkanten (`vorfahrenKantenLaden`) und
 //   `istEigenerVorfahre` (src/core/graph/zyklus.ts).
@@ -25,8 +26,8 @@
 // (W6) hält beide gleich.
 import type Database from 'better-sqlite3'
 import type { Elternkante } from '../../core/graph/zyklus'
-import type { BestandEingabe, BestandEreignis, BestandOrt, BestandPartnerschaft, BestandPerson, JdnIntervall } from '../../core/plausibilitaet/regeln'
-import { alsGeschlecht, alsIntervall } from './pruefhinweise'
+import type { BestandAussage, BestandEingabe, BestandEreignis, BestandOrt, BestandPartnerschaft, BestandPerson, JdnIntervall } from '../../core/plausibilitaet/regeln'
+import { alsBestandAussage, alsGeschlecht, alsIntervall, AUSSAGE_HAT_DATUM_SQL, ORTS_PRAEDIKATE_JSON, type OrtsAussageZeile } from './pruefhinweise'
 
 type PersonParameter = { readonly personId: string }
 
@@ -191,6 +192,19 @@ function ereignisseLaden(db: Database.Database, personId: string): { readonly er
   }
 }
 
+/** Ps Aussagen an Orts-Prädikaten mit Datum (wie `ortsAussagenLaden` in ./pruefhinweise.ts, nur für P). */
+function ortsAussagenLaden(db: Database.Database, personId: string): readonly BestandAussage[] {
+  return db
+    .prepare<PersonParameter & { readonly praedikate: string }, OrtsAussageZeile>(
+      `SELECT subjekt_id AS person_id, praedikat AS praedikat, ${AUSSAGE_HAT_DATUM_SQL} AS hat_datum
+       FROM aussage
+       WHERE subjekt_typ = 'person' AND subjekt_id = @personId AND praedikat IN (SELECT value FROM json_each(@praedikate)) AND ${AUSSAGE_HAT_DATUM_SQL}
+       ORDER BY id`,
+    )
+    .all({ personId, praedikate: ORTS_PRAEDIKATE_JSON })
+    .map(alsBestandAussage)
+}
+
 function gruppieren(zeilen: readonly ZuordnungZeile[]): ReadonlyMap<string, readonly string[]> {
   const karte = new Map<string, string[]>()
   for (const zeile of zeilen) {
@@ -216,7 +230,7 @@ export function personUmfeldLaden(db: Database.Database, personId: string): Best
   }))
   const elternschaften = elternschaftenLaden(db, personId).map((zeile) => ({ elternteilId: zeile.elternteil_id, kindId: zeile.kind_id }))
   const { ereignisse, orte } = ereignisseLaden(db, personId)
-  return { personen, elternschaften, partnerschaften: partnerschaftenLaden(db, personId), orte, ereignisse }
+  return { personen, elternschaften, partnerschaften: partnerschaftenLaden(db, personId), orte, ereignisse, aussagen: ortsAussagenLaden(db, personId) }
 }
 
 /** Alle Elternkanten oberhalb von P (Vorfahren, transitiv), ohne Kanten mit einem Platzhalter auf
