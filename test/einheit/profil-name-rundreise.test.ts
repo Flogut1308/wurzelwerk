@@ -51,13 +51,19 @@ function neuePerson(db: Db): string {
  *   (`name-aendern.ts`, `name-repo.aktualisieren`: „`ist_bevorzugt` bleibt unberührt"). */
 const BEWUSST_IGNORIERT: ReadonlySet<string> = new Set(['id', 'istBevorzugt'])
 
+/** Vertragsschlüssel OHNE eigene Spalte — sie tragen keinen Wert der Form:
+ * - `id`: s. oben.
+ * - `feld`: AP-1.30 PR 4 — nennt nur, welches Feld ein Autosave-Aufruf ändern will (Koaleszenz-
+ *   schlüssel, `src/main/befehle/koaleszenz-schluessel.ts`); wird nicht gespeichert. */
+const KEIN_SPALTENWERT: ReadonlySet<string> = new Set(['id', 'feld'])
+
 /** Je Vertragsschlüssel ein Nicht-Standardwert. Der Typ erzwingt Vollständigkeit schon beim Übersetzen
  * (ein neuer optionaler Schlüssel in `NameAendernEin` fehlt hier -> `pnpm typen` rot); die Laufzeit-
  * prüfung unten gleicht zusätzlich gegen die Schema-`shape` ab. Werte so gewählt, dass keiner davon
  * aus den anderen folgt: `rufnameIndex` 2 zeigt auf den ZWEITEN „Johann" (ohne Index markierte die
  * Zerlegung den ersten), `originalText` ist eine wortgetreue Schreibung, die NICHT der Montage entspricht.
  * `umschriftVon` verweist auf eine andere `name_form` (Selbstverweis, 0006) — darum als Parameter. */
-function nichtStandard(umschriftVon: string): { readonly [K in Exclude<keyof NameAendernEin, 'id'>]-?: Exclude<NameAendernEin[K], undefined> } {
+function nichtStandard(umschriftVon: string): { readonly [K in Exclude<keyof NameAendernEin, 'id' | 'feld'>]-?: Exclude<NameAendernEin[K], undefined> } {
   return {
   typ: 'aka',
   schrift: 'cyrl',
@@ -131,7 +137,7 @@ describe('Profil-Namensänderung erhält alle Felder der Form (AP-1.30 PR 2a)', 
       const id = formAnlegen(db, personId, werte)
       const flach = flachLesen(db, id)
       for (const schluessel of vertragsSchluessel()) {
-        if (schluessel === 'id') continue
+        if (KEIN_SPALTENWERT.has(schluessel)) continue
         expect(Object.keys(werte), `kein Nicht-Standardwert für ${schluessel}`).toContain(schluessel)
         expect(Object.keys(flach), `keine Spalte in der flachen Namenssicht für ${schluessel}`).toContain(spalteFuer(schluessel))
       }

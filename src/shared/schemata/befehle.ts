@@ -143,6 +143,11 @@ export const nameAnlegenEinSchema: z.ZodType<NameAnlegenEin> = z.object({
   gueltigBis: z.number().int().optional(),
 })
 
+/** Die editierbaren Felder von `name.aendern` (Vertragsnamen) — Werte des optionalen
+ * Koaleszenz-Felds `feld` (AP-1.30 PR 4). */
+export const NameAendernFeldEnum = z.enum(['typ', 'schrift', 'umschriftVon', 'umschriftNorm', 'vornamen', 'rufnameIndex', 'rufnameText', 'nachname', 'praefix', 'titelVor', 'zusatzNach', 'vatersname', 'originalText', 'sprache', 'gueltigVon', 'gueltigBis'])
+export type NameAendernFeld = z.infer<typeof NameAendernFeldEnum>
+
 /** Nutzlast von `befehl:name.aendern` — alle editierbaren Spalten außer `person_id` (ein Name
  * wird nicht zwischen Personen verschoben; dafür gibt es `name.loeschen` + `name.anlegen`). */
 export interface NameAendernEin {
@@ -166,6 +171,11 @@ export interface NameAendernEin {
   readonly istBevorzugt?: 0 | 1 | undefined
   readonly gueltigVon?: number | undefined
   readonly gueltigBis?: number | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `Befehl:Subjekt:Feld` — und nur,
+   * wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. Fehlt es, wird
+   * der Aufruf nie mit einem vorigen zusammengefasst. Am Ersetzen-Verhalten ändert es nichts. */
+  readonly feld?: NameAendernFeld | undefined
 }
 
 export const nameAendernEinSchema: z.ZodType<NameAendernEin> = z.object({
@@ -187,6 +197,7 @@ export const nameAendernEinSchema: z.ZodType<NameAendernEin> = z.object({
   istBevorzugt: BoolWert.optional(),
   gueltigVon: z.number().int().optional(),
   gueltigBis: z.number().int().optional(),
+  feld: NameAendernFeldEnum.optional(),
 })
 
 export interface NameLoeschenEin {
@@ -246,18 +257,29 @@ export const elternschaftAnlegenEinSchema: z.ZodType<ElternschaftAnlegenEin> = z
   belege: zitatIdsSchema,
 })
 
+/** Die editierbaren Felder von `elternschaft.aendern` (Vertragsnamen) — Werte des optionalen
+ * Koaleszenz-Felds `feld` (AP-1.30 PR 4). */
+export const ElternschaftAendernFeldEnum = z.enum(['typ', 'notiz'])
+export type ElternschaftAendernFeld = z.infer<typeof ElternschaftAendernFeldEnum>
+
 /** Nutzlast von `befehl:elternschaft.aendern` — NUR `typ`/`notiz` (Nutzerentscheidung, AP-1.12):
  * `elternteil_id`/`kind_id` ändern heißt fachlich eine andere Kante, nicht dieselbe bearbeiten. */
 export interface ElternschaftAendernEin {
   readonly id: string
   readonly typ: z.infer<typeof ElternschaftTypEnum>
   readonly notiz?: string | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `Befehl:Subjekt:Feld` — und nur,
+   * wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. Fehlt es, wird
+   * der Aufruf nie mit einem vorigen zusammengefasst. Am Ersetzen-Verhalten ändert es nichts. */
+  readonly feld?: ElternschaftAendernFeld | undefined
 }
 
 export const elternschaftAendernEinSchema: z.ZodType<ElternschaftAendernEin> = z.object({
   id: z.string(),
   typ: ElternschaftTypEnum,
   notiz: z.string().optional(),
+  feld: ElternschaftAendernFeldEnum.optional(),
 })
 
 export interface ElternschaftLoeschenEin {
@@ -312,6 +334,11 @@ export const partnerschaftAnlegenEinSchema: z.ZodType<PartnerschaftAnlegenEin> =
   belege: zitatIdsSchema,
 })
 
+/** Die editierbaren Felder von `partnerschaft.aendern` (Vertragsnamen) — Werte des optionalen
+ * Koaleszenz-Felds `feld` (AP-1.30 PR 4). */
+export const PartnerschaftAendernFeldEnum = z.enum(['typ', 'beginn', 'ende', 'endeGrund', 'reihenfolge', 'notiz'])
+export type PartnerschaftAendernFeld = z.infer<typeof PartnerschaftAendernFeldEnum>
+
 /** Nutzlast von `befehl:partnerschaft.aendern` — die Zeile selbst (`typ`/`beginn`/`ende`/
  * `ende_grund`/`reihenfolge`/`notiz`); die Beteiligten (`partnerschaft_person`) ändert dieser
  * Befehl NICHT (außerhalb des AP-1.12-Umfangs, s. Arbeitspaket). */
@@ -323,6 +350,11 @@ export interface PartnerschaftAendernEin {
   readonly endeGrund?: z.infer<typeof EndeGrundEnum> | undefined
   readonly reihenfolge?: number | undefined
   readonly notiz?: string | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `Befehl:Subjekt:Feld` — und nur,
+   * wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. Fehlt es, wird
+   * der Aufruf nie mit einem vorigen zusammengefasst. Am Ersetzen-Verhalten ändert es nichts. */
+  readonly feld?: PartnerschaftAendernFeld | undefined
 }
 
 export const partnerschaftAendernEinSchema: z.ZodType<PartnerschaftAendernEin> = z.object({
@@ -333,6 +365,7 @@ export const partnerschaftAendernEinSchema: z.ZodType<PartnerschaftAendernEin> =
   endeGrund: EndeGrundEnum.optional(),
   reihenfolge: z.number().int().optional(),
   notiz: z.string().optional(),
+  feld: PartnerschaftAendernFeldEnum.optional(),
 })
 
 export interface PartnerschaftLoeschenEin {
@@ -384,6 +417,11 @@ export const ereignisAnlegenEinSchema: z.ZodType<EreignisAnlegenEin> = z.object(
   belege: zitatIdsSchema,
 })
 
+/** Die editierbaren Felder von `ereignis.aendern` (Vertragsnamen) — Werte des optionalen
+ * Koaleszenz-Felds `feld` (AP-1.30 PR 4). */
+export const EreignisAendernFeldEnum = z.enum(['typ', 'ortId', 'datum', 'beschreibung', 'notiz'])
+export type EreignisAendernFeld = z.infer<typeof EreignisAendernFeldEnum>
+
 /** Nutzlast von `befehl:ereignis.aendern` — die Zeile selbst; die Beteiligungen ändert dieser
  * Befehl NICHT (außerhalb des AP-1.12-Umfangs). */
 export interface EreignisAendernEin {
@@ -393,6 +431,11 @@ export interface EreignisAendernEin {
   readonly datum?: Datumswert | undefined
   readonly beschreibung?: string | undefined
   readonly notiz?: string | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `Befehl:Subjekt:Feld` — und nur,
+   * wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. Fehlt es, wird
+   * der Aufruf nie mit einem vorigen zusammengefasst. Am Ersetzen-Verhalten ändert es nichts. */
+  readonly feld?: EreignisAendernFeld | undefined
 }
 
 export const ereignisAendernEinSchema: z.ZodType<EreignisAendernEin> = z.object({
@@ -402,6 +445,7 @@ export const ereignisAendernEinSchema: z.ZodType<EreignisAendernEin> = z.object(
   datum: datumswertSchema.optional(),
   beschreibung: z.string().optional(),
   notiz: z.string().optional(),
+  feld: EreignisAendernFeldEnum.optional(),
 })
 
 export interface EreignisLoeschenEin {
@@ -492,6 +536,11 @@ export const aussageAnlegenEinSchema: z.ZodType<AussageAnlegenEin> = aussageAnle
   }
 })
 
+/** Die editierbaren Felder von `aussage.aendern` (Vertragsnamen) — Werte des optionalen
+ * Koaleszenz-Felds `feld` (AP-1.30 PR 4). */
+export const AussageAendernFeldEnum = z.enum(['wertText', 'wertZahl', 'wertRefId', 'datum', 'konfidenz', 'begruendung', 'unsicherheit', 'gueltigVon', 'gueltigBis'])
+export type AussageAendernFeld = z.infer<typeof AussageAendernFeldEnum>
+
 /** Nutzlast von `befehl:aussage.aendern` (AP-1.29 PR-A) — s. Abschnittskommentar oben:
  * `subjektTyp`/`subjektId`/`praedikat`/`istBevorzugt` fehlen bewusst. Dieselbe „genau eines von
  * wertText/wertZahl/wertRefId"-Regel wie beim Anlegen (Nutzerentscheidung AP-1.12) gilt weiter —
@@ -511,6 +560,11 @@ export interface AussageAendernEin {
    * Datumswert, keine Rundreise der Datumsspalten). Nur ohne `datum`. Ohne das Signal ersetzt der
    * Befehl wie bisher alle Werte — ein fehlendes `datum` entfernt das gespeicherte. */
   readonly datumBeibehalten?: true | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `Befehl:Subjekt:Feld` — und nur,
+   * wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. Fehlt es, wird
+   * der Aufruf nie mit einem vorigen zusammengefasst. Am Ersetzen-Verhalten ändert es nichts. */
+  readonly feld?: AussageAendernFeld | undefined
 }
 
 const aussageAendernBasis = z.object({
@@ -525,6 +579,7 @@ const aussageAendernBasis = z.object({
   gueltigVon: z.number().int().optional(),
   gueltigBis: z.number().int().optional(),
   datumBeibehalten: z.literal(true).optional(),
+  feld: AussageAendernFeldEnum.optional(),
 })
 
 export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAendernBasis.superRefine((ein, ctx) => {
