@@ -17,6 +17,8 @@ import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { personListe } from '../../src/main/abfragen/person-liste'
 import { suche } from '../../src/main/abfragen/suche'
+import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
+import { quelleDetail } from '../../src/main/abfragen/quelle-detail'
 import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
 type Db = ReturnType<typeof oeffnen>
@@ -87,6 +89,25 @@ describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)'
       const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
       expect(zeile?.anzeigename).toBe('Ivan Ivanov')
       expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('Ivan Ivanov')
+
+      // Sortiert wird nach der Hauptform (V-4-sortierung, hueter #128 Befund 9): „Zander" steht vor
+      // „Иванов" (Kyrillisch nach Latein), obwohl die angezeigte Umschrift „Ivan Ivanov" davor läge.
+      const zander = person(db)
+      fuehreAus(db, 'name.anlegen', { personId: zander, typ: 'geburtsname', vornamen: 'Anton', nachname: 'Zander' })
+      const reihenfolge = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE })
+        .zeilen.map((z) => z.person_id)
+        .filter((id) => id === p || id === zander)
+      expect(reihenfolge).toEqual([zander, p])
+    })
+  })
+
+  it('N3b: ein Personen-Wertverweis auf eine gelöschte Person bleibt ohne Namen (hueter #128, Befund 3)', () => {
+    mitDb((db) => {
+      const kind = gutnoff(db)
+      const pate = gutnoff(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: kind, praedikat: 'taufpate', wertRefId: pate, konfidenz: 3 })
+      fuehreAus(db, 'person.loeschen', { id: pate })
+      expect(personDetail(db, { personId: kind }).grunddaten.find((f) => f.praedikat === 'taufpate')?.wert).toBeNull()
     })
   })
 
@@ -95,6 +116,49 @@ describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)'
       const p = person(db)
       expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('')
       expect(personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)?.anzeigename).toBe('')
+    })
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 4b: die übrigen Leser (Prüfhinweise, Informant einer Quelle).
+describe('Anzeigename aus dem Kern — Prüfhinweise und Informant (Vorarbeiten AP-1.30, PR 4b)', () => {
+  it('N6: ein Prüfhinweis nennt die Person mit dem Kern-Anzeigenamen', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'geburtsdatum', wertText: '1900', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1900' }, konfidenz: 3 })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'todesdatum', wertText: '1850', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1850' }, konfidenz: 3 })
+      const eintrag = pruefhinweise(db).eintraege.find((e) => e.personId === p && e.code === 'tod_vor_geburt')
+      expect(eintrag?.anzeigename).toBe(VOLL)
+    })
+  })
+
+  it('N7: der Informant einer mündlichen Quelle erscheint mit dem Kern-Anzeigenamen, ohne Informant null', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      const { id: mitInformant } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: p, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      expect(quelleDetail(db, { quelleId: mitInformant }).kopf.informant_anzeigename).toBe(VOLL)
+      const { id: ohne } = fuehreAus(db, 'quelle.anlegen', { typ: 'kirchenbuch', titel: 'KB' })
+      expect(quelleDetail(db, { quelleId: ohne }).kopf.informant_anzeigename).toBeNull()
+    })
+  })
+})
+
+// hueter #131, Befund 7: Randfälle ohne Namensform bzw. mit gelöschtem Informanten.
+describe('Anzeigename aus dem Kern — Randfälle (Vorarbeiten AP-1.30, PR 4b)', () => {
+  it('N8: Prüfhinweis und Informant ohne Namensform zeigen den leeren Namen, ein gelöschter Informant null', () => {
+    mitDb((db) => {
+      const namenlos = person(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: namenlos, praedikat: 'geburtsdatum', wertText: '1900', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1900' }, konfidenz: 3 })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: namenlos, praedikat: 'todesdatum', wertText: '1850', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1850' }, konfidenz: 3 })
+      expect(pruefhinweise(db).eintraege.find((e) => e.personId === namenlos && e.code === 'tod_vor_geburt')?.anzeigename).toBe('')
+
+      const { id: quelleId } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: namenlos, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      expect(quelleDetail(db, { quelleId }).kopf.informant_anzeigename).toBe('')
+
+      const informant = gutnoff(db)
+      const { id: zweite } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: informant, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      fuehreAus(db, 'person.loeschen', { id: informant })
+      expect(quelleDetail(db, { quelleId: zweite }).kopf.informant_anzeigename).toBeNull()
     })
   })
 })

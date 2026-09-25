@@ -8,8 +8,8 @@
 // keine Mehrfachbenennung) + ihre `zitat`-Zeilen (`zitate`, dreistufig Quelle → Zitat →
 // Transkript, S-08/AP-1.10 PR-B). Bewusst KEIN Schreibpfad für Zitate hier (das bleibt PR-A3).
 //
-// `informant_anzeigename` (AP-1.17 PR-C1): zusätzlich zu `informant_person_id` aufgelöst über
-// `person_flach` (LEFT JOIN, kann fehlen) — analog `OrtDetailZugehoerigkeit.uebergeordnet_anzeigename`
+// `informant_anzeigename` (AP-1.17 PR-C1): zusätzlich zu `informant_person_id` aufgelöst — seit den
+// Vorarbeiten zu AP-1.30 (PR 4b) aus dem Kern (`anzeigenameFuer`), `null` ohne Informant — analog `OrtDetailZugehoerigkeit.uebergeordnet_anzeigename`
 // (`ort-detail.ts`). Ohne diesen Namen könnte die Pflege-Ansicht eine bereits gewählte
 // Informantenperson nur als rohe ID zeigen.
 import { z } from 'zod'

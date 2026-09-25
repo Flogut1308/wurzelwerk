@@ -6,8 +6,9 @@
 // Bestandteilen in ZWEI Anweisungen und ruft je Person die Kernfunktion.
 //
 // Ohne Wunschsprache (§32 V-4-wunschsprache): die Kette beginnt bei der Umschrift, sonst Hauptform.
-// Eine Person ohne jede Namensform bekommt '' — wie die Projektion; der Renderer zeigt dafür seinen
-// Platzhaltertext.
+// Eine Person ohne jede Namensform bekommt '' — wie die Projektion. Einen eigenen Text „ohne Namen"
+// zeigt der Renderer heute nicht (nur Platzhalterpersonen werden ersetzt); Folgepunkt für AP-1.30
+// (docs/80 §32 V-4-ohne-namen, hueter #131).
 //
 // Die Ids gehen als EIN JSON-Parameter über `json_each` in die Abfrage (benannter Parameter, kein
 // zusammengesetztes SQL, CLAUDE.md §6; keine Obergrenze an Bindungsvariablen).

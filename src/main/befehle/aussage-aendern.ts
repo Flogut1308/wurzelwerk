@@ -9,6 +9,7 @@ import type { Tx } from '../repositories/basis'
 import * as aussageRepo from '../repositories/aussage-repo'
 import type { AussageZeile } from '../repositories/aussage-repo'
 import { datumSpalten, type DatumSpaltengruppe } from '../import/datum-spalten'
+import { ortswertPruefen } from './ortswert'
 
 function datumUnveraendert(vorher: AussageZeile, neu: DatumSpaltengruppe): boolean {
   return (
@@ -31,6 +32,7 @@ export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_AUSSAGE')
   }
+  ortswertPruefen(vorher.praedikat, ein.wertZahl)
 
   const neuesDatum = datumSpalten(ein.datum)
   const neuerWertText = ein.wertText ?? null
