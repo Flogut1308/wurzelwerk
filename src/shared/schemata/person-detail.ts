@@ -22,7 +22,8 @@
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
-import type { ReiterId } from '../../core/person/reiter'
+import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
+import { REITER, type ReiterId } from '../../core/person/reiter'
 import type { FeldwarnungFeld } from '../../core/plausibilitaet/feldwarnungen'
 import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
@@ -233,6 +234,13 @@ export interface PersonDetailWarnung {
   readonly reiter: ReiterId
   readonly feld: FeldwarnungFeld
 }
+
+/** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5, §31 U-1.34-C2-O2…O5): Enums aus den
+ * Kern-Konstanten (`src/core/person/offene-punkte.ts`, `reiter.ts`) — eine Quelle der Werte. */
+export const OffenePunkteRegelIdEnum = z.enum(OFFENE_PUNKTE_REGEL_IDS)
+export const ReiterEnum = z.enum(REITER)
+export const EditorFeldEnum = z.enum(EDITOR_FELDER)
+export const OffenerPunktSchluesselEnum = z.enum(OFFENE_PUNKTE_SCHLUESSEL)
 
 /** Antwort von `abfrage:person.detail`.
  *
