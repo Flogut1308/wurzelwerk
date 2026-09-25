@@ -220,7 +220,7 @@
   "vollstaendigkeit_titel": "Vollständigkeit",
   "vollstaendigkeit_prozent": "{{prozent}} %",
   "vollstaendigkeit_zeile": "{{erfuellt}} von {{anwendbar}} Kernangaben · {{belegt}} belegt",
-  "vollstaendigkeit_erklaerung": "Zählt, was belegt oder ohne Beleg erfasst ist (Geschlecht, Name, Werte aus Ereignissen). Eine Aussage ohne Beleg zählt erst mit Beleg.",
+  "vollstaendigkeit_erklaerung": "Zählt, was belegt oder ohne Beleg erfasst ist (Geschlecht, Name, Werte aus Ereignissen). Eine Aussage oder ein Elternteil ohne Beleg zählt erst mit Beleg.",
   "vollstaendigkeit_platzhalter": "Platzhalter haben keine Vollständigkeit – sie stehen für eine noch unbekannte Person.",
   "kernangabe_name": "Name",
   "kernangabe_geschlecht": "Geschlecht",

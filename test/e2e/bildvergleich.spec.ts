@@ -624,8 +624,8 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
               await expect(ortSchublade).toBeVisible()
               // Scrollstand des Editorkörpers festlegen: der Klick auf „Ort bearbeiten" (Knopf am
               // unteren Rand, halb unter der Fußleiste) scrollt den Körper nicht reproduzierbar mit:
-              // im Referenzbild gar nicht, im Lauf 36194961731 um 23 px, lokal (main wie PR 8) um
-              // 29 px — Playwrights Scroll-ins-Bild vor dem Klick, kein Bildinhalt. Referenzstand: 0.
+              // im alten Referenzbild aus #160 um einige Pixel, im Lauf 36194961731 um 23 px, lokal
+              // (main wie PR 8) um 29 px — Playwrights Scroll-ins-Bild vor dem Klick, kein Bildinhalt. Referenzstand: 0.
               await editor.locator('.wz-person-bearbeiten__koerper').evaluate((koerper) => {
                 koerper.scrollTop = 0
               })
