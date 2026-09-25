@@ -769,7 +769,10 @@ interface KernBelege {
  * - jedes Tod-Ereignis mit Ort (Rolle `verstorbener`), dessen Existenz-Aussage einen Beleg für den
  *   Ort trägt (`feld` NULL = ganze Aussage oder `ort`, D6).
  * Bewusst ein einziger Durchlauf über `aussage` statt drei EXISTS-Unterabfragen: es gibt keinen
- * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index). */
+ * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index).
+ * `e.typ = 'tod'`, `b.rolle = 'verstorbener'` und `e.ort_id IS NOT NULL` sind BEWUSST doppelt zu
+ * `todEreignisseLaden` bzw. `ortVorhanden` im Kern (Absicherung, hueter #123 H6): ein Beleg-Nachweis
+ * soll nie für ein Ereignis entstehen, das nicht als Sterbeort-Rückfall in Frage kommt. */
 function kernBelegeLaden(db: Database.Database, personId: string): KernBelege {
   const zeilen = db
     .prepare<

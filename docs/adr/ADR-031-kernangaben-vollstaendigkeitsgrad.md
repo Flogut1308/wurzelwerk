@@ -16,8 +16,11 @@ Mutter getrennt, Platzhalter ausgenommen, abrunden.
 **Entscheidung:**
 
 1. **Begriffe.** „Erfüllt" heißt **belegt** (mindestens ein `aussage_zitat`), einzige Ausnahme das
-   Geschlecht (nur vorhanden, E7). Eine Aussage „hat einen Wert", wenn `wert_text`, `wert_zahl`,
-   `wert_ref_id` oder `datum_wert1` nicht NULL ist.
+   Geschlecht (nur vorhanden, E7). Eine Datums-Aussage „hat einen Wert", wenn `wert_text`,
+   `wert_zahl`, `wert_ref_id` oder `datum_wert1` nicht NULL ist. Eine Orts-Aussage (`geburtsort`,
+   `todesort`) „trägt einen Ort" genau dann, wenn `wert_ref_id` oder `wert_text` nicht NULL ist
+   (`traegtOrt`, `src/core/person/ort-wert.ts`) — dieselbe Wahrheit wie `sterbeortAufloesen`; eine
+   Orts-Aussage nur mit `wert_zahl` trägt keinen Ort (hueter #123, H1).
 2. **Kernangaben** (Reihenfolge = Reihenfolge in `fehlend`):
 
    | Id | Quelle | anwendbar | erfüllt, wenn |
@@ -25,9 +28,9 @@ Mutter getrennt, Platzhalter ausgenommen, abrunden.
    | `name` | Hauptform (`name_form.ist_bevorzugt = 1`) | immer | eine Aussage `subjekt_typ = 'name'` über die Hauptform (beliebiges Prädikat) hat ≥ 1 Beleg |
    | `geschlecht` | `person.geschlecht` | immer | M, F oder X (nicht U, nicht NULL) |
    | `geburtsdatum` | Aussagen `geburtsdatum` | immer | eine Aussage mit Wert und ≥ 1 Beleg |
-   | `geburtsort` | Aussagen `geburtsort` | immer | wie `geburtsdatum` (auch nur `wert_text`); kein Ereignis-Rückfall |
+   | `geburtsort` | Aussagen `geburtsort` | immer | eine Aussage, die einen Ort trägt, mit ≥ 1 Beleg (auch nur `wert_text`); kein Ereignis-Rückfall |
    | `todesdatum` | Aussagen `todesdatum` | nur `lebend_status = 'verstorben'` | wie `geburtsdatum` |
-   | `todesort` | Aussagen `todesort`, Tod-Ereignis (E5) | nur `verstorben` | gibt es eine `todesort`-Aussage mit Wert, entscheidet allein sie (belegt ⇒ erfüllt); sonst ein Tod-Ereignis (Rolle `verstorbener`) mit `ort_id`, dessen Existenz-Aussage einen Beleg mit `feld` NULL oder `ort` hat |
+   | `todesort` | Aussagen `todesort`, Tod-Ereignis (E5) | nur `verstorben` | gibt es eine `todesort`-Aussage, die einen Ort trägt, entscheidet allein sie (belegt ⇒ erfüllt); sonst ein Tod-Ereignis (Rolle `verstorbener`) mit `ort_id`, dessen Existenz-Aussage einen Beleg mit `feld` NULL oder `ort` hat |
    | `vater`, `mutter` | `elternPlaetze` (U-1.34-C2-O2) | immer, zwei Angaben | Platz besetzt UND eine Kante zu diesem Elternteil hat an einer ihrer Aussagen einen Beleg; bei Doppelkanten genügt eine |
    | `elternteil` | `elternPlaetze.unbestimmt` | statt `vater`/`mutter` | der unbestimmbar zugeordnete Elternteil ist eine Angabe (erfüllt, wenn belegt), der leere Platz die zweite (nie erfüllt) |
 
@@ -47,6 +50,10 @@ Mutter getrennt, Platzhalter ausgenommen, abrunden.
 - Nichts wird gespeichert (keine Spalte, keine abgeleitete Tabelle): die Zahl entsteht beim Lesen
   aus Aussagen und Belegen und kann darum nicht veralten.
 - Eine Änderung an Tabelle oder Formel geht nur über einen Nachtrag zu diesem ADR.
+- **Nicht monoton beim Hinzufügen:** ein zusätzlicher Beleg senkt `erfuellt` nie, eine zusätzliche
+  Aussage aber schon — eine neue unbelegte `todesort`-Aussage verdrängt einen belegten Ereignisort
+  (E5, D6), der Grad sinkt. Das ist gewollt (die Aussage führt) und muss im Text von AP-1.30
+  verständlich sein, etwa über die Aufschlüsselung „Sterbeort: Angabe ohne Beleg".
 - Kosten: eine zusätzliche Anweisung je `person.detail` (ein Durchlauf über `aussage`, kein Index
   auf `aussage(subjekt_typ, subjekt_id)`, §31 U-1.34-C2b-aussage-index). Gemessen bei 2000 Personen:
   Median ≈ 2,0 ms statt ≈ 1,5 ms, Budget 50 ms.
