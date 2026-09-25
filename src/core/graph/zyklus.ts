@@ -191,3 +191,38 @@ export function wuerdeZyklusErzeugen(kanten: readonly Elternkante[], neu: Eltern
   }
   return false
 }
+
+/**
+ * true, wenn `personId` ihr eigener (Ur-…)Vorfahre ist: folgt man von ihr aus "ist Kind von", kommt
+ * man wieder bei ihr an. AP-1.34 PR-C2b (docs/80_Offene_Fragen.md §31 U-1.34-C2-O1): Grundlage der
+ * Feldwarnung `zyklus` für EINE Person. Anders als `findeZyklusKnoten` (meldet nur den ersten
+ * Zyklus des Gesamtgraphen) beantwortet das die Frage für genau diese Person — jede von
+ * `findeZyklusKnoten` gemeldete Person ist auch hier `true`, nicht umgekehrt.
+ *
+ * Eine Person UNTERHALB eines Zyklus (ihr Elternteil liegt darauf, sie selbst nicht) ist nicht
+ * eigener Vorfahre. Rauten (Ahnenimplex) sind kein Zyklus. Iterativ (kein Stapelüberlauf bei
+ * tiefen Ketten), jeder Knoten wird höchstens einmal besucht.
+ */
+export function istEigenerVorfahre(personId: string, kanten: readonly Elternkante[]): boolean {
+  const adjazenz = elternVonKindAdjazenz(kanten)
+  const besucht = new Set<string>()
+  const zuPruefen: string[] = [...(adjazenz.get(personId) ?? [])]
+
+  while (zuPruefen.length > 0) {
+    const knoten = zuPruefen.pop()
+    if (knoten === undefined) {
+      break // Unerreichbar (length > 0 garantiert), ohne `!` formuliert (CLAUDE.md §4).
+    }
+    if (knoten === personId) {
+      return true
+    }
+    if (besucht.has(knoten)) {
+      continue
+    }
+    besucht.add(knoten)
+    for (const elternteil of adjazenz.get(knoten) ?? []) {
+      zuPruefen.push(elternteil)
+    }
+  }
+  return false
+}

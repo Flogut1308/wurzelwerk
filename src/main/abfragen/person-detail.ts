@@ -25,6 +25,9 @@ import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
+import { istEigenerVorfahre } from '../../core/graph/zyklus'
+import { feldwarnungenFuer } from '../../core/plausibilitaet/feldwarnungen'
+import { pruefeBestand, type BestandHinweis } from '../../core/plausibilitaet/regeln'
 import { PartnerschaftTypEnum } from '../../shared/schemata/partnerschaft'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../shared/schemata/person'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
@@ -38,8 +41,10 @@ import type {
   PersonDetailGrunddatenFeld,
   PersonDetailName,
   PersonDetailSterbeort,
+  PersonDetailWarnung,
 } from '../../shared/schemata/person-detail'
 import { datensatzExistiert } from '../repositories/basis'
+import { personUmfeldLaden, vorfahrenKantenLaden } from './_person-umfeld'
 
 interface KopfZeile {
   readonly person_id: string
@@ -624,6 +629,18 @@ function risikofaktorenLaden(db: Database.Database, personId: string): readonly 
   }))
 }
 
+/** Feldwarnungen (AP-1.34 PR-C2b, §31 U-1.34-C2-O1): `pruefeBestand` auf dem Umfeld der Person,
+ * `zyklus` stattdessen über `istEigenerVorfahre` auf den Vorfahrenkanten (der Gesamtbestand meldet
+ * über `findeZyklusKnoten` nur den ersten Zyklus; hier bekommt jede Person auf einem Zyklus ihren
+ * Befund). Nur beim Lesen — kein Befehl prüft Warnungen, darum blockieren sie nie (Vorgaben §1). */
+function warnungenBauen(db: Database.Database, personId: string): readonly PersonDetailWarnung[] {
+  const hinweise: BestandHinweis[] = pruefeBestand(personUmfeldLaden(db, personId)).filter((hinweis) => hinweis.code !== 'zyklus')
+  if (istEigenerVorfahre(personId, vorfahrenKantenLaden(db, personId))) {
+    hinweise.push({ code: 'zyklus', personId })
+  }
+  return feldwarnungenFuer(hinweise, personId)
+}
+
 /** `abfrage:person.detail` (55_Architektur.md §5, AP-1.7 PR-A). */
 export function personDetail(db: Database.Database, ein: PersonDetailEin): PersonDetailAus {
   if (!datensatzExistiert(db, 'person', ein.personId)) {
@@ -665,5 +682,6 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
     sterbeort: sterbeortBauen(db, ein.personId, aussagen),
+    warnungen: warnungenBauen(db, ein.personId),
   }
 }

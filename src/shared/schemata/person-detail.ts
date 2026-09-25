@@ -22,6 +22,9 @@
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
+import type { ReiterId } from '../../core/person/reiter'
+import type { FeldwarnungFeld } from '../../core/plausibilitaet/feldwarnungen'
+import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
@@ -221,6 +224,16 @@ export interface PersonDetailSterbeort {
   readonly aussage_id: string | null
 }
 
+/** Eine Feldwarnung (AP-1.34 PR-C2b, F-07, docs/80_Offene_Fragen.md §31 U-1.34-C2-O1): ein
+ * Bestandshinweis aus AP-1.8 an DIESER Person, mit Sprungziel (Entwicklungsvorgaben §3.1 Reiter,
+ * §5.5 `tab`/`field`). Zuordnung im Kern (`feldZielFuer`, `src/core/plausibilitaet/feldwarnungen.ts`),
+ * kein eigener Text — der Renderer leitet ihn aus `code` ab. Blockiert nie (Vorgaben §1). */
+export interface PersonDetailWarnung {
+  readonly code: BestandHinweisCode
+  readonly reiter: ReiterId
+  readonly feld: FeldwarnungFeld
+}
+
 /** Antwort von `abfrage:person.detail`.
  *
  * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
@@ -237,4 +250,7 @@ export interface PersonDetailAus {
   readonly notiz: string | null
   /** AP-1.34 PR-C2a: `null` = weder Aussage `todesort` noch Tod-Ereignis mit Ort. */
   readonly sterbeort: PersonDetailSterbeort | null
+  /** AP-1.34 PR-C2b: Feldwarnungen dieser Person, geordnet nach der Regelreihenfolge
+   * (`BESTAND_HINWEIS_CODES`); Mehrfachfunde bleiben erhalten. Leer für Platzhalter (A-17). */
+  readonly warnungen: readonly PersonDetailWarnung[]
 }
