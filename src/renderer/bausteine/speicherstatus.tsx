@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { Schaltflaeche } from './schaltflaeche'
 import { relativeSpeicherzeit } from './speicherstatus-logik'
 import './speicherstatus.css'
 
@@ -57,9 +56,13 @@ export function Speicherstatus(props: SpeicherstatusProps) {
       ) : (
         <>
           <span>{t('speicherstatus_fehler')}</span>
-          <Schaltflaeche variante="unauffaellig" aufKlick={props.aufErneutVersuchen}>
+          {/* Kein `Schaltflaeche`-Baustein: dessen Körperschrift und Innenabstand sprengen die
+              12,5-px-Statuszeile (Artboard 1a: „Nicht gespeichert – erneut versuchen" als eine
+              Zeile). Stattdessen ein nativer Knopf im Verweisstil (Akzenttext, unterstrichen),
+              Trefferfläche ≥ 32 px (§5), Fokusring global aus `basis.css`. */}
+          <button type="button" className="wz-speicherstatus__aktion" onClick={props.aufErneutVersuchen}>
             {t('speicherstatus_erneut_versuchen')}
-          </Schaltflaeche>
+          </button>
         </>
       )}
     </span>

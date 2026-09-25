@@ -42,3 +42,20 @@
 .wz-speicherstatus--fehler .wz-speicherstatus__punkt {
   background: var(--wz-status-fehler-basis);
 }
+
+/* „erneut versuchen" — Verweisstil in der Statusschrift, keine Knopffläche. */
+.wz-speicherstatus__aktion {
+  min-height: var(--wz-trefferflaeche-min);
+  margin-left: calc(-1 * var(--wz-abstand-4));
+  padding: 0 var(--wz-abstand-4);
+  border: 0;
+  border-radius: var(--wz-radius-klein);
+  background: transparent;
+  color: var(--wz-text-akzent);
+  font: var(--wz-schrift-hilfe);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.wz-speicherstatus__aktion:hover {
+  color: var(--wz-akzent-hover);
+}
