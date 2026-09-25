@@ -172,6 +172,7 @@ describe('Personenliste in zwei Phasen = Einphasen-Referenz (Vorarbeiten AP-1.30
           // Seitenweise geschnitten ergibt dieselbe Folge.
           const seite2 = suche(db, { text, grenze: 100, filter: ALLE, ...sortierung, seite: 2, proSeite: 7 })
           expect(seite2.treffer).toEqual(alle.treffer.slice(7, 14))
+          expect(seite2.gesamt).toBe(alle.gesamt)
         }
       }
       expect(trefferGesamt).toBeGreaterThan(400)

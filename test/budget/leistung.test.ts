@@ -23,7 +23,7 @@ const FILTER_ALLE: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nu
 // CLAUDE.md §3: lokal harter Fehler bei Überschreitung, in der CI nur eine Warnung, die ein Mensch
 // im Job-Log sieht. In der CI ist `CI` gesetzt (GitHub Actions); lokal nicht.
 function budgetErfuellen(medianMs: number, grenzeMs: number, name: string): void {
-  // Messwert immer sichtbar (Job-Log der CI, lokal die Testausgabe) — Vorarbeiten AP-1.30 Teil 2, PR 5:
+  // Messwert immer sichtbar (Job-Log der CI; lokal mit `--reporter=verbose`) — Vorarbeiten AP-1.30 Teil 2, PR 5:
   // Budgetwerte werden je PR genannt, auch wenn sie unter der Grenze liegen.
   console.info(`[Budget] ${name}: Median ${medianMs.toFixed(2)} ms (Grenze ${grenzeMs} ms).`)
   if (process.env['CI'] !== undefined) {
