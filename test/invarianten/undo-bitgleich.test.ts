@@ -195,6 +195,14 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   // ihn gelöscht (Branch-Wert 4) — Schwelle je die Hälfte.
   ['name.vatersname.gesetzt', 101],
   ['name.vatersname.entfernt', 2],
+  // AP-1.30 PR 4b (Prüfpfad-Folge zu #156, docs/80 §33 V-130-4-autosave), am Journal gemessen
+  // (`_befehlsfolge-koaleszenz.ts`): zusammengefasst (Branch-Wert 102), dabei insert+delete-Paar
+  // verdichtet (12), Serienaufruf nach Fensterablauf als neuer Schritt (41), Serienaufruf mit
+  // unpassendem `feld` ohne Schlüssel (20) — Schwelle je die Hälfte.
+  ['koaleszenz.zusammengefasst', 51],
+  ['koaleszenz.verdichtet', 6],
+  ['koaleszenz.fensterAbgelaufen', 20],
+  ['koaleszenz.feldUnpassend', 10],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
