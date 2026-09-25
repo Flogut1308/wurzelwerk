@@ -24,6 +24,7 @@ import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
+import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
 import { feldwarnungenFuer } from '../../core/plausibilitaet/feldwarnungen'
@@ -40,6 +41,7 @@ import type {
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
   PersonDetailName,
+  PersonDetailOffenerPunkt,
   PersonDetailSterbeort,
   PersonDetailWarnung,
 } from '../../shared/schemata/person-detail'
@@ -521,12 +523,18 @@ interface ElternKindZeile {
   readonly ist_platzhalter: number
 }
 
-function elternLaden(db: Database.Database, personId: string): readonly ElternKindZeile[] {
+/** Elternzeile mit Geschlecht — `elternPlaetze` (offene Punkte, AP-1.34 PR-C2c) braucht es. */
+interface ElternZeile extends ElternKindZeile {
+  readonly geschlecht: string | null
+}
+
+function elternLaden(db: Database.Database, personId: string): readonly ElternZeile[] {
   return db
     .prepare<
       { readonly personId: string },
-      ElternKindZeile
-    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
+      ElternZeile
+    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
+              p.geschlecht AS geschlecht
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.elternteil_id
        JOIN person p ON p.id = el.elternteil_id
@@ -565,15 +573,25 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
     .all({ personId })
 }
 
-function beziehungenLaden(db: Database.Database, personId: string): readonly PersonDetailBeziehung[] {
+interface BeziehungsZeilen {
+  readonly eltern: readonly ElternZeile[]
+  readonly kinder: readonly ElternKindZeile[]
+  readonly partner: readonly ElternKindZeile[]
+}
+
+function beziehungsZeilenLaden(db: Database.Database, personId: string): BeziehungsZeilen {
+  return { eltern: elternLaden(db, personId), kinder: kinderLaden(db, personId), partner: partnerLaden(db, personId) }
+}
+
+function beziehungenBauen(zeilen: BeziehungsZeilen): readonly PersonDetailBeziehung[] {
   const beziehungen: PersonDetailBeziehung[] = []
-  for (const zeile of elternLaden(db, personId)) {
+  for (const zeile of zeilen.eltern) {
     beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
-  for (const zeile of kinderLaden(db, personId)) {
+  for (const zeile of zeilen.kinder) {
     beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
-  for (const zeile of partnerLaden(db, personId)) {
+  for (const zeile of zeilen.partner) {
     beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   return beziehungen
@@ -641,6 +659,94 @@ function warnungenBauen(db: Database.Database, personId: string): readonly Perso
   return feldwarnungenFuer(hinweise, personId)
 }
 
+interface KindElternZeile {
+  readonly kind_id: string
+  readonly elternteil_id: string
+}
+
+/** Alle Elternkanten aller Kinder der Person (auch die zur Person selbst) — für
+ * `kind_ohne_partnerschaft` (§31 U-1.34-C2-O5). Ein JOIN statt einer Abfrage je Kind. */
+function kinderElternLaden(db: Database.Database, personId: string): readonly KindElternZeile[] {
+  return db
+    .prepare<
+      { readonly personId: string },
+      KindElternZeile
+    >(`SELECT el2.kind_id AS kind_id, el2.elternteil_id AS elternteil_id
+       FROM elternschaft el1
+       JOIN elternschaft el2 ON el2.kind_id = el1.kind_id
+       WHERE el1.elternteil_id = @personId
+       ORDER BY el2.kind_id, el2.elternteil_id`,
+    )
+    .all({ personId })
+}
+
+/** Vorläufige Porträt-Eingabe (§31 U-1.34-E8): ein Medium als Titelbild der Person. Läuft nur, wenn
+ * `kein_portraet` in der Regeltabelle aktiv ist (bis AP-1.31b nicht, hueter-H3) — das Einschalten
+ * ändert dann nur die Tabelle. Kein Index auf `medium_zuordnung(subjekt_typ, subjekt_id)`
+ * (§31 U-1.34-C2c-titelbild-index). */
+function hatTitelbild(db: Database.Database, personId: string): boolean {
+  const zeile = db
+    .prepare<
+      { readonly personId: string; readonly subjektTyp: string },
+      { readonly vorhanden: number }
+    >(`SELECT EXISTS (
+         SELECT 1 FROM medium_zuordnung
+         WHERE subjekt_typ = @subjektTyp AND subjekt_id = @personId AND ist_titelbild = 1
+       ) AS vorhanden`,
+    )
+    .get({ personId, subjektTyp: 'person' })
+  return zeile?.vorhanden === 1
+}
+
+/** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5): Auswertung im Kern (`offenePunkteAuswerten`),
+ * hier nur die Eingabe aus bereits geladenen Teilen plus zwei gezielte Nachladungen (Elternkanten
+ * der Kinder, Titelbild). Platzhalter: keine Punkte, darum auch kein Nachladen (O4). */
+function offenePunkteBauen(
+  db: Database.Database,
+  kopfZeile: KopfZeile,
+  beziehungen: BeziehungsZeilen,
+  grunddaten: readonly PersonDetailGrunddatenFeld[],
+  sterbeort: PersonDetailSterbeort | null,
+  warnungen: readonly PersonDetailWarnung[],
+): readonly PersonDetailOffenerPunkt[] {
+  if (kopfZeile.ist_platzhalter === 1) return []
+
+  const elternJeKind = new Map<string, string[]>()
+  for (const zeile of kinderElternLaden(db, kopfZeile.person_id)) {
+    const liste = elternJeKind.get(zeile.kind_id) ?? []
+    liste.push(zeile.elternteil_id)
+    elternJeKind.set(zeile.kind_id, liste)
+  }
+  // Eine Quelle für „welche Kinder“ (hueter-H5): die Beziehungsliste; die JOIN-Karte liefert nur die
+  // Eltern-IDs dazu. Doppelte Kanten zu demselben Kind fängt `kindOhnePartnerschaft` ab.
+  const kinder: OffenePunkteKind[] = beziehungen.kinder.map((zeile) => ({
+    id: zeile.person_id,
+    istPlatzhalter: zeile.ist_platzhalter === 1,
+    elternIds: elternJeKind.get(zeile.person_id) ?? [kopfZeile.person_id],
+  }))
+
+  const punkte = offenePunkteAuswerten({
+    personId: kopfZeile.person_id,
+    istPlatzhalter: false,
+    lebendStatus: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
+    hatSterbeort: sterbeort !== null,
+    eltern: beziehungen.eltern.map((zeile) => ({ id: zeile.person_id, geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht) })),
+    // Inaktive Regel: `true` löst sicher nichts aus, die Abfrage entfällt.
+    hatPortraet: regelAktiv('kein_portraet') ? hatTitelbild(db, kopfZeile.person_id) : true,
+    kinder,
+    partnerIds: beziehungen.partner.map((zeile) => zeile.person_id),
+    widerspruchPraedikate: grunddaten.filter((feld) => feld.hat_widerspruch).map((feld) => feld.praedikat),
+    feldwarnungen: warnungen.map((warnung) => ({ reiter: warnung.reiter, feld: warnung.feld })),
+  })
+  return punkte.map((punkt) => ({
+    regel_id: punkt.regelId,
+    reiter: punkt.reiter,
+    feld: punkt.feld,
+    meldungsschluessel: punkt.meldungsschluessel,
+    bezug_id: punkt.bezugId,
+  }))
+}
+
 /** `abfrage:person.detail` (55_Architektur.md §5, AP-1.7 PR-A). */
 export function personDetail(db: Database.Database, ein: PersonDetailEin): PersonDetailAus {
   if (!datensatzExistiert(db, 'person', ein.personId)) {
@@ -663,6 +769,11 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const ortsnamenKarte = ortsnamenLaden(db, wertRefIdsFuer(aussagen, true))
   const personennamenKarte = personennamenLaden(db, wertRefIdsFuer(aussagen, false))
 
+  const beziehungsZeilen = beziehungsZeilenLaden(db, ein.personId)
+  const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
+  const sterbeort = sterbeortBauen(db, ein.personId, aussagen)
+  const warnungen = warnungenBauen(db, ein.personId)
+
   return {
     kopf: {
       person_id: kopfZeile.person_id,
@@ -676,12 +787,13 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       lebend_status: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
     },
     namen: namenLaden(db, ein.personId),
-    grunddaten: grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte),
+    grunddaten,
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
-    beziehungen: beziehungenLaden(db, ein.personId),
+    beziehungen: beziehungenBauen(beziehungsZeilen),
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
-    sterbeort: sterbeortBauen(db, ein.personId, aussagen),
-    warnungen: warnungenBauen(db, ein.personId),
+    sterbeort,
+    warnungen,
+    offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
   }
 }

@@ -22,7 +22,8 @@
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
-import type { ReiterId } from '../../core/person/reiter'
+import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
+import { REITER, type ReiterId } from '../../core/person/reiter'
 import type { FeldwarnungFeld } from '../../core/plausibilitaet/feldwarnungen'
 import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
@@ -234,6 +235,24 @@ export interface PersonDetailWarnung {
   readonly feld: FeldwarnungFeld
 }
 
+/** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5, §31 U-1.34-C2-O2…O5): Enums aus den
+ * Kern-Konstanten (`src/core/person/offene-punkte.ts`, `reiter.ts`) — eine Quelle der Werte. */
+export const OffenePunkteRegelIdEnum = z.enum(OFFENE_PUNKTE_REGEL_IDS)
+export const EditorReiterEnum = z.enum(REITER)
+export const EditorFeldEnum = z.enum(EDITOR_FELDER)
+export const OffenerPunktSchluesselEnum = z.enum(OFFENE_PUNKTE_SCHLUESSEL)
+
+/** Ein offener Punkt (AP-1.34 PR-C2c): Regel, Sprungziel (Vorgaben §5.5 `tab`/`field`) und
+ * Meldungsschlüssel (`profil.json`, `offener_punkt_*`). `bezug_id` = betroffener Datensatz (bei
+ * `kind_ohne_partnerschaft` das Kind), sonst `null`. Kein Text — der Renderer übersetzt den Schlüssel. */
+export interface PersonDetailOffenerPunkt {
+  readonly regel_id: z.infer<typeof OffenePunkteRegelIdEnum>
+  readonly reiter: z.infer<typeof EditorReiterEnum>
+  readonly feld: z.infer<typeof EditorFeldEnum>
+  readonly meldungsschluessel: z.infer<typeof OffenerPunktSchluesselEnum>
+  readonly bezug_id: string | null
+}
+
 /** Antwort von `abfrage:person.detail`.
  *
  * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
@@ -253,4 +272,7 @@ export interface PersonDetailAus {
   /** AP-1.34 PR-C2b: Feldwarnungen dieser Person, geordnet nach der Regelreihenfolge
    * (`BESTAND_HINWEIS_CODES`); Mehrfachfunde bleiben erhalten. Leer für Platzhalter (A-17). */
   readonly warnungen: readonly PersonDetailWarnung[]
+  /** AP-1.34 PR-C2c: offene Punkte in Regelreihenfolge (`OFFENE_PUNKTE_REGELN`), nur aktive Regeln.
+   * Leer für Platzhalter (§31 U-1.34-C2-O4). */
+  readonly offene_punkte: readonly PersonDetailOffenerPunkt[]
 }

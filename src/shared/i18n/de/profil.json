@@ -187,5 +187,13 @@
   "ereignis_neu_weiterer_beteiligter_rolle_beschriftung": "Rolle",
   "ereignis_neu_weiterer_beteiligter_ausgewaehlt": "ausgewählt",
   "ereignis_neu_weiterer_beteiligter_neu_angelegt": "Neu angelegt",
-  "ereignis_neu_hinzufuegen": "Ereignis anlegen"
+  "ereignis_neu_hinzufuegen": "Ereignis anlegen",
+
+  "offener_punkt_sterbeort_fehlt": "Sterbeort fehlt",
+  "offener_punkt_vater_nicht_zugeordnet": "Vater nicht zugeordnet",
+  "offener_punkt_mutter_nicht_zugeordnet": "Mutter nicht zugeordnet",
+  "offener_punkt_elternteil_nicht_zugeordnet": "Elternteil nicht zugeordnet",
+  "offener_punkt_kein_portraet": "Kein Porträt hinterlegt",
+  "offener_punkt_kind_ohne_partnerschaft": "Kind ohne Partnerschaft",
+  "offener_punkt_widerspruch_vorhanden": "Widerspruch vorhanden"
 }
