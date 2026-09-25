@@ -92,10 +92,16 @@ describe('Regelwerk offene Punkte (AP-1.34 PR-C2c)', () => {
     expect(offenePunkteAuswerten(eingabe({ kinder: [{ ...alleinig, istPlatzhalter: true }] }))).toEqual([])
   })
 
+  it('R3b: ein doppelt geliefertes Kind ergibt genau einen Punkt (hueter-H2)', () => {
+    const kind = { id: 'k-1', istPlatzhalter: false, elternIds: [P] }
+    expect(offenePunkteAuswerten(eingabe({ kinder: [kind, { ...kind }, kind] })).map((p) => p.bezugId)).toEqual(['k-1'])
+  })
+
   it('R4: widerspruch_vorhanden je (reiter, feld) aus ungelöstem Widerspruch und Feldwarnung', () => {
     const punkte = offenePunkteAuswerten(
       eingabe({
-        widerspruchPraedikate: ['beruf', 'todesdatum', 'konfession', 'geburtsort'],
+        // Alle vier Prädikate mit eigenem Sprungziel (hueter-H1) plus zwei „übrige“, bewusst ungeordnet.
+        widerspruchPraedikate: ['beruf', 'todesort', 'todesdatum', 'konfession', 'geburtsort', 'geburtsdatum'],
         feldwarnungen: [
           { reiter: 'beziehungen', feld: 'kinder' },
           { reiter: 'person', feld: 'todesdatum' },
@@ -104,8 +110,10 @@ describe('Regelwerk offene Punkte (AP-1.34 PR-C2c)', () => {
       }),
     )
     expect(punkte.map((p) => [p.regelId, p.reiter, p.feld, p.meldungsschluessel, p.bezugId])).toEqual([
+      ['widerspruch_vorhanden', 'person', 'geburtsdatum', 'offener_punkt_widerspruch_vorhanden', null],
       ['widerspruch_vorhanden', 'person', 'geburtsort', 'offener_punkt_widerspruch_vorhanden', null],
       ['widerspruch_vorhanden', 'person', 'todesdatum', 'offener_punkt_widerspruch_vorhanden', null],
+      ['widerspruch_vorhanden', 'person', 'todesort', 'offener_punkt_widerspruch_vorhanden', null],
       ['widerspruch_vorhanden', 'leben', 'angaben', 'offener_punkt_widerspruch_vorhanden', null],
       ['widerspruch_vorhanden', 'beziehungen', 'kinder', 'offener_punkt_widerspruch_vorhanden', null],
     ])
