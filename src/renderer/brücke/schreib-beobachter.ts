@@ -40,3 +40,18 @@ export function schreibFeldPersonFeldSetzen(ein: Ein<'befehl:person.feldSetzen'>
 export function schreibFeldNameAendern(ein: Ein<'befehl:name.aendern'>): string {
   return `name.aendern:${ein.id}`
 }
+
+/**
+ * Feldschlüssel für `aussage.aendern` (AP-1.30 PR 9a): wie `name.aendern` ersetzt der Befehl die ganze
+ * Aussage, und die Abbildung `aussageAendernEinAus` (profil-aussage-logik.ts) schickt jedes Mal den
+ * vollständigen Stand — der Schlüssel ist die Aussage, nicht das einzelne Feld.
+ */
+export function schreibFeldAussageAendern(ein: Ein<'befehl:aussage.aendern'>): string {
+  return `aussage.aendern:${ein.id}`
+}
+
+/** Feldschlüssel für `ereignis.aendern` (AP-1.30 PR 9a): der Befehl ersetzt die ganze Ereigniszeile —
+ * dieselbe Begründung wie bei `schreibFeldAussageAendern`. */
+export function schreibFeldEreignisAendern(ein: Ein<'befehl:ereignis.aendern'>): string {
+  return `ereignis.aendern:${ein.id}`
+}

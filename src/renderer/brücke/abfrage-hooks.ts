@@ -129,6 +129,18 @@ export function useQuelleDetail(ein: Ein<'abfrage:quelle.detail'>, optionen?: Ab
 }
 
 /**
+ * `abfrage:quelle.suche` (Hook AP-1.30 PR 9a, für die Beleg-Auswahl im Reiter Person) — Tippsuche.
+ * Dieselbe Key-Strategie und Invalidierung wie `useOrtSuche`/`useArchivSuche`.
+ */
+export function useQuelleSuche(ein: Ein<'abfrage:quelle.suche'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:quelle.suche'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:quelle.suche', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:quelle.suche', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}
+
+/**
  * `abfrage:negativbefund.liste` (55_Architektur.md §5, AP-1.17 PR-A4/PR-C2) — der Negativbefund-
  * Abschnitt des Profils (`src/renderer/ansichten/profil/negativbefund-abschnitt.tsx`). Dieselbe
  * Key-Strategie und Invalidierung wie `usePersonDetail`/`useOrtDetail`/`useQuelleDetail`.
