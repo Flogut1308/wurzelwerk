@@ -499,6 +499,10 @@ export interface AussageAendernEin {
   readonly unsicherheit?: string | undefined
   readonly gueltigVon?: number | undefined
   readonly gueltigBis?: number | undefined
+  /** E5 (docs/80 §32 V-E5-erhalt): `true` = die gespeicherte Datumsgruppe bleibt unberührt (kein neuer
+   * Datumswert, keine Rundreise der Datumsspalten). Nur ohne `datum`. Ohne das Signal ersetzt der
+   * Befehl wie bisher alle Werte — ein fehlendes `datum` entfernt das gespeicherte. */
+  readonly datumBeibehalten?: true | undefined
 }
 
 const aussageAendernBasis = z.object({
@@ -512,6 +516,7 @@ const aussageAendernBasis = z.object({
   unsicherheit: z.string().optional(),
   gueltigVon: z.number().int().optional(),
   gueltigBis: z.number().int().optional(),
+  datumBeibehalten: z.literal(true).optional(),
 })
 
 export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAendernBasis.superRefine((ein, ctx) => {
@@ -521,6 +526,13 @@ export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAend
       code: 'custom',
       path: ['wertText'],
       message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht.',
+    })
+  }
+  if (ein.datumBeibehalten === true && ein.datum !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['datumBeibehalten'],
+      message: 'datum und datumBeibehalten schließen sich aus.',
     })
   }
 })
