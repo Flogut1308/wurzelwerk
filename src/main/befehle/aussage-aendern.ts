@@ -32,7 +32,7 @@ export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_AUSSAGE')
   }
-  ortswertPruefen(vorher.praedikat, ein.wertZahl)
+  ortswertPruefen(vorher.praedikat, { wertZahl: ein.wertZahl, datum: ein.datum })
 
   const neuesDatum = datumSpalten(ein.datum)
   const neuerWertText = ein.wertText ?? null
