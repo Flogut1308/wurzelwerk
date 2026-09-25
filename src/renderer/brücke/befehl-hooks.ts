@@ -25,7 +25,14 @@ import {
   zustandsbibliothekOeffnenNutzlastSchema,
 } from '../../shared/schemata/ereignisse'
 import { aufrufen } from './aufrufen'
-import { SchreibBeobachterKontext, beobachtetAusfuehren, schreibFeldNameAendern, schreibFeldPersonFeldSetzen } from './schreib-beobachter'
+import {
+  SchreibBeobachterKontext,
+  beobachtetAusfuehren,
+  schreibFeldAussageAendern,
+  schreibFeldEreignisAendern,
+  schreibFeldNameAendern,
+  schreibFeldPersonFeldSetzen,
+} from './schreib-beobachter'
 
 /**
  * Entpackt ein `Ergebnis<T>` zu `T` oder wirft den enthaltenen `AppFehler` — TanStack Query fängt
@@ -235,6 +242,42 @@ export function useNegativbefundLoeschen(): UseMutationResult<null, AppFehler, E
 export function useEreignisAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ereignis.anlegen'>> {
   return useMutation({
     mutationFn: (ein: Ein<'befehl:ereignis.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:ereignis.anlegen', ein)),
+  })
+}
+
+/** `befehl:ereignis.aendern` (AP-1.12; Hook AP-1.30 PR 9a, für den Reiter Person). Autosave-Schreibweg
+ * mit `SchreibBeobachter` wie `useNameAendern`; der Befehl ersetzt die ganze Ereigniszeile. */
+export function useEreignisAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:ereignis.aendern'>> {
+  const beobachter = useContext(SchreibBeobachterKontext)
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:ereignis.aendern'>) =>
+      beobachtetAusfuehren(beobachter, schreibFeldEreignisAendern(ein), () => ergebnisEntpacken(aufrufen('befehl:ereignis.aendern', ein))),
+  })
+}
+
+/** `befehl:aussage.anlegen` (AP-1.12; Hook AP-1.30 PR 9a). Kein Autosave-Schreibweg — Anlegen ist ein
+ * einzelner Schritt, darum ohne `SchreibBeobachter` (U-130-7c-status-umfang). */
+export function useAussageAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:aussage.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:aussage.anlegen', ein)),
+  })
+}
+
+/** `befehl:aussage.aendern` (AP-1.29 PR-A; Hook AP-1.30 PR 9a). Autosave-Schreibweg mit
+ * `SchreibBeobachter`; den Befehl baut `aussageAendernEinAus` (profil-aussage-logik.ts) aus dem
+ * Lesemodell, damit kein Feld verloren geht. */
+export function useAussageAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage.aendern'>> {
+  const beobachter = useContext(SchreibBeobachterKontext)
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage.aendern'>) =>
+      beobachtetAusfuehren(beobachter, schreibFeldAussageAendern(ein), () => ergebnisEntpacken(aufrufen('befehl:aussage.aendern', ein))),
+  })
+}
+
+/** `befehl:aussage.loeschen` (AP-1.12; Hook AP-1.30 PR 9a). Ohne `SchreibBeobachter` wie Anlegen. */
+export function useAussageLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:aussage.loeschen', ein)),
   })
 }
 

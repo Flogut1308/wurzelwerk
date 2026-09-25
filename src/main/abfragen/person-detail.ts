@@ -46,6 +46,7 @@ import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from '../../sh
 import { QuelleTypEnum, UnmittelbarkeitEnum } from '../../shared/schemata/quelle'
 import type {
   PersonDetailAus,
+  PersonDetailAussageDatum,
   PersonDetailBeleg,
   PersonDetailBeziehung,
   PersonDetailEin,
@@ -199,11 +200,23 @@ interface AussageZeile {
   readonly wert_text: string | null
   readonly wert_zahl: number | null
   readonly wert_ref_id: string | null
+  readonly datum_kalender: string | null
+  readonly datum_modifikator: string | null
+  readonly datum_praezision: string | null
   readonly datum_wert1: string | null
   readonly datum_wert2: string | null
+  readonly datum_originaltext: string | null
+  readonly datum_sort_von: number | null
+  readonly datum_sort_bis: number | null
+  readonly datum_zweitkalender: string | null
+  readonly datum_zweitwert: string | null
+  readonly datum_doppeljahr: string | null
   readonly konfidenz: number | null
   readonly ist_bevorzugt: number | null
   readonly begruendung: string | null
+  readonly unsicherheit: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
 }
 
 function aussagenLaden(db: Database.Database, personId: string): readonly AussageZeile[] {
@@ -212,8 +225,12 @@ function aussagenLaden(db: Database.Database, personId: string): readonly Aussag
       { readonly personId: string },
       AussageZeile
     >(`SELECT id AS id, praedikat AS praedikat, wert_text AS wert_text, wert_zahl AS wert_zahl,
-              wert_ref_id AS wert_ref_id, datum_wert1 AS datum_wert1, datum_wert2 AS datum_wert2,
-              konfidenz AS konfidenz, ist_bevorzugt AS ist_bevorzugt, begruendung AS begruendung
+              wert_ref_id AS wert_ref_id, datum_kalender AS datum_kalender, datum_modifikator AS datum_modifikator,
+              datum_praezision AS datum_praezision, datum_wert1 AS datum_wert1, datum_wert2 AS datum_wert2,
+              datum_originaltext AS datum_originaltext, datum_sort_von AS datum_sort_von, datum_sort_bis AS datum_sort_bis,
+              datum_zweitkalender AS datum_zweitkalender, datum_zweitwert AS datum_zweitwert, datum_doppeljahr AS datum_doppeljahr,
+              konfidenz AS konfidenz, ist_bevorzugt AS ist_bevorzugt, begruendung AS begruendung,
+              unsicherheit AS unsicherheit, gueltig_von AS gueltig_von, gueltig_bis AS gueltig_bis
        FROM aussage
        WHERE subjekt_typ = 'person' AND subjekt_id = @personId
        ORDER BY praedikat, id`,
@@ -414,6 +431,25 @@ function wertRefIdsFuer(aussagen: readonly AussageZeile[], ortBezogen: boolean):
   return ids
 }
 
+/** Die rohe Datumsgruppe einer Aussage (AP-1.30 PR 9a, Rundreise) — `null`, wenn keine ihrer Spalten
+ * gesetzt ist (dieselbe Vorhandenheit wie `AUSSAGE_HAT_DATUM_SQL`). */
+function aussageDatum(zeile: AussageZeile): PersonDetailAussageDatum | null {
+  const datum: PersonDetailAussageDatum = {
+    kalender: zeile.datum_kalender,
+    modifikator: zeile.datum_modifikator,
+    praezision: zeile.datum_praezision,
+    wert1: zeile.datum_wert1,
+    wert2: zeile.datum_wert2,
+    originaltext: zeile.datum_originaltext,
+    sort_von: zeile.datum_sort_von,
+    sort_bis: zeile.datum_sort_bis,
+    zweitkalender: zeile.datum_zweitkalender,
+    zweitwert: zeile.datum_zweitwert,
+    doppeljahr: zeile.datum_doppeljahr,
+  }
+  return Object.values(datum).some((wert) => wert !== null) ? datum : null
+}
+
 function grunddatenBauen(
   aussagen: readonly AussageZeile[],
   belegzahlKarte: ReadonlyMap<string, number>,
@@ -455,9 +491,16 @@ function grunddatenBauen(
       aussagen: gruppe.map((aussage) => ({
         aussage_id: aussage.id,
         wert: aussageWertAnzeige(aussage, ortsnamenKarte, personennamenKarte),
+        wert_text: aussage.wert_text,
+        wert_zahl: aussage.wert_zahl,
+        wert_ref_id: aussage.wert_ref_id,
+        datum: aussageDatum(aussage),
         konfidenz: aussage.konfidenz,
         ist_bevorzugt: aussage.ist_bevorzugt === 1,
         begruendung: aussage.begruendung,
+        unsicherheit: aussage.unsicherheit,
+        gueltig_von: aussage.gueltig_von,
+        gueltig_bis: aussage.gueltig_bis,
         belege: belegeKarte.get(aussage.id) ?? [],
       })),
     })
