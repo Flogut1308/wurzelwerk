@@ -22,6 +22,7 @@
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
 import { KERNANGABE_IDS, KERNANGABE_ZUSTAENDE } from '../../core/person/kernangaben'
+import { LEBENSDATUM_ANGABEN, LEBENSDATUM_HERKUNFT } from '../../core/person/lebensdaten'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../core/person/reiter'
@@ -33,6 +34,7 @@ import { EreignisTypEnum } from './ereignis'
 import { NameTypEnum, SchriftEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
+import type { PersonListeDatumsgruppe } from './person-liste'
 import { QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 import type { Textanker } from './befehle'
 
@@ -227,6 +229,33 @@ export interface PersonDetailSterbeort {
   readonly aussage_id: string | null
 }
 
+/** Lebensdaten-Angaben (AP-1.30 PR 1, V-D9-anzeige) aus der Kern-Konstante — eine Quelle der Werte. */
+export const LebensdatumAngabeEnum = z.enum(LEBENSDATUM_ANGABEN)
+
+/** Herkunft eines Lebensdatums: die führende Aussage oder das Rückfall-Ereignis (D9). */
+export const LebensdatumHerkunftEnum = z.enum(LEBENSDATUM_HERKUNFT)
+
+/** Ein Lebensdatum (AP-1.30 PR 1, V-D9-anzeige, docs/80 §32): woher Geburts-/Todesdatum bzw.
+ * Geburts-/Sterbeort kommen — aufgelöst NUR in `lebensdatumAufloesen` (src/core/person/lebensdaten.ts,
+ * „die Aussage führt, sonst das Ereignis"), dieselbe Regel wie `kernangaben` und `sterbeort`.
+ * - `herkunft = null`: weder Aussage noch Rückfall-Ereignis trägt einen Wert; alle Felder `null`.
+ * - `herkunft = 'aussage'`: `aussage_id` gesetzt; der Wert selbst steht im Grunddatenfeld des
+ *   Prädikats. Bei Orts-Angaben `ort_id` = Ortsverweis der Aussage (`null` bei freiem Text).
+ * - `herkunft = 'ereignis'`: `ereignis_id` gesetzt. Datums-Angaben: `datum` = Datumsgruppe des
+ *   Ereignisses (`null`, wenn sie nicht vollständig ist, z. B. nur ein Originaltext im Altbestand),
+ *   `datum_originaltext` = `ereignis.datum_originaltext`. Orts-Angaben: `ort_id`/`ort_name`.
+ * `ort_name` = bevorzugter Ortsname, `null` ohne Namen. */
+export interface PersonDetailLebensdatum {
+  readonly angabe: z.infer<typeof LebensdatumAngabeEnum>
+  readonly herkunft: z.infer<typeof LebensdatumHerkunftEnum> | null
+  readonly aussage_id: string | null
+  readonly ereignis_id: string | null
+  readonly datum: PersonListeDatumsgruppe | null
+  readonly datum_originaltext: string | null
+  readonly ort_id: string | null
+  readonly ort_name: string | null
+}
+
 /** Eine Feldwarnung (AP-1.34 PR-C2b, F-07, docs/80_Offene_Fragen.md §31 U-1.34-C2-O1): ein
  * Bestandshinweis aus AP-1.8 an DIESER Person, mit Sprungziel (Entwicklungsvorgaben §3.1 Reiter,
  * §5.5 `tab`/`field`). Zuordnung im Kern (`feldZielFuer`, `src/core/plausibilitaet/feldwarnungen.ts`),
@@ -296,8 +325,11 @@ export interface PersonDetailAus {
   readonly beziehungen: readonly PersonDetailBeziehung[]
   readonly gesundheit: readonly PersonDetailGesundheitseintrag[]
   readonly notiz: string | null
-  /** AP-1.34 PR-C2a: `null` = weder Aussage `todesort` noch Tod-Ereignis mit Ort. */
+  /** AP-1.34 PR-C2a: `null` = weder Aussage `todesort` noch Tod-Ereignis mit Ort. Seit AP-1.30 PR 1
+   * aus `lebensdaten` (Angabe `todesort`) abgebildet, keine eigene Auflösung. */
   readonly sterbeort: PersonDetailSterbeort | null
+  /** AP-1.30 PR 1 (V-D9-anzeige): immer vier Einträge in `LEBENSDATUM_ANGABEN`-Reihenfolge. */
+  readonly lebensdaten: readonly PersonDetailLebensdatum[]
   /** AP-1.34 PR-C2b: Feldwarnungen dieser Person, geordnet nach der Regelreihenfolge
    * (`BESTAND_HINWEIS_CODES`); Mehrfachfunde bleiben erhalten. Leer für Platzhalter (A-17). */
   readonly warnungen: readonly PersonDetailWarnung[]

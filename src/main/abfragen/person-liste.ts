@@ -322,7 +322,7 @@ export function sortiereZeilen<Z extends SortierZeile>(zeilen: readonly Z[], ein
   return geschmueckt.map((eintrag) => eintrag.zeile)
 }
 
-interface DatumsgruppeRoh {
+export interface DatumsgruppeRoh {
   readonly kalender: string | null
   readonly modifikator: string | null
   readonly praezision: string | null
@@ -339,7 +339,7 @@ interface DatumsgruppeRoh {
  * immer gemeinsam gesetzt werden. `KalenderEnum`/`DatumModifikatorEnum`/`DatumPraezisionEnum.parse`
  * statt `as`: die Spalten sind zwar über `CHECK` eingeschränkt (docs/schema/0002_kern.sql), aber ein
  * `as` bräuchte trotzdem einen geprüften Wert (CLAUDE.md §4) — `.parse()` liefert genau das. */
-function datumsgruppeBauen(roh: DatumsgruppeRoh): PersonListeDatumsgruppe | null {
+export function datumsgruppeBauen(roh: DatumsgruppeRoh): PersonListeDatumsgruppe | null {
   if (roh.kalender === null || roh.modifikator === null || roh.praezision === null || roh.wert1 === null) {
     return null
   }

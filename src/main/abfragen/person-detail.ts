@@ -26,10 +26,18 @@ import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata
 import { hatAnzeigetext } from '../../core/name/anzeigename'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
-import { ereignisHatDatum, istRueckfallEreignis } from '../../core/person/lebensdaten'
-import { ORTS_PRAEDIKATE } from '../../core/person/ort-wert'
+import {
+  aussageHatWert,
+  ereignisHatDatum,
+  ereignisHatOrt,
+  istRueckfallEreignis,
+  LEBENSDATUM_ANGABEN,
+  lebensdatumArt,
+  lebensdatumAufloesen,
+  type LebensdatumAngabe,
+} from '../../core/person/lebensdaten'
+import { istOrtsPraedikat, ORTS_PRAEDIKATE } from '../../core/person/ort-wert'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
-import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
 import { feldwarnungenFuer } from '../../core/plausibilitaet/feldwarnungen'
 import { pruefeBestand, type BestandHinweis } from '../../core/plausibilitaet/regeln'
@@ -45,6 +53,7 @@ import type {
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
   PersonDetailKernangaben,
+  PersonDetailLebensdatum,
   PersonDetailName,
   PersonDetailOffenerPunkt,
   PersonDetailSterbeort,
@@ -52,6 +61,7 @@ import type {
 } from '../../shared/schemata/person-detail'
 import { datensatzExistiert } from '../repositories/basis'
 import { anzeigenamenLaden } from './_anzeigenamen'
+import { datumsgruppeBauen } from './person-liste'
 import { personUmfeldLaden, vorfahrenKantenLaden } from './_person-umfeld'
 
 interface KopfZeile {
@@ -499,21 +509,24 @@ function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readon
   }))
 }
 
-interface LebensereignisZeile {
-  readonly id: string
-  readonly typ: string
-  readonly rolle: string
-  readonly ort_id: string | null
-  readonly datum_wert1: string | null
-  readonly datum_originaltext: string | null
-}
-
-/** Ein Geburts- bzw. Tod-Rückfall der Person (ohne Rolle; je Ereignis einmal). */
+/** Ein Geburts- bzw. Tod-Rückfall der Person (ohne Rolle; je Ereignis einmal) — mit der vollen
+ * Datumsgruppe für die Anzeige (`lebensdaten`, AP-1.30 PR 1). */
 interface RueckfallEreignis {
   readonly id: string
   readonly ort_id: string | null
+  readonly datum_kalender: string | null
+  readonly datum_modifikator: string | null
+  readonly datum_praezision: string | null
   readonly datum_wert1: string | null
+  readonly datum_wert2: string | null
   readonly datum_originaltext: string | null
+  readonly datum_sort_von: number | null
+  readonly datum_sort_bis: number | null
+}
+
+interface LebensereignisZeile extends RueckfallEreignis {
+  readonly typ: string
+  readonly rolle: string
 }
 
 interface Lebensereignisse {
@@ -532,7 +545,9 @@ function lebensereignisseLaden(db: Database.Database, personId: string): Lebense
       { readonly personId: string },
       LebensereignisZeile
     >(`SELECT e.id AS id, e.typ AS typ, b.rolle AS rolle, e.ort_id AS ort_id,
-              e.datum_wert1 AS datum_wert1, e.datum_originaltext AS datum_originaltext
+              e.datum_kalender AS datum_kalender, e.datum_modifikator AS datum_modifikator,
+              e.datum_praezision AS datum_praezision, e.datum_wert1 AS datum_wert1, e.datum_wert2 AS datum_wert2,
+              e.datum_originaltext AS datum_originaltext, e.datum_sort_von AS datum_sort_von, e.datum_sort_bis AS datum_sort_bis
        FROM beteiligung b
        JOIN ereignis e ON e.id = b.ereignis_id
        WHERE b.person_id = @personId AND e.typ IN ('geburt', 'tod')
@@ -545,22 +560,89 @@ function lebensereignisseLaden(db: Database.Database, personId: string): Lebense
     const art = istRueckfallEreignis(zeile.typ, zeile.rolle)
     if (art === null) continue
     const ziel = art === 'geburt' ? geburt : tod
-    ziel.set(zeile.id, { id: zeile.id, ort_id: zeile.ort_id, datum_wert1: zeile.datum_wert1, datum_originaltext: zeile.datum_originaltext })
+    ziel.set(zeile.id, {
+      id: zeile.id,
+      ort_id: zeile.ort_id,
+      datum_kalender: zeile.datum_kalender,
+      datum_modifikator: zeile.datum_modifikator,
+      datum_praezision: zeile.datum_praezision,
+      datum_wert1: zeile.datum_wert1,
+      datum_wert2: zeile.datum_wert2,
+      datum_originaltext: zeile.datum_originaltext,
+      datum_sort_von: zeile.datum_sort_von,
+      datum_sort_bis: zeile.datum_sort_bis,
+    })
   }
   return { geburt: [...geburt.values()], tod: [...tod.values()] }
 }
 
-/** Sterbeort (AP-1.34 PR-C2a): Auswahl im Kern (`sterbeortAufloesen`), hier nur Laden + Namens-
- * auflösung. Der Ortsname kommt wie bei `geburtsort` aus dem bevorzugten `ortsname`. */
-function sterbeortBauen(db: Database.Database, aussagen: readonly AussageZeile[], todEreignisZeilen: readonly RueckfallEreignis[]): PersonDetailSterbeort | null {
-  const todesorte = aussagen
-    .filter((aussage) => aussage.praedikat === 'todesort')
-    .map((aussage) => ({ id: aussage.id, istBevorzugt: aussage.ist_bevorzugt === 1, wertRefId: aussage.wert_ref_id, wertText: aussage.wert_text }))
-  const todEreignisse = todEreignisZeilen.map((zeile) => ({ id: zeile.id, ortId: zeile.ort_id }))
-  const sterbeort = sterbeortAufloesen(todesorte, todEreignisse)
-  if (sterbeort === null) return null
-  const ortName = sterbeort.ortId === null ? null : (ortsnamenLaden(db, [sterbeort.ortId]).get(sterbeort.ortId) ?? null)
-  return { herkunft: sterbeort.herkunft, ort_id: sterbeort.ortId, ort_name: ortName, aussage_id: sterbeort.aussageId }
+/** Leeres Lebensdatum: weder Aussage noch Rückfall-Ereignis trägt einen Wert. */
+function lebensdatumLeer(angabe: LebensdatumAngabe): PersonDetailLebensdatum {
+  return { angabe, herkunft: null, aussage_id: null, ereignis_id: null, datum: null, datum_originaltext: null, ort_id: null, ort_name: null }
+}
+
+/** Lebensdaten (AP-1.30 PR 1, V-D9-anzeige): WELCHE Quelle je Angabe den Wert liefert, entscheidet
+ * allein der Kern (`lebensdatumAufloesen`); hier nur Eingabe, Datumsgruppe und Ortsnamen. Ortsnamen
+ * der Aussagen stehen schon in `ortsnamenKarte` (`geburtsort`/`todesort` sind Orts-Prädikate); die
+ * Ereignis-Orte werden gesammelt in EINER Abfrage nachgeladen (kein N+1). */
+function lebensdatenBauen(
+  db: Database.Database,
+  aussagen: readonly AussageZeile[],
+  lebensereignisse: Lebensereignisse,
+  ortsnamenKarte: ReadonlyMap<string, string>,
+): readonly PersonDetailLebensdatum[] {
+  const aufgeloest = LEBENSDATUM_ANGABEN.map((angabe) => {
+    const kandidaten = aussagen.filter((aussage) => aussage.praedikat === angabe)
+    const ereignisse = lebensereignisse[lebensdatumArt(angabe)]
+    const ergebnis = lebensdatumAufloesen(
+      angabe,
+      kandidaten.map((a) => ({ id: a.id, istBevorzugt: a.ist_bevorzugt === 1, wertText: a.wert_text, wertZahl: a.wert_zahl, wertRefId: a.wert_ref_id, datumWert1: a.datum_wert1 })),
+      ereignisse.map((e) => ({ id: e.id, ortId: e.ort_id, datumWert1: e.datum_wert1, datumOriginaltext: e.datum_originaltext })),
+    )
+    return {
+      angabe,
+      aussage: ergebnis?.herkunft === 'aussage' ? kandidaten.find((a) => a.id === ergebnis.aussageId) : undefined,
+      ereignis: ergebnis?.herkunft === 'ereignis' ? ereignisse.find((e) => e.id === ergebnis.ereignisId) : undefined,
+    }
+  })
+
+  const ereignisOrte = aufgeloest.flatMap((eintrag) => {
+    const ortId = istOrtsPraedikat(eintrag.angabe) ? (eintrag.ereignis?.ort_id ?? null) : null
+    return ortId !== null && !ortsnamenKarte.has(ortId) ? [ortId] : []
+  })
+  const nachgeladen = ortsnamenLaden(db, [...new Set(ereignisOrte)])
+  const ortName = (ortId: string | null): string | null => (ortId === null ? null : (ortsnamenKarte.get(ortId) ?? nachgeladen.get(ortId) ?? null))
+
+  return aufgeloest.map(({ angabe, aussage, ereignis }) => {
+    const istOrt = istOrtsPraedikat(angabe)
+    if (aussage !== undefined) {
+      const ortId = istOrt ? aussage.wert_ref_id : null
+      return { ...lebensdatumLeer(angabe), herkunft: 'aussage', aussage_id: aussage.id, ort_id: ortId, ort_name: ortName(ortId) }
+    }
+    if (ereignis !== undefined) {
+      if (istOrt) return { ...lebensdatumLeer(angabe), herkunft: 'ereignis', ereignis_id: ereignis.id, ort_id: ereignis.ort_id, ort_name: ortName(ereignis.ort_id) }
+      const datum = datumsgruppeBauen({
+        kalender: ereignis.datum_kalender,
+        modifikator: ereignis.datum_modifikator,
+        praezision: ereignis.datum_praezision,
+        wert1: ereignis.datum_wert1,
+        wert2: ereignis.datum_wert2,
+        originaltext: ereignis.datum_originaltext,
+        sortVon: ereignis.datum_sort_von,
+        sortBis: ereignis.datum_sort_bis,
+      })
+      return { ...lebensdatumLeer(angabe), herkunft: 'ereignis', ereignis_id: ereignis.id, datum, datum_originaltext: ereignis.datum_originaltext }
+    }
+    return lebensdatumLeer(angabe)
+  })
+}
+
+/** Sterbeort (AP-1.34 PR-C2a) — seit AP-1.30 PR 1 aus `lebensdaten` (Angabe `todesort`) abgebildet,
+ * dieselbe Auflösung (`lebensdatumAufloesen`), kein zweiter Weg. */
+function sterbeortAusLebensdaten(lebensdaten: readonly PersonDetailLebensdatum[]): PersonDetailSterbeort | null {
+  const todesort = lebensdaten.find((eintrag) => eintrag.angabe === 'todesort')
+  if (todesort === undefined || todesort.herkunft === null) return null
+  return { herkunft: todesort.herkunft, ort_id: todesort.ort_id, ort_name: todesort.ort_name, aussage_id: todesort.aussage_id }
 }
 
 /** Ohne Namen: der sichtbare Name kommt aus dem Kern (`anzeigenamenLaden`, Vorarbeiten AP-1.30 PR 4a). */
@@ -870,7 +952,7 @@ function kernangabenBauen(
     aussagen
       .filter((a) => a.praedikat === praedikat)
       .map((a) => ({
-        hatWert: a.wert_text !== null || a.wert_zahl !== null || a.wert_ref_id !== null || a.datum_wert1 !== null,
+        hatWert: aussageHatWert({ wertText: a.wert_text, wertZahl: a.wert_zahl, wertRefId: a.wert_ref_id, datumWert1: a.datum_wert1 }),
         belegt: (belegeKarte.get(a.id)?.length ?? 0) > 0,
       }))
   // Orts-Prädikate: ob ein Ort getragen wird, entscheidet der Kern (`traegtOrt`), wie beim Sterbeort.
@@ -885,7 +967,7 @@ function kernangabenBauen(
   const kernEreignisse = (ereignisse: readonly RueckfallEreignis[]): readonly KernEreignis[] =>
     ereignisse.map((e) => ({
       datumVorhanden: ereignisHatDatum({ datumWert1: e.datum_wert1, datumOriginaltext: e.datum_originaltext }),
-      ortVorhanden: e.ort_id !== null,
+      ortVorhanden: ereignisHatOrt({ ortId: e.ort_id }),
       datumBelegt: felderBelegt(e.id, 'datum'),
       ortBelegt: felderBelegt(e.id, 'ort'),
     }))
@@ -943,7 +1025,8 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   ])
   const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
   const lebensereignisse = lebensereignisseLaden(db, ein.personId)
-  const sterbeort = sterbeortBauen(db, aussagen, lebensereignisse.tod)
+  const lebensdaten = lebensdatenBauen(db, aussagen, lebensereignisse, ortsnamenKarte)
+  const sterbeort = sterbeortAusLebensdaten(lebensdaten)
   const { namen, nameVorhanden } = namenLaden(db, ein.personId)
   const warnungen = warnungenBauen(db, ein.personId)
 
@@ -966,6 +1049,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
     sterbeort,
+    lebensdaten,
     warnungen,
     offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
     kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, nameVorhanden, lebensereignisse),
