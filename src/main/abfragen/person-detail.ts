@@ -27,6 +27,7 @@ import { hatAnzeigetext } from '../../core/name/anzeigename'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
 import { ereignisHatDatum, istRueckfallEreignis } from '../../core/person/lebensdaten'
+import { ORTS_PRAEDIKATE } from '../../core/person/ort-wert'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
@@ -312,7 +313,7 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
  * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst als Person auf — seit den
  * Vorarbeiten zu AP-1.30 (PR 4a) mit dem Kern-Anzeigenamen (`personennamenLaden`), nicht mehr über
  * `person_flach`; die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
-const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'todesort', 'wohnort'])
+const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(ORTS_PRAEDIKATE)
 
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`
  * tragen ihren Wert im Datum, nicht in `wert_text`) vor `wert_zahl` vor `wert_ref_id` — Letzteres
