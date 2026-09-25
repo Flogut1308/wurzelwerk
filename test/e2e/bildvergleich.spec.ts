@@ -727,5 +727,69 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         }
       })
     })
+
+    // AP-1.30 PR 9b (E6, Design-Review der Feldwarnungs-Zuordnung U-1.34-C2b-feldzuordnung): der
+    // Reiter „Person" mit einer Feldwarnung (Feldzustand „Widerspruch"). Walter trägt keine; eine
+    // eigene Person entsteht über die Befehle (kein geschütztes Hilfsmittel): verstorben, Geburt 1901,
+    // Tod 1899 → „Tod vor Geburt" am Todesdatum. Steht NACH allen Walter-Motiven, damit Liste und
+    // Profil dort unverändert bleiben. Nur Standarddichte (Motiv prüft den Zustand, nicht die Dichte).
+    test.describe('Reiter Person mit Feldwarnung — hell und dunkel', () => {
+      let editor: ReturnType<typeof fenster.getByRole>
+
+      test.beforeAll(async () => {
+        test.setTimeout(60_000)
+        const personId = await fenster.evaluate(async () => {
+          const person = await window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, geschlecht: 'M', lebend_status: 'verstorben' })
+          if (!person.ok) throw new Error('person.anlegen fehlgeschlagen')
+          const daten: unknown = person.daten
+          if (typeof daten !== 'object' || daten === null || !('id' in daten) || typeof daten.id !== 'string') throw new Error('person.anlegen ohne id')
+          return daten.id
+        })
+        const befehle = await fenster.evaluate(async (id) => {
+          const ergebnisse = [
+            await window.wurzelwerk.aufrufen('befehl:name.anlegen', { personId: id, typ: 'geburtsname', vornamen: 'Wilhelm', nachname: 'Warnke' }),
+            await window.wurzelwerk.aufrufen('befehl:aussage.anlegen', {
+              subjektTyp: 'person',
+              subjektId: id,
+              praedikat: 'geburtsdatum',
+              datum: { kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: '1901' },
+              konfidenz: 3,
+            }),
+            await window.wurzelwerk.aufrufen('befehl:aussage.anlegen', {
+              subjektTyp: 'person',
+              subjektId: id,
+              praedikat: 'todesdatum',
+              datum: { kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: '1899' },
+              konfidenz: 2,
+            }),
+          ]
+          return ergebnisse.map((ergebnis) => ergebnis.ok)
+        }, personId)
+        expect(befehle).toEqual([true, true, true])
+
+        const zeile = fenster.locator('[role="row"]:has-text("Wilhelm Warnke")')
+        await zeile.click()
+        const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+        await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+        editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+        const todesdatum = editor.locator('#person-bearbeiten-feld-todesdatum')
+        await expect(todesdatum).toHaveValue('1899')
+        await expect(editor.getByText('Tod vor Geburt', { exact: true })).toBeVisible()
+        // Die Tod-Gruppe liegt bei 600 px Höhe unter dem sichtbaren Bereich des Formulars.
+        await todesdatum.scrollIntoViewIfNeeded()
+      })
+
+      test.afterAll(async () => {
+        await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+        await expect(editor).toHaveCount(0)
+      })
+
+      for (const theme of ['hell', 'dunkel'] as const) {
+        test(`person-bearbeiten-warnungen-${theme}-standard`, async () => {
+          await expect(editor.getByText('Tod vor Geburt', { exact: true })).toBeVisible()
+          await aufnahme(fenster, `person-bearbeiten-warnungen-${theme}-standard`, theme, 'standard')
+        })
+      }
+    })
   })
 })

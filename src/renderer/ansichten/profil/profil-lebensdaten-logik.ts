@@ -42,7 +42,9 @@ export interface GrunddatenZeilenEingabe {
   readonly lebendStatus: PersonDetailKopf['lebend_status']
 }
 
-function ereignisWert(eintrag: PersonDetailLebensdatum): EreignisWert {
+/** Anzeigewert eines Ereignis-Lebensdatums — geteilt mit dem Reiter „Person" (AP-1.30 PR 9b,
+ * `reiter-person-logik.ts`), damit Lesesicht und Editor denselben Wert zeigen. */
+export function ereignisWert(eintrag: PersonDetailLebensdatum): EreignisWert {
   if (eintrag.angabe === 'geburtsort' || eintrag.angabe === 'todesort') {
     return eintrag.ort_name === null ? { art: 'unbekannt' } : { art: 'text', text: eintrag.ort_name }
   }
@@ -58,9 +60,13 @@ function ereignisSichtbar(eintrag: PersonDetailLebensdatum, lebendStatus: Grundd
   return lebensdatumArt(eintrag.angabe) === 'geburt' || lebendStatus === 'verstorben'
 }
 
+/** Beschriftung „aus dem Ereignis Geburt/Tod" je Angabe (auch für den Reiter „Person"). */
+export function herkunftSchluesselFuer(angabe: PersonDetailLebensdatum['angabe']): HerkunftSchluessel {
+  return lebensdatumArt(angabe) === 'geburt' ? 'herkunft_ereignis_geburt' : 'herkunft_ereignis_tod'
+}
+
 function ereignisZeile(eintrag: PersonDetailLebensdatum): GrunddatenZeile {
-  const herkunftSchluessel: HerkunftSchluessel = lebensdatumArt(eintrag.angabe) === 'geburt' ? 'herkunft_ereignis_geburt' : 'herkunft_ereignis_tod'
-  return { art: 'ereignis', praedikat: eintrag.angabe, herkunftSchluessel, wert: ereignisWert(eintrag) }
+  return { art: 'ereignis', praedikat: eintrag.angabe, herkunftSchluessel: herkunftSchluesselFuer(eintrag.angabe), wert: ereignisWert(eintrag) }
 }
 
 /** Code-Unit-Vergleich — dieselbe Ordnung wie `ORDER BY praedikat` (SQLite BINARY) der Abfrage. */

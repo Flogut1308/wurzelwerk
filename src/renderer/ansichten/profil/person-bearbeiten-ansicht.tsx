@@ -23,10 +23,10 @@ import { useEditorSpeicherstatus, type EditorSpeicherstatus } from './editor-spe
 import { tabImContainerHalten } from './fokusfang'
 import { darfKontexttasteWirken } from './kontexttaste-logik'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
-import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
+import { ReiterPerson } from './reiter-person'
 import { ProfilFehler, ProfilLaedt } from './profil-zustaende'
 import './profil-ansicht.css'
 import './person-bearbeiten-ansicht.css'
@@ -68,7 +68,7 @@ function reiterAusDomId(domId: string): ReiterId | undefined {
  *
  * **Vorläufige Anordnung (CLAUDE.md §14):** die bisherigen Bearbeiten-Abschnitte stehen in ihrem
  * Reiter — Namen → „Namen", Geschlecht/Platzhalter → „Person", Ereignisse → „Leben", Notiz →
- * „Notizen". Beziehungen, Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
+ * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Beziehungen, Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
  * Inhalts-PRs einen Leerzustand mit Verweis auf das Profil, das diese Angaben weiter zeigt.
  *
  * **Fokus:** beim Öffnen auf den aktiven Reiter (Pfeiltasten wechseln sofort); die Rückgabe an die
@@ -208,7 +208,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
                   tabIndex={0}
                   className="wz-person-bearbeiten__inhalt"
                 >
-                  <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} />
+                  <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
                 </div>
               </div>
               <EditorRechteSpalte personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
@@ -295,12 +295,14 @@ interface ReiterInhaltProps {
   readonly reiter: ReiterId
   readonly personId: string
   readonly daten: PersonDetailAus
+  /** Sprung in einen Reiter und auf ein Feld (dieselbe Mechanik wie die rechte Spalte). */
+  readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
 }
 
-function ReiterInhalt({ reiter, personId, daten }: ReiterInhaltProps) {
+function ReiterInhalt({ reiter, personId, daten, aufSprung }: ReiterInhaltProps) {
   switch (reiter) {
     case 'person':
-      return <GrunddatenBearbeitenAbschnitt personId={personId} kopf={daten.kopf} />
+      return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} />
     case 'namen':
       return <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
     case 'leben':

@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react'
+import { useId, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { OrtTreffer } from '../../shared/schemata/ort-suche'
 import { Eingabekoerper } from './eingabekoerper'
@@ -40,6 +40,14 @@ export interface OrtsfeldProps {
   /** Zugänglicher Name des Suchfelds, wenn keine sichtbare Beschriftung danebensteht (ADR-011). */
   readonly ariaLabel?: string
   readonly id?: string
+  /** Das Suchfeld wird verlassen (Blur) — AP-1.30 PR 9b: ohne Auswahl stellt der Aufrufer den
+   * gespeicherten Ort wieder her. Ein Klick auf einen Vorschlag löst keinen Blur aus (`mousedown`
+   * mit `preventDefault`). */
+  readonly aufVerlassen?: () => void
+  /** Widerspruch-Hinweis zu diesem Feld (D7/E6), per `aria-describedby` mit dem Suchfeld verknüpft.
+   * Ohne Suche steht er direkt unter dem Eingabekörper; während der Suche bleibt die
+   * Vorschlagsliste unmittelbar am Feld (Combobox-Muster) und der Hinweis folgt ihr. */
+  readonly hinweis?: ReactNode
 }
 
 /**
@@ -77,8 +85,13 @@ export function Ortsfeld({
   gesperrt = false,
   ariaLabel,
   id,
+  aufVerlassen,
+  hinweis,
 }: OrtsfeldProps) {
   const { t } = useTranslation('felder')
+  const erzeugteId = useId()
+  const hinweisId = `${id ?? erzeugteId}-hinweis`
+  const hatHinweis = hinweis !== undefined && hinweis !== null
 
   const zeilen: readonly OrtsfeldZeile[] = zustand === 'bereit' ? ortsfeldZeilenAufbauen(treffer) : []
   const listboxId = id === undefined ? 'wz-ortsfeld-liste' : `${id}-liste`
@@ -132,6 +145,8 @@ export function Ortsfeld({
         ariaLabel={ariaLabel ?? t('ortsfeld_beschriftung')}
         gesperrt={gesperrt}
         {...(id === undefined ? {} : { id })}
+        {...(aufVerlassen === undefined ? {} : { aufVerlassen })}
+        {...(hatHinweis ? { beschreibungId: hinweisId } : {})}
       />
       {zustand === 'leer' ? null : (
         <ul id={listboxId} className="wz-ortsfeld__liste" role="listbox" aria-label={t('ortsfeld_beschriftung')}>
@@ -176,6 +191,11 @@ export function Ortsfeld({
           ))}
         </ul>
       )}
+      {hatHinweis ? (
+        <div id={hinweisId} className="wz-ortsfeld__widerspruch">
+          {hinweis}
+        </div>
+      ) : null}
     </div>
   )
 }

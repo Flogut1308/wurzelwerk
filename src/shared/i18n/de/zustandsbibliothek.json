@@ -83,6 +83,8 @@
   "beispiel_vorschlagskarte_inhalt": "Geburt: etwa 1890, Marienwerder",
   "beispiel_personenwaehler_beschriftung": "Vater suchen",
   "beispiel_ortsfeld_beschriftung": "Geburtsort suchen",
+  "beispiel_ortsfeld_widerspruch": "Ereignis liegt außerhalb der Existenz des Ortes",
+  "beispiel_datumsfeld_widerspruch": "Tod vor Geburt",
   "beispiel_archivfeld_beschriftung": "Archiv suchen",
   "beispiel_reiterleiste_beschriftung": "Bereiche der Person",
   "beispiel_reiterleiste_fokus": "Fokus auf dem aktiven Reiter (Anschauung wie Fokusring)",

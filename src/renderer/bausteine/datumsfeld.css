@@ -50,3 +50,10 @@
   align-items: center;
   gap: var(--wz-abstand-8);
 }
+
+/* Widerspruch-Hinweis direkt unter dem Eingabekörper (Design-Review E6) — dieselben Tokens wie die
+ * Feldwarnungen im Reiter Person, keine neue Farbe. */
+.wz-datumsfeld__hinweis {
+  font: var(--wz-schrift-hilfe);
+  color: var(--wz-status-fehler-text);
+}
