@@ -12,6 +12,7 @@
 // 3. Sonst `null`.
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingaben.
+import { traegtOrt } from './ort-wert'
 
 export interface SterbeortAussage {
   readonly id: string
@@ -47,7 +48,7 @@ export function sterbeortAufloesen(
   aussagen: readonly SterbeortAussage[],
   todEreignisse: readonly SterbeortTodEreignis[],
 ): Sterbeort | null {
-  const mitWert = aussagen.filter((a) => a.wertRefId !== null || a.wertText !== null).sort(nachId)
+  const mitWert = aussagen.filter(traegtOrt).sort(nachId)
   const gewaehlt = mitWert.find((a) => a.istBevorzugt) ?? mitWert[0]
   if (gewaehlt !== undefined) {
     return { herkunft: 'aussage', ortId: gewaehlt.wertRefId, aussageId: gewaehlt.id }

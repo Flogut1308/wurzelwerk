@@ -21,6 +21,7 @@
 // einzelnen Beleg, weil sie in `docs/schema/0002_kern.sql` Spalten von `aussage` sind, nicht von
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
+import { KERNANGABE_IDS } from '../../core/person/kernangaben'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../core/person/reiter'
@@ -253,6 +254,20 @@ export interface PersonDetailOffenerPunkt {
   readonly bezug_id: string | null
 }
 
+/** Kernangaben-Ids (AP-1.34 PR-D, ADR-031) aus der Kern-Konstante — eine Quelle der Werte. */
+export const KernangabeIdEnum = z.enum(KERNANGABE_IDS)
+
+/** Vollständigkeitsgrad (AP-1.34 PR-D, ADR-031, Vorgaben §3.1 „68 % der Kernangaben belegt"):
+ * berechnet NUR in `kernangabenAuswerten` (src/core/person/kernangaben.ts), nichts gespeichert.
+ * `fehlend` ist eine Multimenge in fester Reihenfolge (`elternteil` kann zweimal vorkommen),
+ * `fehlend.length === anwendbar - erfuellt`. Kein Text — der Renderer übersetzt die Ids. */
+export interface PersonDetailKernangaben {
+  readonly erfuellt: number
+  readonly anwendbar: number
+  readonly prozent: number
+  readonly fehlend: readonly z.infer<typeof KernangabeIdEnum>[]
+}
+
 /** Antwort von `abfrage:person.detail`.
  *
  * `namen` (AP-1.14a): read-only Ergänzung für die Kernfelder-Schreibmaske (§2 Auftrag „prüfe, ob
@@ -275,4 +290,6 @@ export interface PersonDetailAus {
   /** AP-1.34 PR-C2c: offene Punkte in Regelreihenfolge (`OFFENE_PUNKTE_REGELN`), nur aktive Regeln.
    * Leer für Platzhalter (§31 U-1.34-C2-O4). */
   readonly offene_punkte: readonly PersonDetailOffenerPunkt[]
+  /** AP-1.34 PR-D: Vollständigkeitsgrad; `null` = Platzhalter (A-17, E7 — ausgenommen, nicht 0 %). */
+  readonly kernangaben: PersonDetailKernangaben | null
 }
