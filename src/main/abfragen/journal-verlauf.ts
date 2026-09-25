@@ -130,65 +130,229 @@ function fallAusdruck(zweige: readonly (readonly [string, string])[]): string {
 
 const GESUNDHEIT_LISTE = GESUNDHEIT_TABELLEN.map((tabelle) => `'${bezeichner(tabelle)}'`).join(', ')
 
-/** Der gemeinsame Schluss beider Fassungen: Anzahl + Gesundheitsmerker je ausgewählter Transaktion. */
-const AUSGABE = `
+/** `(tabelle, bezug)` aller Einträge der Liste, einmal geprüft. */
+const EINTRAEGE: readonly (readonly [string, Personenbezug])[] = Object.entries(PERSONENBEZUG).flatMap(([tabelle, bezug]) =>
+  bezug === undefined ? [] : [[bezeichner(tabelle), bezug] as const],
+)
+
+/** Polymorphe Einträge mit Anker (heute: `aussage`) — sie stellen ihren Anker auch bei mittelbarem
+ * Treffer bereit (zweite Stufe, s. `bereitAusdruck`). */
+const SUBJEKT_MIT_ANKER: readonly { readonly tabelle: string; readonly bezug: Personenbezug; readonly typSpalte: string; readonly anker: Anker }[] =
+  EINTRAEGE.flatMap(([tabelle, bezug]) =>
+    bezug.art === 'subjekt' && bezug.anker !== undefined ? [{ tabelle, bezug, typSpalte: bezug.typSpalte, anker: bezug.anker }] : [],
+  )
+
+/** Spalte `bereit`: der Anker, den eine polymorphe Zeile bereitstellt — unabhängig davon, ob und wie
+ * sie die Person trifft. Nur so findet ein Beleg an einer Aussage über ein Ereignis oder eine
+ * Diagnose der Person zu ihr (`aussage_zitat` → `aussage` → `beteiligung`/`diagnose`). */
+function bereitAusdruck(bezug: Personenbezug): string | null {
+  if (bezug.art !== 'subjekt' || bezug.anker === undefined) return null
+  return `'${bezeichner(bezug.anker.art)}|' || ${bildWert(bezug.anker.spalte)}`
+}
+
+/** Spalte `gesund` (M-08): 1, wenn die Zeile selbst Gesundheitsdatum ist — Zeile einer
+ * Gesundheitstabelle oder polymorphe Zeile mit einer Gesundheitstabelle als Subjekttyp. Beide
+ * Zeilenbilder zählen (ein geänderter Subjekttyp verbirgt eher zu viel als zu wenig). Zeilen, die
+ * erst über einen Anker Gesundheitsdatum sind (`aussage_zitat`), bestimmt `fein` (s. `gesundSchluss`).
+ * `instr()` auf `"<typSpalte>":"<tabelle>"` ist der billige Vorfilter (Begründung wie bei
+ * `verweisAusdruck`: `":"` ohne Rückstrich steht nur zwischen Schlüssel und Wert) — das JSON wird
+ * nur bei einem Vorfiltertreffer gelesen. */
+function gesundAusdruck(): string {
+  const zweige: (readonly [string, string])[] = []
+  for (const [tabelle, bezug] of EINTRAEGE) {
+    if (GESUNDHEIT_TABELLEN.some((g) => g === tabelle)) {
+      zweige.push([tabelle, '1'])
+    } else if (bezug.art === 'subjekt') {
+      const typ = bezeichner(bezug.typSpalte)
+      const vorfilter = ['a.wert_neu_json', 'a.wert_alt_json']
+        .flatMap((bild) => GESUNDHEIT_TABELLEN.map((g) => `instr(${bild}, '"${typ}":"${bezeichner(g)}"') > 0`))
+        .join(' OR ')
+      const pruefung = ['a.wert_neu_json', 'a.wert_alt_json'].map((bild) => `json_extract(${bild}, '$.${typ}') IN (${GESUNDHEIT_LISTE})`).join(' OR ')
+      zweige.push([tabelle, `CASE WHEN ${vorfilter} THEN ${pruefung} END`])
+    }
+  }
+  return `COALESCE(${fallAusdruck(zweige)}, 0)`
+}
+
+/** Ankerarten, die eine Gesundheitszeile bereitstellen kann: die der Gesundheitstabellen und die der
+ * polymorphen Einträge (deren Subjekt eine Diagnose sein kann). */
+const GESUND_ANKERARTEN: ReadonlySet<string> = new Set([
+  ...EINTRAEGE.flatMap(([tabelle, bezug]) =>
+    GESUNDHEIT_TABELLEN.some((g) => g === tabelle) && bezug.art !== 'ueber' && bezug.anker !== undefined ? [bezug.anker.art] : [],
+  ),
+  ...SUBJEKT_MIT_ANKER.map(({ anker }) => anker.art),
+])
+
+/** Mittelbare Einträge, deren Verweis auf eine Gesundheitszeile zeigen kann (heute: `aussage_zitat`). */
+const GESUND_VERWEIS_TABELLEN = EINTRAEGE.flatMap(([tabelle, bezug]) =>
+  bezug.art === 'ueber' && GESUND_ANKERARTEN.has(bezug.ankerart) ? [tabelle] : [],
+)
+
+/** Anker von Gesundheitszeilen, die HEUTE bestehen (Ersatz für Zeilen ohne Journal, s. `heutigerAnker`). */
+const GESUND_ANKER_HEUTE = SUBJEKT_MIT_ANKER.map(
+  ({ tabelle, typSpalte, anker }) =>
+    `SELECT '${bezeichner(anker.art)}|' || ${bezeichner(anker.spalte)} FROM ${tabelle} WHERE ${bezeichner(typSpalte)} IN (${GESUNDHEIT_LISTE})`,
+)
+
+function tabellenListe(tabellen: readonly string[]): string {
+  return tabellen.length === 0 ? 'NULL' : tabellen.map((tabelle) => `'${bezeichner(tabelle)}'`).join(', ')
+}
+
+/** Tabellen, deren Zeilen Gesundheitsdaten sein KÖNNEN. Eine Transaktion mit einer Zeile außerhalb
+ * dieser Liste ist nie „nur Gesundheit“ — für sie wird kein Zeilenbild gelesen (Vorstufe `grob`). */
+const GESUND_KANDIDATEN = EINTRAEGE.flatMap(([tabelle, bezug]) =>
+  GESUNDHEIT_TABELLEN.some((g) => g === tabelle) || bezug.art === 'subjekt' || GESUND_VERWEIS_TABELLEN.includes(tabelle) ? [tabelle] : [],
+)
+
+/**
+ * Der gemeinsame Schluss beider Fassungen: Anzahl + Gesundheitsmerker je ausgewählter Transaktion.
+ * `zeilen(r, tx, tabelle)` sind die Journalzeilen der ausgewählten Transaktionen (`r` =
+ * `aenderung.rowid`), `verweis` der Ausdruck für den Verweis einer Kandidatenzeile (über `q` =
+ * `zeilen`, `a` = ihre `aenderung`-Zeile), `bereit(r, bereit)` die Journalzeilen polymorpher
+ * Einträge mit ihrem Anker.
+ * Zweistufig, damit ein großer Import nicht jedes Zeilenbild liest: `grob` zählt je Transaktion alle
+ * Zeilen und die Zeilen aus `GESUND_KANDIDATEN`; nur wo beide gleich sind, liest `fein` die
+ * Zeilenbilder (über die rowid, ein Schlüsselzugriff je Zeile; `CROSS JOIN` hält SQLite davon ab,
+ * stattdessen `aenderung` ganz zu durchlaufen). `gesund_anker` (Anker von
+ * Gesundheitszeilen: Aussage an einer Diagnose) wird nur für die Verweise dieser Transaktionen
+ * gebildet.
+ */
+function gesundSchluss(zeilen: string, verweis: string, bereit: string): string {
+  return `
+  grob AS (
+    SELECT tx, COUNT(*) AS anzahl, SUM(tabelle IN (${tabellenListe(GESUND_KANDIDATEN)})) AS kandidaten
+    FROM ${zeilen}
+    GROUP BY tx
+  ),
+  kandidat AS MATERIALIZED (
+    SELECT q.r, q.tx, q.tabelle, ${verweis} AS verweis
+    FROM ${zeilen} q JOIN grob ON grob.tx = q.tx CROSS JOIN aenderung a ON a.rowid = q.r
+    WHERE grob.anzahl = grob.kandidaten
+  ),
+  gesund_anker(schluessel) AS (
+    SELECT b.bereit FROM ${bereit} b CROSS JOIN aenderung a ON a.rowid = b.r
+    WHERE b.bereit IN (SELECT verweis FROM kandidat WHERE tabelle IN (${tabellenListe(GESUND_VERWEIS_TABELLEN)}))
+      AND ${gesundAusdruck()} = 1
+    ${GESUND_ANKER_HEUTE.map((teil) => `UNION ${teil}`).join('\n    ')}
+  ),
+  fein AS (
+    SELECT k.tx,
+           SUM(CASE WHEN ${gesundAusdruck()} = 1 THEN 1
+                    WHEN k.tabelle IN (${tabellenListe(GESUND_VERWEIS_TABELLEN)}) AND k.verweis IN (SELECT schluessel FROM gesund_anker) THEN 1
+                    ELSE 0 END) AS gesundheit
+    FROM kandidat k CROSS JOIN aenderung a ON a.rowid = k.r
+    GROUP BY k.tx
+  ),
+  zahl AS (
+    SELECT grob.tx, grob.anzahl, COALESCE(fein.gesundheit, 0) AS gesundheit
+    FROM grob LEFT JOIN fein ON fein.tx = grob.tx
+  )
   SELECT auswahl.id, auswahl.zeitpunkt, auswahl.art, auswahl.status, auswahl.beschreibung,
          auswahl.rueckgaengig_moeglich,
          COALESCE(zahl.anzahl, 0) AS anzahl,
          COALESCE(zahl.anzahl > 0 AND zahl.anzahl = zahl.gesundheit, 0) AS nur_gesundheit
   FROM auswahl LEFT JOIN zahl ON zahl.tx = auswahl.id
   ORDER BY auswahl.lfd DESC`
+}
 
-/** Ohne Filter (S-16): die letzten `grenze` Transaktionen wie bisher, dazu `anzahl`. `aenderung`
- * hat keinen Index auf `transaktion_id` — EIN Durchlauf über `aenderung`, gefiltert auf die
- * (höchstens `grenze`) ausgewählten Transaktionen. */
-export const SQL_ALLE = `
+function baueSqlAlle(): string {
+  const verweise: (readonly [string, string])[] = []
+  for (const [tabelle, bezug] of EINTRAEGE) {
+    const verweisSql = GESUND_VERWEIS_TABELLEN.includes(tabelle) ? verweisAusdruck(bezug) : null
+    if (verweisSql !== null) verweise.push([tabelle, verweisSql])
+  }
+  const bereit: (readonly [string, string])[] = []
+  for (const { tabelle, bezug } of SUBJEKT_MIT_ANKER) {
+    const bereitSql = bereitAusdruck(bezug)
+    if (bereitSql !== null) bereit.push([tabelle, bereitSql])
+  }
+  // `zeilen` liest `aenderung` einmal, gefiltert auf die (höchstens `grenze`) ausgewählten
+  // Transaktionen (`aenderung` hat keinen Index auf `transaktion_id`). `bereit` liest das Journal
+  // ein zweites Mal — nur, wenn eine „nur Gesundheit“-Kandidatin eine Verweis-Tabelle
+  // (`aussage_zitat`) enthält, und JSON nur für die Zeilen, auf die diese verweisen (der Anker einer
+  // Aussage ist ihre `id` = `aenderung.datensatz_id`).
+  return `
   WITH auswahl AS (
     SELECT id, zeitpunkt, art, status, beschreibung, rueckgaengig_moeglich, lfd
     FROM transaktion
     ORDER BY lfd DESC
     LIMIT @grenze
   ),
-  zahl AS (
-    SELECT transaktion_id AS tx, COUNT(*) AS anzahl, SUM(tabelle IN (${GESUNDHEIT_LISTE})) AS gesundheit
-    FROM aenderung
-    WHERE transaktion_id IN (SELECT id FROM auswahl)
-    GROUP BY transaktion_id
-  )${AUSGABE}`
+  zeilen AS MATERIALIZED (
+    SELECT a.rowid AS r, a.transaktion_id AS tx, a.tabelle AS tabelle
+    FROM aenderung a
+    WHERE a.transaktion_id IN (SELECT id FROM auswahl)
+  ),
+  bereit AS (
+    SELECT a.rowid AS r, ${fallAusdruck(bereit)} AS bereit
+    FROM aenderung a
+    WHERE a.tabelle IN (${tabellenListe(SUBJEKT_MIT_ANKER.map(({ tabelle }) => tabelle))})
+  ),${gesundSchluss('zeilen', fallAusdruck(verweise), 'bereit')}`
+}
+
+/** Ohne Filter (S-16): die letzten `grenze` Transaktionen wie bisher, dazu `anzahl`. */
+export const SQL_ALLE = baueSqlAlle()
+
+/** Ankerschlüssel der zweiten Stufe aus der HEUTIGEN Tabelle: polymorphe Zeilen (Aussagen), deren
+ * Subjekt ein Anker der ersten Stufe ist — über den Index auf `(subjekt_typ, subjekt_id)`. */
+function heutigerAnkerZweiteStufe(tabelle: string, bezug: Personenbezug, anker: Anker): string | null {
+  if (bezug.art !== 'subjekt') return null
+  const trenner = "instr(k.schluessel, '|')"
+  return `SELECT '${bezeichner(anker.art)}|' || t.${bezeichner(anker.spalte)} FROM anker_eins k JOIN ${bezeichner(tabelle)} t
+      ON t.${bezeichner(bezug.typSpalte)} = substr(k.schluessel, 1, ${trenner} - 1) AND t.${bezeichner(bezug.idSpalte)} = substr(k.schluessel, ${trenner} + 1)`
+}
 
 function baueSqlPerson(): string {
   const treffer: (readonly [string, string])[] = []
   const verweise: (readonly [string, string])[] = []
+  const bereit: (readonly [string, string])[] = []
   const heutigeAnker: string[] = []
-  for (const [tabelle, bezug] of Object.entries(PERSONENBEZUG)) {
-    if (bezug === undefined) continue
+  const heutigeAnkerZwei: string[] = []
+  for (const [tabelle, bezug] of EINTRAEGE) {
     const trefferSql = trefferAusdruck(bezug)
     if (trefferSql !== null) treffer.push([tabelle, trefferSql])
     const verweisSql = verweisAusdruck(bezug)
     if (verweisSql !== null) verweise.push([tabelle, verweisSql])
+    const bereitSql = bereitAusdruck(bezug)
+    if (bereitSql !== null) bereit.push([tabelle, bereitSql])
     if (bezug.art !== 'ueber' && bezug.anker !== undefined) {
       const heute = heutigerAnker(tabelle, bezug, bezug.anker)
       if (heute !== null) heutigeAnker.push(heute)
+      const heuteZwei = heutigerAnkerZweiteStufe(tabelle, bezug, bezug.anker)
+      if (heuteZwei !== null) heutigeAnkerZwei.push(heuteZwei)
     }
   }
 
-  // `z` liest `aenderung` GENAU EINMAL (MATERIALIZED) und trägt je Zeile nur, was danach gebraucht
-  // wird: Transaktion, Tabelle, Treffer (+ bereitgestellter Anker), Verweis auf einen Anker.
+  // `z` ist der einzige Durchlauf über `aenderung` (MATERIALIZED; `fein`/`gesund_anker` greifen
+  // danach nur noch über die rowid auf einzelne Zeilen zu). Je Zeile nur, was danach gebraucht wird:
+  // rowid, Transaktion, Tabelle, Treffer (+ bereitgestellter Anker), Verweis auf einen Anker, der
+  // bei mittelbarem Treffer bereitgestellte Anker. Anker in zwei Stufen: `anker_eins` aus direkten
+  // Treffern (+ heutiger Bestand), `anker` zusätzlich die Anker der Zeilen, die auf einen Anker der
+  // ersten Stufe verweisen (Aussage über ein Ereignis/eine Diagnose der Person → deren Belege).
   // `betroffen` ist ein UNION — jede Transaktions-ID genau einmal —, `auswahl` verbindet über den
   // Primärschlüssel `transaktion.id` (kein korreliertes EXISTS je Transaktion). Der letzte Zweig von
   // `betroffen` deckt den Großimport ohne Journal ab (ADR-019): dessen Herkunft steht nur in der
-  // heutigen `import_herkunft`.
+  // heutigen `import_herkunft` (ein Durchlauf über diese Tabelle, sie hat keinen Index auf
+  // `datensatz_id`; ebenso ein Durchlauf über `transaktion` für `auswahl`).
   return `
   WITH z AS MATERIALIZED (
-    SELECT a.transaktion_id AS tx,
+    SELECT a.rowid AS r,
+           a.transaktion_id AS tx,
            a.tabelle AS tabelle,
            ${fallAusdruck(treffer)} AS treffer,
-           ${fallAusdruck(verweise)} AS verweis
+           ${fallAusdruck(verweise)} AS verweis,
+           ${fallAusdruck(bereit)} AS bereit
     FROM aenderung a
   ),
-  anker(schluessel) AS (
+  anker_eins(schluessel) AS MATERIALIZED (
     SELECT treffer FROM z WHERE treffer <> ''
     ${heutigeAnker.map((teil) => `UNION ${teil}`).join('\n    ')}
+  ),
+  anker(schluessel) AS MATERIALIZED (
+    SELECT schluessel FROM anker_eins
+    UNION
+    SELECT z.bereit FROM z JOIN anker_eins ON anker_eins.schluessel = z.verweis WHERE z.bereit IS NOT NULL
+    ${heutigeAnkerZwei.map((teil) => `UNION ${teil}`).join('\n    ')}
   ),
   betroffen(id) AS (
     SELECT tx FROM z WHERE treffer IS NOT NULL
@@ -205,12 +369,12 @@ function baueSqlPerson(): string {
     ORDER BY t.lfd DESC
     LIMIT @grenze
   ),
-  zahl AS (
-    SELECT tx, COUNT(*) AS anzahl, SUM(tabelle IN (${GESUNDHEIT_LISTE})) AS gesundheit
-    FROM z
-    WHERE tx IN (SELECT id FROM auswahl)
-    GROUP BY tx
-  )${AUSGABE}`
+  zeilen AS MATERIALIZED (
+    SELECT r, tx, tabelle, verweis FROM z WHERE tx IN (SELECT id FROM auswahl)
+  ),
+  bereit AS (
+    SELECT r, bereit FROM z WHERE bereit IS NOT NULL
+  ),${gesundSchluss('zeilen', 'q.verweis', 'bereit')}`
 }
 
 /** Mit Filter `personId` — einmal beim Laden erzeugt, rein aus Konstanten (s. o.). */

@@ -263,6 +263,22 @@ const FAELLE: readonly Fall[] = [
     },
   },
   {
+    tabelle: 'aussage_zitat',
+    weg: 'aussage_id → Anker aussage → Anker ereignis (zweite Stufe: Beleg an einer Existenz-Aussage)',
+    aendern: (u, p) => {
+      const zitat = zitatAnlegen(u)
+      const ereignis = ereignisDerPerson(u, p)
+      const aussage = neueId()
+      u.roh(() =>
+        u.sql("INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, konfidenz) VALUES (@id, 'ereignis', @e, 'existenz', 'ja', 3)", {
+          id: aussage,
+          e: ereignis,
+        }),
+      )
+      return u.roh(() => u.sql('INSERT INTO aussage_zitat (aussage_id, zitat_id) VALUES (@a, @z)', { a: aussage, z: zitat }))
+    },
+  },
+  {
     tabelle: 'negativbefund',
     weg: 'gesuchte_person_id',
     aendern: (u, p) =>

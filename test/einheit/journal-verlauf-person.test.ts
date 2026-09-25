@@ -24,7 +24,7 @@ import { importAusfuehren } from '../../src/main/befehle/import-ausfuehren'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { neueId } from '../../src/main/id'
-import { armieren, entwaffnen } from '../../src/main/journal/kontext'
+import { armieren, entwaffnen, journalAn, journalAus } from '../../src/main/journal/kontext'
 import { naechsteLfd, transaktionAnlegen } from '../../src/main/repositories/journal-repo'
 
 const BEISPIEL_IMPORT = fileURLToPath(new URL('../../fixtures/import/v1/gueltig/eigenstaendig/beispiel-1-einfach.json', import.meta.url))
@@ -210,6 +210,28 @@ describe('journalVerlauf() mit Filter personId (AP-1.30 PR 5)', () => {
     }
   })
 
+  it('findet einen Beleg an der Existenz-Aussage eines Ereignisses der Person — auch nachdem die Aussage gelöscht ist', () => {
+    const { db, anna, bernd, geburtAnna } = baueBestand()
+    try {
+      const existenz = db
+        .prepare<{ readonly e: string }, { readonly id: string }>("SELECT id FROM aussage WHERE subjekt_typ = 'ereignis' AND subjekt_id = @e")
+        .get({ e: geburtAnna })
+      if (existenz === undefined) throw new Error('Existenz-Aussage fehlt.')
+      const quelle = fuehreAus(db, 'quelle.anlegen', { typ: 'kirchenbuch', titel: 'KB' }).id
+      const zitat = fuehreAus(db, 'zitat.anlegen', { quelleId: quelle, seite: '3' }).id
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: existenz.id, zitatId: zitat })
+      const tx = letzteTx(db)
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      rohTransaktion(db, 'journal.aussage_geloescht', () => {
+        db.prepare<{ readonly a: string }>('DELETE FROM aussage WHERE id = @a').run({ a: existenz.id })
+      })
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(tx)
+    } finally {
+      db.close()
+    }
+  })
+
   it('findet einen Beleg (aussage_zitat) an einer Aussage der Person', () => {
     const { db, anna, bernd } = baueBestand()
     try {
@@ -298,6 +320,164 @@ describe('journalVerlauf() mit Filter personId (AP-1.30 PR 5)', () => {
         expect(text).not.toContain('diagnose')
       }
       expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(txId)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('journalVerlauf() — Aussagen und Belege an Gesundheitsdaten (M-08, hueter #155)', () => {
+  // `aussage.subjekt_typ` erlaubt seit 0005 auch 'diagnose'/'risikofaktor' (Belege an
+  // Gesundheitsdaten, ADR-026). Solche Aussagen und ihre `aussage_zitat`-Zeilen gehören über
+  // `diagnose.person_id`/`risikofaktor.person_id` zur Person UND sind selbst Gesundheitsdaten.
+  const GEHEIM = 'Diabetes mellitus'
+
+  function gesundheitAnlegen(db: Database.Database, tabelle: 'diagnose' | 'risikofaktor', personId: string): string {
+    const id = neueId()
+    rohTransaktion(db, `journal.${tabelle}_angelegt`, () => {
+      if (tabelle === 'diagnose') {
+        db.prepare<{ readonly id: string; readonly p: string; readonly b: string }>(
+          "INSERT INTO diagnose (id, person_id, kategorie, bezeichnung) VALUES (@id, @p, 'stoffwechsel', @b)",
+        ).run({ id, p: personId, b: GEHEIM })
+      } else {
+        db.prepare<{ readonly id: string; readonly p: string; readonly b: string }>(
+          "INSERT INTO risikofaktor (id, person_id, art, detail) VALUES (@id, @p, 'rauchen', @b)",
+        ).run({ id, p: personId, b: GEHEIM })
+      }
+    })
+    return id
+  }
+
+  function aussageAn(db: Database.Database, subjektTyp: string, subjektId: string): string {
+    const id = neueId()
+    db.prepare<{ readonly id: string; readonly t: string; readonly s: string; readonly w: string }>(
+      "INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, konfidenz) VALUES (@id, @t, @s, 'befund', @w, 3)",
+    ).run({ id, t: subjektTyp, s: subjektId, w: GEHEIM })
+    return id
+  }
+
+  function zitatAnlegen(db: Database.Database): string {
+    const quelle = fuehreAus(db, 'quelle.anlegen', { typ: 'kirchenbuch', titel: 'KB' }).id
+    return fuehreAus(db, 'zitat.anlegen', { quelleId: quelle, seite: '12' }).id
+  }
+
+  function belegAn(db: Database.Database, aussageId: string, zitatId: string): void {
+    db.prepare<{ readonly a: string; readonly z: string }>('INSERT INTO aussage_zitat (aussage_id, zitat_id) VALUES (@a, @z)').run({ a: aussageId, z: zitatId })
+  }
+
+  /** Die Transaktion steht im Verlauf der Person und ohne Filter — jeweils ohne Beschreibung und ohne Inhalt. */
+  function erwarteVerborgen(db: Database.Database, personId: string, txId: string): void {
+    for (const verlauf of [journalVerlauf(db, 50, personId), journalVerlauf(db, 50)]) {
+      const eintrag = verlauf.find((e) => e.id === txId)
+      expect(eintrag).toMatchObject({ beschreibung: null, anzahl: aenderungAnzahl(db, txId) })
+      const text = JSON.stringify(eintrag)
+      expect(text).not.toContain('Diabetes')
+      expect(text).not.toContain('journal.')
+    }
+  }
+
+  it.each(['diagnose', 'risikofaktor'] as const)('eine Aussage an %s gehört zur Person und erscheint ohne Beschreibung', (tabelle) => {
+    const { db, anna, bernd } = baueBestand()
+    try {
+      const ziel = gesundheitAnlegen(db, tabelle, anna)
+      const tx = rohTransaktion(db, 'journal.aussage_angelegt', () => aussageAn(db, tabelle, ziel))
+      expect(aenderungAnzahl(db, tx)).toBe(1)
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(tx)
+      erwarteVerborgen(db, anna, tx)
+    } finally {
+      db.close()
+    }
+  })
+
+  it.each(['diagnose', 'risikofaktor'] as const)('ein Beleg (aussage_zitat) an einer Aussage an %s gehört zur Person und erscheint ohne Beschreibung', (tabelle) => {
+    const { db, anna, bernd } = baueBestand()
+    try {
+      const ziel = gesundheitAnlegen(db, tabelle, anna)
+      let aussage = ''
+      rohTransaktion(db, 'journal.aussage_angelegt', () => {
+        aussage = aussageAn(db, tabelle, ziel)
+      })
+      const zitat = zitatAnlegen(db)
+      const tx = rohTransaktion(db, 'journal.beleg_angelegt', () => belegAn(db, aussage, zitat))
+      expect(aenderungAnzahl(db, tx)).toBe(1)
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(tx)
+      erwarteVerborgen(db, anna, tx)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('eine Transaktion aus Diagnose, Aussage und Beleg an ihr ist reine Gesundheit (ohne Beschreibung)', () => {
+    const { db, anna } = baueBestand()
+    try {
+      const zitat = zitatAnlegen(db)
+      const tx = rohTransaktion(db, 'journal.diagnose_angelegt', () => {
+        const diagnose = neueId()
+        db.prepare<{ readonly id: string; readonly p: string }>("INSERT INTO diagnose (id, person_id, kategorie) VALUES (@id, @p, 'krebs')").run({ id: diagnose, p: anna })
+        belegAn(db, aussageAn(db, 'diagnose', diagnose), zitat)
+      })
+      expect(aenderungAnzahl(db, tx)).toBe(3)
+      erwarteVerborgen(db, anna, tx)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Gegenprobe: ein Beleg an einer gewöhnlichen Aussage der Person behält seine Beschreibung', () => {
+    const { db, anna } = baueBestand()
+    try {
+      const zitat = zitatAnlegen(db)
+      let aussage = ''
+      rohTransaktion(db, 'journal.aussage_angelegt', () => {
+        aussage = aussageAn(db, 'person', anna)
+      })
+      const tx = rohTransaktion(db, 'journal.beleg_angelegt', () => belegAn(db, aussage, zitat))
+      expect(journalVerlauf(db, 50, anna).find((e) => e.id === tx)?.beschreibung).toBe('journal.beleg_angelegt')
+      expect(journalVerlauf(db, 50).find((e) => e.id === tx)?.beschreibung).toBe('journal.beleg_angelegt')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nach dem Löschen der Diagnose (samt Aussage) bleibt der frühere Beleg der Person zugeordnet und verborgen (Zeilenbild)', () => {
+    const { db, anna, bernd } = baueBestand()
+    try {
+      const diagnose = gesundheitAnlegen(db, 'diagnose', anna)
+      let aussage = ''
+      rohTransaktion(db, 'journal.aussage_angelegt', () => {
+        aussage = aussageAn(db, 'diagnose', diagnose)
+      })
+      const zitat = zitatAnlegen(db)
+      const tx = rohTransaktion(db, 'journal.beleg_angelegt', () => belegAn(db, aussage, zitat))
+      rohTransaktion(db, 'journal.diagnose_geloescht', () => {
+        db.prepare<{ readonly a: string }>('DELETE FROM aussage WHERE id = @a').run({ a: aussage })
+        db.prepare<{ readonly d: string }>('DELETE FROM diagnose WHERE id = @d').run({ d: diagnose })
+      })
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(tx)
+      erwarteVerborgen(db, anna, tx)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Diagnose und Aussage ohne Journal (Großimport, ADR-019): ein späterer Beleg findet über den heutigen Bestand zur Person und bleibt verborgen', () => {
+    const { db, anna, bernd } = baueBestand()
+    try {
+      // Journal aus wie beim Großimport: Diagnose und Aussage stehen nur im heutigen Bestand.
+      const diagnose = neueId()
+      journalAus(db, 'Test: Bestand wie nach einem Großimport ohne Journal (ADR-019)')
+      db.prepare<{ readonly id: string; readonly p: string }>("INSERT INTO diagnose (id, person_id, kategorie) VALUES (@id, @p, 'krebs')").run({ id: diagnose, p: anna })
+      const aussage = aussageAn(db, 'diagnose', diagnose)
+      journalAn(db)
+      const zitat = zitatAnlegen(db)
+      const tx = rohTransaktion(db, 'journal.beleg_angelegt', () => belegAn(db, aussage, zitat))
+      expect(aenderungAnzahl(db, tx)).toBe(1)
+      expect(ids(journalVerlauf(db, 50, anna))).toContain(tx)
+      expect(ids(journalVerlauf(db, 50, bernd))).not.toContain(tx)
+      erwarteVerborgen(db, anna, tx)
     } finally {
       db.close()
     }

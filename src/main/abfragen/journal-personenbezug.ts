@@ -19,9 +19,11 @@ import type { JournalisierteTabelle } from '../journal/journalisierung'
  * bewusst deckungsgleich mit `aussage.subjekt_typ`/`medium_zuordnung.subjekt_typ`/
  * `feld_wert.subjekt_typ` (docs/schema/0005_import_luecken.sql): eine Aussage über ein Ereignis
  * der Person (z. B. die Existenz-Aussage der Geburt) findet so über denselben Anker zur Person wie
- * eine Änderung der `ereignis`-Zeile selbst.
+ * eine Änderung der `ereignis`-Zeile selbst. `diagnose`/`risikofaktor` sind seit 0005 ebenfalls
+ * Subjekttypen einer Aussage (Belege an Gesundheitsdaten, ADR-026) — eine solche Aussage findet über
+ * `diagnose.person_id`/`risikofaktor.person_id` zur Person (M-08, hueter #155).
  */
-export type Ankerart = 'name' | 'ereignis' | 'elternschaft' | 'partnerschaft' | 'aussage'
+export type Ankerart = 'name' | 'ereignis' | 'elternschaft' | 'partnerschaft' | 'aussage' | 'diagnose' | 'risikofaktor'
 
 /** Eine personenbezogene Zeile stellt einen Anker bereit: den Wert von `spalte` unter `art`. */
 export interface Anker {
@@ -33,13 +35,18 @@ export type Personenbezug =
   /** Die Person-ID steht in einer dieser Spalten. */
   | { readonly art: 'spalten'; readonly spalten: readonly [string, ...string[]]; readonly anker?: Anker }
   /** Polymorph (E-7): `typSpalte = 'person'` und `idSpalte` = Person-ID; andere Subjekttypen
-   * finden über `Ankerart` zur Person, sofern der Typ eine Ankerart ist. */
+   * finden über `Ankerart` zur Person, sofern der Typ eine Ankerart ist. Der `anker` wird auch dann
+   * bereitgestellt, wenn die Zeile nur mittelbar trifft (zweite Stufe: Beleg an einer Aussage über
+   * ein Ereignis oder eine Diagnose der Person). */
   | { readonly art: 'subjekt'; readonly typSpalte: string; readonly idSpalte: string; readonly anker?: Anker }
   /** Mittelbar: `spalte` verweist auf einen Anker der Art `ankerart`. */
   | { readonly art: 'ueber'; readonly ankerart: Ankerart; readonly spalte: string }
 
-/** Gesundheitsdaten (M-08, DSGVO Art. 9): eine Transaktion, die NUR diese Tabellen ändert, erscheint
- * im Verlauf ohne Inhalt (keine Beschreibung) — nur Art, Zeit, Anzahl. */
+/** Gesundheitsdaten (M-08, DSGVO Art. 9): eine Transaktion, die NUR Gesundheitsdaten ändert, erscheint
+ * im Verlauf ohne Inhalt (keine Beschreibung) — nur Art, Zeit, Anzahl. Gesundheitsdaten sind die
+ * Zeilen dieser Tabellen, die Zeilen mit einem dieser Tabellennamen als Subjekttyp (`aussage` an einer
+ * Diagnose, `import_herkunft` einer Diagnose) und die Zeilen, die auf den Anker einer solchen Zeile
+ * verweisen (`aussage_zitat` an einer Aussage über eine Diagnose). */
 export const GESUNDHEIT_TABELLEN = ['diagnose', 'risikofaktor'] as const satisfies readonly JournalisierteTabelle[]
 
 export const PERSONENBEZUG: Readonly<Partial<Record<JournalisierteTabelle, Personenbezug>>> = {
@@ -60,8 +67,8 @@ export const PERSONENBEZUG: Readonly<Partial<Record<JournalisierteTabelle, Perso
   medium_zuordnung: { art: 'subjekt', typSpalte: 'subjekt_typ', idSpalte: 'subjekt_id' },
   medium_region: { art: 'spalten', spalten: ['person_id'] },
   aufgabe: { art: 'spalten', spalten: ['person_id'] },
-  diagnose: { art: 'spalten', spalten: ['person_id'] },
-  risikofaktor: { art: 'spalten', spalten: ['person_id'] },
+  diagnose: { art: 'spalten', spalten: ['person_id'], anker: { art: 'diagnose', spalte: 'id' } },
+  risikofaktor: { art: 'spalten', spalten: ['person_id'], anker: { art: 'risikofaktor', spalte: 'id' } },
   feld_wert: { art: 'subjekt', typSpalte: 'subjekt_typ', idSpalte: 'subjekt_id' },
   interview_sitzung: { art: 'spalten', spalten: ['informant_person_id'] },
   // `datensatz_typ` ist der Zieltabellenname (src/main/import/ausfuehrung.ts); 'person' trifft
