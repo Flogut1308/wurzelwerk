@@ -19,6 +19,8 @@ export interface EingabekoerperProps {
   readonly id?: string
   /** Zugänglicher Name, wenn keine sichtbare Beschriftung danebensteht (vom Aufrufer über i18n). */
   readonly ariaLabel?: string
+  /** Das Feld wird verlassen (Blur) — AP-1.30: der Autosave schreibt dann sofort. */
+  readonly aufVerlassen?: () => void
 }
 
 /**
@@ -37,6 +39,7 @@ export function Eingabekoerper({
   name,
   id,
   ariaLabel,
+  aufVerlassen,
 }: EingabekoerperProps) {
   return (
     <input
@@ -51,6 +54,7 @@ export function Eingabekoerper({
       name={name}
       id={id}
       aria-label={ariaLabel}
+      onBlur={aufVerlassen}
     />
   )
 }

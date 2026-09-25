@@ -48,7 +48,9 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf, notiz }: Grundda
     (wert) => ({ wert, beschriftung: t(platzhalterGrundSchluessel(wert)) }),
   )
 
-  const [notizEntwurf, setNotizEntwurf] = useEntwurfMitVerzoegertemCommit(notiz ?? '', (wert) => feldSetzen.mutate(personFeldNotizEin(personId, wert)))
+  const [notizEntwurf, setNotizEntwurf, notizSofortSchreiben] = useEntwurfMitVerzoegertemCommit(notiz ?? '', (wert) =>
+    feldSetzen.mutate(personFeldNotizEin(personId, wert)),
+  )
 
   return (
     <section className="wz-profil-ansicht__abschnitt" aria-labelledby="wz-profil-bearbeiten-grunddaten-titel">
@@ -65,7 +67,7 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf, notiz }: Grundda
       </Formularfeld>
 
       <Formularfeld beschriftung={t('notiz_beschriftung')}>
-        <Langtextfeld wert={notizEntwurf} aufAenderung={setNotizEntwurf} />
+        <Langtextfeld wert={notizEntwurf} aufAenderung={setNotizEntwurf} aufVerlassen={notizSofortSchreiben} />
       </Formularfeld>
 
       {/* Wie `Umschalter`+`Text` in `filterleiste.tsx`: KEIN `<label>`-Wrapper — `Kontrollkaestchen`
