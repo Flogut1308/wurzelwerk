@@ -51,11 +51,11 @@ import type {
   PersonDetailWarnung,
 } from '../../shared/schemata/person-detail'
 import { datensatzExistiert } from '../repositories/basis'
+import { anzeigenamenLaden } from './_anzeigenamen'
 import { personUmfeldLaden, vorfahrenKantenLaden } from './_person-umfeld'
 
 interface KopfZeile {
   readonly person_id: string
-  readonly anzeigename: string
   readonly konfidenz_min: number | null
   readonly ist_platzhalter: number
   readonly privat: number
@@ -75,7 +75,7 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
     .prepare<
       { readonly personId: string },
       KopfZeile
-    >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.konfidenz_min AS konfidenz_min,
+    >(`SELECT pf.person_id AS person_id, pf.konfidenz_min AS konfidenz_min,
               p.ist_platzhalter AS ist_platzhalter, p.privat AS privat, p.notiz AS notiz,
               p.geschlecht AS geschlecht, p.platzhalter_grund AS platzhalter_grund, p.kennung AS kennung,
               p.lebend_status AS lebend_status
@@ -310,8 +310,9 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
  * „wert_ref zeigt auf einen Ort oder eine Person" — E-7, polymorph, bewusst KEIN `wert_ref_typ`,
  * `docs/schema/0002_kern.sql` Z.323, darum PRÄDIKATGESTEUERT statt spaltengesteuert aufgelöst).
  * Bugfix (vorbestehend, `docs/80_Offene_Fragen.md` §22 U-1.25-profil-fixture): jedes andere
- * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst gegen `person_flach` auf —
- * die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
+ * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst als Person auf — seit den
+ * Vorarbeiten zu AP-1.30 (PR 4a) mit dem Kern-Anzeigenamen (`personennamenLaden`), nicht mehr über
+ * `person_flach`; die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
 const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(ORTS_PRAEDIKATE)
 
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`
@@ -361,20 +362,19 @@ function ortsnamenLaden(db: Database.Database, ortIds: readonly string[]): Reado
   return karte
 }
 
-/** Anzeigename je `person.id` — `person_flach.anzeigename` (dieselbe abgeleitete Spalte wie
- * überall sonst in dieser Abfrage, kein Neuaufbau des bevorzugten Namens hier). */
+/** Anzeigename je `person.id` für Personen-Wertverweise — aus dem Kern (`anzeigenamenLaden`,
+ * Vorarbeiten AP-1.30 PR 4a), wie Kopf und Beziehungen. Ein Verweis auf eine Person, die es nicht
+ * (mehr) gibt, fehlt in der Karte (Rohwert bleibt sichtbar, s. `aussageWertAnzeige`). */
 function personennamenLaden(db: Database.Database, personIds: readonly string[]): ReadonlyMap<string, string> {
-  const karte = new Map<string, string>()
-  if (personIds.length === 0) return karte
-  const { platzhalter, parameter } = inKlausel(personIds)
-  const zeilen = db
-    .prepare<
-      Record<string, string>,
-      { readonly person_id: string; readonly anzeigename: string }
-    >(`SELECT person_id AS person_id, anzeigename AS anzeigename FROM person_flach WHERE person_id IN (${platzhalter})`)
-    .all(parameter)
-  for (const zeile of zeilen) karte.set(zeile.person_id, zeile.anzeigename)
-  return karte
+  if (personIds.length === 0) return new Map()
+  const vorhanden = new Set(
+    db
+      .prepare<{ readonly ids: string }, { readonly id: string }>(`SELECT id AS id FROM person WHERE id IN (SELECT value FROM json_each(@ids))`)
+      .all({ ids: JSON.stringify([...new Set(personIds)]) })
+      .map((zeile) => zeile.id),
+  )
+  const namen = anzeigenamenLaden(db, [...vorhanden])
+  return new Map([...vorhanden].map((id) => [id, namen.get(id) ?? ''] as const))
 }
 
 /** Alle `wert_ref_id`-Werte der Aussagen, deren Prädikat auf die gewünschte Zielart zeigt
@@ -563,9 +563,9 @@ function sterbeortBauen(db: Database.Database, aussagen: readonly AussageZeile[]
   return { herkunft: sterbeort.herkunft, ort_id: sterbeort.ortId, ort_name: ortName, aussage_id: sterbeort.aussageId }
 }
 
+/** Ohne Namen: der sichtbare Name kommt aus dem Kern (`anzeigenamenLaden`, Vorarbeiten AP-1.30 PR 4a). */
 interface ElternKindZeile {
   readonly person_id: string
-  readonly anzeigename: string
   readonly kantentyp: string
   readonly ist_platzhalter: number
 }
@@ -582,10 +582,9 @@ function elternLaden(db: Database.Database, personId: string): readonly ElternZe
     .prepare<
       { readonly personId: string },
       ElternZeile
-    >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
+    >(`SELECT el.elternteil_id AS person_id, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
               p.geschlecht AS geschlecht, el.id AS kante_id
        FROM elternschaft el
-       JOIN person_flach pf ON pf.person_id = el.elternteil_id
        JOIN person p ON p.id = el.elternteil_id
        WHERE el.kind_id = @personId`,
     )
@@ -597,9 +596,8 @@ function kinderLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.kind_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
+    >(`SELECT el.kind_id AS person_id, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM elternschaft el
-       JOIN person_flach pf ON pf.person_id = el.kind_id
        JOIN person p ON p.id = el.kind_id
        WHERE el.elternteil_id = @personId`,
     )
@@ -611,11 +609,10 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT pp2.person_id AS person_id, pf.anzeigename AS anzeigename, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
+    >(`SELECT pp2.person_id AS person_id, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
        FROM partnerschaft_person pp1
        JOIN partnerschaft_person pp2 ON pp2.partnerschaft_id = pp1.partnerschaft_id AND pp2.person_id <> pp1.person_id
        JOIN partnerschaft part ON part.id = pp1.partnerschaft_id
-       JOIN person_flach pf ON pf.person_id = pp2.person_id
        JOIN person p ON p.id = pp2.person_id
        WHERE pp1.person_id = @personId`,
     )
@@ -632,16 +629,17 @@ function beziehungsZeilenLaden(db: Database.Database, personId: string): Beziehu
   return { eltern: elternLaden(db, personId), kinder: kinderLaden(db, personId), partner: partnerLaden(db, personId) }
 }
 
-function beziehungenBauen(zeilen: BeziehungsZeilen): readonly PersonDetailBeziehung[] {
+function beziehungenBauen(zeilen: BeziehungsZeilen, anzeigenamen: ReadonlyMap<string, string>): readonly PersonDetailBeziehung[] {
   const beziehungen: PersonDetailBeziehung[] = []
+  const nameVon = (personId: string): string => anzeigenamen.get(personId) ?? ''
   for (const zeile of zeilen.eltern) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of zeilen.kinder) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   for (const zeile of zeilen.partner) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: zeile.anzeigename, richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
   }
   return beziehungen
 }
@@ -935,6 +933,14 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const personennamenKarte = personennamenLaden(db, wertRefIdsFuer(aussagen, false))
 
   const beziehungsZeilen = beziehungsZeilenLaden(db, ein.personId)
+  // Sichtbare Namen von Person und direkten Verwandten in EINEM Ladevorgang aus dem Kern
+  // (Vorarbeiten AP-1.30 PR 4a; `person_flach.anzeigename` nur noch für Sortierung/Suche).
+  const anzeigenamen = anzeigenamenLaden(db, [
+    ein.personId,
+    ...beziehungsZeilen.eltern.map((z) => z.person_id),
+    ...beziehungsZeilen.kinder.map((z) => z.person_id),
+    ...beziehungsZeilen.partner.map((z) => z.person_id),
+  ])
   const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
   const lebensereignisse = lebensereignisseLaden(db, ein.personId)
   const sterbeort = sterbeortBauen(db, aussagen, lebensereignisse.tod)
@@ -944,7 +950,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   return {
     kopf: {
       person_id: kopfZeile.person_id,
-      anzeigename: kopfZeile.anzeigename,
+      anzeigename: anzeigenamen.get(kopfZeile.person_id) ?? '',
       konfidenz_min: kopfZeile.konfidenz_min,
       ist_platzhalter: kopfZeile.ist_platzhalter === 1,
       privat: kopfZeile.privat === 1,
@@ -956,7 +962,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     namen,
     grunddaten,
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
-    beziehungen: beziehungenBauen(beziehungsZeilen),
+    beziehungen: beziehungenBauen(beziehungsZeilen, anzeigenamen),
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
     sterbeort,

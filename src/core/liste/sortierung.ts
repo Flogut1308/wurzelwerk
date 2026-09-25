@@ -44,21 +44,34 @@ export function sortierschluessel(name: string): string {
   return ausgeschrieben.toLowerCase()
 }
 
+/** Vorberechneter Vergleichsschlüssel eines Namens (Vorarbeiten AP-1.30, PR 4a: die Personenliste
+ * berechnet ihn einmal je Zeile statt bei jedem Vergleich neu — dieselbe Ordnung wie
+ * `vergleicheNamen`, nur ohne die wiederholte Zeichenumschreibung im Sortierlauf). */
+export interface NamensSortierschluessel {
+  readonly schluessel: string
+  readonly umlaut: boolean
+}
+
+export function namensSortierschluessel(name: string): NamensSortierschluessel {
+  return { schluessel: sortierschluessel(name), umlaut: enthaeltUmlaut(name) }
+}
+
+/** Vergleich zweier vorberechneter Schlüssel — die Regel von `vergleicheNamen`. */
+export function vergleicheNamensschluessel(a: NamensSortierschluessel, b: NamensSortierschluessel): number {
+  if (a.schluessel !== b.schluessel) {
+    return a.schluessel < b.schluessel ? -1 : 1
+  }
+  if (a.umlaut !== b.umlaut) {
+    return a.umlaut ? -1 : 1
+  }
+  return 0
+}
+
 /**
  * Vergleicht zwei Namen nach Entscheidung A: primär nach `sortierschluessel()`, bei Gleichstand
  * nach dem Umlaut-Tie-Break (Umlautform < ausgeschriebene Form). Liefert `< 0`, `0` oder `> 0` wie
  * ein gewöhnlicher `Array.prototype.sort`-Vergleicher.
  */
 export function vergleicheNamen(a: string, b: string): number {
-  const schluesselA = sortierschluessel(a)
-  const schluesselB = sortierschluessel(b)
-  if (schluesselA !== schluesselB) {
-    return schluesselA < schluesselB ? -1 : 1
-  }
-  const umlautA = enthaeltUmlaut(a)
-  const umlautB = enthaeltUmlaut(b)
-  if (umlautA !== umlautB) {
-    return umlautA ? -1 : 1
-  }
-  return 0
+  return vergleicheNamensschluessel(namensSortierschluessel(a), namensSortierschluessel(b))
 }
