@@ -17,11 +17,11 @@
 //     laden Formen in unterschiedlicher Reihenfolge).
 // „Hat Anzeigetext" (Stufe 2) entscheidet `anzeigetextVon` — die Textregel hat unten ihre eigene
 // Property, hier wird nur die Auswahl geprüft (§32 V-4b-orakel). Zweiseitig testlokal geklammert: eine
-// Form ohne jedes Nicht-Leerzeichen hat nie Text; ein nicht leerer Vorname, Vatersname oder Nachname
-// gibt immer Text (diese Arten verlieren beim Zusammensetzen keinen Wert). Dazwischen (Formen, deren
-// Text nur aus Titel, Präfix, Zusatz oder `originalText` käme) gilt allein `anzeigetextVon`, dessen
-// Text-Vertrag die Property unten prüft; ob das Verwerfen weiterer Titel/Präfixe/Zusätze gewollt ist,
-// ist offen (§32 V-4b-ersterwert). Umschriften aus reinen Leerzeichen erzeugt der allgemeine
+// Form ohne jedes Nicht-Leerzeichen hat nie Text; ein nicht leerer Bestandteil JEDER Art gibt immer
+// Text, ohne Bestandteil mit Text ein nicht leerer `originalText` ebenso. Seit der Eigentümer-
+// Entscheidung E2 vom 25.09.2026 (§32 V-4b-ersterwert: alle Titel, Präfixe und Zusätze erscheinen;
+// Produktivfix #141) verliert keine Art beim Zusammensetzen einen Wert — die beiden Klammern treffen
+// sich, der frühere Graubereich ist leer. Umschriften aus reinen Leerzeichen erzeugt der allgemeine
 // Generator kaum — sie haben einen eigenen Fall (hueter #136, H1).
 // Die vorübergehende Einengung des Generators aus PR 1 (#134, §32 V-4b-einengung) ist aufgehoben.
 import { describe, expect, it } from 'vitest'
@@ -113,9 +113,12 @@ function sichtbarLeer(form: AnzeigeForm): boolean {
   return form.teile.every((t) => t.wert.trim() === '') && (form.originalText ?? '').trim() === ''
 }
 
-/** Obere Klammer: ein nicht leerer Vorname, Vatersname oder Nachname gibt immer Text. */
+/** Obere Klammer: ein nicht leerer Bestandteil jeder Art gibt immer Text (seit E2, #141, auch Titel,
+ * Präfix und Zusatz); ohne einen solchen Bestandteil ein nicht leerer `originalText`. Zusammen mit
+ * `sichtbarLeer` lückenlos: jede Form ist genau eines von beiden. */
 function sicherMitText(form: AnzeigeForm): boolean {
-  return form.teile.some((t) => (t.art === 'vorname' || t.art === 'vatersname' || t.art === 'nachname') && t.wert.trim() !== '')
+  if (form.teile.some((t) => t.wert.trim() !== '')) return true
+  return (form.originalText ?? '').trim() !== ''
 }
 
 const wunschArbitrary: fc.Arbitrary<string | undefined> = fc.option(fc.constantFrom(...SPRACHEN), { nil: undefined })
@@ -205,36 +208,43 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
 
   // AP-1.33 PR-B-Folgepunkt (hueter E1/E2): die Stufen-Property oben prüft nur `quelle`/`formId`.
   // Hier der Text-Vertrag der gewählten Form: „Titel Vornamen Vatersname Präfix Nachname Zusatz",
-  // Vornamen und Vatersnamensteile je in `sortierIndex`-Reihenfolge, Leerzeichen-getrennt; ohne
-  // Bestandteile `original_text` (oder ''). Die Bestandteile kommen in zufälliger Reihenfolge an (die
-  // DB liefert keine garantierte). `vatersname` gehört seit der Eigentümer-Entscheidung vom 25.09.2026
-  // (docs/80 §30 U-1.33-vatersname-anzeige: Lücke, zwischen Vornamen und Nachname) in den Text;
-  // Produktivfix in PR #127, diese Erweiterung als eigener Prüfpfad-PR danach (ADR-025). Grenzen dieser Property (hueter #110, H3): nur
-  // nicht-leere Wörter ohne Leerzeichen, höchstens EIN Titel/Präfix/Nachname/Zusatz — das Verwerfen
-  // weiterer Titel/Präfixe/Zusätze (`ersterWert`), das Verketten mehrerer Nachnamen (`verkette`) und
-  // der Filter auf reine Leerzeichen-Segmente bleiben hier ungeprüft. Der Rückfall ohne Bestandteile
-  // hat einen eigenen Fall unten (sonst erreicht ihn der Generator praktisch nie, hueter #110, A1).
+  // jede Art in `sortierIndex`-Reihenfolge, Leerzeichen-getrennt; ohne Bestandteile `original_text`
+  // (oder ''). Die Bestandteile kommen in zufälliger Reihenfolge an (die DB liefert keine garantierte).
+  // `vatersname` gehört seit der Eigentümer-Entscheidung vom 25.09.2026 (docs/80 §30
+  // U-1.33-vatersname-anzeige) zwischen Vornamen und Nachname (Produktivfix #127, Property #129).
+  // Seit E2 (docs/80 §32 V-4b-ersterwert, Produktivfix #141, diese Erweiterung als eigener
+  // Prüfpfad-PR danach, ADR-025): 0–3 Titel, Präfixe und Zusätze und 0–2 Nachnamen je Form, alle im
+  // Text; Bestandteile aus reinen Leerzeichen (auch Tab, NBSP, U+3000) an Titel/Vatersname/Präfix/
+  // Nachname/Zusatz zählen nicht (§32 V-E2-leer). Grenzen: `sortierIndex` je Art eindeutig (Gleichstand
+  // ist offene Frage U-E2-sortierindex); Vornamen nur aus Wörtern (dort zählt die Position für den
+  // Rufnamen, Leerzeichen-Vornamen bleiben ungeprüft). Der Rückfall ohne Bestandteile hat einen
+  // eigenen Fall unten (sonst erreicht ihn der Generator praktisch nie, hueter #110, A1).
   it('der Text der gewählten Form folgt „Titel Vornamen Vatersname Präfix Nachname Zusatz"', () => {
-    const wort = fc.stringMatching(/^[A-Za-zÄÖÜäöüß]{1,6}$/)
+    const wort = fc.stringMatching(/^[A-Za-zÄÖÜäöüß.]{1,6}$/).filter((w) => w.trim() !== '')
+    const leerraum = fc.constantFrom(' ', '\t', '\u00a0', '\u3000', '  ')
+    // Ein Eintrag ist ein Wort (erscheint im Text) oder reiner Leerraum (erscheint nicht).
+    const eintrag = fc.oneof({ arbitrary: wort, weight: 4 }, { arbitrary: leerraum, weight: 1 })
     const bestandteile = fc.record({
-      titel: fc.option(wort, { nil: null }),
+      titel: fc.array(eintrag, { maxLength: 3 }),
       vornamen: fc.array(wort, { maxLength: 3 }),
-      vatersname: fc.array(wort, { maxLength: 2 }),
-      praefix: fc.option(wort, { nil: null }),
-      nachname: fc.option(wort, { nil: null }),
-      suffix: fc.option(wort, { nil: null }),
+      vatersname: fc.array(eintrag, { maxLength: 2 }),
+      praefix: fc.array(eintrag, { maxLength: 3 }),
+      nachname: fc.array(eintrag, { maxLength: 2 }),
+      suffix: fc.array(eintrag, { maxLength: 3 }),
       originalText: fc.option(fc.string({ maxLength: 8 }), { nil: null }),
     })
+    const alsTeile = (art: NamePartArt, werte: readonly string[]): GeladenerTeil[] =>
+      werte.map((wert, index): GeladenerTeil => ({ art, wert, istRufname: false, sortierIndex: index }))
     fc.assert(
       fc.property(
         bestandteile.chain((b) => {
           const teile: GeladenerTeil[] = [
-            ...(b.titel === null ? [] : [{ art: 'titel' as const, wert: b.titel, istRufname: false, sortierIndex: 0 }]),
-            ...b.vornamen.map((wert, index): GeladenerTeil => ({ art: 'vorname', wert, istRufname: false, sortierIndex: index })),
-            ...b.vatersname.map((wert, index): GeladenerTeil => ({ art: 'vatersname', wert, istRufname: false, sortierIndex: index })),
-            ...(b.praefix === null ? [] : [{ art: 'praefix' as const, wert: b.praefix, istRufname: false, sortierIndex: 0 }]),
-            ...(b.nachname === null ? [] : [{ art: 'nachname' as const, wert: b.nachname, istRufname: false, sortierIndex: 0 }]),
-            ...(b.suffix === null ? [] : [{ art: 'suffix' as const, wert: b.suffix, istRufname: false, sortierIndex: 0 }]),
+            ...alsTeile('titel', b.titel),
+            ...alsTeile('vorname', b.vornamen),
+            ...alsTeile('vatersname', b.vatersname),
+            ...alsTeile('praefix', b.praefix),
+            ...alsTeile('nachname', b.nachname),
+            ...alsTeile('suffix', b.suffix),
           ]
           return fc.tuple(fc.constant(b), fc.shuffledSubarray(teile, { minLength: teile.length, maxLength: teile.length }))
         }),
@@ -248,12 +258,20 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
             originalText: b.originalText,
             teile,
           }
-          const segmente = [b.titel, ...b.vornamen, ...b.vatersname, b.praefix, b.nachname, b.suffix].filter((s): s is string => s !== null)
+          const mitText = (werte: readonly string[]): readonly string[] => werte.filter((w) => w.trim() !== '')
+          const segmente = [
+            ...mitText(b.titel),
+            ...b.vornamen,
+            ...mitText(b.vatersname),
+            ...mitText(b.praefix),
+            ...mitText(b.nachname),
+            ...mitText(b.suffix),
+          ]
           const erwartet = segmente.length > 0 ? segmente.join(' ') : (b.originalText ?? '')
           expect(anzeigenameFuer([form])?.text).toBe(erwartet)
         },
       ),
-      { seed: 20260924, numRuns: 1000 },
+      { seed: 20260925, numRuns: 1000 },
     )
   })
 
