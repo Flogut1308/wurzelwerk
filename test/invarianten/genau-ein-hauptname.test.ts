@@ -14,7 +14,7 @@
 //   2. nach JEDEM Schritt einer zufälligen Befehlsfolge über den echten Befehlsbus
 //      (`_befehlsfolge-generator.ts`, inkl. `name.*` und `hauptname.wechseln`) UND nach jedem
 //      Undo-Schritt zurück bis zum Anfang.
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import fc from 'fast-check'
 import type Database from 'better-sqlite3'
 
@@ -88,6 +88,12 @@ const ACHT_FIXTURE_NAMEN: readonly FixtureName[] = [
 const GENERATOR_KORPUS_SEED = 20260910
 
 describe('Invariante: genau ein Hauptname je Person (AP-1.33, 0006_namensformen.sql)', () => {
+  // AP-1.30 PR 4b: der Generator stellt `Date` über `vi.setSystemTime()` (Testuhr,
+  // `_befehlsfolge-koaleszenz.ts`) — danach wieder die echte Uhr.
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   describe('Fixture-Korpus', () => {
     it.each(ACHT_FIXTURE_NAMEN)('Fixture "%s": jede Person mit Formen hat genau eine bevorzugte', (name) => {
       const db = fixtureLaden(name)

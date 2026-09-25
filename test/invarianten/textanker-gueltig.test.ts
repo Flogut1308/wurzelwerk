@@ -41,7 +41,7 @@
 // nur über `elternschaft`/`partnerschaft`/`ereignis.anlegen`; eine Existenz-Aussage über eine Person
 // oder einen Namen gibt es in keinem Befehl — `feld` an diesen Subjekttypen ist damit über
 // `aussage_zitat.anlegen` nicht erreichbar (docs/80 §31 U-1.34-B2-feld-person-name).
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import fc from 'fast-check'
 
 // Mocks wie in `undo-bitgleich.test.ts` (s. dort).
@@ -287,6 +287,12 @@ interface Schritt {
 }
 
 describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, Nachtrag 24.09.2026; §31 E4/F1/F4)', () => {
+  // AP-1.30 PR 4b: der Generator stellt `Date` über `vi.setSystemTime()` (Testuhr,
+  // `_befehlsfolge-koaleszenz.ts`) — danach wieder die echte Uhr.
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   it('I1–I3 nach jedem Schritt einer Befehlsfolge, I1/I3 nach jedem Undo bis zum Anfang', () => {
     fc.assert(
       fc.property(befehlsfolgeArbitrary({ profil: 'beleg' }), (folge) => {
@@ -294,13 +300,46 @@ describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, N
         try {
           const zustand = neuerZustand()
           const schritte: Schritt[] = []
-          let oberstesVorher = undoZiel(db)?.id
+          // `schrittIds[i]`: Transaktion von Undo-Schritt i (wie `undo-bitgleich.test.ts`, Punkt 2).
+          const schrittIds: string[] = []
           let belege = belegeLesen(db)
           let transkripte = transkripteLesen(db)
           pruefeI1I3(belege, 'am Anfang')
 
+          // Undo-Schritte wie in `undo-bitgleich.test.ts`: neue oberste Transaktion = neuer Schritt;
+          // gleiche (No-op/Koaleszenz) = derselbe Schritt, Zweige kommen dazu; eine ältere (leerer
+          // Merge) = die Schritte danach sind verschwunden. Auch nach jedem Serienaufruf
+          // (`zwischenSchritt`, AP-1.30 PR 4b) — eine Serie kann mehrere Undo-Schritte erzeugen.
+          const schrittErfassen = (zweige: readonly Zweig[], belegeVorher: ReadonlyMap<string, BelegZeile>): void => {
+            const jetzt = undoZiel(db)?.id
+            const letzteId = schrittIds[schrittIds.length - 1]
+            if (jetzt === letzteId) {
+              if (jetzt === undefined) {
+                return
+              }
+              const letzter = schritte[schritte.length - 1]
+              if (letzter === undefined) {
+                throw new Error('unerreichbar: eine oberste Transaktion existiert, also auch ein Schritt.')
+              }
+              for (const z of zweige) {
+                letzter.zweige.add(z)
+              }
+              return
+            }
+            const frueher = jetzt === undefined ? -1 : schrittIds.indexOf(jetzt)
+            if (jetzt === undefined || frueher >= 0) {
+              schrittIds.length = frueher + 1
+              schritte.length = frueher + 1
+              return
+            }
+            schrittIds.push(jetzt)
+            schritte.push({ belegeVorher, zweige: new Set(zweige) })
+          }
+
           for (const [nr, aktion] of folge.entries()) {
-            const zweige = aktionAusfuehren(db, zustand, aktion)
+            // Eine Serie schreibt keine Belege: der Stand vor jedem ihrer Aufrufe ist `belege`.
+            const belegeVorAktion = belege
+            const zweige = aktionAusfuehren(db, zustand, aktion, () => schrittErfassen([], belegeVorAktion))
             for (const z of zweige) {
               zaehle(z)
             }
@@ -309,21 +348,7 @@ describe('Invariante: Textanker gültig, E4-stabil, feld passend (ADR-009 §2, N
             pruefeI1I3(belegeNachher, `nach Schritt ${nr} (${aktion.art})`)
             pruefeI2(belege, belegeNachher, transkripte, transkripteNachher, zustand.belegAenderung, zustand.belegAnlage, zweige)
 
-            // Undo-Schritte wie in `undo-bitgleich.test.ts`: neue oberste Transaktion = neuer
-            // Schritt; gleiche (No-op/Koaleszenz) = derselbe Schritt, Zweige kommen dazu.
-            const oberstesJetzt = undoZiel(db)?.id
-            if (oberstesJetzt !== oberstesVorher) {
-              schritte.push({ belegeVorher: belege, zweige: new Set(zweige) })
-            } else if (oberstesJetzt !== undefined) {
-              const letzter = schritte[schritte.length - 1]
-              if (letzter === undefined) {
-                throw new Error('unerreichbar: eine oberste Transaktion existiert, also auch ein Schritt.')
-              }
-              for (const z of zweige) {
-                letzter.zweige.add(z)
-              }
-            }
-            oberstesVorher = oberstesJetzt
+            schrittErfassen(zweige, belege)
             belege = belegeNachher
             transkripte = transkripteNachher
           }

@@ -11,7 +11,7 @@
 // - K2: Property über beliebige Befehlsfolgen: nach vollständiger Rücknahme bekommt eine neue
 //       Person eine Kennung, die größer ist als JEDE je in der Folge gesehene.
 // - K3: undo + redo von person.anlegen stellt dieselbe Kennung wieder her.
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
 
@@ -60,6 +60,12 @@ function alleKennungen(db: Db): readonly number[] {
 }
 
 describe('Invariante: eine vergebene Kennung wird nie neu vergeben (AP-1.34, E14)', () => {
+  // AP-1.30 PR 4b: der Generator stellt `Date` über `vi.setSystemTime()` (Testuhr,
+  // `_befehlsfolge-koaleszenz.ts`) — danach wieder die echte Uhr.
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   it('K1: person.anlegen + undo — kanonischer Abzug gleich dem Vorzustand, kennung_zaehler roh abweichend', () => {
     const db = neueTestDatenbank()
     try {
