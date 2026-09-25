@@ -41,6 +41,9 @@
 //   Originaltext), `aussage.aendern` mit Gewicht 1:1 `datumBeibehalten: true`. Erst damit gibt es
 //   Aussagen MIT Datum, an denen das Signal überhaupt etwas zu erhalten hat (Zweig
 //   `aussage.aendern.datumBeibehalten`, s. `aussageAendernAusfuehren`-Fall in `aktionAusfuehrenIn()`).
+//   Seit AP-1.30 PR 9a-b (docs/80 §33 V-130-9-d1-datumswert) zusätzlich die Datumsprädikate
+//   (`geburtsdatum`/`todesdatum`) NUR mit `datum`, samt Ablehnungswegen — eigene, in die Folge
+//   eingeflochtene Aktion `datumswert` (`_befehlsfolge-datumswert.ts`, s. `befehlsfolgeArbitrary()`).
 // - `elternschaft.anlegen`: die beiden Personen werden über `zweiVerschiedeneAusListe()`
 //   IMMER verschieden gewählt (keine Selbstkante) UND vorab mit der ECHTEN Produktivfunktion
 //   `wuerdeZyklusErzeugen()` (`src/core/graph/zyklus.ts`, dieselbe reine Funktion, die
@@ -285,6 +288,7 @@ import {
   type Zweig,
 } from './_befehlsfolge-beleg'
 
+import { datumswertAktionArbitrary, datumswertAusfuehren, type AktionDatumswert } from './_befehlsfolge-datumswert'
 import {
   befehlBeobachtet,
   feldAusRoh,
@@ -815,6 +819,7 @@ export type Aktion =
   | AktionNegativbefundAendern
   | AktionNegativbefundLoeschen
   | AktionSerie
+  | AktionDatumswert
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -1487,9 +1492,41 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
  * `aussageAendern` 149, `aussageZitatAnlegen` 23, `aussageZitatLoeschen` 3 echte Treffer (alle
  * über 0, `aussageZitatLoeschen` mit knappem, aber durch den festen Seed STABILEM Abstand).
  * Laufzeit lokal weiterhin deutlich unter dem 180s-`it()`-Timeout (s. `undo-bitgleich.test.ts`,
- * ~21s statt ~17s zuvor). */
+ * ~21s statt ~17s zuvor).
+ *
+ * AP-1.30 PR 9a-b (DATUMSWERT-EINFLECHTUNG, `_befehlsfolge-datumswert.ts`): die Datumswert-Aktionen
+ * stehen NICHT als weiteres Gewicht in `aktionArbitrary()`, sondern in einer zweiten, danach
+ * gezogenen Liste (`fc.tuple`), deren Einträge an einer mitgezogenen Stelle in die Hauptfolge
+ * eingeflochten werden (`einflechten()`). Grund, gemessen mit `{ seed: 20260910, numRuns: 300 }`:
+ * ein neues Gewicht verschiebt den Zufallsstrom JEDER Aktion — mit Gewicht 2 bzw. 1 fielen
+ * `partnerschaft.anlegen`/`.loeschen`, `nachruecken` bzw. `koaleszenz.verdichtet` unter ihre
+ * Schwellen, und jede Gewichtskorrektur hätte den Strom erneut verschoben. Weil fast-check die
+ * Elemente eines Tupels nacheinander aus demselben Strom zieht, ist die Hauptfolge jetzt Aktion für
+ * Aktion dieselbe wie ohne die Einflechtung; nur Aktionen, die ein Ziel aus `zustand.aussagen` wählen,
+ * sehen durch die zusätzlichen Datumsaussagen andere Ziele. Nur im Profil `bestand` (dort prüft
+ * `undo-bitgleich` die Datumswert-Zweige); das Profil `beleg` bleibt Zug um Zug unverändert.
+ * Seed, `numRuns` und die Länge der Hauptfolge bleiben unverändert. */
 export function befehlsfolgeArbitrary(optionen: { readonly profil: GeneratorProfil } = { profil: 'bestand' }): fc.Arbitrary<readonly Aktion[]> {
-  return fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
+  const hauptfolge = fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
+  if (optionen.profil === 'beleg') {
+    return hauptfolge
+  }
+  const einschuebe = fc.array(fc.tuple(fc.nat(), datumswertAktionArbitrary()), { minLength: DATUMSWERT_EINSCHUEBE_MIN, maxLength: DATUMSWERT_EINSCHUEBE_MAX })
+  return fc.tuple(hauptfolge, einschuebe).map(([folge, datums]) => einflechten(folge, datums))
+}
+
+/** Anzahl eingeflochtener Datumswert-Aktionen je Folge (s. „DATUMSWERT-EINFLECHTUNG"). */
+const DATUMSWERT_EINSCHUEBE_MIN = 3
+const DATUMSWERT_EINSCHUEBE_MAX = 6
+
+/** Fügt jede Datumswert-Aktion nacheinander an Stelle `stelle % (Länge + 1)` der wachsenden Folge ein —
+ * deterministisch, die relative Reihenfolge der Hauptfolge bleibt erhalten. */
+function einflechten(folge: readonly Aktion[], einschuebe: readonly (readonly [number, AktionDatumswert])[]): readonly Aktion[] {
+  const ergebnis: Aktion[] = [...folge]
+  for (const [stelle, aktion] of einschuebe) {
+    ergebnis.splice(stelle % (ergebnis.length + 1), 0, aktion)
+  }
+  return ergebnis
 }
 
 /** Ein angelegter Name — `personId` wird für die CASCADE-Bereinigung nach `person.loeschen`
@@ -2395,6 +2432,15 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         if (!datumGleich) {
           throw new Error('aussage.aendern mit datumBeibehalten hat die gespeicherte Datumsgruppe verändert (V-E5-erhalt).')
         }
+      }
+      return
+    }
+
+    case 'datumswert': {
+      // AP-1.30 PR 9a-b: s. `_befehlsfolge-datumswert.ts`.
+      const angelegt = datumswertAusfuehren(db, zustand, aktion, zweige)
+      if (angelegt !== undefined) {
+        zustand.aussagen.push({ id: angelegt.id, subjektTyp: 'person', subjektId: angelegt.subjektId, istExistenz: false })
       }
       return
     }

@@ -203,6 +203,22 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['koaleszenz.verdichtet', 6],
   ['koaleszenz.fensterAbgelaufen', 20],
   ['koaleszenz.feldUnpassend', 10],
+  // AP-1.30 PR 9a-b (Prüfpfad-Folge zu #163, docs/80 §33 V-130-9-d1-datumswert), am Datenbankergebnis
+  // gemessen (`_befehlsfolge-datumswert.ts`): Datumsaussage nur mit `datum` angelegt (Branch-Wert 57),
+  // per `aussage.aendern` ohne Wert mit `datum` geändert (59) bzw. dabei eine Wertspalte entfernt (71),
+  // mit `datumBeibehalten` ohne Wert, Datumsgruppe gleich (120); Ablehnungen mit bitgleichem Bestand:
+  // `datumBeibehalten` ohne gespeichertes Datum (56), Nicht-Datumsprädikat ohne Wert mit `datum` (46)
+  // bzw. mit `datumBeibehalten` (44), ohne Wert und Datum (39, Schema), Anlegen ohne Wert und Datum
+  // (54, Schema) — Schwelle je die Hälfte.
+  ['datumswert.anlegen.nurDatum', 28],
+  ['datumswert.aendern.nurDatum', 29],
+  ['datumswert.aendern.wertEntfernt', 35],
+  ['datumswert.aendern.beibehalten', 60],
+  ['ablehnung.datumswert.beibehaltenOhneDatum', 28],
+  ['ablehnung.datumswert.fremdMitDatum', 23],
+  ['ablehnung.datumswert.fremdBeibehalten', 22],
+  ['ablehnung.datumswert.fremdOhneWert', 19],
+  ['ablehnung.datumswert.anlegenOhneDatum', 27],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()

@@ -121,6 +121,19 @@ export type Zweig =
   | 'ablehnung.ankerErsatzpaarBis'
   | 'ablehnung.feldNichtExistenz'
   | 'ablehnung.feldFalscherTyp'
+  /** AP-1.30 PR 9a-b (`_befehlsfolge-datumswert.ts`), am Datenbankergebnis gemessen: Datumsaussage
+   * nur mit `datum` angelegt; per `aussage.aendern` ohne Wert mit neuem `datum` geändert (vorher ohne
+   * bzw. mit Wertspalte); mit `datumBeibehalten` ohne Wert, Datumsgruppe gleich. */
+  | 'datumswert.anlegen.nurDatum'
+  | 'datumswert.aendern.nurDatum'
+  | 'datumswert.aendern.wertEntfernt'
+  | 'datumswert.aendern.beibehalten'
+  /** … und die Ablehnungswege, je bitgleicher Bestand ohne Transaktion. */
+  | 'ablehnung.datumswert.beibehaltenOhneDatum'
+  | 'ablehnung.datumswert.fremdMitDatum'
+  | 'ablehnung.datumswert.fremdBeibehalten'
+  | 'ablehnung.datumswert.fremdOhneWert'
+  | 'ablehnung.datumswert.anlegenOhneDatum'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
@@ -273,7 +286,7 @@ function verknuepfungLesen(db: Tx, v: BelegVerknuepfungInfo): VerknuepfungZeile 
 
 /** Fingerabdruck des Journals (Anzahl + höchste `lfd` der `transaktion`-Zeilen): gleich vorher und
  * nachher heißt „keine neue Transaktion" (No-op oder abgelehnter Befehl). */
-function txFingerabdruck(db: Tx): string {
+export function txFingerabdruck(db: Tx): string {
   const zeile = db
     .prepare<[], { readonly anzahl: number; readonly hoechste: number | null }>(
       'SELECT COUNT(*) AS anzahl, MAX(lfd) AS hoechste FROM transaktion',
