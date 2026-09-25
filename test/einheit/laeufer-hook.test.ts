@@ -69,7 +69,7 @@ describe('migrieren() — Aufrufer-Hook nachMigrationsSql (AP-1.34, U-1.34-O1)',
     }
   })
 
-  it('v6-Datei: der Hook läuft einmal für Version 7, sieht deren Schema und das Journal aus', () => {
+  it('v6-Datei: der Hook läuft einmal je Version ab 7, Version 7 sieht deren Schema und das Journal aus', () => {
     const pfad = join(ordner, 'v6.sqlite')
     copyFileSync(FIXTURE_V6_PFAD, pfad)
     const db = oeffnen(pfad)
@@ -86,7 +86,11 @@ describe('migrieren() — Aufrufer-Hook nachMigrationsSql (AP-1.34, U-1.34-O1)',
           })
         },
       })
-      expect(aufrufe).toEqual([{ version: 7, inTransaktion: true, journalAktiv: 0, kennungSpalte: true, userVersion: 6 }])
+      // Schema-bedingt (Migration 0008, Vorarbeiten AP-1.30 PR 6): der Hook läuft je Version ab 7 bis
+      // zur Spitze einmal; Version 7 sieht ihr eigenes Schema (kennung) bei noch alter user_version.
+      expect(aufrufe[0]).toEqual({ version: 7, inTransaktion: true, journalAktiv: 0, kennungSpalte: true, userVersion: 6 })
+      expect(aufrufe.map((a) => a.version)).toEqual(Array.from({ length: SCHEMA_VERSION - 6 }, (_, i) => 7 + i))
+      expect(aufrufe.every((a) => a.inTransaktion && a.journalAktiv === 0 && a.userVersion === a.version - 1)).toBe(true)
       expect(userVersion(db)).toBe(SCHEMA_VERSION)
     } finally {
       db.close()
