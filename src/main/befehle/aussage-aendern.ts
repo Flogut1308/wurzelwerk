@@ -3,6 +3,9 @@
 // AP-0.22: vorher `lesen()`, Feld-für-Feld-Vergleich (nur die editierbaren Spalten — `subjekt_typ`/
 // `subjekt_id`/`praedikat`/`ist_bevorzugt` ändert dieser Befehl bewusst NICHT, s. Vertragskommentar
 // `src/shared/schemata/befehle.ts`); bei Gleichheit ein No-op.
+// Vorarbeiten AP-1.30 Teil 3, PR 4b (E5, docs/80 §32 V-E5-erhalt): `datumBeibehalten` übernimmt die
+// gespeicherte Datumsgruppe unverändert — auch an Orts-Prädikaten, deren Altbestand noch ein Datum
+// trägt. Die Orts-Prüfung sieht dann keinen NEUEN Datumswert; ein Datum neu setzen bleibt verboten.
 import type { AussageAendernEin } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
@@ -10,6 +13,22 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import type { AussageZeile } from '../repositories/aussage-repo'
 import { datumSpalten, type DatumSpaltengruppe } from '../import/datum-spalten'
 import { ortswertPruefen } from './ortswert'
+
+function gespeichertesDatum(vorher: AussageZeile): DatumSpaltengruppe {
+  return {
+    kalender: vorher.datum_kalender,
+    modifikator: vorher.datum_modifikator,
+    praezision: vorher.datum_praezision,
+    wert1: vorher.datum_wert1,
+    wert2: vorher.datum_wert2,
+    originaltext: vorher.datum_originaltext,
+    sortVon: vorher.datum_sort_von,
+    sortBis: vorher.datum_sort_bis,
+    zweitkalender: vorher.datum_zweitkalender,
+    zweitwert: vorher.datum_zweitwert,
+    doppeljahr: vorher.datum_doppeljahr,
+  }
+}
 
 function datumUnveraendert(vorher: AussageZeile, neu: DatumSpaltengruppe): boolean {
   return (
@@ -34,7 +53,7 @@ export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   }
   ortswertPruefen(vorher.praedikat, { wertZahl: ein.wertZahl, datum: ein.datum })
 
-  const neuesDatum = datumSpalten(ein.datum)
+  const neuesDatum = ein.datumBeibehalten === true ? gespeichertesDatum(vorher) : datumSpalten(ein.datum)
   const neuerWertText = ein.wertText ?? null
   const neuerWertZahl = ein.wertZahl ?? null
   const neuerWertRefId = ein.wertRefId ?? null
