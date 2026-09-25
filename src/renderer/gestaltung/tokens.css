@@ -221,6 +221,12 @@
   --wz-abstand-feld: 16px;
   --wz-innenabstand-zelle: 12px 16px;
   --wz-trefferflaeche-min: 32px;
+
+  /* ---- Layout-Maße (AP-1.30 PR 8, Artboard 1a): Breite der rechten Spalte „Zustand" in „Person
+   * bearbeiten" (Entwurf 326 px) und Höchstbreite der Formularspalte. Der Umbruchpunkt 1100 px
+   * (Vorgaben §3.4) steht in der Media Query selbst — CSS-Variablen gelten dort nicht. ---- */
+  --wz-breite-zustandsspalte: 326px;
+  --wz-breite-formularspalte: 720px;
 }
 
 /* ---- Systemvorgabe dunkel: nur Überschreibungen ---- */

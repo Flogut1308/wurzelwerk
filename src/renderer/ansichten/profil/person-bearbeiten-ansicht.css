@@ -3,8 +3,9 @@
  * bearbeiten.dc.html): App-Leiste mit Brotkrume, fester Personenkopf, Reiterleiste, scrollender
  * Körper, Fußleiste. Flächen nach dem Design: Leisten auf `--wz-flaeche-erhoben` (#FCFBF8), Körper
  * auf `--wz-flaeche-basis` (#FAF8F4). `position: fixed` wie `profil-ansicht.css` (kein Portal —
- * `ListenAnsicht` setzt kein `transform`). Die rechte Spalte (Zustand, Verlauf) kommt mit ihrem
- * eigenen PR; der Inhalt bleibt darum linksbündig in der Breite der Profilspalte.
+ * `ListenAnsicht` setzt kein `transform`). Seit AP-1.30 PR 8 steht rechts neben dem scrollenden
+ * Körper die Spalte „Zustand" (`editor-rechte-spalte.css`, ab 1100 px); der Inhalt bleibt
+ * linksbündig in der Breite der Formularspalte.
  */
 
 .wz-person-bearbeiten {
@@ -75,6 +76,16 @@
   min-height: var(--wz-abstand-32);
 }
 
+.wz-person-bearbeiten__koerper-reihe {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wz-person-bearbeiten__koerper-reihe > .wz-person-bearbeiten__koerper {
+  min-width: 0;
+}
+
 .wz-person-bearbeiten__koerper {
   flex: 1 1 auto;
   min-height: 0;
@@ -85,7 +96,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--wz-abstand-32);
-  max-width: 720px;
+  max-width: var(--wz-breite-formularspalte);
   padding: var(--wz-abstand-24);
 }
 

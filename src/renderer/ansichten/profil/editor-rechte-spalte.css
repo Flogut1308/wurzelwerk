@@ -1,0 +1,136 @@
+/*
+ * Rechte Spalte „Zustand" von „Person bearbeiten" (AP-1.30 PR 8, Artboard 1a): feste Breite neben
+ * der Formularspalte, linke Trennlinie, vertiefte Fläche, eigene Scrollfläche. Unter 1100 px
+ * Fensterbreite ausgeblendet (Vorgaben §3.4; das Overlay „Zustand" kommt mit PR 15) — `display:
+ * none` nimmt sie auch aus dem Zugänglichkeitsbaum.
+ *
+ * Designwerte → Tokens: Fläche #F7F5F0 ≈ `--wz-flaeche-grund`, Abschnittsabstand 26 px →
+ * `--wz-abstand-24`, Innenabstand 24/22 px → `--wz-abstand-24`/`--wz-abstand-20`; offene Punkte
+ * als Warnkarten (`--wz-status-warnung-*`) wie im Entwurf.
+ */
+
+.wz-editor-rechte-spalte {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .wz-editor-rechte-spalte {
+    display: flex;
+    flex: 0 0 var(--wz-breite-zustandsspalte);
+    flex-direction: column;
+    gap: var(--wz-abstand-24);
+    width: var(--wz-breite-zustandsspalte);
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--wz-abstand-24) var(--wz-abstand-20);
+    background: var(--wz-flaeche-grund);
+    border-left: 1px solid var(--wz-rahmen-fein);
+    box-sizing: border-box;
+  }
+}
+
+.wz-editor-rechte-spalte__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-editor-rechte-spalte__abschnitt h2,
+.wz-editor-rechte-spalte__abschnitt p {
+  margin: 0;
+}
+
+.wz-editor-rechte-spalte__kopfzeile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-editor-rechte-spalte__prozent {
+  display: flex;
+  align-items: baseline;
+}
+
+.wz-editor-rechte-spalte__kernangaben,
+.wz-editor-rechte-spalte__punkte,
+.wz-editor-rechte-spalte__verlauf {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-editor-rechte-spalte__kernangaben {
+  gap: var(--wz-abstand-4);
+}
+
+.wz-editor-rechte-spalte__kernangabe {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-editor-rechte-spalte__zustand {
+  font: var(--wz-schrift-hilfe);
+  color: var(--wz-text-tertiaer);
+}
+
+.wz-editor-rechte-spalte__zustand--belegt {
+  color: var(--wz-status-erfolg-text);
+}
+
+.wz-editor-rechte-spalte__zustand--vorhanden {
+  color: var(--wz-text-sekundaer);
+}
+
+.wz-editor-rechte-spalte__zustand--unbelegt {
+  color: var(--wz-status-warnung-text);
+}
+
+.wz-editor-rechte-spalte__punkte {
+  gap: var(--wz-abstand-8);
+}
+
+.wz-editor-rechte-spalte__punkt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-2);
+  width: 100%;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-warnung-rahmen);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-status-warnung-flaeche);
+  color: var(--wz-status-warnung-text);
+  font: var(--wz-schrift-koerper-klein);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wz-editor-rechte-spalte__punkt:hover {
+  border-color: var(--wz-status-warnung-basis);
+}
+
+.wz-editor-rechte-spalte__punkt-reiter {
+  font: var(--wz-schrift-hilfe);
+}
+
+.wz-editor-rechte-spalte__verlauf {
+  gap: var(--wz-abstand-12);
+}
+
+.wz-editor-rechte-spalte__verlauf-eintrag {
+  display: flex;
+  gap: var(--wz-abstand-12);
+  font: var(--wz-schrift-hilfe);
+  color: var(--wz-text-primaer);
+}
+
+.wz-editor-rechte-spalte__zeit {
+  flex: 0 0 var(--wz-abstand-96);
+  font: var(--wz-schrift-technisch);
+  color: var(--wz-text-tertiaer);
+}

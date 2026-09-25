@@ -143,3 +143,16 @@ export function useNegativbefundListe(
     enabled: optionen?.enabled ?? true,
   })
 }
+
+/**
+ * `abfrage:journal.verlauf` (AP-0.10; Filter `personId` seit AP-1.30 PR 5) — „Zuletzt geändert" in
+ * der rechten Spalte des Editors (AP-1.30 PR 8). Dieselbe Key-Strategie und Invalidierung wie die
+ * übrigen Hooks: jedes `ereignis:datenGeaendert` (also jeder Autosave) lädt den Verlauf neu.
+ */
+export function useJournalVerlauf(ein: Ein<'abfrage:journal.verlauf'>, optionen?: AbfrageOptionen): UseQueryResult<Aus<'abfrage:journal.verlauf'>, AppFehler> {
+  return useQuery({
+    queryKey: ['abfrage:journal.verlauf', ein] as const,
+    queryFn: () => ergebnisEntpacken(aufrufen('abfrage:journal.verlauf', ein)),
+    enabled: optionen?.enabled ?? true,
+  })
+}
