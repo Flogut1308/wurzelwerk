@@ -67,6 +67,52 @@ describe('anzeigenameFuer (Rückfallkette, AP-1.33)', () => {
   })
 })
 
+// Vorarbeiten AP-1.30 Teil 2, PR 2 (Eigentümer 25.09.2026, docs/80 §32 V-4-umschrift): die
+// Umschrift-Stufe greift nur für eine Umschrift DER Hauptform, und nur mit Anzeigetext.
+describe('Umschrift-Stufe nur für die Umschrift der Hauptform mit Anzeigetext (V-4-umschrift)', () => {
+  it('die Umschrift einer Nebenform verdrängt den Hauptnamen nicht („Anna Schmidt", nicht „Anna Šmidt")', () => {
+    const haupt = form({ formId: 'h', istBevorzugt: true, teile: [teil('vorname', 'Anna'), teil('nachname', 'Schmidt')] })
+    const neben = form({ formId: 'n', schrift: 'Cyrl', teile: [teil('vorname', 'Анна'), teil('nachname', 'Шмидт')] })
+    const nebenUmschrift = form({ formId: 'u', schrift: 'Latn', umschriftVon: 'n', teile: [teil('vorname', 'Anna'), teil('nachname', 'Šmidt')] })
+    expect(anzeigenameFuer([haupt, neben, nebenUmschrift])).toEqual({ text: 'Anna Schmidt', quelle: 'hauptname', formId: 'h' })
+  })
+
+  it('die Umschrift der Hauptform mit Anzeigetext gewinnt weiter („Ivan Ivanov")', () => {
+    const haupt = form({ formId: 'h', istBevorzugt: true, schrift: 'Cyrl', teile: [teil('vorname', 'Иван'), teil('nachname', 'Иванов')] })
+    const umschrift = form({ formId: 'u', schrift: 'Latn', umschriftVon: 'h', teile: [teil('vorname', 'Ivan'), teil('nachname', 'Ivanov')] })
+    expect(anzeigenameFuer([haupt, umschrift])).toEqual({ text: 'Ivan Ivanov', quelle: 'umschrift', formId: 'u' })
+  })
+
+  it('eine leere Umschrift der Hauptform verdrängt den Hauptnamen nicht (auch nicht aus reinen Leerzeichen)', () => {
+    const haupt = form({ formId: 'h', istBevorzugt: true, teile: [teil('nachname', 'Иванов')] })
+    const leer = form({ formId: 'u1', umschriftVon: 'h' })
+    const leerzeichen = form({ formId: 'u2', umschriftVon: 'h', originalText: '  ', teile: [teil('nachname', ' ')] })
+    expect(anzeigenameFuer([haupt, leer, leerzeichen])).toEqual({ text: 'Иванов', quelle: 'hauptname', formId: 'h' })
+  })
+
+  it('eine leere und eine gefüllte Umschrift der Hauptform: die gefüllte gewinnt', () => {
+    const haupt = form({ formId: 'h', istBevorzugt: true, teile: [teil('nachname', 'Иванов')] })
+    const leer = form({ formId: 'u1', umschriftVon: 'h' })
+    const gefuellt = form({ formId: 'u2', umschriftVon: 'h', originalText: 'Ivanov' })
+    expect(anzeigenameFuer([haupt, leer, gefuellt])).toEqual({ text: 'Ivanov', quelle: 'umschrift', formId: 'u2' })
+  })
+
+  it('ohne bevorzugte Form ist die Hauptform die Form der Stufe 3 (kleinste formId, §32 V-4b-hauptform)', () => {
+    const a = form({ formId: 'a', teile: [teil('nachname', 'Иванов')] })
+    const b = form({ formId: 'b', teile: [teil('nachname', 'Petrow')] })
+    const umschriftVonA = form({ formId: 'c', umschriftVon: 'a', originalText: 'Ivanov' })
+    const umschriftVonB = form({ formId: 'd', umschriftVon: 'b', originalText: 'Petrov' })
+    expect(anzeigenameFuer([umschriftVonB, b, umschriftVonA, a])).toEqual({ text: 'Ivanov', quelle: 'umschrift', formId: 'c' })
+    expect(anzeigenameFuer([b, umschriftVonB, a])).toEqual({ text: 'Иванов', quelle: 'hauptname', formId: 'a' })
+  })
+
+  it('ist die Hauptform selbst Umschrift einer anderen Form, meldet sie Stufe 3 (§32 V-4b-quelle)', () => {
+    const quelle = form({ formId: 'q', schrift: 'Cyrl', teile: [teil('nachname', 'Иванов')] })
+    const haupt = form({ formId: 'h', istBevorzugt: true, umschriftVon: 'q', teile: [teil('nachname', 'Ivanov')] })
+    expect(anzeigenameFuer([quelle, haupt])).toEqual({ text: 'Ivanov', quelle: 'hauptname', formId: 'h' })
+  })
+})
+
 // Vorarbeiten AP-1.30, PR 2 (hueter #125, H5): „Name vorhanden" steht im Kern.
 describe('hatAnzeigetext (Nachtrag ADR-031, V-D1-name-vorhanden)', () => {
   it('Bestandteile oder original_text zählen, reine Leerzeichen und nichts nicht', () => {

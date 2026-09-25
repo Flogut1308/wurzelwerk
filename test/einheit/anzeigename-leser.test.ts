@@ -101,6 +101,21 @@ describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)'
     })
   })
 
+  it('N4b: die Umschrift einer Nebenform verdrängt den Hauptnamen in Liste, Suche und Profil nicht (V-4-umschrift)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: 'Anna', nachname: 'Schmidt' })
+      const neben = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'ehename', schrift: 'cyrl', vornamen: 'Анна', nachname: 'Шмидт' }).id
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'transliteriert', schrift: 'latn', umschriftVon: neben, umschriftNorm: 'iso9', vornamen: 'Anna', nachname: 'Šmidt' })
+
+      const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
+      expect(zeile?.anzeigename).toBe('Anna Schmidt')
+      const treffer = suche(db, { text: 'Schmidt', grenze: 50, filter: FILTER_ALLE, sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100 }).treffer.find((z) => z.person_id === p)
+      expect(treffer?.anzeigename).toBe('Anna Schmidt')
+      expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('Anna Schmidt')
+    })
+  })
+
   it('N3b: ein Personen-Wertverweis auf eine gelöschte Person bleibt ohne Namen (hueter #128, Befund 3)', () => {
     mitDb((db) => {
       const kind = gutnoff(db)
