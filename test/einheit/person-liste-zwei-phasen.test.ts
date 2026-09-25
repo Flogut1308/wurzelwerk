@@ -21,6 +21,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { filterBedingungen, personListe, vergleicheZeilen, whereSql, zeileZuAusgabe, type RohZeile, type SortierEingabe } from '../../src/main/abfragen/person-liste'
 import { suche } from '../../src/main/abfragen/suche'
@@ -231,6 +232,104 @@ describe('Personenliste in zwei Phasen = Einphasen-Referenz (Vorarbeiten AP-1.30
         }
       }
       expect(zeilenGesamt).toBeGreaterThan(8 * 24)
+    } finally {
+      db.close()
+    }
+  })
+
+  // hueter #148 (M1): mehrere Aussagen je Prädikat, KEINE davon bevorzugt (erreichbar über das Demoten in
+  // aussage-repo) — dann entscheidet allein die kleinste id. Ohne diesen Fall überlebte die Mutation
+  // „id DESC“ in der Einzelzeilen-Auswahl.
+  it('Z5: mehrere nicht bevorzugte Aussagen je Prädikat = Referenz', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      for (let i = 0; i < 6; i += 1) {
+        const p = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+        fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `V${i}`, nachname: `N${i}` })
+        for (let b = 0; b < 3; b += 1) {
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'beruf', wertText: `Beruf${i}-${b}`, konfidenz: 2 })
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'geburtsdatum', wertText: `${1800 + b}`, datum: { modifikator: 'exakt', praezision: 'jahr', wert1: `${1800 + i + b}` }, konfidenz: 3 })
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'todesdatum', wertText: `${1880 + b}`, datum: { modifikator: 'exakt', praezision: 'jahr', wert1: `${1880 + i + b}` }, konfidenz: 3 })
+        }
+      }
+      journalAus(db, 'test-fixture: keine bevorzugte Aussage (hueter #148 M1)')
+      try {
+        db.prepare(`UPDATE aussage SET ist_bevorzugt = 0 WHERE subjekt_typ = 'person'`).run()
+      } finally {
+        journalAn(db)
+      }
+      for (const sortierung of SORTIERUNGEN) {
+        const ein: PersonListeEin = { ...sortierung, seite: 1, proSeite: 100, filter: ALLE }
+        expect(personListe(db, ein), JSON.stringify(ein)).toEqual(referenzListe(db, ein))
+      }
+    } finally {
+      db.close()
+    }
+  })
+
+  // Vorarbeiten AP-1.30 Teil 3 (Leistung): Phase 1 lädt je Sortierung nur noch die gebrauchte
+  // Namensspalte. Dieser Bestand trennt die beiden Spalten gezielt — Personen nur mit Vornamen, nur
+  // mit Nachnamen, ein Hauptname ohne Nachnamen bei einer Nebenform mit Nachnamen (die Wahl der Form
+  // muss je Spalte dieselbe bleiben), mehrteilige Vor- und Nachnamen — und prüft `gesamt` unter
+  // Platzhalter-/Privat-Filtern.
+  it('Z4: nur Vor- oder nur Nachname, Hauptname ohne Nachname, Filter mit gesamt = Referenz', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      const personen: string[] = []
+      for (let i = 0; i < 30; i += 1) {
+        const p = fuehreAus(db, 'person.anlegen', { privat: i % 4 === 1 ? 1 : 0, ist_platzhalter: i % 5 === 2 ? 1 : 0 }).id
+        personen.push(p)
+        switch (i % 6) {
+          case 0:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Vor${i % 4}` })
+            break
+          case 1:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', nachname: `Nach${i % 3}` })
+            break
+          case 2: {
+            const neben = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Zweit${i % 3}`, nachname: `Neben${i % 2}` }).id
+            const haupt = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'vulgo', vornamen: `Haupt${i % 5}` }).id
+            fuehreAus(db, 'hauptname.wechseln', { personId: p, alt: neben, neu: haupt })
+            break
+          }
+          case 3:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Anna Maria${i % 2}`, nachname: `von Berg${i % 3}` })
+            break
+          case 4:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Vor${i % 4}`, nachname: `Nach${i % 3}` })
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'ehename', nachname: `Ehe${i % 2}` })
+            break
+          default:
+            break // ohne Namensform
+        }
+      }
+      expect(personen).toHaveLength(30)
+
+      const filterliste: readonly PersonListeFilter[] = [
+        ALLE,
+        { platzhalter: 'nur', privat: 'alle', nurWiderspruch: false },
+        { platzhalter: 'ohne', privat: 'alle', nurWiderspruch: false },
+        { platzhalter: 'alle', privat: 'nur', nurWiderspruch: false },
+        { platzhalter: 'ohne', privat: 'ohne', nurWiderspruch: false },
+      ]
+      let zeilenGesamt = 0
+      const gesamtWerte = new Set<number>()
+      for (const filter of filterliste) {
+        for (const sortierung of SORTIERUNGEN) {
+          for (const seite of [{ seite: 1, proSeite: 100 }, { seite: 2, proSeite: 4 }, { seite: 3, proSeite: 7 }]) {
+            const ein: PersonListeEin = { ...sortierung, ...seite, filter }
+            const ist = personListe(db, ein)
+            expect(ist, JSON.stringify(ein)).toEqual(referenzListe(db, ein))
+            zeilenGesamt += ist.zeilen.length
+            gesamtWerte.add(ist.gesamt)
+          }
+        }
+      }
+      // Deckung: echte Zeilen und unterschiedliche Gesamtzahlen je Filter.
+      expect(zeilenGesamt).toBeGreaterThan(8 * 30)
+      expect(gesamtWerte.size).toBeGreaterThanOrEqual(4)
     } finally {
       db.close()
     }
