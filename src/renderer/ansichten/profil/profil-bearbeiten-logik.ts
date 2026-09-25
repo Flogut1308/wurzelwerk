@@ -158,8 +158,9 @@ export function kontrollkaestchenZustandZuBool(zustand: KontrollkaestchenZustand
 // hier, s. `docs/80_Offene_Fragen.md` §27).
 // -----------------------------------------------------------------------------------------------
 
-/** EIN weiterer Beteiligter im Neu-Formular, zusätzlich zur aktuellen Profilperson (die IMMER als
- * `hauptperson` mitgeschickt wird, s. `ereignisAnlegenEinAusEntwurf`). `personId` ist `null`, bis
+/** EIN weiterer Beteiligter im Neu-Formular, zusätzlich zur aktuellen Profilperson (die IMMER
+ * mitgeschickt wird — am Tod als `verstorbener`, sonst als `hauptperson`, s.
+ * `ereignisAnlegenEinAusEntwurf`). `personId` ist `null`, bis
  * der `Personenwaehler` eine Auswahl (Treffer, neu angelegt oder Platzhalter) geliefert hat —
  * `schluessel` ist ein reiner React-Listenschlüssel (clientseitig vergeben), KEINE fachliche ID. */
 export interface WeitererBeteiligterEntwurf {
@@ -273,9 +274,10 @@ export function ereignisEntwurfAbsendbar(entwurf: EreignisEntwurfWerte): boolean
   return entwurf.konfidenz !== null && ereignisEntwurfDatumIstGueltig(entwurf.datumText) && entwurf.weitereBeteiligte.every(weitererBeteiligterAufgeloest)
 }
 
-/** Baut `befehl:ereignis.anlegen` — `personId` (die aktuelle Profilperson) IMMER zuerst mit
- * Rolle `hauptperson`, danach alle aufgelösten weiteren Beteiligten (Variante A, EIN Aufruf für
- * alle Beteiligten). `null`, wenn `ereignisEntwurfAbsendbar` nicht zutrifft — der Aufrufer ruft
+/** Baut `befehl:ereignis.anlegen` — `personId` (die aktuelle Profilperson) IMMER zuerst, mit
+ * Rolle `verstorbener` bei `typ === 'tod'`, sonst `hauptperson` (Migration 0009 stellt den Bestand
+ * gleich um; die Geburt bleibt `hauptperson`, docs/80 V-E4-geburt), danach alle aufgelösten
+ * weiteren Beteiligten (Variante A, EIN Aufruf für alle Beteiligten). `null`, wenn `ereignisEntwurfAbsendbar` nicht zutrifft — der Aufrufer ruft
  * diese Funktion nur, wenn die Schaltfläche aktiv ist, die Prüfung hier ist zusätzlich defensiv
  * (CLAUDE.md §4: kein `!`, kein unbegründetes Vertrauen in den Aufrufer). */
 export function ereignisAnlegenEinAusEntwurf(personId: string, entwurf: EreignisEntwurfWerte): EreignisAnlegenEin | null {
@@ -287,7 +289,7 @@ export function ereignisAnlegenEinAusEntwurf(personId: string, entwurf: Ereignis
     ortId: entwurf.ortId ?? undefined,
     datum: ereignisDatumwertAusEntwurf(entwurf.datumText, entwurf.kalender),
     beteiligungen: [
-      { personId, rolle: 'hauptperson' },
+      { personId, rolle: entwurf.typ === 'tod' ? 'verstorbener' : 'hauptperson' },
       ...entwurf.weitereBeteiligte.filter(weitererBeteiligterAufgeloest).map((eintrag) => ({ personId: eintrag.personId, rolle: eintrag.rolle })),
     ],
     konfidenz,
