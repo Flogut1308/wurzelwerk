@@ -181,9 +181,13 @@ describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.2
   // unabhängig davon, ob der zweite Wert überhaupt vom ersten abweicht. Mit `notiz` wäre dieser
   // Test schon vor dem AP-0.22-Fix grün (die Koaleszenz verdeckt den Fehler) bzw. bei
   // unterschiedlichen Werten fälschlich rot (die Koaleszenz fasst trotzdem zusammen) - in beiden
-  // Fällen kein Beleg für das hier geprüfte Verhalten. `gesperrt_bis` hat keinen Koaleszenz-
-  // Schlüssel und macht damit einzig den AP-0.22-Effekt sichtbar.
+  // Fällen kein Beleg für das hier geprüfte Verhalten. `gesperrt_bis` hatte keinen Koaleszenz-
+  // Schlüssel und machte damit einzig den AP-0.22-Effekt sichtbar. AP-1.30 PR 4: seit JEDES Feld
+  // einen Schlüssel trägt, trennt stattdessen eine feste Uhr die Aufrufe um 2001 ms (außerhalb des
+  // Koaleszenzfensters) — sonst verdeckte die Koaleszenz auch hier einen Fehler der No-op-Erkennung.
   it('derselbe gesperrt_bis-Wert zweimal hintereinander erzeugt keine zweite Transaktion und keine zweite aenderung-Zeile', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_790_000_000_000)
     const db = neueTestDatenbank()
     try {
       const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
@@ -193,16 +197,25 @@ describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.2
       const anzahlVorher = transaktionAnzahl(db)
 
       // Zweite Änderung: identischer Wert - No-op, darf keine neue Transaktion/aenderung erzeugen.
+      vi.setSystemTime(1_790_000_000_000 + 2001)
       fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 })
 
       expect(transaktionAnzahl(db)).toBe(anzahlVorher)
       expect(aenderungenFuerPerson(db, id)).toHaveLength(2) // insert (anlegen) + genau ein update (erste Änderung)
     } finally {
       db.close()
+      vi.useRealTimers()
     }
   })
 
+  // AP-1.30 PR 4: seit jedes `person.feldSetzen`-Feld einen Koaleszenzschlüssel trägt, fasst der
+  // Bus zwei Änderungen am selben Feld binnen 2000 ms zusammen. Damit dieser Test weiter NUR den
+  // AP-0.22-Effekt prüft (No-op-Erkennung verschluckt keine echte Änderung), liegen die beiden
+  // Aufrufe per fester Uhr außerhalb des Koaleszenzfensters — Koaleszenz selbst prüft
+  // `test/einheit/koaleszenz-autosave.test.ts`.
   it('unterschiedliche Werte erzeugen weiterhin je eine eigene Transaktion (Regression)', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_790_000_000_000)
     const db = neueTestDatenbank()
     try {
       const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
@@ -212,23 +225,29 @@ describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.2
       const anzahlNachErster = transaktionAnzahl(db)
       expect(anzahlNachErster).toBe(anzahlVorher + 1)
 
+      vi.setSystemTime(1_790_000_000_000 + 2001)
       fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 200 })
       expect(transaktionAnzahl(db)).toBe(anzahlNachErster + 1)
 
       expect(aenderungenFuerPerson(db, id)).toHaveLength(3) // insert + zwei updates
     } finally {
       db.close()
+      vi.useRealTimers()
     }
   })
 
   it('No-op verwirft den Redo-Stapel NICHT (im Gegensatz zu einem echten neuen Befehl, §4.7)', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_790_000_000_000)
     const db = neueTestDatenbank()
     try {
       const { id } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
 
-      // gesperrt_bis trägt keinen Koaleszenz-Schlüssel (AP-0.15 fasst nur `notiz` zusammen) - zwei
-      // echte Änderungen bleiben also zwei separate Transaktionen.
+      // AP-1.30 PR 4: gesperrt_bis trägt seit AP-1.30 einen Koaleszenz-Schlüssel (jedes Feld) — die
+      // beiden echten Änderungen liegen darum per fester Uhr außerhalb des 2000-ms-Fensters und
+      // bleiben zwei separate Transaktionen (wie zuvor ohne Schlüssel).
       fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 100 }) // T1
+      vi.setSystemTime(1_790_000_000_000 + 2001)
       fuehreAus(db, 'person.feldSetzen', { id, feld: 'gesperrt_bis', wert: 200 }) // T2
 
       undo(db) // Wert zurück auf 100, T2 ist jetzt das Redo-Ziel
@@ -246,6 +265,7 @@ describe('person.feldSetzen — kein Journaleintrag ohne echte Änderung (AP-0.2
       expect(personLesen(db, id)?.geaendert_am).not.toBeNull()
     } finally {
       db.close()
+      vi.useRealTimers()
     }
   })
 })

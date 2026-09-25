@@ -2,7 +2,9 @@
 // armierten Transaktion (CLAUDE.md §2: kein `BEGIN`/`COMMIT` hier).
 // AP-0.22: vorher `partnerschaftLesen()`, Feld-für-Feld-Vergleich (Zeile selbst — die Beteiligten
 // ändert dieser Befehl nicht, s. Vertragskommentar); bei Gleichheit ein No-op.
-import type { PartnerschaftAendernEin } from '../../shared/schemata/befehle'
+// AP-1.30 PR 4: der Vergleich steht als `partnerschaftGeaenderteFelder()` für sich — derselbe
+// Vergleich entscheidet über den No-op UND über den Koaleszenzschlüssel (`koaleszenz-schluessel.ts`).
+import type { PartnerschaftAendernEin, PartnerschaftAendernFeld } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as beziehungRepo from '../repositories/beziehung-repo'
@@ -25,37 +27,37 @@ function datumUnveraendert(vorher: PartnerschaftZeile, praefix: 'beginn' | 'ende
   )
 }
 
+/** Die Vertragsfelder, deren Wert `ein` gegenüber dem gespeicherten Stand ändern würde (eine
+ * Datumsgruppe zählt als EIN Feld). */
+export function partnerschaftGeaenderteFelder(vorher: PartnerschaftZeile, ein: PartnerschaftAendernEin): readonly PartnerschaftAendernFeld[] {
+  const felder: PartnerschaftAendernFeld[] = []
+  if (vorher.typ !== ein.typ) felder.push('typ')
+  if (!datumUnveraendert(vorher, 'beginn', datumSpalten(ein.beginn))) felder.push('beginn')
+  if (!datumUnveraendert(vorher, 'ende', datumSpalten(ein.ende))) felder.push('ende')
+  if (vorher.ende_grund !== (ein.endeGrund ?? null)) felder.push('endeGrund')
+  if (vorher.reihenfolge !== (ein.reihenfolge ?? null)) felder.push('reihenfolge')
+  if (vorher.notiz !== (ein.notiz ?? null)) felder.push('notiz')
+  return felder
+}
+
 export function partnerschaftAendern(tx: Tx, ein: PartnerschaftAendernEin): null {
   const vorher = beziehungRepo.partnerschaftLesen(tx, ein.id)
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_PARTNERSCHAFT')
   }
 
-  const neuerBeginn = datumSpalten(ein.beginn)
-  const neuesEnde = datumSpalten(ein.ende)
-  const neuerEndeGrund = ein.endeGrund ?? null
-  const neueReihenfolge = ein.reihenfolge ?? null
-  const neueNotiz = ein.notiz ?? null
-
-  if (
-    vorher.typ === ein.typ &&
-    datumUnveraendert(vorher, 'beginn', neuerBeginn) &&
-    datumUnveraendert(vorher, 'ende', neuesEnde) &&
-    vorher.ende_grund === neuerEndeGrund &&
-    vorher.reihenfolge === neueReihenfolge &&
-    vorher.notiz === neueNotiz
-  ) {
+  if (partnerschaftGeaenderteFelder(vorher, ein).length === 0) {
     return null
   }
 
   beziehungRepo.partnerschaftAktualisieren(tx, {
     id: ein.id,
     typ: ein.typ,
-    beginn: neuerBeginn,
-    ende: neuesEnde,
-    endeGrund: neuerEndeGrund,
-    reihenfolge: neueReihenfolge,
-    notiz: neueNotiz,
+    beginn: datumSpalten(ein.beginn),
+    ende: datumSpalten(ein.ende),
+    endeGrund: ein.endeGrund ?? null,
+    reihenfolge: ein.reihenfolge ?? null,
+    notiz: ein.notiz ?? null,
     geaendertAm: Date.now(),
   })
   return null
