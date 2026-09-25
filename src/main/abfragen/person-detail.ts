@@ -1,6 +1,6 @@
 // AP-1.7 PR-A (Profilseite, lesend), 55_Architektur.md §5. `abfrage:person.detail` — read-only SQL
 // gegen `person_flach`/`person`/`aussage`/`aussage_zitat`/`zitat`/`quelle`/`ereignis`/`beteiligung`/
-// `ortsname`/`elternschaft`/`partnerschaft`/`partnerschaft_person`/`diagnose`/`risikofaktor`
+// `ortsname`/`name_form`/`elternschaft`/`partnerschaft`/`partnerschaft_person`/`diagnose`/`risikofaktor`
 // (CLAUDE.md §2: SQL nur in src/main/abfragen/), KEINE Transaktion, Spalten aufgezählt, benannte
 // Parameter, kein `SELECT *`.
 //
@@ -1008,6 +1008,39 @@ function kernangabenBauen(
   })
 }
 
+/** Zählbasis „Belege & Medien" (AP-1.30 PR 7a): Anzahl VERSCHIEDENER Zitate an allen Aussagen, die
+ * zur Person gehören — EINE Anweisung (kein N+1). Die Subjekte sind genau die Kanten, die dieses
+ * Lesemodell schon zeigt, soweit sie der Person gehören:
+ * - die Person selbst und jede ihrer Namensformen (Reiter Namen),
+ * - jede Elternkante, in der sie KIND ist (ihre Abstammung — wie der Kanten-Beleg der Kernangaben,
+ *   D7; die Kante zu einem eigenen Kind ist die Abstammung des Kindes und zählt dort),
+ * - jede Partnerschaft, an der sie beteiligt ist (gehört beiden Partnern),
+ * - jedes Ereignis, an dem sie beteiligt ist, gleich welche Rolle (wie der Ereignis-Zeitstrahl).
+ * `diagnose`/`risikofaktor` stehen bewusst NICHT in der Subjektliste: Gesundheitsbelege gehören zum
+ * Gesundheitsreiter (M-08, eigene Sichtbarkeit), nicht zu „Belege & Medien". Ein Zitat, das zugleich
+ * eine gezählte Aussage belegt, zählt über diese genau einmal (`COUNT(DISTINCT …)`). Doppelte
+ * Subjekte (zwei Beteiligungen am selben Ereignis) fängt ebenfalls das DISTINCT ab. */
+function belegeAnzahlLaden(db: Database.Database, personId: string): number {
+  const zeile = db
+    .prepare<
+      { readonly personId: string },
+      { readonly anzahl: number }
+    >(`WITH subjekt (typ, id) AS (
+         SELECT 'person', @personId
+         UNION ALL SELECT 'name', nf.id FROM name_form nf WHERE nf.person_id = @personId
+         UNION ALL SELECT 'elternschaft', el.id FROM elternschaft el WHERE el.kind_id = @personId
+         UNION ALL SELECT 'partnerschaft', pp.partnerschaft_id FROM partnerschaft_person pp WHERE pp.person_id = @personId
+         UNION ALL SELECT 'ereignis', b.ereignis_id FROM beteiligung b WHERE b.person_id = @personId
+       )
+       SELECT COUNT(DISTINCT az.zitat_id) AS anzahl
+       FROM subjekt s
+       JOIN aussage a ON a.subjekt_typ = s.typ AND a.subjekt_id = s.id
+       JOIN aussage_zitat az ON az.aussage_id = a.id`,
+    )
+    .get({ personId })
+  return zeile?.anzahl ?? 0
+}
+
 /** `abfrage:person.detail` (55_Architektur.md §5, AP-1.7 PR-A). */
 export function personDetail(db: Database.Database, ein: PersonDetailEin): PersonDetailAus {
   if (!datensatzExistiert(db, 'person', ein.personId)) {
@@ -1069,5 +1102,6 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     warnungen,
     offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
     kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, nameVorhanden, lebensereignisse),
+    belege_anzahl: belegeAnzahlLaden(db, ein.personId),
   }
 }

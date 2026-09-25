@@ -26,6 +26,7 @@ import { LEBENSDATUM_ANGABEN, LEBENSDATUM_HERKUNFT } from '../../core/person/leb
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../core/person/reiter'
+import type { ReiterZaehlerEingabe } from '../../core/person/reiter-zaehler'
 import type { FeldwarnungFeld } from '../../core/plausibilitaet/feldwarnungen'
 import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
@@ -356,4 +357,23 @@ export interface PersonDetailAus {
   readonly offene_punkte: readonly PersonDetailOffenerPunkt[]
   /** AP-1.34 PR-D: Vollständigkeitsgrad; `null` = Platzhalter (A-17, E7 — ausgenommen, nicht 0 %). */
   readonly kernangaben: PersonDetailKernangaben | null
+  /** AP-1.30 PR 7a: Zählbasis des Reiters „Belege & Medien" — Anzahl VERSCHIEDENER Zitate an allen
+   * Aussagen, die zur Person gehören: eigene, ihrer Namensformen, der Elternkanten, in denen sie Kind
+   * ist, ihrer Partnerschaften und der Ereignisse, an denen sie beteiligt ist. Ohne Gesundheitsbelege
+   * (Aussagen an `diagnose`/`risikofaktor` gehören zum Gesundheitsreiter). Nur eine Zahl. */
+  readonly belege_anzahl: number
+}
+
+/** Eingabe von `reiterZaehler` (src/core/person/reiter-zaehler.ts) aus dem Lesemodell — die EINE
+ * Abbildung für jeden Aufrufer (AP-1.30 PR 7a). Medien = 0 bis AP-1.31. */
+export function reiterZaehlerEingabeAus(detail: PersonDetailAus): ReiterZaehlerEingabe {
+  return {
+    namenAnzahl: detail.namen.length,
+    beziehungen: detail.beziehungen.map((b) => ({ personId: b.person_id, richtung: b.richtung })),
+    zitatAnzahl: detail.belege_anzahl,
+    medienAnzahl: 0,
+    diagnosenAnzahl: detail.gesundheit.filter((g) => g.art === 'diagnose').length,
+    risikofaktorenAnzahl: detail.gesundheit.filter((g) => g.art === 'risikofaktor').length,
+    offenePunkteReiter: detail.offene_punkte.map((punkt) => punkt.reiter),
+  }
 }

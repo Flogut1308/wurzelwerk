@@ -94,6 +94,7 @@ function detail(ueberschreibung: Partial<PersonDetailAus> = {}): PersonDetailAus
     warnungen: [],
     offene_punkte: [],
     kernangaben: null,
+    belege_anzahl: 0,
     ...ueberschreibung,
   }
 }
