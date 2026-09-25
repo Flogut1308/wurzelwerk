@@ -4,7 +4,7 @@
 // als Rufname markiert werden (verlustfrei), OHNE einen zweiten „Hans"-Token anzulegen. Kein Node/
 // SQL — reine Datenstruktur-Eingabe, deterministisch.
 import { describe, expect, it } from 'vitest'
-import { zerlegeName } from '../../src/core/name/zerlegung'
+import { rekonstruiereFlach, zerlegeName } from '../../src/core/name/zerlegung'
 
 describe('zerlegeName (src/core/name/zerlegung.ts, AP-1.33)', () => {
   it('markiert einen vorhandenen Vorname-Token als Rufname, wenn rufname_text ihn trifft und rufname_index leer ist', () => {
@@ -36,5 +36,19 @@ describe('zerlegeName (src/core/name/zerlegung.ts, AP-1.33)', () => {
     expect([...vornamen.map((teil) => teil.wert)].sort()).toEqual(['Baptist', 'Hans', 'Johann'])
     const rufnamen = vornamen.filter((teil) => teil.istRufname)
     expect(rufnamen.map((teil) => teil.wert)).toEqual(['Hans'])
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 3 (docs/80 §30 U-1.33-vatersname-anzeige): die Rekonstruktion übergeht
+// den Vatersnamen nicht mehr; die flachen Felder der alten Namenssicht bleiben unverändert.
+describe('rekonstruiereFlach mit Vatersname (U-1.33-vatersname-anzeige)', () => {
+  it('liefert den Vatersnamen als eigenes Feld, verkettet in sortierIndex-Reihenfolge', () => {
+    const flach = rekonstruiereFlach([
+      { art: 'vorname', wert: 'Iwan', istRufname: false, sortierIndex: 0 },
+      { art: 'vatersname', wert: 'Petrowitsch', istRufname: false, sortierIndex: 0 },
+      { art: 'nachname', wert: 'Iwanow', istRufname: false, sortierIndex: 0 },
+    ])
+    expect(flach).toMatchObject({ vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow', praefix: null })
+    expect(rekonstruiereFlach([]).vatersname).toBeNull()
   })
 })

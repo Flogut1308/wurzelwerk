@@ -3,24 +3,30 @@
 // Vollständigkeitsgrad einer Person — die EINZIGE Stelle, an der er berechnet wird. Renderer,
 // Personenliste, Statistik und Export rechnen ihn nie selbst nach (ADR-031).
 //
-// Kernangaben und wann sie erfüllt sind (ADR-031, Details U-1.34-D1…D11):
-// - name          immer; die Hauptform trägt eine Aussage mit mindestens einem Beleg (D3).
+// Kernangaben und wann sie erfüllt sind (ADR-031 samt Nachtrag vom 25.09.2026, docs/80 §32):
+// - name          immer; die Hauptform hat einen Anzeigetext (D1 neu: vorhanden genügt). „belegt" nur,
+//                 wenn eine Aussage über die Hauptform einen Beleg hat (D3).
 // - geschlecht    immer; M, F oder X — U und „nicht erfasst" zählen nicht, ein Beleg ist nicht nötig (E7, D4).
-// - geburtsdatum  immer; es gibt eine Aussage mit Wert UND Beleg (D1, D2).
-// - geburtsort    immer; eine Aussage, die einen Ort trägt (`traegtOrt`: Verweis oder freier Text, NICHT
-//                 wert_zahl/Datum), mit Beleg; kein Ereignis-Rückfall (D9).
-// - todesdatum    nur bei `lebend_status = 'verstorben'` (D5); wie geburtsdatum.
-// - todesort      nur bei `verstorben`. Gibt es eine todesort-Aussage, die einen Ort trägt, entscheidet allein sie
-//                 (belegt ⇒ erfüllt, auch nur Text — U-1.34-C2a-wert-text-verdraengt). Sonst zählt ein
-//                 Tod-Ereignis mit Ort, dessen Ort belegt ist (D6, E5).
+// - geburtsdatum  immer; die Aussage führt: gibt es eine Aussage mit Wert, zählt sie nur mit Beleg (D1).
+//                 Sonst zählt ein Geburts-Ereignis mit Datum, auch ohne Beleg (D9 neu, ./lebensdaten.ts).
+// - geburtsort    immer; wie geburtsdatum, eine Aussage „trägt einen Ort" nach `traegtOrt` (Verweis oder
+//                 freier Text, NICHT wert_zahl/Datum), das Ereignis über seinen `ort_id`.
+// - todesdatum    nur bei `lebend_status = 'verstorben'` (D5); wie geburtsdatum mit dem Tod-Ereignis.
+// - todesort      nur bei `verstorben`; wie geburtsort mit dem Tod-Ereignis (E5, D6 — dieselbe Auflösung
+//                 wie `sterbeortAufloesen`).
 // - vater, mutter immer, zwei Angaben; Platz besetzt (`elternPlaetze`) UND die Kante belegt (D7).
 //                 Ist nur ein Elternteil unbestimmbarer Zuordnung da, heißen beide Angaben `elternteil`:
 //                 die erste erfüllt, wenn er belegt ist, die zweite nie (D8).
+//
+// Zustand je Angabe (`aufschluesselung`, §32 V-D3-aufschluesselung/-randfaelle): `belegt` (erfüllt mit
+// Beleg), `vorhanden` (erfüllt ohne Beleg: Geschlecht, Name, Ereignis-Rückfall), `unbelegt` (ein Wert
+// liegt vor, ihm fehlt der Beleg — zählt nicht), `fehlt`. `fehlend` = Ids mit `unbelegt`/`fehlt`.
 //
 // Nenner 6 bzw. 8 (verstorben); Prozent abgerundet; Platzhalter → `null` (A-17, E7).
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingabe.
 import { elternPlaetze, type ElternGeschlecht, type ElternteilEintrag } from './eltern-plaetze'
+import { fuehrendeQuelle } from './lebensdaten'
 import { traegtOrt, type OrtWert } from './ort-wert'
 
 /** Einzige Quelle der Kernangaben-Ids; `src/shared/schemata/person-detail.ts` baut sein Zod-Enum daraus.
@@ -28,6 +34,11 @@ import { traegtOrt, type OrtWert } from './ort-wert'
 export const KERNANGABE_IDS = ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'todesdatum', 'todesort', 'vater', 'mutter', 'elternteil'] as const
 
 export type KernangabeId = (typeof KERNANGABE_IDS)[number]
+
+/** Einzige Quelle der Zustände; `src/shared/schemata/person-detail.ts` baut sein Zod-Enum daraus. */
+export const KERNANGABE_ZUSTAENDE = ['belegt', 'vorhanden', 'unbelegt', 'fehlt'] as const
+
+export type KernangabeZustand = (typeof KERNANGABE_ZUSTAENDE)[number]
 
 export type KernangabenLebendStatus = 'lebend' | 'verstorben' | 'vermutet_verstorben'
 
@@ -44,10 +55,14 @@ export interface KernOrtAussage extends OrtWert {
   readonly belegt: boolean
 }
 
-/** Ein Tod-Ereignis der Person (Rolle `verstorbener`, der Aufrufer filtert). `ortBelegt`: die
- * Existenz-Aussage des Ereignisses hat einen Beleg für den Ort (Feld NULL oder `ort`). */
-export interface KernTodEreignis {
+/** Ein Geburts- bzw. Tod-Rückfall der Person (der Aufrufer filtert mit `istRueckfallEreignis`,
+ * ./lebensdaten.ts). `datumVorhanden` nach `ereignisHatDatum`, `ortVorhanden` = `ort_id` gesetzt.
+ * `datumBelegt`/`ortBelegt`: die Existenz-Aussage des Ereignisses hat einen Beleg mit Feld NULL
+ * (ganze Aussage) bzw. dem Feld `datum`/`ort`. */
+export interface KernEreignis {
+  readonly datumVorhanden: boolean
   readonly ortVorhanden: boolean
+  readonly datumBelegt: boolean
   readonly ortBelegt: boolean
 }
 
@@ -61,12 +76,16 @@ export interface KernangabenEingabe {
   readonly istPlatzhalter: boolean
   readonly lebendStatus: KernangabenLebendStatus | null
   readonly geschlecht: ElternGeschlecht | null
+  /** Die Hauptform hat einen nicht-leeren Anzeigetext (`hatAnzeigetext`, src/core/name/anzeigename.ts). */
+  readonly nameVorhanden: boolean
+  /** Eine Aussage über die Hauptform hat mindestens einen Beleg (D3). */
   readonly hauptformBelegt: boolean
   readonly geburtsdatum: readonly KernAussage[]
   readonly geburtsort: readonly KernOrtAussage[]
   readonly todesdatum: readonly KernAussage[]
   readonly todesort: readonly KernOrtAussage[]
-  readonly todEreignisse: readonly KernTodEreignis[]
+  readonly geburtEreignisse: readonly KernEreignis[]
+  readonly todEreignisse: readonly KernEreignis[]
   readonly eltern: readonly KernElternteil[]
 }
 
@@ -78,49 +97,82 @@ export interface Kernangaben {
   /** Multimenge der nicht erfüllten Angaben in `KERNANGABE_IDS`-Reihenfolge; `elternteil` kann zweimal
    * vorkommen. Immer `fehlend.length === anwendbar - erfuellt`. */
   readonly fehlend: readonly KernangabeId[]
+  /** Eine Zeile je anwendbarer Angabe, in `KERNANGABE_IDS`-Reihenfolge (`elternteil` ggf. zweimal). */
+  readonly aufschluesselung: readonly KernangabeEintrag[]
 }
 
-function belegteAussage(aussagen: readonly KernAussage[]): boolean {
-  return aussagen.some((a) => a.hatWert && a.belegt)
+export interface KernangabeEintrag {
+  readonly id: KernangabeId
+  readonly zustand: KernangabeZustand
 }
 
-function belegterOrt(aussagen: readonly KernOrtAussage[]): boolean {
-  return aussagen.some((a) => traegtOrt(a) && a.belegt)
+/** Zustand einer aus Aussage oder Rückfall-Ereignis aufgelösten Angabe (./lebensdaten.ts). */
+function lebensdatumZustand<A extends { readonly belegt: boolean }>(
+  aussagen: readonly A[],
+  aussageTraegt: (aussage: A) => boolean,
+  ereignisse: readonly KernEreignis[],
+  ereignisTraegt: (ereignis: KernEreignis) => boolean,
+  ereignisBelegt: (ereignis: KernEreignis) => boolean,
+): KernangabeZustand {
+  const fuehrung = fuehrendeQuelle(aussagen, aussageTraegt, ereignisse, ereignisTraegt)
+  if (fuehrung === null) return 'fehlt'
+  if (fuehrung.herkunft === 'aussage') return fuehrung.kandidaten.some((a) => a.belegt) ? 'belegt' : 'unbelegt'
+  return fuehrung.kandidaten.some(ereignisBelegt) ? 'belegt' : 'vorhanden'
 }
 
-function todesortErfuellt(eingabe: KernangabenEingabe): boolean {
-  if (eingabe.todesort.some(traegtOrt)) return belegterOrt(eingabe.todesort)
-  return eingabe.todEreignisse.some((e) => e.ortVorhanden && e.ortBelegt)
+function datumZustand(aussagen: readonly KernAussage[], ereignisse: readonly KernEreignis[]): KernangabeZustand {
+  return lebensdatumZustand(aussagen, (a) => a.hatWert, ereignisse, (e) => e.datumVorhanden, (e) => e.datumBelegt)
+}
+
+function ortZustand(aussagen: readonly KernOrtAussage[], ereignisse: readonly KernEreignis[]): KernangabeZustand {
+  return lebensdatumZustand(aussagen, traegtOrt, ereignisse, (e) => e.ortVorhanden, (e) => e.ortBelegt)
+}
+
+function nameZustand(eingabe: KernangabenEingabe): KernangabeZustand {
+  if (!eingabe.nameVorhanden) return 'fehlt'
+  return eingabe.hauptformBelegt ? 'belegt' : 'vorhanden'
+}
+
+function istErfuellt(zustand: KernangabeZustand): boolean {
+  return zustand === 'belegt' || zustand === 'vorhanden'
 }
 
 export function kernangabenAuswerten(eingabe: KernangabenEingabe): Kernangaben | null {
   if (eingabe.istPlatzhalter) return null
 
-  const angaben: [KernangabeId, boolean][] = [
-    ['name', eingabe.hauptformBelegt],
-    ['geschlecht', eingabe.geschlecht === 'M' || eingabe.geschlecht === 'F' || eingabe.geschlecht === 'X'],
-    ['geburtsdatum', belegteAussage(eingabe.geburtsdatum)],
-    ['geburtsort', belegterOrt(eingabe.geburtsort)],
+  const geschlechtErfasst = eingabe.geschlecht === 'M' || eingabe.geschlecht === 'F' || eingabe.geschlecht === 'X'
+  const angaben: KernangabeEintrag[] = [
+    { id: 'name', zustand: nameZustand(eingabe) },
+    { id: 'geschlecht', zustand: geschlechtErfasst ? 'vorhanden' : 'fehlt' },
+    { id: 'geburtsdatum', zustand: datumZustand(eingabe.geburtsdatum, eingabe.geburtEreignisse) },
+    { id: 'geburtsort', zustand: ortZustand(eingabe.geburtsort, eingabe.geburtEreignisse) },
   ]
   if (eingabe.lebendStatus === 'verstorben') {
-    angaben.push(['todesdatum', belegteAussage(eingabe.todesdatum)], ['todesort', todesortErfuellt(eingabe)])
+    angaben.push(
+      { id: 'todesdatum', zustand: datumZustand(eingabe.todesdatum, eingabe.todEreignisse) },
+      { id: 'todesort', zustand: ortZustand(eingabe.todesort, eingabe.todEreignisse) },
+    )
   }
 
   const belegteEltern = new Set(eingabe.eltern.filter((e) => e.belegt).map((e) => e.id))
   const plaetze = elternPlaetze(eingabe.eltern)
-  const platzBelegt = (id: string | null): boolean => id !== null && belegteEltern.has(id)
+  const platzZustand = (id: string | null): KernangabeZustand => {
+    if (id === null) return 'fehlt'
+    return belegteEltern.has(id) ? 'belegt' : 'unbelegt'
+  }
   if (plaetze.unbestimmt !== null) {
-    angaben.push(['elternteil', platzBelegt(plaetze.unbestimmt)], ['elternteil', false])
+    angaben.push({ id: 'elternteil', zustand: platzZustand(plaetze.unbestimmt) }, { id: 'elternteil', zustand: 'fehlt' })
   } else {
-    angaben.push(['vater', platzBelegt(plaetze.vater)], ['mutter', platzBelegt(plaetze.mutter)])
+    angaben.push({ id: 'vater', zustand: platzZustand(plaetze.vater) }, { id: 'mutter', zustand: platzZustand(plaetze.mutter) })
   }
 
-  const erfuellt = angaben.filter(([, ok]) => ok).length
+  const erfuellt = angaben.filter((a) => istErfuellt(a.zustand)).length
   const anwendbar = angaben.length
   return {
     erfuellt,
     anwendbar,
     prozent: Math.floor((erfuellt * 100) / anwendbar),
-    fehlend: angaben.filter(([, ok]) => !ok).map(([id]) => id),
+    fehlend: angaben.filter((a) => !istErfuellt(a.zustand)).map((a) => a.id),
+    aufschluesselung: angaben,
   }
 }

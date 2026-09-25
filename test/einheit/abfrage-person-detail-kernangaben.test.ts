@@ -1,5 +1,7 @@
 // AP-1.34 PR-D (ADR-031, §31 U-1.34-E7, U-1.34-D1…D11): `abfrage:person.detail` liefert
 // `kernangaben` — über den echten Befehlsbus, damit Belege genau so entstehen wie in der UI.
+// Vorarbeiten AP-1.30, PR 2 (Nachtrag ADR-031, §32): Name nach Vorhandensein, Ereignis-Rückfall für
+// Geburt/Tod auch ohne Beleg, Rollen hauptperson/kind bzw. verstorbener/hauptperson, Aufschlüsselung.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -13,6 +15,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import type { PersonDetailKernangaben } from '../../src/shared/schemata/person-detail'
 
 type Db = ReturnType<typeof oeffnen>
@@ -76,11 +79,31 @@ function nameBelegen(db: Db, nameFormId: string): void {
   fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'name', subjektId: nameFormId, praedikat: 'name', wertText: 'laut Taufeintrag', konfidenz: 3, belege: [zitat(db)] })
 }
 
-function todEreignis(db: Db, personId: string, o: { readonly ortId?: string; readonly rolle?: 'verstorbener' | 'informant'; readonly belegt?: boolean }): string {
+function todEreignis(
+  db: Db,
+  personId: string,
+  o: { readonly ortId?: string; readonly rolle?: 'verstorbener' | 'informant' | 'hauptperson'; readonly belegt?: boolean; readonly datum?: boolean },
+): string {
   return fuehreAus(db, 'ereignis.anlegen', {
     typ: 'tod',
     ...(o.ortId !== undefined ? { ortId: o.ortId } : {}),
+    ...(o.datum === true ? { datum: { modifikator: 'exakt' as const, praezision: 'jahr' as const, wert1: '1950' } } : {}),
     beteiligungen: [{ personId, rolle: o.rolle ?? 'verstorbener' }],
+    konfidenz: 3,
+    ...belege(db, o.belegt ?? false),
+  }).id
+}
+
+function geburtEreignis(
+  db: Db,
+  personId: string,
+  o: { readonly ortId?: string; readonly rolle: 'hauptperson' | 'kind' | 'vater'; readonly datum?: boolean; readonly belegt?: boolean; readonly typ?: 'geburt' | 'taufe' },
+): string {
+  return fuehreAus(db, 'ereignis.anlegen', {
+    typ: o.typ ?? 'geburt',
+    ...(o.ortId !== undefined ? { ortId: o.ortId } : {}),
+    ...(o.datum === true ? { datum: { modifikator: 'exakt' as const, praezision: 'jahr' as const, wert1: '1900' } } : {}),
+    beteiligungen: [{ personId, rolle: o.rolle }],
     konfidenz: 3,
     ...belege(db, o.belegt ?? false),
   }).id
@@ -105,6 +128,10 @@ function kern(db: Db, personId: string): PersonDetailKernangaben | null {
 
 function fehlend(db: Db, personId: string): readonly string[] {
   return kern(db, personId)?.fehlend ?? ['<null>']
+}
+
+function zustand(db: Db, personId: string, id: string): string {
+  return kern(db, personId)?.aufschluesselung.find((a) => a.id === id)?.zustand ?? '<keine>'
 }
 
 function ortZahl(db: Db, personId: string, praedikat: 'geburtsort' | 'todesort', belegt: boolean): void {
@@ -147,7 +174,8 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
 
   it('KA2: frische Person 0/6', () => {
     mitDb((db) => {
-      expect(kern(db, person(db))).toEqual({ erfuellt: 0, anwendbar: 6, prozent: 0, fehlend: ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'vater', 'mutter'] })
+      const ids = ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'vater', 'mutter'] as const
+      expect(kern(db, person(db))).toEqual({ erfuellt: 0, anwendbar: 6, prozent: 0, fehlend: ids, aufschluesselung: ids.map((id) => ({ id, zustand: 'fehlt' })) })
     })
   })
 
@@ -155,7 +183,9 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
     mitDb((db) => {
       const p = verstorbenOhneTodesort(db)
       ortText(db, p, 'todesort', true)
-      expect(kern(db, p)).toEqual({ erfuellt: 8, anwendbar: 8, prozent: 100, fehlend: [] })
+      expect(kern(db, p)).toMatchObject({ erfuellt: 8, anwendbar: 8, prozent: 100, fehlend: [] })
+      // Geschlecht zählt nur als vorhanden (E7), alles andere ist belegt.
+      expect(kern(db, p)?.aufschluesselung.filter((a) => a.zustand !== 'belegt')).toEqual([{ id: 'geschlecht', zustand: 'vorhanden' }])
     })
   })
 
@@ -173,7 +203,7 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
     })
   })
 
-  it('KA5: Ereignis-Rückfall — Beleg ganz oder feld=ort ja, feld=datum nein, Rolle informant nein, ohne Ort nein', () => {
+  it('KA5: Ereignis-Rückfall — Beleg ganz oder feld=ort belegt, feld=datum nur vorhanden (D9 neu), Rolle informant nein, ohne Ort nein', () => {
     mitDb((db) => {
       const ganz = verstorbenOhneTodesort(db)
       todEreignis(db, ganz, { ortId: ort(db), belegt: true })
@@ -183,9 +213,13 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
       ortBeleg(db, todEreignis(db, feldOrt, { ortId: ort(db) }), 'ort')
       expect(fehlend(db, feldOrt)).toEqual([])
 
+      expect(zustand(db, feldOrt, 'todesort')).toBe('belegt')
+
+      // D9 neu: ein Beleg nur für das Datum belegt den Ort nicht — der Ereignisort zählt trotzdem (vorhanden).
       const feldDatum = verstorbenOhneTodesort(db)
       ortBeleg(db, todEreignis(db, feldDatum, { ortId: ort(db) }), 'datum')
-      expect(fehlend(db, feldDatum)).toEqual(['todesort'])
+      expect(fehlend(db, feldDatum)).toEqual([])
+      expect(zustand(db, feldDatum, 'todesort')).toBe('vorhanden')
 
       const informant = verstorbenOhneTodesort(db)
       todEreignis(db, informant, { ortId: ort(db), rolle: 'informant', belegt: true })
@@ -199,20 +233,114 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
       const fremdeAussage = verstorbenOhneTodesort(db)
       const ereignisId = todEreignis(db, fremdeAussage, { ortId: ort(db) })
       fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'ereignis', subjektId: ereignisId, praedikat: 'todesursache', wertText: 'Fieber', konfidenz: 3, belege: [zitat(db)] })
-      expect(fehlend(db, fremdeAussage)).toEqual(['todesort'])
+      expect(zustand(db, fremdeAussage, 'todesort')).toBe('vorhanden')
     })
   })
 
-  it('KA6: Name — Beleg an einer Nebenform zählt nicht; nach hauptname.wechseln zählt der Beleg der neuen Hauptform', () => {
+  it('KA6: Name zählt, sobald er vorhanden ist (D1 neu); „belegt" nur über den Beleg an der Hauptform (D3), auch nach hauptname.wechseln', () => {
     mitDb((db) => {
       const p = person(db)
+      expect(zustand(db, p, 'name')).toBe('fehlt')
       const haupt = name(db, p, 'Haupt')
       const neben = name(db, p, 'Neben')
-      nameBelegen(db, neben)
-      expect(fehlend(db, p)).toContain('name')
-      fuehreAus(db, 'hauptname.wechseln', { personId: p, alt: haupt, neu: neben })
       expect(fehlend(db, p)).not.toContain('name')
+      expect(zustand(db, p, 'name')).toBe('vorhanden')
+      nameBelegen(db, neben)
+      expect(zustand(db, p, 'name')).toBe('vorhanden')
+      fuehreAus(db, 'hauptname.wechseln', { personId: p, alt: haupt, neu: neben })
+      expect(zustand(db, p, 'name')).toBe('belegt')
       expect(kern(db, p)?.erfuellt).toBe(1)
+    })
+  })
+
+  it('KA6b: eine Hauptform ohne jeden Text ist kein Name (§32 V-D1-name-vorhanden)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname' })
+      expect(personDetail(db, { personId: p }).namen).toHaveLength(1)
+      expect(zustand(db, p, 'name')).toBe('fehlt')
+    })
+  })
+
+  it('KA11: Ereignisse aus der Oberfläche (Rolle hauptperson) zählen für Datum und Ort, auch ohne Beleg (D9 neu)', () => {
+    mitDb((db) => {
+      const p = person(db, { lebendStatus: 'verstorben' })
+      geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db) })
+      todEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db) })
+      const k = kern(db, p)
+      expect(k?.fehlend).toEqual(['name', 'geschlecht', 'vater', 'mutter'])
+      expect(k?.aufschluesselung.filter((a) => a.zustand === 'vorhanden').map((a) => a.id)).toEqual(['geburtsdatum', 'geburtsort', 'todesdatum', 'todesort'])
+      konsistent(db, p)
+    })
+  })
+
+  it('KA12: Geburt mit Rolle kind zählt, Rolle vater und Taufe nicht; ohne Datum nur der Ort', () => {
+    mitDb((db) => {
+      const kind = person(db)
+      geburtEreignis(db, kind, { rolle: 'kind', datum: true, ortId: ort(db) })
+      expect(fehlend(db, kind)).not.toContain('geburtsdatum')
+      expect(fehlend(db, kind)).not.toContain('geburtsort')
+
+      const vater = person(db)
+      geburtEreignis(db, vater, { rolle: 'vater', datum: true, ortId: ort(db) })
+      expect(fehlend(db, vater)).toEqual(expect.arrayContaining(['geburtsdatum', 'geburtsort']))
+
+      const getauft = person(db)
+      geburtEreignis(db, getauft, { rolle: 'hauptperson', typ: 'taufe', datum: true, ortId: ort(db) })
+      expect(fehlend(db, getauft)).toEqual(expect.arrayContaining(['geburtsdatum', 'geburtsort']))
+
+      const ohneDatum = person(db)
+      geburtEreignis(db, ohneDatum, { rolle: 'hauptperson', ortId: ort(db) })
+      expect(fehlend(db, ohneDatum)).toContain('geburtsdatum')
+      expect(fehlend(db, ohneDatum)).not.toContain('geburtsort')
+    })
+  })
+
+  it('KA13: die Aussage führt — eine unbelegte Aussage verdrängt ein belegtes Geburtsereignis (V-D9-aussage-fuehrt)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db), belegt: true })
+      expect(zustand(db, p, 'geburtsdatum')).toBe('belegt')
+      expect(zustand(db, p, 'geburtsort')).toBe('belegt')
+      datum(db, p, 'geburtsdatum', false)
+      expect(zustand(db, p, 'geburtsdatum')).toBe('unbelegt')
+      expect(zustand(db, p, 'geburtsort')).toBe('belegt')
+    })
+  })
+
+  it('KA13b: ein Beleg an einem Ereignis, das für die Person kein Rückfall ist (Rolle vater), wirkt nie (hueter #125, H3)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db) })
+      geburtEreignis(db, p, { rolle: 'vater', datum: true, ortId: ort(db), belegt: true })
+      expect(zustand(db, p, 'geburtsdatum')).toBe('vorhanden')
+      expect(zustand(db, p, 'geburtsort')).toBe('vorhanden')
+    })
+  })
+
+  it('KA13c: ein Ereignis nur mit Originaltext-Datum zählt; ein Name nur aus original_text ist vorhanden (hueter #125, H4)', () => {
+    mitDb((db) => {
+      const p = person(db, { lebendStatus: 'verstorben' })
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', originalText: 'Hans der Schmied' })
+      const e = fuehreAus(db, 'ereignis.anlegen', { typ: 'tod', datum: { modifikator: 'etwa', praezision: 'jahr', wert1: '1812', original_text: 'um Martini 1812' }, beteiligungen: [{ personId: p, rolle: 'hauptperson' }], konfidenz: 2 }).id
+      // Altbestand: die Schreibbefehle verlangen wert1, ältere Daten können nur den Originaltext tragen.
+      journalAus(db, 'test-fixture: Altbestand ohne datum_wert1')
+      try {
+        db.prepare<{ readonly id: string }>(`UPDATE ereignis SET datum_wert1 = NULL WHERE id = @id`).run({ id: e })
+      } finally {
+        journalAn(db)
+      }
+      expect(zustand(db, p, 'name')).toBe('vorhanden')
+      expect(zustand(db, p, 'todesdatum')).toBe('vorhanden')
+    })
+  })
+
+  it('KA14: Ereignis-Beleg feldgenau — feld=datum belegt das Datum, nicht den Ort', () => {
+    mitDb((db) => {
+      const p = person(db)
+      ortBeleg(db, geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db) }), 'datum')
+      expect(zustand(db, p, 'geburtsdatum')).toBe('belegt')
+      expect(zustand(db, p, 'geburtsort')).toBe('vorhanden')
     })
   })
 

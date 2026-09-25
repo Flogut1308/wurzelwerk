@@ -2,7 +2,7 @@
 // (Rückfallkette Sprache → Umschrift → Hauptname) + `sortierName` (Nachname, Vornamen; Präfix zählt
 // NICHT mit) aus src/core/name/anzeigename.ts ab. Kein Node/SQL — reine Datenstruktur-Eingabe.
 import { describe, expect, it } from 'vitest'
-import { anzeigenameFuer, sortierName, type AnzeigeForm } from '../../src/core/name/anzeigename'
+import { anzeigenameFuer, anzeigetextVon, hatAnzeigetext, sortierName, type AnzeigeForm } from '../../src/core/name/anzeigename'
 import type { GeladenerTeil } from '../../src/core/name/zerlegung'
 
 function teil(art: GeladenerTeil['art'], wert: string, sortierIndex = 0, istRufname = false): GeladenerTeil {
@@ -64,5 +64,43 @@ describe('anzeigenameFuer (Rückfallkette, AP-1.33)', () => {
   it('fällt ohne Sprache/Umschrift auf den Hauptnamen zurück (quelle: hauptname)', () => {
     const ergebnis = anzeigenameFuer([original])
     expect(ergebnis).toEqual({ text: 'Ivanov', quelle: 'hauptname', formId: 'orig' })
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 2 (hueter #125, H5): „Name vorhanden" steht im Kern.
+describe('hatAnzeigetext (Nachtrag ADR-031, V-D1-name-vorhanden)', () => {
+  it('Bestandteile oder original_text zählen, reine Leerzeichen und nichts nicht', () => {
+    expect(hatAnzeigetext(form({ formId: 'f', teile: [teil('nachname', 'Muster')] }))).toBe(true)
+    expect(hatAnzeigetext(form({ formId: 'f', originalText: 'Hans der Schmied' }))).toBe(true)
+    expect(hatAnzeigetext(form({ formId: 'f', originalText: '   ' }))).toBe(false)
+    expect(hatAnzeigetext(form({ formId: 'f' }))).toBe(false)
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 3 (docs/80 §30 U-1.33-vatersname-anzeige, Eigentümer 25.09.2026): der
+// Vatersname gehört in den Anzeigetext zwischen Vornamen und Nachname.
+describe('Anzeigetext mit Vatersname (U-1.33-vatersname-anzeige)', () => {
+  it('„Iwan Petrowitsch Iwanow" — Vatersname zwischen Vornamen und Nachname', () => {
+    const f = form({ formId: 'f1', istBevorzugt: true, teile: [teil('nachname', 'Iwanow'), teil('vatersname', 'Petrowitsch'), teil('vorname', 'Iwan', 0)] })
+    expect(anzeigenameFuer([f])?.text).toBe('Iwan Petrowitsch Iwanow')
+    expect(anzeigetextVon(f)).toBe('Iwan Petrowitsch Iwanow')
+  })
+
+  it('mit Titel, Präfix und Zusatz: Titel Vornamen Vatersname Präfix Nachname Zusatz', () => {
+    const f = form({
+      formId: 'f1',
+      teile: [teil('suffix', 'Jr.'), teil('nachname', 'Iwanow'), teil('praefix', 'von'), teil('vatersname', 'Petrowitsch'), teil('vorname', 'Iwan', 0), teil('titel', 'Dr.')],
+    })
+    expect(anzeigetextVon(f)).toBe('Dr. Iwan Petrowitsch von Iwanow Jr.')
+  })
+
+  it('nur ein Vatersname ist ein Anzeigetext, mehrere Vatersnamensteile in sortierIndex-Reihenfolge', () => {
+    expect(anzeigetextVon(form({ formId: 'f1', teile: [teil('vatersname', 'Petrowitsch')] }))).toBe('Petrowitsch')
+    expect(anzeigetextVon(form({ formId: 'f1', teile: [teil('vatersname', 'B', 1), teil('vatersname', 'A', 0)] }))).toBe('A B')
+  })
+
+  it('der Sortiername bleibt „Nachname, Vornamen" ohne Vatersname', () => {
+    const f = form({ formId: 'f1', teile: [teil('nachname', 'Iwanow'), teil('vatersname', 'Petrowitsch'), teil('vorname', 'Iwan', 0)] })
+    expect(sortierName(f)).toBe('Iwanow, Iwan')
   })
 })
