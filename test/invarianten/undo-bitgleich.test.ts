@@ -166,6 +166,8 @@ const MAIN_TREFFER: readonly (readonly [Zweig, number])[] = [
 const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['befehl:aussage_zitat.aendern', 3],
   ['undo.entwertung', 1],
+  // AP-1.30 Vorarbeiten Teil 3, PR 4c (V-E5-erhalt): Branch-Wert 8 mit diesem Seed/`numRuns`.
+  ['aussage.aendern.datumBeibehalten', 4],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
