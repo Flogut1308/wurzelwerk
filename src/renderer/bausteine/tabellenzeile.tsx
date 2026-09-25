@@ -4,6 +4,7 @@ import type { PersonListeZeile } from '../../shared/schemata/person-liste'
 import { spaltenRasterVorlage, type DatentabelleSpalte } from './datentabelle-spalten'
 import { KonfidenzPunkt, type KonfidenzStufe } from './konfidenz-punkt'
 import { lebensdatenAnzeige, lebensdatenFormatergebnis } from './lebensdaten-anzeige'
+import { personennameIstErsatz, personennameText } from './personenname-anzeige'
 import { Text } from './text'
 import { WiderspruchZeichen } from './widerspruch-zeichen'
 import './tabellenzeile.css'
@@ -37,7 +38,8 @@ function konfidenzStufe(wert: number | null): KonfidenzStufe | null {
 /**
  * `Tabellenzeile` — Molekül (docs/71_Designsystem.md §2.2), drei Zustände: normal · ausgewählt ·
  * Platzhalter (gestrichelt). Platzhalterzeilen zeigen **nie** `anzeigename` (A-17) — unabhängig
- * davon, was der Abfragevertrag dort liefert, ist die Anzeige hier bewusst generisch.
+ * davon, was der Abfragevertrag dort liefert, ist die Anzeige hier bewusst generisch. Eine Person
+ * ohne Namensform zeigt „(ohne Namen)" (AP-1.30 PR 2, §32 V-4-ohne-namen, `personenname-anzeige.ts`).
  *
  * AP-1.10 PR-A (U-1.6-lebensdaten-unschaerfe): die Lebensdaten-Zelle übersetzt `Formatergebnis`e
  * aus `lebensdatenFormatergebnis()` (`src/renderer/bausteine/lebensdaten-anzeige.ts`, wiederum aus
@@ -46,7 +48,7 @@ function konfidenzStufe(wert: number | null): KonfidenzStufe | null {
  * eigene Formatierlogik hier (CLAUDE.md §14 Fall 1, jetzt geschlossen).
  */
 export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewaehlt, ariaRowIndex }: TabellenzeileProps) {
-  const { t } = useTranslation('liste')
+  const { t: tAllgemein } = useTranslation('allgemein')
   const { t: tDatum } = useTranslation('datum')
   const anklickbar = aufAusgewaehlt !== undefined
   const stufe = konfidenzStufe(zeile.konfidenz_min)
@@ -80,8 +82,8 @@ export function Tabellenzeile({ zeile, spalten, ausgewaehlt = false, aufAusgewae
     >
       {spalten.includes('name') ? (
         <span role="cell" className="wz-tabellenzeile__zelle">
-          <Text rolle="koerper" farbe={zeile.ist_platzhalter ? 'tertiaer' : 'primaer'}>
-            {zeile.ist_platzhalter ? t('platzhalter_bezeichnung') : zeile.anzeigename}
+          <Text rolle="koerper" farbe={personennameIstErsatz(zeile) ? 'tertiaer' : 'primaer'}>
+            {personennameText(zeile, tAllgemein)}
           </Text>
         </span>
       ) : null}

@@ -72,8 +72,8 @@ test.describe('Ablauf 03 — Person bearbeiten (Kernfelder)', () => {
     await zeile.click()
     const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
     await expect(profil).toBeVisible()
-    // Leerer Anzeigename: die Überschrift ist da, aber (noch) ohne Text.
-    await expect(profil.getByRole('heading', { level: 1 })).toHaveText('')
+    // Leerer Anzeigename: die Überschrift zeigt den Ersatztext (AP-1.30 PR 2, §32 V-4-ohne-namen).
+    await expect(profil.getByRole('heading', { level: 1 })).toHaveText('(ohne Namen)')
 
     // In den Bearbeiten-Zustand wechseln — KEINE zweite Seite, derselbe `ProfilAnsicht`-Dialog.
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
@@ -106,9 +106,9 @@ test.describe('Ablauf 03 — Person bearbeiten (Kernfelder)', () => {
     const undoErgebnis = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:journal.undo', null))
     expect(undoErgebnis.ok).toBe(true)
 
-    // Zustand vorher: keine Namenszeile mehr, die H1 ist wieder leer. Die Zeilenzahl in der Liste
-    // bleibt bei 1 (die Person selbst ist nicht zurückgenommen worden).
-    await expect(profil.getByRole('heading', { level: 1 })).toHaveText('')
+    // Zustand vorher: keine Namenszeile mehr, die H1 zeigt wieder den Ersatztext. Die Zeilenzahl in
+    // der Liste bleibt bei 1 (die Person selbst ist nicht zurückgenommen worden).
+    await expect(profil.getByRole('heading', { level: 1 })).toHaveText('(ohne Namen)')
     await expect(zeile).toHaveCount(1)
   })
 })

@@ -16,6 +16,7 @@ import { Ladeschimmer } from '../../bausteine/ladeschimmer'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
+import { personennameIstErsatz, personennameText } from '../../bausteine/personenname-anzeige'
 import { Text } from '../../bausteine/text'
 import { BelegListe } from './beleg-liste'
 import { NegativbefundAbschnitt } from './negativbefund-abschnitt'
@@ -262,8 +263,9 @@ function ProfilBearbeitenInhalt({ personId, daten }: ProfilBearbeitenInhaltProps
  * Platzhalter-/Privat-Kennzeichnung (nur Anzeige, kein Umschalter — AP-1.7 ist lesend). */
 function ProfilKopf({ kopf }: { readonly kopf: PersonDetailKopf }) {
   const { t } = useTranslation('profil')
+  const { t: tAllgemein } = useTranslation('allgemein')
   const stufe = konfidenzStufe(kopf.konfidenz_min)
-  const name = kopf.ist_platzhalter ? t('platzhalter_bezeichnung') : kopf.anzeigename
+  const name = personennameText(kopf, tAllgemein)
 
   return (
     <header className="wz-profil-ansicht__profilkopf">
@@ -429,11 +431,13 @@ function EreignisAbschnitt({ ereignisse }: { readonly ereignisse: readonly Perso
  * leeren `anzeigename` erraten — ein leerer Name allein hätte auch eine echte, noch namenlose
  * Person fälschlich als Platzhalter beschriftet. Die Kennzeichnung ist außerdem FARBUNABHÄNGIG
  * (A-17/`docs/datenmodell.md` §2.14 „gestrichelte Umrandung, kein Name"): Text
- * `platzhalter_bezeichnung` + gestrichelter Rahmen (`.wz-profil-ansicht__beziehung--platzhalter`,
+ * `allgemein:person_platzhalter` + gestrichelter Rahmen (`.wz-profil-ansicht__beziehung--platzhalter`,
  * analog `.wz-tabellenzeile--platzhalter`) — die gedämpfte Farbe ist eine dritte, zusätzliche
- * Zusicherung, nie die einzige. */
+ * Zusicherung, nie die einzige. Eine echte Person ohne Namensform zeigt „(ohne Namen)" ohne
+ * gestrichelten Rahmen (AP-1.30 PR 2, §32 V-4-ohne-namen, `personenname-anzeige.ts`). */
 function BeziehungenAbschnitt({ beziehungen }: { readonly beziehungen: readonly PersonDetailBeziehung[] }) {
   const { t } = useTranslation('profil')
+  const { t: tAllgemein } = useTranslation('allgemein')
   if (beziehungen.length === 0) return null
 
   return (
@@ -450,8 +454,8 @@ function BeziehungenAbschnitt({ beziehungen }: { readonly beziehungen: readonly 
             <Text rolle="beschriftung" als="span">
               {t(richtungSchluessel(beziehung.richtung))}
             </Text>
-            <Text rolle="koerper" farbe={beziehung.ist_platzhalter ? 'tertiaer' : 'primaer'} als="span">
-              {beziehung.ist_platzhalter ? t('platzhalter_bezeichnung') : beziehung.anzeigename}
+            <Text rolle="koerper" farbe={personennameIstErsatz(beziehung) ? 'tertiaer' : 'primaer'} als="span">
+              {personennameText(beziehung, tAllgemein)}
             </Text>
             <Text rolle="koerper-klein" als="span">
               {t(kantentypSchluessel(beziehung.kantentyp))}
