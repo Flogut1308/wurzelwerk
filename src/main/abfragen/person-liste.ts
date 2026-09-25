@@ -1,30 +1,38 @@
 // AP-1.6 PR1, C-16/C-17/A-19, 55_Architektur.md §5. `abfrage:person.liste` — read-only SQL gegen
-// `person_flach`/`person`/`name`/`aussage`/`aussage_zitat`/`elternschaft` (CLAUDE.md §2: SQL nur in
-// src/main/repositories/, src/main/abfragen/), KEINE Transaktion, Spalten aufgezählt, benannte
-// Parameter.
+// `person_flach`/`person`/`name_form`/`name_part`/`aussage`/`aussage_zitat`/`elternschaft`
+// (CLAUDE.md §2: SQL nur in src/main/repositories/, src/main/abfragen/), KEINE Transaktion, Spalten
+// aufgezählt, benannte Parameter.
 //
 // Sortierung (Entscheidung A, freigegeben): `person_flach.sortier_nachname`/`sortier_vornamen`
 // entfernen Diakritika vollständig (suchnormalform(), src/core/name/suchnormalform.ts) und taugen
 // darum NICHT für die Personenliste — "Müller" würde zu "muller" und wäre von "Mueller" nicht mehr
-// unterscheidbar. Diese Abfrage liest darum stattdessen den ROHEN bevorzugten Namen (JOIN auf
-// `name`, dieselbe "bevorzugter Eintrag"-Fensterfunktion wie in den `abl_*`-Triggern,
-// docs/schema/0003_abgeleitet.sql) und sortiert mit der eigenen, getesteten Kern-Kollation
-// (`src/core/liste/sortierung.ts`) NACH dem Laden — ein zweiter, in SQL nachgebauter
-// Kollationsalgorithmus wäre eine ständige Drift-Quelle gegenüber dem in `test/einheit/
-// abfrage-person-liste.test.ts` geprüften Verhalten. Bei bis zu einigen Tausend Personen (aktueller
-// Formfaktor der App, s. test/budget/leistung.test.ts) ist "gefilterten Bestand laden, in JS
-// sortieren, dann seitenweise schneiden" günstiger als zwei Abfragepfade (SQL-Sortierung für
-// geburt/tod, JS-Nachsortierung für nachname/vornamen) mit doppelter Wartungslast zu pflegen.
+// unterscheidbar. Diese Abfrage liest darum stattdessen den ROHEN Namen der bevorzugten Namensform
+// (Wahl über `bevorzugteFormIdSql`, Rekonstruktion über `nameFormNachnameSql`/`nameFormVornamenSql` —
+// dieselben Bausteine wie die `person_flach`-Projektion, src/main/datenbank/abgeleitet-projektion.ts)
+// und sortiert mit der eigenen, getesteten Kern-Kollation (`src/core/liste/sortierung.ts`) NACH dem
+// Laden — ein zweiter, in SQL nachgebauter Kollationsalgorithmus wäre eine ständige Drift-Quelle
+// gegenüber dem in `test/einheit/abfrage-person-liste.test.ts` geprüften Verhalten (V-4-sortierung).
+// Bei bis zu einigen Tausend Personen (aktueller Formfaktor der App, s. test/budget/leistung.test.ts)
+// ist "gefilterten Bestand laden, in JS sortieren, dann seitenweise schneiden" günstiger als zwei
+// Abfragepfade (SQL-Sortierung für geburt/tod, JS-Nachsortierung für nachname/vornamen) mit doppelter
+// Wartungslast zu pflegen.
 //
-// AP-1.10 PR-A (Listen-Vertrag): die Zeile trägt zusätzlich Beruf, Belegzahl, Kinderzahl und die
-// volle Datums-Spaltengruppe für Geburt/Tod — jeweils über EINE gruppierte Nebenabfrage (Fenster-
-// funktion bzw. `GROUP BY`) statt einer Abfrage je Person (Budget: test/budget/leistung.test.ts hält
-// das 20-ms-Median-Budget ohne neuen Index, s. dortiger Kommentar). Seit den Vorarbeiten zu AP-1.30
-// (Teil 2, PR 5) in zwei Phasen: `sortierZeilenLaden` (alle gefilterten Personen, nur Sortierschlüssel)
-// und `zeilenFuerIdsLaden` (volle Zeilen nur für die Seite). `filterBedingungen`, `vergleicheZeilen`,
-// `whereSql`, `sortierZeilenLaden`, `zeilenFuerIdsLaden` und `zeileZuAusgabe` sind benannt exportiert:
-// `src/main/abfragen/suche.ts` verwendet sie unverändert wieder (U-1.6-suche-ohne-filter-sortierung-
-// seite), statt eine zweite Filter-/Sortier-/Lade-Implementierung zu pflegen.
+// Zwei Phasen (seit den Vorarbeiten zu AP-1.30, Teil 2, PR 5; Leistung nachgeschärft in Teil 3):
+// - `sortierZeilenLaden`: alle gefilterten Personen, nur Id und Sortierschlüssel. Bei Namens-
+//   sortierung genau EINE Namensspalte (die der Sortierung) als korrelierter Einzelwert je Zeile, die
+//   andere NULL; bei Geburt/Tod gar keine. Die Zahl dieser Zeilen ist zugleich `gesamt` (dieselbe
+//   FROM/WHERE-Menge, keine eigene COUNT-Abfrage).
+// - `zeilenFuerIdsLaden`: die vollen Zeilen (AP-1.10 PR-A: Beruf, Belegzahl, Kinderzahl, volle
+//   Datums-Spaltengruppe für Geburt/Tod) nur für die Personen der Seite — Beruf und Datumsgruppen je
+//   Zeile über den Primärschlüssel der bevorzugten/ersten Aussage, die Zahlen über je eine gruppierte
+//   Nebenabfrage. Keine Rohnamen: den sichtbaren Namen liefert `anzeigenamenLaden` aus dem Kern.
+// Ausgabe bitgleich zur früheren Einphasen-Abfrage (test/einheit/person-liste-zwei-phasen.test.ts);
+// kein neuer Index, keine Migration, kein Cache (Budget: test/budget/leistung.test.ts).
+//
+// `filterBedingungen`, `vergleicheZeilen`, `whereSql`, `sortierZeilenLaden`, `sortiereZeilen`,
+// `zeilenFuerIdsLaden` und `zeileZuAusgabe` sind benannt exportiert: `src/main/abfragen/suche.ts`
+// verwendet sie unverändert wieder (U-1.6-suche-ohne-filter-sortierung-seite), statt eine zweite
+// Filter-/Sortier-/Lade-Implementierung zu pflegen.
 import type Database from 'better-sqlite3'
 import { namensSortierschluessel, vergleicheNamen, vergleicheNamensschluessel, type NamensSortierschluessel } from '../../core/liste/sortierung'
 // AP-1.33: bevorzugter Name je Person aus name_form + name_part rekonstruiert — dieselben SQL-
