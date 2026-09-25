@@ -238,6 +238,7 @@ wurzelwerk/
 │   │   ├── abfragen/
 │   │   │   ├── person-liste.ts        †
 │   │   │   ├── person-detail.ts       †
+│   │   │   ├── _person-umfeld.ts      Umfeld einer Person für die Feldwarnungen (AP-1.34)
 │   │   │   ├── suche.ts               FTS5 + Phonetik †
 │   │   │   └── journal-verlauf.ts
 │   │   ├── import/                    † alles Phase 1
