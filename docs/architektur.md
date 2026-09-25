@@ -419,7 +419,10 @@ export interface Vertrag {
   'abfrage:person.liste':   { ein: PersonListeFilter;  aus: PersonZeile[] }
   'abfrage:person.detail':  { ein: { id: string };     aus: PersonDetail }
   'abfrage:suche':          { ein: SucheAnfrage;       aus: SucheTreffer[] }
-  'abfrage:journal.verlauf':{ ein: { grenze: number }; aus: TransaktionZeile[] }
+  'abfrage:journal.verlauf':{ ein: { grenze: number; personId?: string }; aus: VerlaufEintrag[] }
+  //   AP-1.30 PR 5: DIE Verlaufsabfrage — mit personId für die rechte Spalte des Profils, ohne für
+  //   S-16 (AP-1.23). Personenbezug über die feste Liste src/main/abfragen/journal-personenbezug.ts;
+  //   ein Import = ein Eintrag; VerlaufEintrag trägt `anzahl`; nur Gesundheitsdaten → ohne Beschreibung (M-08).
 
   'befehl:person.anlegen':  { ein: PersonAnlegenEin;   aus: { id: string } }
   'befehl:person.loeschen': { ein: { id: string };     aus: null }

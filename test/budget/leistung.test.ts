@@ -9,8 +9,19 @@
 // lokal ein harter Fehler, in der CI nur eine Warnung im Job-Log (CLAUDE.md §3): ein
 // maschinenabhängiges Timing darf das Gate nicht nichtdeterministisch rot machen — der Schutz vor
 // echten Regressionen liegt im lokalen Lauf. Diese Unterscheidung trifft `budgetErfuellen`.
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// AP-1.30 PR 5: der Journal-Bestand (grossbestand-journal.ts) schreibt über den echten Befehlsbus —
+// Protokoll und Renderer-Ereignisse wie in den Einheitstests stummgeschaltet (kein Electron-Fenster).
+vi.mock('../../src/main/protokoll/logger', () => ({
+  protokollFehler: vi.fn(),
+  protokollInfo: vi.fn(),
+  protokollDebug: vi.fn(),
+}))
+vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
+import { grossbestandMitJournalAufbauen } from '../hilfsmittel/grossbestand-journal'
+import { journalVerlauf } from '../../src/main/abfragen/journal-verlauf'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { personListe } from '../../src/main/abfragen/person-liste'
 import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
@@ -126,6 +137,33 @@ describe('Leistungsbudget: abfrage:person.detail bei 2000 Personen (AP-1.34 PR-C
         laufzeitenMs.push(performance.now() - start)
       }
       budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:person.detail')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('Leistungsbudget: abfrage:journal.verlauf (Person) bei 2000 Personen (AP-1.30 PR 5)', () => {
+  // Die rechte Spalte des Personenprofils lädt die letzten drei Verlaufseinträge bei JEDEM
+  // Profilaufruf mit — darum dieselbe Grenze wie abfrage:person.detail. Bestand: 2000 Personen, ein
+  // journalisierter Import über den ganzen Bestand + 60 Nutzeränderungen
+  // (test/hilfsmittel/grossbestand-journal.ts). Je Lauf eine andere Person, zuerst die bearbeiteten.
+  it('abfrage:journal.verlauf (personId, grenze=3) liegt im Median unter 50 ms', () => {
+    const db = grossbestandMitJournalAufbauen()
+    try {
+      const personIds = db
+        .prepare<{ readonly n: number }, { readonly id: string }>('SELECT id FROM person ORDER BY id LIMIT @n')
+        .all({ n: DURCHLAEUFE })
+        .map((zeile) => zeile.id)
+      expect(personIds.length).toBe(DURCHLAEUFE)
+      const laufzeitenMs: number[] = []
+      for (const personId of personIds) {
+        const start = performance.now()
+        const verlauf = journalVerlauf(db, 3, personId)
+        laufzeitenMs.push(performance.now() - start)
+        expect(verlauf.length).toBeGreaterThan(0)
+      }
+      budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:journal.verlauf (Person)')
     } finally {
       db.close()
     }

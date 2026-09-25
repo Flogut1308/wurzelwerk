@@ -96,6 +96,7 @@ import { registriere } from './huelle'
 
 const journalVerlaufEingabeSchema: z.ZodType<Ein<'abfrage:journal.verlauf'>> = z.object({
   grenze: z.number().int().positive(),
+  personId: z.string().min(1).optional(),
 })
 
 // Erzwingt strukturell, dass dieses Schema zu `ProtokollMeldenEin` passt — eine Abweichung ist
@@ -221,7 +222,7 @@ export function ipcRegistrierung(): void {
     journalStatusMelden(db)
     return ergebnis
   })
-  registriere('abfrage:journal.verlauf', journalVerlaufEingabeSchema, (ein) => journalVerlauf(offenesProjektDatenbank(), ein.grenze))
+  registriere('abfrage:journal.verlauf', journalVerlaufEingabeSchema, (ein) => journalVerlauf(offenesProjektDatenbank(), ein.grenze, ein.personId))
 
   registriere('befehl:schnappschuss.erzeugen', schnappschussErzeugenEinSchema, () =>
     schnappschussErzeugen(offenesProjektDatenbank(), offenesProjektPfade()),
