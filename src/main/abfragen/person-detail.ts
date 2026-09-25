@@ -309,8 +309,9 @@ function belegeJeAussageLaden(db: Database.Database, aussageIds: readonly string
  * „wert_ref zeigt auf einen Ort oder eine Person" — E-7, polymorph, bewusst KEIN `wert_ref_typ`,
  * `docs/schema/0002_kern.sql` Z.323, darum PRÄDIKATGESTEUERT statt spaltengesteuert aufgelöst).
  * Bugfix (vorbestehend, `docs/80_Offene_Fragen.md` §22 U-1.25-profil-fixture): jedes andere
- * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst gegen `person_flach` auf —
- * die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
+ * Prädikat mit `wert_ref_id` (z. B. `pate`, ein Personenverweis) löst als Person auf — seit den
+ * Vorarbeiten zu AP-1.30 (PR 4a) mit dem Kern-Anzeigenamen (`personennamenLaden`), nicht mehr über
+ * `person_flach`; die einzigen beiden laut Import-Vertrag zulässigen Verweisziele. */
 const PRAEDIKATE_MIT_ORT_REFERENZ: ReadonlySet<string> = new Set(['geburtsort', 'todesort', 'wohnort'])
 
 /** Anzeigewert einer Aussage: `wert_text` vor `datum_wert1` (Datumsprädikate wie `todesdatum`

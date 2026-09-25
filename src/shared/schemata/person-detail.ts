@@ -45,7 +45,8 @@ export const personDetailEinSchema: z.ZodType<PersonDetailEin> = z.object({
   personId: z.string(),
 })
 
-/** Kopf der Profilseite — Anzeigename und Konfidenz aus `person_flach`, Platzhalter-/
+/** Kopf der Profilseite — Anzeigename aus dem Kern (`anzeigenameFuer`, Vorarbeiten AP-1.30 PR 4a),
+ * Konfidenz aus `person_flach`, Platzhalter-/
  * Privat-Status aus `person` (docs/schema/0002_kern.sql, 0003_abgeleitet.sql).
  *
  * `geschlecht`/`platzhalter_grund` (AP-1.14a): bislang nur für die ANZEIGE gebraucht — jetzt zum
