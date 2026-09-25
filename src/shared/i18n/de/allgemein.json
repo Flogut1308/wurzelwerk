@@ -3,6 +3,9 @@
   "titel_mit_schema": "Wurzelwerk — Schema {{schema, number}}",
   "fehlergrenze": "Ein Fehler ist aufgetreten.",
 
+  "person_platzhalter": "Platzhalter",
+  "person_ohne_namen": "(ohne Namen)",
+
   "start_tagline": "Ahnenforschung, offline. Jede Aussage mit ihrer Quelle.",
 
   "start_neues_projekt_name_platzhalter": "Projektname",
