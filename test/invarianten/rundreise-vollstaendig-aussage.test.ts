@@ -8,6 +8,13 @@
 // Rot zuerst (CLAUDE.md §5). Der Vollständigkeitstest läuft über die Schlüssel des Vertragsschemas
 // von `aussage.aendern` (Muster profil-name-rundreise.test.ts): ein neuer Vertragsschlüssel ohne
 // Rundreise (Lesemodell → Abbildung → Befehl) macht ihn rot.
+//
+// GESCHÜTZTER PRÜFPFAD (AP-1.30 PR 9a-b, ADR-025, docs/80 §33 V-130-9-d1-datumswert): aus
+// `test/einheit/profil-aussage-rundreise.test.ts` hierher verschoben (das Namensmuster heißt jetzt
+// `rundreise-vollstaendig-name.test.ts`), Zusicherungen unverändert. Dazu ist die Ausnahmeliste
+// `KEIN_SPALTENWERT` fest gepinnt (erster Test unten): eine stille Erweiterung schaltete den
+// Vollständigkeitstest für diesen Schlüssel ab — jetzt ist sie eine Änderung am geschützten
+// Prüfpfad. Der Import aus `src/renderer` ist zulässig (dependency-cruiser prüft nur `src/`).
 import type Database from 'better-sqlite3'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -180,6 +187,10 @@ function anwendbar(wertart: Wertart, schluessel: WertSchluessel): boolean {
 }
 
 describe('Profil-Aussageänderung erhält alle Felder (AP-1.30 PR 9a)', () => {
+  it('Ausnahmeliste ist fest gepinnt: jede Erweiterung ist eine Prüfpfad-Änderung (AP-1.30 PR 9a-b)', () => {
+    expect([...KEIN_SPALTENWERT].sort()).toStrictEqual(['datumBeibehalten', 'feld', 'id'])
+  })
+
   it('Vollständigkeit: jeder Vertragsschlüssel hat einen Nicht-Standardwert, eine Spalte und ein Feld im Lesemodell', () => {
     const db = neueTestDatenbank()
     try {
