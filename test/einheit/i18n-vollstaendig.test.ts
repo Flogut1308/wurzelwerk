@@ -23,6 +23,7 @@ import {
   schriftSchluessel,
   unmittelbarkeitSchluessel,
 } from '../../src/renderer/ansichten/profil/profil-schluessel'
+import { LEBEND_STATUS_AUSWAHLEN, TOD_GRUPPE_GRUND_SCHLUESSEL, lebendStatusSchluessel } from '../../src/renderer/ansichten/profil/reiter-person-logik'
 import { informationsartSchluessel, quelleArtSchluessel, quelleFormSchluessel } from '../../src/renderer/ansichten/quellen/quellen-schluessel'
 import { BeteiligungRolleEnum } from '../../src/shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../src/shared/schemata/elternschaft'
@@ -118,6 +119,9 @@ describe('i18n-Ressourcen für den profil-Namespace (AP-1.7 PR-B)', () => {
     for (const grund of PlatzhalterGrundEnum.options) schluessel.add(platzhalterGrundSchluessel(grund))
     // AP-1.30 PR 7b: Reiter der Bearbeitungsansicht.
     for (const reiter of REITER) schluessel.add(reiterSchluessel(reiter))
+    // AP-1.30 PR 9b: Reiter „Person" (Lebensstatus, Beschriftung der Tod-Gruppe).
+    for (const auswahl of LEBEND_STATUS_AUSWAHLEN) schluessel.add(lebendStatusSchluessel(auswahl))
+    for (const grund of TOD_GRUPPE_GRUND_SCHLUESSEL) schluessel.add(grund)
     return schluessel
   }
 
