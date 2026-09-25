@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { FehlerCode } from '../../../shared/fehler/codes'
 import type {
   PersonDetailAus,
   PersonDetailBeziehung,
@@ -12,21 +11,20 @@ import type {
 import { usePersonDetail } from '../../brücke/abfrage-hooks'
 import { FeldKonfidenz, konfidenzStufe } from '../../bausteine/feld-konfidenz'
 import { KonfidenzPunkt } from '../../bausteine/konfidenz-punkt'
-import { Ladeschimmer } from '../../bausteine/ladeschimmer'
-import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { personennameIstErsatz, personennameText } from '../../bausteine/personenname-anzeige'
 import { Text } from '../../bausteine/text'
 import { BelegListe } from './beleg-liste'
+import { tabImContainerHalten } from './fokusfang'
 import { NegativbefundAbschnitt } from './negativbefund-abschnitt'
-import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
-import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
-import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
+import { PersonBearbeitenAnsicht } from './person-bearbeiten-ansicht'
 import { grunddatenZeilen, type EreignisWert, type GrunddatenZeile } from './profil-lebensdaten-logik'
 import { beteiligungRolleSchluessel, ereignisTypSchluessel, gesundheitArtSchluessel, kantentypSchluessel, praedikatSchluessel, richtungSchluessel } from './profil-schluessel'
+import { ProfilFehler, ProfilLaedt } from './profil-zustaende'
 import { Widerspruchsblock } from './widerspruchsblock'
 import './profil-ansicht.css'
+
 
 export interface ProfilAnsichtProps {
   readonly personId: string
@@ -40,55 +38,83 @@ type SchubladeZustand = { readonly art: 'keine' } | { readonly art: 'beleg' | 'w
 
 const SCHUBLADE_KEINE: SchubladeZustand = { art: 'keine' }
 
-const FOKUSSIERBAR_SELEKTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-function fokussierbareElemente(container: HTMLElement): readonly HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOKUSSIERBAR_SELEKTOR))
-}
+/** Welche Ansicht der Personen-Überlagerung sichtbar ist (AP-1.30 PR 7b, docs/80 §33
+ * V-130-7-ansicht): die Lesesicht S-07 oder der Editor als eigene Ansicht
+ * (`PersonBearbeitenAnsicht`). `fokusAufBearbeiten` merkt sich, dass die Lesesicht aus dem Editor
+ * zurückkommt — dann erhält der „Bearbeiten"-Knopf den Fokus statt des Dialogs. */
+type PersonAnsicht = { readonly art: 'lesen'; readonly fokusAufBearbeiten: boolean } | { readonly art: 'bearbeiten' }
 
 /**
  * `ProfilAnsicht` (S-07, C-04, B-01 bis B-04, AP-1.7 PR-B) — überlagerte Vollseite
  * (`70_UX_Konzept.md` §2: „der Kontext im Baum darf nicht verloren gehen; Schließen bringt einen
- * exakt dorthin zurück"). Holt `abfrage:person.detail` selbst; die Unterabschnitte unten bekommen
- * nur die schon geladenen Daten gereicht (ADR-016).
+ * exakt dorthin zurück"). Seit AP-1.30 PR 7b die Hülle der Personen-Überlagerung: sie schaltet
+ * zwischen Lesesicht (`ProfilLesesicht`) und Editor (`PersonBearbeitenAnsicht`) um. Beide holen
+ * `abfrage:person.detail` mit demselben Schlüssel — ein Cache (ADR-016).
  *
- * **Fokusfang/-rückgabe:** ein Effekt merkt sich beim Einhängen `document.activeElement` (die
- * Zeile, von der aus geöffnet wurde — noch fokussiert, weil bis dahin nichts anderes den Fokus
- * übernommen hat) und stellt ihn beim Aushängen wieder her. Das ist die „exakte Ausgangsstelle"
- * aus §2, ohne eine Personen-ID zwischen Listen- und Profilansicht hin- und herzureichen.
- * `Tab`/`Shift+Tab` werden innerhalb des Containers zyklisch gehalten (kein Fokusfang-Paket im
- * Projekt, ein einfacher selbstgebauter Fang reicht für eine einzelne Überlagerungsebene).
- * `Escape` ist kein Plattform-Tastenkürzel (CLAUDE.md §11 gilt für `Cmd`/`Ctrl`-Kombinationen über
- * `src/main/menue/tastenkuerzel.ts`) — ein einzelner `key === 'Escape'`-Vergleich braucht keine
- * Zuordnung dort.
+ * **Fokusrückgabe:** die Hülle merkt sich beim ersten Rendern `document.activeElement` (die Zeile,
+ * von der aus geöffnet wurde) und stellt ihn erst beim Aushängen der GANZEN Überlagerung wieder her.
+ * Ein Wechsel Lesesicht ↔ Editor hängt nur das Kind aus, nie die Hülle — die Listenzeile erhält
+ * dabei also keinen Zwischenfokus. Gemerkt wird im Rendern (Zustands-Initialisierer), nicht im
+ * Effekt: Effekte der Kinder laufen vor denen der Eltern, der Dialog hätte den Fokus sonst schon
+ * übernommen. `Escape` ist kein Plattform-Tastenkürzel (CLAUDE.md §11 gilt für `Cmd`/`Ctrl`-
+ * Kombinationen über `src/main/menue/tastenkuerzel.ts`) — ein einzelner `key === 'Escape'`-Vergleich
+ * braucht keine Zuordnung dort.
  */
-/** Ob die Profilseite liest oder bearbeitet (AP-1.14a) — ein Zustand DIESER Seite, keine zweite
- * Ansicht mit eigener Wahrheit: derselbe `usePersonDetail`-Abruf speist beide Zweige, das
- * Bearbeiten selbst schreibt ausschließlich über die AP-1.12-Befehle
- * (`befehl:name.*`/`befehl:person.feldSetzen`), `ereignis:datenGeaendert` invalidiert danach den
- * Cache wie überall sonst — kein optimistisches Update, kein zweiter Schreibweg (CLAUDE.md §2). */
-type ProfilModus = 'lesen' | 'bearbeiten'
-
 export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
+  const [ansicht, setAnsicht] = useState<PersonAnsicht>({ art: 'lesen', fokusAufBearbeiten: false })
+  // `typeof document`: `renderToStaticMarkup` in den Einheitstests läuft ohne DOM.
+  const [ausgangsElement] = useState<Element | null>(() => (typeof document === 'undefined' ? null : document.activeElement))
+
+  useEffect(() => {
+    return () => {
+      if (ausgangsElement instanceof HTMLElement) {
+        ausgangsElement.focus()
+      }
+    }
+  }, [ausgangsElement])
+
+  if (ansicht.art === 'bearbeiten') {
+    return (
+      <PersonBearbeitenAnsicht
+        personId={personId}
+        aufFertig={() => setAnsicht({ art: 'lesen', fokusAufBearbeiten: true })}
+        aufSchliessen={aufSchliessen}
+      />
+    )
+  }
+  return (
+    <ProfilLesesicht
+      personId={personId}
+      aufSchliessen={aufSchliessen}
+      aufBearbeiten={() => setAnsicht({ art: 'bearbeiten' })}
+      fokusAufBearbeiten={ansicht.fokusAufBearbeiten}
+    />
+  )
+}
+
+interface ProfilLesesichtProps {
+  readonly personId: string
+  readonly aufSchliessen: () => void
+  readonly aufBearbeiten: () => void
+  readonly fokusAufBearbeiten: boolean
+}
+
+/** Die Lesesicht S-07 — seit AP-1.30 PR 7b ohne Bearbeiten-Zweig; „Bearbeiten" öffnet den Editor.
+ * `Tab`/`Shift+Tab` bleiben im Dialog (`tabImContainerHalten`), Escape schließt die Überlagerung. */
+function ProfilLesesicht({ personId, aufSchliessen, aufBearbeiten, fokusAufBearbeiten }: ProfilLesesichtProps) {
   const { t } = useTranslation('profil')
   const abfrage = usePersonDetail({ personId })
   const [schublade, setSchublade] = useState<SchubladeZustand>(SCHUBLADE_KEINE)
-  const [modus, setModus] = useState<ProfilModus>('lesen')
   const containerRef = useRef<HTMLDivElement | null>(null)
+  // `Schaltflaeche` reicht keinen Ref durch — der Knopf wird über seine Hülle gefunden.
+  const bearbeitenRef = useRef<HTMLSpanElement | null>(null)
 
   useEffect(() => {
-    const vorherigesElement = document.activeElement
-    containerRef.current?.focus()
-    return () => {
-      if (vorherigesElement instanceof HTMLElement) {
-        vorherigesElement.focus()
-      }
-    }
-    // Bewusst leere Abhängigkeitsliste: dieser Fokusfang läuft genau einmal beim Ein- und einmal
-    // beim Aushängen DIESER Instanz — ein `personId`-Wechsel (kein Konsument in diesem Auftrag)
-    // wäre ein neues Profil, keine Aktualisierung derselben Überlagerung. Der Effekt referenziert
-    // ohnehin nur den Ref (`containerRef.current`), keine externe Variable, die hier fehlen könnte.
-  }, [])
+    const bearbeitenKnopf = fokusAufBearbeiten ? bearbeitenRef.current?.querySelector<HTMLButtonElement>('button') : null
+    ;(bearbeitenKnopf ?? containerRef.current)?.focus()
+    // `fokusAufBearbeiten` ist je Instanz fest (die Hülle hängt die Lesesicht bei jedem Wechsel neu
+    // ein) — der Effekt läuft also genau einmal beim Einhängen.
+  }, [fokusAufBearbeiten])
 
   function tastendruck(ereignis: KeyboardEvent<HTMLDivElement>) {
     if (ereignis.key === 'Escape') {
@@ -96,20 +122,7 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
       aufSchliessen()
       return
     }
-    if (ereignis.key !== 'Tab') return
-    const knoten = containerRef.current
-    if (knoten === null) return
-    const fokussierbar = fokussierbareElemente(knoten)
-    const erstes = fokussierbar[0]
-    const letztes = fokussierbar[fokussierbar.length - 1]
-    if (erstes === undefined || letztes === undefined) return
-    if (ereignis.shiftKey && document.activeElement === erstes) {
-      ereignis.preventDefault()
-      letztes.focus()
-    } else if (!ereignis.shiftKey && document.activeElement === letztes) {
-      ereignis.preventDefault()
-      erstes.focus()
-    }
+    tabImContainerHalten(ereignis, containerRef.current)
   }
 
   function feldLabel(praedikat: string): string {
@@ -133,9 +146,11 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
         </Text>
         <div className="wz-profil-ansicht__kopfzeile-aktionen">
           {abfrage.isSuccess ? (
-            <Schaltflaeche variante="unauffaellig" aufKlick={() => setModus(modus === 'lesen' ? 'bearbeiten' : 'lesen')}>
-              {t(modus === 'lesen' ? 'bearbeiten' : 'fertig')}
-            </Schaltflaeche>
+            <span ref={bearbeitenRef}>
+              <Schaltflaeche variante="unauffaellig" aufKlick={aufBearbeiten}>
+                {t('bearbeiten')}
+              </Schaltflaeche>
+            </span>
           ) : null}
           <Schaltflaeche variante="unauffaellig" aufKlick={aufSchliessen}>
             {t('schliessen')}
@@ -147,26 +162,14 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
         {abfrage.isPending ? <ProfilLaedt /> : null}
         {abfrage.isError && abfrage.error !== null ? <ProfilFehler code={abfrage.error.code} /> : null}
         {abfrage.isSuccess ? (
-          modus === 'lesen' ? (
-            <ProfilInhalt
-              personId={personId}
-              daten={abfrage.data}
-              aufBelegOeffnen={(feld) => setSchublade({ art: 'beleg', feld })}
-              aufWiderspruchOeffnen={(feld) => setSchublade({ art: 'widerspruch', feld })}
-            />
-          ) : (
-            <ProfilBearbeitenInhalt personId={personId} daten={abfrage.data} />
-          )
+          <ProfilInhalt
+            personId={personId}
+            daten={abfrage.data}
+            aufBelegOeffnen={(feld) => setSchublade({ art: 'beleg', feld })}
+            aufWiderspruchOeffnen={(feld) => setSchublade({ art: 'widerspruch', feld })}
+          />
         ) : null}
       </div>
-
-      {modus === 'bearbeiten' ? (
-        <footer className="wz-profil-ansicht__fusszeile" aria-live="polite">
-          <Text rolle="hilfe" als="span">
-            {t('bearbeitungsstatus_hinweis')}
-          </Text>
-        </footer>
-      ) : null}
 
       {schublade.art === 'keine' ? null : (
         <Seitenschublade
@@ -178,28 +181,6 @@ export function ProfilAnsicht({ personId, aufSchliessen }: ProfilAnsichtProps) {
       )}
     </div>
   )
-}
-
-function ProfilLaedt() {
-  const { t } = useTranslation('profil')
-  return (
-    <div className="wz-profil-ansicht__laedt">
-      <div role="status" aria-live="polite" className="wz-profil-ansicht__statusregion">
-        {t('laedt')}
-      </div>
-      <Ladeschimmer form="block" />
-      <Ladeschimmer form="block" />
-      <Ladeschimmer form="block" />
-    </div>
-  )
-}
-
-function ProfilFehler({ code }: { readonly code: FehlerCode }) {
-  const { t } = useTranslation('profil')
-  if (code === 'NICHT_GEFUNDEN_PERSON') {
-    return <LeerzustandBlock titel={t('nicht_gefunden_titel')} text={t('nicht_gefunden_text')} />
-  }
-  return <LeerzustandBlock titel={t('fehler_titel')} text={t('fehler_text')} />
 }
 
 interface ProfilInhaltProps {
@@ -228,33 +209,6 @@ function ProfilInhalt({ personId, daten, aufBelegOeffnen, aufWiderspruchOeffnen 
       <GesundheitAbschnitt gesundheit={daten.gesundheit} />
       <NotizAbschnitt notiz={daten.notiz} />
       <NegativbefundAbschnitt personId={personId} />
-    </>
-  )
-}
-
-interface ProfilBearbeitenInhaltProps {
-  readonly personId: string
-  readonly daten: PersonDetailAus
-}
-
-/**
- * Bearbeiten-Zweig der Profilseite (AP-1.14a S-20 Kernfelder + AP-1.15 PR-A Ereignisse) — Namen,
- * Grunddaten (Geschlecht/Notiz/Platzhalter-Kennzeichen+Grund) und Ereignisse (Variante A: NUR
- * `beteiligung.loeschen`/`ereignis.loeschen` an bestehenden Zeilen, ein festes Formular schreibt
- * neue Ereignisse MIT allen Beteiligten in einem `ereignis.anlegen`-Aufruf), alle über die
- * AP-1.12/AP-1.15-Befehle. **Lebensdaten (Geburts-/Todesdatum) sind bewusst NICHT Teil der
- * Grunddaten** — offene Datenmodellfrage, s. `GrunddatenBearbeitenAbschnitt`-Kopfkommentar und
- * `docs/80_Offene_Fragen.md` §26. Beziehungen/Gesundheit bleiben lesend (spätere Arbeitspakete) —
- * der Kopf zeigt weiterhin den Anzeigenamen, damit „wen bearbeite ich gerade" nie aus dem Blick
- * gerät.
- */
-function ProfilBearbeitenInhalt({ personId, daten }: ProfilBearbeitenInhaltProps) {
-  return (
-    <>
-      <ProfilKopf kopf={daten.kopf} />
-      <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
-      <GrunddatenBearbeitenAbschnitt personId={personId} kopf={daten.kopf} notiz={daten.notiz} />
-      <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
     </>
   )
 }

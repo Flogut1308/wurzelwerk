@@ -4,16 +4,13 @@ import type { PersonDetailKopf } from '../../../shared/schemata/person-detail'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { Formularfeld } from '../../bausteine/formularfeld'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
-import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { Text } from '../../bausteine/text'
 import { usePersonFeldSetzen } from '../../brücke/befehl-hooks'
-import { useEntwurfMitVerzoegertemCommit } from './profil-bearbeiten-debounce'
 import {
   boolZuKontrollkaestchenZustand,
   kontrollkaestchenZustandZuBool,
   personFeldGeschlechtEin,
   personFeldIstPlatzhalterEin,
-  personFeldNotizEin,
   personFeldPlatzhalterGrundEin,
 } from './profil-bearbeiten-logik'
 import { geschlechtSchluessel, platzhalterGrundSchluessel } from './profil-schluessel'
@@ -22,21 +19,24 @@ import './profil-bearbeiten-grunddaten.css'
 export interface GrunddatenBearbeitenAbschnittProps {
   readonly personId: string
   readonly kopf: PersonDetailKopf
-  readonly notiz: string | null
 }
 
 /**
- * `GrunddatenBearbeitenAbschnitt` (AP-1.14a, S-20, Kernfelder): Geschlecht, Notiz,
+ * `GrunddatenBearbeitenAbschnitt` (AP-1.14a, S-20, Kernfelder): Geschlecht und
  * Platzhalter-Kennzeichen + Grund — alle über `befehl:person.feldSetzen`
  * (`PersonFeldSetzenEin`-Union, `profil-bearbeiten-logik.ts`). `platzhalter_grund` ist NUR
  * sichtbar, wenn das Kennzeichen gesetzt ist (Progressive Disclosure, wie `Schublade`
  * in `ProfilAnsicht`).
  *
+ * Seit AP-1.30 PR 7b Inhalt des Reiters „Person" (Gruppe „Eckdaten" aus Artboard 1a, vorläufig);
+ * die Notiz ist in den Reiter „Notizen" gezogen (`NotizBearbeitenAbschnitt`,
+ * `profil-bearbeiten-notiz.tsx`).
+ *
  * **Lebensdaten (Geburts-/Todesdatum mit Konfidenz+Beleg) sind NICHT Teil dieses Abschnitts** —
  * offene Datenmodellfrage zwischen `aussage.anlegen` und `ereignis.anlegen`
  * (`docs/80_Offene_Fragen.md` §26, AP-1.14a-Auftrag). Nachgezogen in AP-1.14b.
  */
-export function GrunddatenBearbeitenAbschnitt({ personId, kopf, notiz }: GrunddatenBearbeitenAbschnittProps) {
+export function GrunddatenBearbeitenAbschnitt({ personId, kopf }: GrunddatenBearbeitenAbschnittProps) {
   const { t } = useTranslation('profil')
   const feldSetzen = usePersonFeldSetzen()
 
@@ -46,10 +46,6 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf, notiz }: Grundda
   }))
   const platzhalterGrundOptionen: readonly AuswahlfeldOption<(typeof PlatzhalterGrundEnum.options)[number]>[] = PlatzhalterGrundEnum.options.map(
     (wert) => ({ wert, beschriftung: t(platzhalterGrundSchluessel(wert)) }),
-  )
-
-  const [notizEntwurf, setNotizEntwurf, notizSofortSchreiben] = useEntwurfMitVerzoegertemCommit(notiz ?? '', (wert) =>
-    feldSetzen.mutate(personFeldNotizEin(personId, wert)),
   )
 
   return (
@@ -64,10 +60,6 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf, notiz }: Grundda
           optionen={geschlechtOptionen}
           aufAenderung={(wert) => feldSetzen.mutate(personFeldGeschlechtEin(personId, wert))}
         />
-      </Formularfeld>
-
-      <Formularfeld beschriftung={t('notiz_beschriftung')}>
-        <Langtextfeld wert={notizEntwurf} aufAenderung={setNotizEntwurf} aufVerlassen={notizSofortSchreiben} />
       </Formularfeld>
 
       {/* Wie `Umschalter`+`Text` in `filterleiste.tsx`: KEIN `<label>`-Wrapper — `Kontrollkaestchen`

@@ -75,29 +75,37 @@ test.describe('Ablauf 03 — Person bearbeiten (Kernfelder)', () => {
     // Leerer Anzeigename: die Überschrift zeigt den Ersatztext (AP-1.30 PR 2, §32 V-4-ohne-namen).
     await expect(profil.getByRole('heading', { level: 1 })).toHaveText('(ohne Namen)')
 
-    // In den Bearbeiten-Zustand wechseln — KEINE zweite Seite, derselbe `ProfilAnsicht`-Dialog.
+    // In den Editor wechseln — seit AP-1.30 PR 7b eine EIGENE Ansicht (docs/80 §33
+    // V-130-7-ansicht): der Dialog „Person bearbeiten" ersetzt die Lesesicht, die Lesesicht ist
+    // solange nicht im Dokument (kein zweiter, verdeckter Dialog).
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
-    await expect(profil.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
-    await expect(profil.getByText('Änderungen werden sofort gespeichert.')).toBeVisible()
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor).toBeVisible()
+    await expect(profil).toHaveCount(0)
+    await expect(editor.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    await expect(editor.getByText('Änderungen werden sofort gespeichert.')).toBeVisible()
+    await expect(editor.getByRole('heading', { level: 1 })).toHaveText('(ohne Namen)')
 
-    // Namen ergänzen: das feste "neuen Namen erfassen"-Formular (die Person hat noch KEINE
-    // Namenszeile, darum ist es das EINZIGE Vorkommen dieser Beschriftungen im Dialog).
-    await profil.getByLabel('Vorname(n)', { exact: true }).fill('Minna')
-    await profil.getByLabel('Nachname', { exact: true }).fill('Muster')
-    const hinzufuegen = profil.getByRole('button', { name: 'Name hinzufügen', exact: true })
+    // Namen ergänzen im Reiter „Namen": das feste "neuen Namen erfassen"-Formular (die Person hat
+    // noch KEINE Namenszeile, darum ist es das EINZIGE Vorkommen dieser Beschriftungen im Dialog).
+    await editor.getByRole('tab', { name: /^Namen/ }).click()
+    await editor.getByLabel('Vorname(n)', { exact: true }).fill('Minna')
+    await editor.getByLabel('Nachname', { exact: true }).fill('Muster')
+    const hinzufuegen = editor.getByRole('button', { name: 'Name hinzufügen', exact: true })
     await expect(hinzufuegen).toBeEnabled()
     await hinzufuegen.click()
 
     // `befehl:name.anlegen` committet sofort (kein Speichern-Knopf) — nach der `ereignis:
     // datenGeaendert`-Invalidierung erscheint die neue Zeile in der Namensliste.
-    await expect(profil.locator('input[value="Minna"]')).toBeVisible()
-    await expect(profil.locator('input[value="Muster"]')).toBeVisible()
+    await expect(editor.locator('input[value="Minna"]')).toBeVisible()
+    await expect(editor.locator('input[value="Muster"]')).toBeVisible()
 
-    // Zurück in den Lesezweig — KEIN eigener "Namen"-Abschnitt dort (AP-1.14a-Scope), aber die
+    // Zurück in die Lesesicht — KEIN eigener "Namen"-Abschnitt dort (AP-1.14a-Scope), aber die
     // Person hat jetzt GENAU eine Namenszeile: sie wird `person_flach.anzeigename` und damit die
-    // H1 der Profilseite. Das ist "neuer Name im Lesezweig sichtbar" (derselbe `usePersonDetail`-
-    // Abruf speist beide Zweige, kein zweiter Datenweg).
-    await profil.getByRole('button', { name: 'Fertig', exact: true }).click()
+    // H1 der Profilseite. Das ist "neuer Name in der Lesesicht sichtbar" (derselbe
+    // `usePersonDetail`-Schlüssel speist beide Ansichten, kein zweiter Datenweg).
+    await editor.getByRole('button', { name: 'Fertig', exact: true }).click()
+    await expect(editor).toHaveCount(0)
     await expect(profil.getByRole('heading', { name: 'Minna Muster', level: 1 })).toBeVisible()
 
     // Undo über die IPC-Brücke (keine Menü-Tastenkürzel-Simulation nötig/deterministisch genug in

@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { REITER } from '../../src/core/person/reiter'
 import { ALLE_FEHLERCODES } from '../../src/shared/fehler/codes'
 import fehlerRessourcen from '../../src/shared/i18n/de/fehler.json'
 import negativbefundRessourcen from '../../src/shared/i18n/de/negativbefund.json'
@@ -17,6 +18,7 @@ import {
   nameTypSchluessel,
   platzhalterGrundSchluessel,
   quelleTypSchluessel,
+  reiterSchluessel,
   richtungSchluessel,
   schriftSchluessel,
   unmittelbarkeitSchluessel,
@@ -114,6 +116,8 @@ describe('i18n-Ressourcen für den profil-Namespace (AP-1.7 PR-B)', () => {
     for (const schrift of SchriftEnum.options) schluessel.add(schriftSchluessel(schrift))
     for (const geschlecht of GeschlechtEnum.options) schluessel.add(geschlechtSchluessel(geschlecht))
     for (const grund of PlatzhalterGrundEnum.options) schluessel.add(platzhalterGrundSchluessel(grund))
+    // AP-1.30 PR 7b: Reiter der Bearbeitungsansicht.
+    for (const reiter of REITER) schluessel.add(reiterSchluessel(reiter))
     return schluessel
   }
 

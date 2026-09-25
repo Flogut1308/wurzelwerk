@@ -78,8 +78,11 @@ test.describe('Ablauf 07 — Autosave-Koaleszenz (Notiz)', () => {
     const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
     await expect(profil).toBeVisible()
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    // AP-1.30 PR 7b: Editor als eigene Ansicht, die Notiz steht im Reiter „Notizen".
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await editor.getByRole('tab', { name: /^Notizen/ }).click()
 
-    const notiz = profil.getByRole('textbox', { name: 'Notiz', exact: true })
+    const notiz = editor.getByRole('textbox', { name: 'Notiz', exact: true })
     await expect(notiz).toHaveValue('Start')
     await notiz.click()
     await notiz.press('End')

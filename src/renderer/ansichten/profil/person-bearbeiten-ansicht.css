@@ -1,0 +1,93 @@
+/*
+ * `PersonBearbeitenAnsicht` — AP-1.30 PR 7b, Artboard 1a (docs/design/Wurzelwerk Person
+ * bearbeiten.dc.html): App-Leiste mit Brotkrume, fester Personenkopf, Reiterleiste, scrollender
+ * Körper, Fußleiste. Flächen nach dem Design: Leisten auf `--wz-flaeche-erhoben` (#FCFBF8), Körper
+ * auf `--wz-flaeche-basis` (#FAF8F4). `position: fixed` wie `profil-ansicht.css` (kein Portal —
+ * `ListenAnsicht` setzt kein `transform`). Die rechte Spalte (Zustand, Verlauf) kommt mit ihrem
+ * eigenen PR; der Inhalt bleibt darum linksbündig in der Breite der Profilspalte.
+ */
+
+.wz-person-bearbeiten {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wz-flaeche-basis);
+  z-index: 100;
+}
+
+.wz-person-bearbeiten:focus-visible {
+  outline: none;
+}
+
+.wz-person-bearbeiten__appleiste {
+  flex: 0 0 auto;
+  padding: var(--wz-abstand-12) var(--wz-abstand-24);
+  background: var(--wz-flaeche-erhoben);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-person-bearbeiten__brotkrume {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-person-bearbeiten__brotkrume-eintrag {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+}
+
+/* Trenner „/" zwischen den Einträgen — reine Gestaltung (Designwert #B8B2A6 ≈ tertiärer Text),
+ * darum als CSS-Inhalt statt als Text im Markup; Hilfstechnik liest die Liste als Liste. */
+.wz-person-bearbeiten__brotkrume-eintrag + .wz-person-bearbeiten__brotkrume-eintrag::before {
+  content: '/';
+  color: var(--wz-text-tertiaer);
+  font: var(--wz-schrift-koerper-klein);
+}
+
+.wz-person-bearbeiten__kopf {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: var(--wz-abstand-16);
+  padding: var(--wz-abstand-16) var(--wz-abstand-24) 0;
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-person-bearbeiten__kopf-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+  min-width: 0;
+}
+
+.wz-person-bearbeiten__koerper {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.wz-person-bearbeiten__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-32);
+  max-width: 720px;
+  padding: var(--wz-abstand-24);
+}
+
+.wz-person-bearbeiten__fussleiste {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12) var(--wz-abstand-24);
+  background: var(--wz-flaeche-erhoben);
+  border-top: 1px solid var(--wz-rahmen-fein);
+}

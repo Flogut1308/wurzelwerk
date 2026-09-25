@@ -427,38 +427,87 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         await aufnahme(fenster, 'profil-dunkel', 'dunkel')
       })
 
-      // AP-1.29 PR-A: zwei bisher fehlende Bildmotive — „Person bearbeiten" (der
-      // Bearbeiten-Zweig der Profilseite, AP-1.14a/AP-1.15 PR-A) und „Orte" (die Orte-Pflege-
-      // Ansicht, AP-1.16 PR-C) — existierten als Bildschirme bereits vor diesem Paket, hatten aber
-      // (CLAUDE.md §14: „ein Paket führt einen neuen Bildschirm ein, ohne ein neues Referenzbild
-      // mitzuliefern") nie ein Referenzbild bekommen. Gemeinsamer Rahmen, weil beide NUR im
-      // Bearbeiten-Zweig der Profilseite erreichbar sind (`ProfilBearbeitenInhalt`,
-      // `profil-ansicht.tsx`) — „Orte" öffnet sich aus dem Ereignis-Neu-Formular DIESES Zweigs
-      // heraus (kein globaler Header-„Orte"-Eintrag, S-35/Phase 2/3). `beforeAll`/`afterAll`
-      // schalten EINMAL in den Bearbeiten-Modus und wieder zurück, damit die nachfolgenden
-      // Geschwister-Blöcke („Quelle bearbeiten"/„Negativbefund-Abschnitt", beide LESEN-Modus)
+      // AP-1.29 PR-A: „Person bearbeiten" und „Orte" bekamen ihre ersten Referenzbilder.
+      // AP-1.30 PR 7b (docs/80 §33 V-130-7-ansicht): der Editor ist eine EIGENE Ansicht mit acht
+      // Reitern (`PersonBearbeitenAnsicht`, Dialog „Person bearbeiten"). Das Motiv
+      // `person-bearbeiten-*` zeigt darum jetzt den Editor mit Reiter „Person" (bewusst erneuert);
+      // neu sind die gefüllten Reiter Namen, Leben und Notizen sowie EIN leerer Reiter
+      // (Verwaltung) als Beleg der Hülle — die übrigen leeren Reiter zeigen denselben Leerzustand
+      // und prüften nichts Zusätzliches. „Orte" öffnet sich weiter aus dem Ereignis-Neu-Formular,
+      // das jetzt im Reiter „Leben" steht (kein globaler Header-„Orte"-Eintrag, S-35/Phase 2/3).
+      // `beforeAll`/`afterAll` öffnen den Editor EINMAL und kehren mit „Fertig" in die Lesesicht
+      // zurück, damit die Geschwister-Blöcke („Quelle bearbeiten"/„Negativbefund-Abschnitt")
       // unverändert weiterlaufen.
-      test.describe('Bearbeiten-Modus — Person bearbeiten und Orte', () => {
+      test.describe('Editor — Person bearbeiten, Reiter und Orte', () => {
+        let editor: ReturnType<typeof fenster.getByRole>
+
+        /** Wählt einen Reiter und weist ihn als aktiv nach (jeder Einzeltest selbst, Order-Unabhängigkeit). */
+        async function reiterWaehlen(beschriftung: RegExp): Promise<void> {
+          const reiter = editor.getByRole('tab', { name: beschriftung })
+          await reiter.click()
+          await expect(reiter).toHaveAttribute('aria-selected', 'true')
+        }
+
         test.beforeAll(async () => {
           test.setTimeout(60_000)
           await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
-          await expect(profil.getByRole('heading', { name: 'Namen', level: 2 })).toBeVisible()
+          editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+          await expect(editor.getByRole('heading', { name: 'Eckdaten', exact: true, level: 2 })).toBeVisible()
         })
 
         test.afterAll(async () => {
-          await profil.getByRole('button', { name: 'Fertig', exact: true }).click()
-          // Zurück im LESEN-Modus — die feste Negativbefund-Formularüberschrift (nur dort gerendert,
+          await editor.getByRole('button', { name: 'Fertig', exact: true }).click()
+          // Zurück in der Lesesicht — die feste Negativbefund-Formularüberschrift (nur dort gerendert,
           // `ProfilInhalt`) belegt den Rückweg, bevor die nächsten Geschwister-Blöcke starten.
           await expect(profil.getByRole('heading', { name: 'Negativbefunde', level: 2 })).toBeVisible()
         })
 
-        test.describe('Person bearbeiten — vier Kombinationen', () => {
+        test.describe('Person bearbeiten (Reiter Person) — vier Kombinationen', () => {
           for (const kombination of VIER_KOMBINATIONEN) {
             test(`person-bearbeiten-${kombination.theme}-${kombination.dichte}`, async () => {
-              // Order-Unabhängigkeit (PR #71, Nachzug): weist den bereits offenen Bearbeiten-Zweig
-              // selbst nach, unabhängig vom Ausgang seines Geschwisters.
-              await expect(profil.getByRole('heading', { name: 'Namen', level: 2 })).toBeVisible()
+              await reiterWaehlen(/^Person/)
+              await expect(editor.getByRole('heading', { name: 'Eckdaten', exact: true, level: 2 })).toBeVisible()
               await aufnahme(fenster, `person-bearbeiten-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        test.describe('Reiter Namen — vier Kombinationen', () => {
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-namen-${kombination.theme}-${kombination.dichte}`, async () => {
+              await reiterWaehlen(/^Namen/)
+              await expect(editor.getByRole('heading', { name: 'Namen', exact: true, level: 2 })).toBeVisible()
+              await aufnahme(fenster, `person-bearbeiten-namen-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        test.describe('Reiter Leben — vier Kombinationen', () => {
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-leben-${kombination.theme}-${kombination.dichte}`, async () => {
+              await reiterWaehlen(/^Leben/)
+              await expect(editor.getByRole('heading', { name: 'Ereignisse', exact: true, level: 2 })).toBeVisible()
+              await aufnahme(fenster, `person-bearbeiten-leben-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        test.describe('Reiter Notizen — vier Kombinationen', () => {
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-notizen-${kombination.theme}-${kombination.dichte}`, async () => {
+              await reiterWaehlen(/^Notizen/)
+              await expect(editor.getByRole('textbox', { name: 'Notiz', exact: true })).toBeVisible()
+              await aufnahme(fenster, `person-bearbeiten-notizen-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        test.describe('Reiter Verwaltung (Leerzustand, Hüllenbeleg) — vier Kombinationen', () => {
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-verwaltung-${kombination.theme}-${kombination.dichte}`, async () => {
+              await reiterWaehlen(/^Verwaltung/)
+              await expect(editor.getByRole('tabpanel')).toContainText('kommt in einem späteren Schritt')
+              await aufnahme(fenster, `person-bearbeiten-verwaltung-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
             })
           }
         })
@@ -472,9 +521,10 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
 
           test.beforeAll(async () => {
             test.setTimeout(60_000)
-            const ereignisFelder = profil.locator('.wz-profil-bearbeiten-ereignisse__felder')
+            await reiterWaehlen(/^Leben/)
+            const ereignisFelder = editor.locator('.wz-profil-bearbeiten-ereignisse__felder')
             await ereignisFelder.locator('.wz-ortsfeld input').fill('Bildvergleichsort')
-            const ortNeuAnlegenZeile = profil.locator('.wz-ortsfeld__zeile--neuAnlegen')
+            const ortNeuAnlegenZeile = editor.locator('.wz-ortsfeld__zeile--neuAnlegen')
             await expect(ortNeuAnlegenZeile).toBeVisible()
             await ortNeuAnlegenZeile.click()
             const ortBearbeitenLink = ereignisFelder.getByRole('button', { name: 'Ort bearbeiten', exact: true })

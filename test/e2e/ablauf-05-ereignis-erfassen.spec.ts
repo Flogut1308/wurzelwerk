@@ -106,42 +106,47 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
     await expect(profil).toBeVisible()
     await expect(profil.getByRole('heading', { name: 'Anna Haupt', level: 1 })).toBeVisible()
 
+    // AP-1.30 PR 7b: „Bearbeiten" öffnet den Editor als eigene Ansicht; die Ereignisse stehen
+    // (vorläufig) im Reiter „Leben".
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
-    await expect(profil.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    await editor.getByRole('tab', { name: /^Leben/ }).click()
 
     // Ereignis-Neu-Formular: Typ, Datum, Ort (als neuen Ort anlegen), Konfidenz. Über
     // Struktur-Selektoren statt `getByLabel` — `Formularfeld` umschließt mehrteilige Moleküle
     // (`Datumsfeld`/`Ortsfeld`) in EINEM `<label>`, dessen A11y-Namensberechnung dadurch weitere
     // Kindtexte (z. B. den Kalender-Umschalt-Knopf) miteinsammelt; `getByLabel` löst darum nicht
     // zuverlässig nach der sichtbaren Beschriftung allein auf.
-    const ereignisFelder = profil.locator('.wz-profil-bearbeiten-ereignisse__felder')
+    const ereignisFelder = editor.locator('.wz-profil-bearbeiten-ereignisse__felder')
     await ereignisFelder.locator('select').first().selectOption('taufe')
     await ereignisFelder.locator('.wz-datumsfeld input').fill('14.3.1850')
     await ereignisFelder.locator('.wz-ortsfeld input').fill('Kwidzyn')
-    const ortNeuAnlegenZeile = profil.locator('.wz-ortsfeld__zeile--neuAnlegen')
+    const ortNeuAnlegenZeile = editor.locator('.wz-ortsfeld__zeile--neuAnlegen')
     await expect(ortNeuAnlegenZeile).toBeVisible()
     await ortNeuAnlegenZeile.click()
-    await profil.getByRole('radio', { name: 'Konfidenz: gesichert', exact: true }).click()
+    await editor.getByRole('radio', { name: 'Konfidenz: gesichert', exact: true }).click()
 
     // Weiterer Beteiligter: der Pate, über den echten Personenwaehler gesucht.
-    await profil.getByRole('button', { name: '+ Beteiligten', exact: true }).click()
-    const weitererBeteiligter = profil.locator('.wz-profil-bearbeiten-ereignisse__beteiligter')
+    await editor.getByRole('button', { name: '+ Beteiligten', exact: true }).click()
+    const weitererBeteiligter = editor.locator('.wz-profil-bearbeiten-ereignisse__beteiligter')
     await weitererBeteiligter.locator('.wz-personenwaehler input').fill('Pauline')
     const pateZeile = weitererBeteiligter.locator('.wz-personenwaehler__zeile--treffer', { hasText: 'Pauline Patin' })
     await expect(pateZeile).toBeVisible()
     await pateZeile.click()
     await weitererBeteiligter.locator('select').selectOption('pate')
 
-    const absenden = profil.getByRole('button', { name: 'Ereignis anlegen', exact: true })
+    const absenden = editor.getByRole('button', { name: 'Ereignis anlegen', exact: true })
     await expect(absenden).toBeEnabled()
     await absenden.click()
 
     // Bei der Hauptperson: eine Zeile mit "Taufe"/"Hauptperson" in der Bearbeiten-Liste.
-    const hauptZeileEreignis = profil.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
+    const hauptZeileEreignis = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
     await expect(hauptZeileEreignis).toBeVisible()
     await expect(hauptZeileEreignis.getByText('Hauptperson', { exact: true })).toBeVisible()
 
-    await profil.getByRole('button', { name: 'Schließen', exact: true }).click()
+    await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+    await expect(editor).toHaveCount(0)
     await expect(profil).toHaveCount(0)
 
     // Beim Paten: dasselbe Ereignis mit Rolle "Pate/Patin" — sowohl im Lesezweig als auch im
@@ -154,14 +159,16 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
     await expect(pateProfil.getByText('Pate/Patin', { exact: true })).toBeVisible()
 
     await pateProfil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
-    const pateZeileEreignis = pateProfil.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
+    await editor.getByRole('tab', { name: /^Leben/ }).click()
+    const pateZeileEreignis = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
     await expect(pateZeileEreignis).toBeVisible()
     await pateZeileEreignis.getByRole('button', { name: 'Beteiligung entfernen', exact: true }).click()
 
     // Variante A: NUR die Beteiligung des Paten verschwindet — beim Paten bleibt KEIN Ereignis mehr.
-    await expect(pateProfil.getByText('Noch kein Ereignis erfasst.', { exact: true })).toBeVisible()
+    await expect(editor.getByText('Noch kein Ereignis erfasst.', { exact: true })).toBeVisible()
 
-    await pateProfil.getByRole('button', { name: 'Schließen', exact: true }).click()
+    await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+    await expect(editor).toHaveCount(0)
     await expect(pateProfil).toHaveCount(0)
 
     // Bei der Hauptperson besteht das Ereignis unverändert weiter (das `ereignis` selbst wurde

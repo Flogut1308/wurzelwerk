@@ -78,12 +78,15 @@ test.describe('Ablauf 06 — Ort pflegen (Namen, Zugehörigkeit, externe Kennung
     const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
     await expect(profil).toBeVisible()
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
-    await expect(profil.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    // AP-1.30 PR 7b: Editor als eigene Ansicht, Ereignisse (vorläufig) im Reiter „Leben".
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    await editor.getByRole('tab', { name: /^Leben/ }).click()
 
     // Ereignis-Neu-Formular: einen neuen Ort "Marienwerder" anlegen (Muster ablauf-05).
-    const ereignisFelder = profil.locator('.wz-profil-bearbeiten-ereignisse__felder')
+    const ereignisFelder = editor.locator('.wz-profil-bearbeiten-ereignisse__felder')
     await ereignisFelder.locator('.wz-ortsfeld input').fill('Marienwerder')
-    const ortNeuAnlegenZeile = profil.locator('.wz-ortsfeld__zeile--neuAnlegen')
+    const ortNeuAnlegenZeile = editor.locator('.wz-ortsfeld__zeile--neuAnlegen')
     await expect(ortNeuAnlegenZeile).toBeVisible()
     await ortNeuAnlegenZeile.click()
 
@@ -159,7 +162,7 @@ test.describe('Ablauf 06 — Ort pflegen (Namen, Zugehörigkeit, externe Kennung
     // zeigen, NICHT "Kwidzyn", PLUS die politische Hierarchiezeile (docs/71 §3.2).
     await ereignisFelder.locator('.wz-datumsfeld input').fill('14.3.1850')
     await ereignisFelder.locator('.wz-ortsfeld input').fill('Kwidzyn')
-    const datumsgueltigerTreffer = profil.locator('.wz-ortsfeld__zeile--treffer')
+    const datumsgueltigerTreffer = editor.locator('.wz-ortsfeld__zeile--treffer')
     await expect(datumsgueltigerTreffer).toContainText('Marienwerder')
     await expect(datumsgueltigerTreffer).not.toContainText('Kwidzyn')
     await expect(datumsgueltigerTreffer).toContainText('Kreis Marienwerder')
