@@ -116,6 +116,8 @@ ist aufgelöst UND (er stammt aus dem Ereignis ODER eine `todesort`-Aussage mit 
   mit unbelegter Kante),
 - `fehlt` — nichts erfasst.
 
+Randfälle (§32 V-D3-randfaelle, verbindlich): Geschlecht `U`/nicht erfasst und eine Hauptform ohne
+Text sind `fehlt`, auch mit Beleg; `unbelegt` heißt nur „ein Wert liegt vor, ihm fehlt der Beleg".
 `fehlend` sind genau die Ids mit `unbelegt` oder `fehlt`, in derselben Reihenfolge;
 `erfuellt` = Anzahl `belegt` + `vorhanden`. Nenner, Formel und Platzhalter-Regel bleiben.
 

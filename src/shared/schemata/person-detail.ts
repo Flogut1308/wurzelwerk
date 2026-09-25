@@ -21,7 +21,7 @@
 // einzelnen Beleg, weil sie in `docs/schema/0002_kern.sql` Spalten von `aussage` sind, nicht von
 // `zitat`/`aussage_zitat`. Eine Aussage mit zwei Zitaten hätte sonst dieselbe Begründung zweimal.
 import { z } from 'zod'
-import { KERNANGABE_IDS } from '../../core/person/kernangaben'
+import { KERNANGABE_IDS, KERNANGABE_ZUSTAENDE } from '../../core/person/kernangaben'
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../core/person/reiter'
@@ -257,6 +257,16 @@ export interface PersonDetailOffenerPunkt {
 /** Kernangaben-Ids (AP-1.34 PR-D, ADR-031) aus der Kern-Konstante — eine Quelle der Werte. */
 export const KernangabeIdEnum = z.enum(KERNANGABE_IDS)
 
+/** Zustände je Kernangabe (Nachtrag ADR-031, 25.09.2026) aus der Kern-Konstante. */
+export const KernangabeZustandEnum = z.enum(KERNANGABE_ZUSTAENDE)
+
+/** Eine Zeile der Aufschlüsselung: `belegt` (erfüllt mit Beleg), `vorhanden` (erfüllt ohne Beleg —
+ * Geschlecht, Name, Ereignis-Rückfall), `unbelegt` (Wert ohne Beleg, zählt nicht), `fehlt`. */
+export interface PersonDetailKernangabeEintrag {
+  readonly id: z.infer<typeof KernangabeIdEnum>
+  readonly zustand: z.infer<typeof KernangabeZustandEnum>
+}
+
 /** Vollständigkeitsgrad (AP-1.34 PR-D, ADR-031, Vorgaben §3.1 „68 % der Kernangaben belegt"):
  * berechnet NUR in `kernangabenAuswerten` (src/core/person/kernangaben.ts), nichts gespeichert.
  * `fehlend` ist eine Multimenge in fester Reihenfolge (`elternteil` kann zweimal vorkommen),
@@ -266,6 +276,9 @@ export interface PersonDetailKernangaben {
   readonly anwendbar: number
   readonly prozent: number
   readonly fehlend: readonly z.infer<typeof KernangabeIdEnum>[]
+  /** Nachtrag ADR-031: eine Zeile je anwendbarer Angabe, gleiche Reihenfolge wie `fehlend`;
+   * `fehlend` = die Ids mit `unbelegt`/`fehlt`. */
+  readonly aufschluesselung: readonly PersonDetailKernangabeEintrag[]
 }
 
 /** Antwort von `abfrage:person.detail`.

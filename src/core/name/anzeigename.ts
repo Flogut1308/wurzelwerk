@@ -26,8 +26,10 @@ export interface AnzeigenameErgebnis {
 }
 
 /** Baut den flachen Anzeigetext einer Form: Titel Vornamen Präfix Nachname Zusatz (Leerzeichen-
- * getrennt), oder `original_text`, falls keine Bestandteile vorliegen. */
-function textVon(form: AnzeigeForm): string {
+ * getrennt), oder `original_text`, falls keine Bestandteile vorliegen. Exportiert, weil auch die
+ * Kernangabe `name` („vorhanden" = die Hauptform hat Anzeigetext, Nachtrag ADR-031) genau diese
+ * Textregel braucht — keine zweite. */
+export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText'>): string {
   const flach = rekonstruiereFlach(form.teile)
   const segmente = [flach.titelVor, flach.vornamen, flach.praefix, flach.nachname, flach.zusatzNach].filter(
     (segment): segment is string => segment !== null && segment.trim() !== '',
@@ -61,18 +63,18 @@ export function anzeigenameFuer(formen: readonly AnzeigeForm[], wunschSprache?: 
   if (wunschSprache !== undefined) {
     const sprachTreffer = [...formen].filter((form) => form.sprache === wunschSprache).sort(vergleiche)[0]
     if (sprachTreffer !== undefined) {
-      return { text: textVon(sprachTreffer), quelle: 'sprache', formId: sprachTreffer.formId }
+      return { text: anzeigetextVon(sprachTreffer), quelle: 'sprache', formId: sprachTreffer.formId }
     }
   }
 
   const umschrift = [...formen].filter((form) => form.umschriftVon !== null).sort(vergleiche)[0]
   if (umschrift !== undefined) {
-    return { text: textVon(umschrift), quelle: 'umschrift', formId: umschrift.formId }
+    return { text: anzeigetextVon(umschrift), quelle: 'umschrift', formId: umschrift.formId }
   }
 
   const hauptname = [...formen].sort(vergleiche)[0]
   if (hauptname === undefined) return null
-  return { text: textVon(hauptname), quelle: 'hauptname', formId: hauptname.formId }
+  return { text: anzeigetextVon(hauptname), quelle: 'hauptname', formId: hauptname.formId }
 }
 
 /** Deterministische Reihung: bevorzugte Form zuerst, dann stabil nach `formId`. */
