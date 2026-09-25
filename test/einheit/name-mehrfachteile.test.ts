@@ -51,6 +51,20 @@ describe('Mehrfache Titel, Präfixe und Zusätze im Anzeigetext (E2, V-4b-erster
     expect(anzeigetextVon({ teile, originalText: null })).toBe('Prof. Anna van Dijk')
   })
 
+  it('Leerraum-Teile (Tab, NBSP, U+3000) zählen auch bei Nachname und Vatersname nicht (hueter #141, 1/2)', () => {
+    const teile = [
+      teil('vorname', 'Iwan', 0),
+      teil('vatersname', '\t', 0),
+      teil('vatersname', 'Petrowitsch', 1),
+      teil('nachname', '\u00a0', 0),
+      teil('nachname', '\u3000', 1),
+      teil('nachname', 'Iwanow', 2),
+      teil('suffix', '\t', 0),
+    ]
+    expect(anzeigetextVon({ teile, originalText: null })).toBe('Iwan Petrowitsch Iwanow')
+    expect(rekonstruiereFlach(teile)).toMatchObject({ vatersname: 'Petrowitsch', nachname: 'Iwanow', zusatzNach: null })
+  })
+
   it('rekonstruiereFlach verkettet Titel, Präfix und Zusatz wie Nachname und Vatersname', () => {
     expect(rekonstruiereFlach(guttenberg)).toMatchObject({ titelVor: 'Dr. med.', praefix: 'von und zu', zusatzNach: 'd. Ä. II.', nachname: 'Guttenberg' })
   })
