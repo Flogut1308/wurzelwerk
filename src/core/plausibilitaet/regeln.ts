@@ -365,15 +365,20 @@ export interface BestandEingabe {
 
 /** Die acht Bestandsregeln (AP-1.8-Abnahme, 57_Phase0_Arbeitspakete.md Z.1307) — bewusst NICHT die
  * IMP-3xx-Codes (die gelten nur für die gerade importierte Datei, s. Kopfkommentar). */
-export type BestandHinweisCode =
-  | 'tod_vor_geburt'
-  | 'bestattung_vor_tod'
-  | 'mutter_alter'
-  | 'vater_alter'
-  | 'kind_vor_ehe'
-  | 'alter_ueber_110'
-  | 'zyklus'
-  | 'ereignis_vor_ortsexistenz'
+export const BESTAND_HINWEIS_CODES = [
+  'tod_vor_geburt',
+  'bestattung_vor_tod',
+  'mutter_alter',
+  'vater_alter',
+  'kind_vor_ehe',
+  'alter_ueber_110',
+  'zyklus',
+  'ereignis_vor_ortsexistenz',
+] as const
+
+/** Einzige Quelle: `BESTAND_HINWEIS_CODES` (AP-1.34 PR-C2b — die Feldwarnungen ordnen nach dieser
+ * Reihenfolge, `src/core/plausibilitaet/feldwarnungen.ts`). */
+export type BestandHinweisCode = (typeof BESTAND_HINWEIS_CODES)[number]
 
 export interface BestandHinweis {
   readonly code: BestandHinweisCode
