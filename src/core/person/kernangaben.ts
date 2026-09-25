@@ -7,9 +7,10 @@
 // - name          immer; die Hauptform trägt eine Aussage mit mindestens einem Beleg (D3).
 // - geschlecht    immer; M, F oder X — U und „nicht erfasst" zählen nicht, ein Beleg ist nicht nötig (E7, D4).
 // - geburtsdatum  immer; es gibt eine Aussage mit Wert UND Beleg (D1, D2).
-// - geburtsort    immer; wie geburtsdatum (auch eine Aussage nur mit freiem Text), kein Ereignis-Rückfall (D9).
+// - geburtsort    immer; eine Aussage, die einen Ort trägt (`traegtOrt`: Verweis oder freier Text, NICHT
+//                 wert_zahl/Datum), mit Beleg; kein Ereignis-Rückfall (D9).
 // - todesdatum    nur bei `lebend_status = 'verstorben'` (D5); wie geburtsdatum.
-// - todesort      nur bei `verstorben`. Gibt es eine todesort-Aussage mit Wert, entscheidet allein sie
+// - todesort      nur bei `verstorben`. Gibt es eine todesort-Aussage, die einen Ort trägt, entscheidet allein sie
 //                 (belegt ⇒ erfüllt, auch nur Text — U-1.34-C2a-wert-text-verdraengt). Sonst zählt ein
 //                 Tod-Ereignis mit Ort, dessen Ort belegt ist (D6, E5).
 // - vater, mutter immer, zwei Angaben; Platz besetzt (`elternPlaetze`) UND die Kante belegt (D7).
@@ -20,6 +21,7 @@
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingabe.
 import { elternPlaetze, type ElternGeschlecht, type ElternteilEintrag } from './eltern-plaetze'
+import { traegtOrt, type OrtWert } from './ort-wert'
 
 /** Einzige Quelle der Kernangaben-Ids; `src/shared/schemata/person-detail.ts` baut sein Zod-Enum daraus.
  * Reihenfolge = Reihenfolge in `fehlend`. */
@@ -33,6 +35,12 @@ export type KernangabenLebendStatus = 'lebend' | 'verstorben' | 'vermutet_versto
  * `wert_ref_id`/`datum_wert1`), und hat sie mindestens einen Beleg (`aussage_zitat`)? */
 export interface KernAussage {
   readonly hatWert: boolean
+  readonly belegt: boolean
+}
+
+/** Eine Orts-Aussage (`geburtsort`/`todesort`): ob sie einen Ort trägt, entscheidet allein
+ * `traegtOrt` (./ort-wert.ts) — dieselbe Wahrheit wie beim Sterbeort (hueter #123, H1). */
+export interface KernOrtAussage extends OrtWert {
   readonly belegt: boolean
 }
 
@@ -55,9 +63,9 @@ export interface KernangabenEingabe {
   readonly geschlecht: ElternGeschlecht | null
   readonly hauptformBelegt: boolean
   readonly geburtsdatum: readonly KernAussage[]
-  readonly geburtsort: readonly KernAussage[]
+  readonly geburtsort: readonly KernOrtAussage[]
   readonly todesdatum: readonly KernAussage[]
-  readonly todesort: readonly KernAussage[]
+  readonly todesort: readonly KernOrtAussage[]
   readonly todEreignisse: readonly KernTodEreignis[]
   readonly eltern: readonly KernElternteil[]
 }
@@ -76,8 +84,12 @@ function belegteAussage(aussagen: readonly KernAussage[]): boolean {
   return aussagen.some((a) => a.hatWert && a.belegt)
 }
 
+function belegterOrt(aussagen: readonly KernOrtAussage[]): boolean {
+  return aussagen.some((a) => traegtOrt(a) && a.belegt)
+}
+
 function todesortErfuellt(eingabe: KernangabenEingabe): boolean {
-  if (eingabe.todesort.some((a) => a.hatWert)) return belegteAussage(eingabe.todesort)
+  if (eingabe.todesort.some(traegtOrt)) return belegterOrt(eingabe.todesort)
   return eingabe.todEreignisse.some((e) => e.ortVorhanden && e.ortBelegt)
 }
 
@@ -88,7 +100,7 @@ export function kernangabenAuswerten(eingabe: KernangabenEingabe): Kernangaben |
     ['name', eingabe.hauptformBelegt],
     ['geschlecht', eingabe.geschlecht === 'M' || eingabe.geschlecht === 'F' || eingabe.geschlecht === 'X'],
     ['geburtsdatum', belegteAussage(eingabe.geburtsdatum)],
-    ['geburtsort', belegteAussage(eingabe.geburtsort)],
+    ['geburtsort', belegterOrt(eingabe.geburtsort)],
   ]
   if (eingabe.lebendStatus === 'verstorben') {
     angaben.push(['todesdatum', belegteAussage(eingabe.todesdatum)], ['todesort', todesortErfuellt(eingabe)])

@@ -8,6 +8,10 @@ const LAEUFE = 500
 
 const aussage = fc.record({ hatWert: fc.boolean(), belegt: fc.boolean() })
 const aussagen = fc.array(aussage, { maxLength: 3 })
+const ortAussagen = fc.array(
+  fc.record({ wertRefId: fc.constantFrom('ort-1', null), wertText: fc.constantFrom('Irgendwo', null), belegt: fc.boolean() }),
+  { maxLength: 3 },
+)
 
 const eingabeArb: fc.Arbitrary<KernangabenEingabe> = fc.record({
   istPlatzhalter: fc.constant(false),
@@ -15,9 +19,9 @@ const eingabeArb: fc.Arbitrary<KernangabenEingabe> = fc.record({
   geschlecht: fc.constantFrom('M', 'F', 'U', 'X', null),
   hauptformBelegt: fc.boolean(),
   geburtsdatum: aussagen,
-  geburtsort: aussagen,
+  geburtsort: ortAussagen,
   todesdatum: aussagen,
-  todesort: aussagen,
+  todesort: ortAussagen,
   todEreignisse: fc.array(fc.record({ ortVorhanden: fc.boolean(), ortBelegt: fc.boolean() }), { maxLength: 2 }),
   // Kleiner Id-Raum, damit Doppelkanten entstehen.
   eltern: fc.array(fc.record({ id: fc.constantFrom('a', 'b', 'c', 'd'), geschlecht: fc.constantFrom('M', 'F', 'U', 'X', null), belegt: fc.boolean() }), { maxLength: 4 }),
@@ -59,6 +63,8 @@ describe('kernangabenAuswerten — Eigenschaften (AP-1.34 PR-D)', () => {
     )
   })
 
+  // Monotonie gilt für Beleg-Flags an vorhandenen Einträgen, NICHT für zusätzliche Aussagen: eine
+  // neue unbelegte todesort-Aussage verdrängt einen belegten Ereignisort (E5/D6, ADR-031).
   it('E2: Monotonie — ein zusätzlicher Beleg senkt erfuellt nie', () => {
     fc.assert(
       fc.property(eingabeArb, (e) => {

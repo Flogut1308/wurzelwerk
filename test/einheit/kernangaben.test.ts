@@ -1,10 +1,14 @@
 // AP-1.34 PR-D (ADR-031, §31 U-1.34-E7, U-1.34-D1…D11): Kernangaben und Vollständigkeitsgrad im Kern.
 import { describe, expect, it } from 'vitest'
-import { kernangabenAuswerten, type KernAussage, type KernangabenEingabe, type KernElternteil } from '../../src/core/person/kernangaben'
+import { kernangabenAuswerten, type KernAussage, type KernOrtAussage, type KernangabenEingabe, type KernElternteil } from '../../src/core/person/kernangaben'
 
 const BELEGT: KernAussage = { hatWert: true, belegt: true }
 const UNBELEGT: KernAussage = { hatWert: true, belegt: false }
 const OHNE_WERT: KernAussage = { hatWert: false, belegt: true }
+const ORT_BELEGT: KernOrtAussage = { wertRefId: null, wertText: 'Irgendwo', belegt: true }
+const ORT_UNBELEGT: KernOrtAussage = { wertRefId: null, wertText: 'Irgendwo', belegt: false }
+// Weder Verweis noch Text (z. B. nur wert_zahl): trägt keinen Ort (traegtOrt, hueter #123 H1).
+const ORT_OHNE: KernOrtAussage = { wertRefId: null, wertText: null, belegt: true }
 
 function eingabe(teil: Partial<KernangabenEingabe> = {}): KernangabenEingabe {
   return {
@@ -39,7 +43,7 @@ const VOLL: Partial<KernangabenEingabe> = {
   geschlecht: 'M',
   hauptformBelegt: true,
   geburtsdatum: [BELEGT],
-  geburtsort: [BELEGT],
+  geburtsort: [ORT_BELEGT],
   eltern: [el('a', 'M', true), el('b', 'F', true)],
 }
 
@@ -53,7 +57,7 @@ describe('kernangabenAuswerten (AP-1.34 PR-D, ADR-031)', () => {
   })
 
   it('K3: Lebensstatus — nur verstorben hat 8 Angaben, auch mit Todesaussagen bleiben es sonst 6', () => {
-    const tod: Partial<KernangabenEingabe> = { todesdatum: [BELEGT], todesort: [BELEGT] }
+    const tod: Partial<KernangabenEingabe> = { todesdatum: [BELEGT], todesort: [ORT_BELEGT] }
     expect(auswerten({ ...VOLL, ...tod, lebendStatus: 'verstorben' })).toMatchObject({ erfuellt: 8, anwendbar: 8, prozent: 100 })
     for (const lebendStatus of ['lebend', 'vermutet_verstorben', null] as const) {
       expect(auswerten({ ...VOLL, ...tod, lebendStatus })).toEqual({ erfuellt: 6, anwendbar: 6, prozent: 100, fehlend: [] })
@@ -76,24 +80,28 @@ describe('kernangabenAuswerten (AP-1.34 PR-D, ADR-031)', () => {
     expect(fehlend({ ...VOLL, geburtsdatum: [OHNE_WERT] })).toEqual(['geburtsdatum'])
     expect(fehlend({ ...VOLL, geburtsdatum: [UNBELEGT, OHNE_WERT] })).toEqual(['geburtsdatum'])
     expect(fehlend({ ...VOLL, geburtsdatum: [UNBELEGT, BELEGT] })).toEqual([])
-    const tot = { ...VOLL, lebendStatus: 'verstorben' as const, todesort: [BELEGT] }
+    const tot = { ...VOLL, lebendStatus: 'verstorben' as const, todesort: [ORT_BELEGT] }
     expect(fehlend({ ...tot, todesdatum: [UNBELEGT] })).toEqual(['todesdatum'])
     expect(fehlend({ ...tot, todesdatum: [BELEGT] })).toEqual([])
   })
 
   it('K7: Geburtsort — eine belegte Aussage (auch nur freier Text) genügt, ohne Aussage fehlt er', () => {
-    expect(fehlend({ ...VOLL, geburtsort: [BELEGT] })).toEqual([])
+    expect(fehlend({ ...VOLL, geburtsort: [ORT_BELEGT] })).toEqual([])
     expect(fehlend({ ...VOLL, geburtsort: [] })).toEqual(['geburtsort'])
+    expect(fehlend({ ...VOLL, geburtsort: [{ wertRefId: 'ort-1', wertText: null, belegt: true }] })).toEqual([])
+    expect(fehlend({ ...VOLL, geburtsort: [ORT_OHNE] })).toEqual(['geburtsort'])
   })
 
   it('K8: Todesort — Aussage führt, Ereignisort nur als Rückfall', () => {
     const tot = { ...VOLL, lebendStatus: 'verstorben' as const, todesdatum: [BELEGT] }
     const ortBelegt = [{ ortVorhanden: true, ortBelegt: true }]
-    expect(fehlend({ ...tot, todesort: [BELEGT] })).toEqual([])
-    expect(fehlend({ ...tot, todesort: [UNBELEGT], todEreignisse: ortBelegt })).toEqual(['todesort'])
+    expect(fehlend({ ...tot, todesort: [ORT_BELEGT] })).toEqual([])
+    // Nur wert_zahl (ORT_OHNE) belegt, kein Ereignis: kein Ort, nicht erfüllt (hueter #123 H1, wie sterbeortAufloesen).
+    expect(fehlend({ ...tot, todesort: [ORT_OHNE] })).toEqual(['todesort'])
+    expect(fehlend({ ...tot, todesort: [ORT_UNBELEGT], todEreignisse: ortBelegt })).toEqual(['todesort'])
     expect(fehlend({ ...tot, todesort: [], todEreignisse: ortBelegt })).toEqual([])
     // Eine Aussage ohne Wert trägt keinen Ort und verdrängt den Rückfall nicht (wie sterbeortAufloesen).
-    expect(fehlend({ ...tot, todesort: [OHNE_WERT], todEreignisse: ortBelegt })).toEqual([])
+    expect(fehlend({ ...tot, todesort: [ORT_OHNE], todEreignisse: ortBelegt })).toEqual([])
     expect(fehlend({ ...tot, todEreignisse: [{ ortVorhanden: false, ortBelegt: true }] })).toEqual(['todesort'])
     expect(fehlend({ ...tot, todEreignisse: [{ ortVorhanden: true, ortBelegt: false }] })).toEqual(['todesort'])
     expect(fehlend({ ...tot, todEreignisse: [{ ortVorhanden: true, ortBelegt: false }, { ortVorhanden: true, ortBelegt: true }] })).toEqual([])
@@ -120,8 +128,8 @@ describe('kernangabenAuswerten (AP-1.34 PR-D, ADR-031)', () => {
       [{ geschlecht: 'M' }, 16],
       [{ ...VOLL, hauptformBelegt: false }, 83],
       [{ ...VOLL, lebendStatus: 'verstorben', todesdatum: [BELEGT], eltern: [] }, 62],
-      [{ ...VOLL, lebendStatus: 'verstorben', todesdatum: [BELEGT], todesort: [BELEGT], hauptformBelegt: false }, 87],
-      [{ ...VOLL, lebendStatus: 'verstorben', todesdatum: [BELEGT], todesort: [BELEGT] }, 100],
+      [{ ...VOLL, lebendStatus: 'verstorben', todesdatum: [BELEGT], todesort: [ORT_BELEGT], hauptformBelegt: false }, 87],
+      [{ ...VOLL, lebendStatus: 'verstorben', todesdatum: [BELEGT], todesort: [ORT_BELEGT] }, 100],
     ]
     for (const [teil, prozent] of faelle) expect(auswerten(teil)?.prozent).toBe(prozent)
   })

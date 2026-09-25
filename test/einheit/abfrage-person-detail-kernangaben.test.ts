@@ -107,6 +107,25 @@ function fehlend(db: Db, personId: string): readonly string[] {
   return kern(db, personId)?.fehlend ?? ['<null>']
 }
 
+function ortZahl(db: Db, personId: string, praedikat: 'geburtsort' | 'todesort', belegt: boolean): void {
+  fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat, wertZahl: 5, konfidenz: 3, ...belege(db, belegt) })
+}
+
+/** Beide Richtungen zwischen Kernangaben, Sterbeort und offenen Punkten. */
+function konsistent(db: Db, personId: string): void {
+  const detail = personDetail(db, { personId })
+  const f = detail.kernangaben?.fehlend ?? []
+  const schluessel = detail.offene_punkte.map((x) => x.meldungsschluessel)
+  const sterbeortFehlt = detail.offene_punkte.some((x) => x.regel_id === 'sterbeort_fehlt')
+  expect(sterbeortFehlt).toBe(detail.kopf.lebend_status === 'verstorben' && detail.sterbeort === null)
+  if (sterbeortFehlt) expect(f).toContain('todesort')
+  if (detail.kopf.lebend_status === 'verstorben' && !f.includes('todesort')) expect(sterbeortFehlt).toBe(false)
+  for (const [id, meldung] of [['vater', 'offener_punkt_vater_nicht_zugeordnet'], ['mutter', 'offener_punkt_mutter_nicht_zugeordnet'], ['elternteil', 'offener_punkt_elternteil_nicht_zugeordnet']] as const) {
+    if (schluessel.includes(meldung)) expect(f).toContain(id)
+    if (id !== 'elternteil' && !f.includes(id)) expect(schluessel).not.toContain(meldung)
+  }
+}
+
 /** Verstorbene Person, alles belegt außer dem Sterbeort (der Rest ist Gegenstand des Tests). */
 function verstorbenOhneTodesort(db: Db): string {
   const p = person(db, { geschlecht: 'F', lebendStatus: 'verstorben' })
@@ -223,27 +242,55 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
     })
   })
 
-  it('KA9: konsistent mit offenen Punkten — sterbeort_fehlt ⇒ todesort fehlt, offener Elternplatz ⇒ gleiche Id fehlt', () => {
+  it('KA9: konsistent mit offenen Punkten — je Fall ausdrücklich und in beiden Richtungen', () => {
     mitDb((db) => {
-      const faelle: string[] = []
-      faelle.push(person(db, { lebendStatus: 'verstorben' }))
+      const ohneAlles = person(db, { lebendStatus: 'verstorben' })
       const nurVater = person(db, { lebendStatus: 'verstorben' })
       eltern(db, person(db, { geschlecht: 'M' }), nurVater, true)
-      faelle.push(nurVater)
       const nurU = person(db)
       eltern(db, person(db, { geschlecht: 'U' }), nurU, true)
-      faelle.push(nurU)
-      for (const p of faelle) {
+      const voll = verstorbenOhneTodesort(db)
+      ortText(db, voll, 'todesort', true)
+
+      const faelle: readonly [string, readonly string[], readonly string[]][] = [
+        [ohneAlles, ['sterbeort_fehlt:offener_punkt_sterbeort_fehlt', 'elternteil_nicht_zugeordnet:offener_punkt_vater_nicht_zugeordnet', 'elternteil_nicht_zugeordnet:offener_punkt_mutter_nicht_zugeordnet'], ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'todesdatum', 'todesort', 'vater', 'mutter']],
+        [nurVater, ['sterbeort_fehlt:offener_punkt_sterbeort_fehlt', 'elternteil_nicht_zugeordnet:offener_punkt_mutter_nicht_zugeordnet'], ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'todesdatum', 'todesort', 'mutter']],
+        [nurU, ['elternteil_nicht_zugeordnet:offener_punkt_elternteil_nicht_zugeordnet'], ['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'elternteil']],
+        [voll, [], []],
+      ]
+      for (const [p, punkte, fehlt] of faelle) {
         const detail = personDetail(db, { personId: p })
-        const f = detail.kernangaben?.fehlend ?? []
-        for (const punkt of detail.offene_punkte) {
-          if (punkt.regel_id === 'sterbeort_fehlt') expect(f).toContain('todesort')
-          if (punkt.meldungsschluessel === 'offener_punkt_vater_nicht_zugeordnet') expect(f).toContain('vater')
-          if (punkt.meldungsschluessel === 'offener_punkt_mutter_nicht_zugeordnet') expect(f).toContain('mutter')
-          if (punkt.meldungsschluessel === 'offener_punkt_elternteil_nicht_zugeordnet') expect(f).toContain('elternteil')
-        }
-        expect(detail.offene_punkte.length).toBeGreaterThan(0)
+        expect(detail.offene_punkte.map((x) => `${x.regel_id}:${x.meldungsschluessel}`)).toEqual(punkte)
+        expect(detail.kernangaben?.fehlend).toEqual(fehlt)
+        konsistent(db, p)
       }
+    })
+  })
+
+  it('KA10: todesort nur mit wertZahl trägt keinen Ort — gleiche Wahrheit wie sterbeort und offene Punkte (hueter-H1)', () => {
+    mitDb((db) => {
+      // P1: belegt, kein Tod-Ereignis → kein Sterbeort, also auch nicht erfüllt.
+      const p1 = verstorbenOhneTodesort(db)
+      ortZahl(db, p1, 'todesort', true)
+      const d1 = personDetail(db, { personId: p1 })
+      expect(d1.sterbeort).toBeNull()
+      expect(d1.offene_punkte.map((x) => x.regel_id)).toEqual(['sterbeort_fehlt'])
+      expect(d1.kernangaben?.fehlend).toEqual(['todesort'])
+      konsistent(db, p1)
+
+      // P2: unbelegt, dazu belegtes Tod-Ereignis mit Ort → der Ereignisort gilt, erfüllt.
+      const p2 = verstorbenOhneTodesort(db)
+      ortZahl(db, p2, 'todesort', false)
+      todEreignis(db, p2, { ortId: ort(db), belegt: true })
+      const d2 = personDetail(db, { personId: p2 })
+      expect(d2.sterbeort?.herkunft).toBe('ereignis')
+      expect(d2.kernangaben?.fehlend).toEqual([])
+      konsistent(db, p2)
+
+      // Geburtsort konsistent: nur wertZahl ist kein Ort.
+      const p3 = person(db)
+      ortZahl(db, p3, 'geburtsort', true)
+      expect(personDetail(db, { personId: p3 }).kernangaben?.fehlend).toContain('geburtsort')
     })
   })
 })

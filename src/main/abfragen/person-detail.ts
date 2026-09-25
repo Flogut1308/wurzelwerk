@@ -24,7 +24,7 @@ import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
-import { kernangabenAuswerten, type KernAussage } from '../../core/person/kernangaben'
+import { kernangabenAuswerten, type KernAussage, type KernOrtAussage } from '../../core/person/kernangaben'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
@@ -814,6 +814,11 @@ function kernangabenBauen(
         hatWert: a.wert_text !== null || a.wert_zahl !== null || a.wert_ref_id !== null || a.datum_wert1 !== null,
         belegt: (belegeKarte.get(a.id)?.length ?? 0) > 0,
       }))
+  // Orts-Prädikate: ob ein Ort getragen wird, entscheidet der Kern (`traegtOrt`), wie beim Sterbeort.
+  const ortAussagenZu = (praedikat: string): readonly KernOrtAussage[] =>
+    aussagen
+      .filter((a) => a.praedikat === praedikat)
+      .map((a) => ({ wertRefId: a.wert_ref_id, wertText: a.wert_text, belegt: (belegeKarte.get(a.id)?.length ?? 0) > 0 }))
 
   return kernangabenAuswerten({
     istPlatzhalter: false,
@@ -821,9 +826,9 @@ function kernangabenBauen(
     geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
     hauptformBelegt: belege.hauptformBelegt,
     geburtsdatum: aussagenZu('geburtsdatum'),
-    geburtsort: aussagenZu('geburtsort'),
+    geburtsort: ortAussagenZu('geburtsort'),
     todesdatum: aussagenZu('todesdatum'),
-    todesort: aussagenZu('todesort'),
+    todesort: ortAussagenZu('todesort'),
     todEreignisse: todEreignisZeilen.map((e) => ({ ortVorhanden: e.ort_id !== null, ortBelegt: belege.belegteTodOrte.has(e.id) })),
     eltern: eltern.map((zeile) => ({
       id: zeile.person_id,
