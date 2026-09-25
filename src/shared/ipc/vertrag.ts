@@ -212,9 +212,14 @@ export interface UndoErgebnis {
   readonly beschreibung: string | null
 }
 
-/** Nutzlast von `abfrage:journal.verlauf` (AP-0.10, 55_Architektur.md §2.3): wie viele Zeilen höchstens. */
+/**
+ * Nutzlast von `abfrage:journal.verlauf` (AP-0.10, 55_Architektur.md §2.3): wie viele Zeilen
+ * höchstens. `personId` (AP-1.30 PR 5) filtert auf die Transaktionen, die diese Person betreffen
+ * (rechte Spalte des Personenprofils); ohne Filter alle Transaktionen (S-16, AP-1.23).
+ */
 export interface JournalVerlaufEin {
   readonly grenze: number
+  readonly personId?: string | undefined
 }
 
 /**
@@ -288,7 +293,12 @@ export interface ImportBerichtSpeichernAus {
   readonly gespeichertNach: string | null
 }
 
-/** Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert (`docs/schema/0001_grundgeruest.sql`). */
+/**
+ * Ein Eintrag aus `abfrage:journal.verlauf` (AP-0.10) — an `transaktion` orientiert
+ * (`docs/schema/0001_grundgeruest.sql`). Ein Import ist EIN Eintrag. `anzahl` (AP-1.30 PR 5, S-16):
+ * Zahl der `aenderung`-Zeilen der Transaktion — beim Großimport ohne Journal (ADR-019) `0`.
+ * `beschreibung` ist `null`, wenn die Transaktion nur Gesundheitsdaten ändert (M-08).
+ */
 export interface VerlaufEintrag {
   readonly id: string
   readonly zeitpunkt: number
@@ -296,6 +306,7 @@ export interface VerlaufEintrag {
   readonly status: TransaktionStatus
   readonly beschreibung: string | null
   readonly rueckgaengigMoeglich: boolean
+  readonly anzahl: number
 }
 
 /**
