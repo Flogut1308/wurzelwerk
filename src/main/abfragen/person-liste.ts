@@ -99,20 +99,6 @@ export function whereSql(bedingungen: readonly string[]): string {
   return bedingungen.length > 0 ? `WHERE ${bedingungen.join(' AND ')}` : ''
 }
 
-interface GesamtZeile {
-  readonly gesamt: number
-}
-
-function gesamtLaden(db: Database.Database, whereKlausel: string, parameter: Record<string, number | string>): number {
-  const zeile = db
-    .prepare<
-      Record<string, number | string>,
-      GesamtZeile
-    >(`SELECT COUNT(*) AS gesamt FROM person_flach pf JOIN person p ON p.id = pf.person_id ${whereKlausel}`)
-    .get(parameter)
-  return zeile?.gesamt ?? 0
-}
-
 export interface RohZeile {
   readonly person_id: string
   readonly geburt_jahr: number | null
@@ -413,12 +399,15 @@ export function personListe(db: Database.Database, ein: PersonListeEin): PersonL
   const { bedingungen, parameter } = filterBedingungen(ein.filter)
   const whereKlausel = whereSql(bedingungen)
 
-  const gesamt = gesamtLaden(db, whereKlausel, parameter)
-  const sortiert = sortiereZeilen(sortierZeilenLaden(db, whereKlausel, parameter, ein.sortierung), ein)
+  // `gesamt` ist die Zahl der Sortierzeilen: Phase 1 liest genau `person_flach` ⋈ `person` mit
+  // derselben WHERE-Klausel, ohne weiteren Join — eine eigene COUNT-Abfrage zählte dieselbe Menge
+  // (Vorarbeiten AP-1.30 Teil 3, Leistung).
+  const sortierZeilen = sortierZeilenLaden(db, whereKlausel, parameter, ein.sortierung)
+  const sortiert = sortiereZeilen(sortierZeilen, ein)
   const start = (ein.seite - 1) * ein.proSeite
   const seitenIds = sortiert.slice(start, start + ein.proSeite).map((zeile) => zeile.person_id)
 
   const seite = zeilenFuerIdsLaden(db, seitenIds)
   const anzeigenamen = anzeigenamenLaden(db, seitenIds)
-  return { zeilen: seite.map((zeile) => zeileZuAusgabe(zeile, anzeigenamen)), gesamt }
+  return { zeilen: seite.map((zeile) => zeileZuAusgabe(zeile, anzeigenamen)), gesamt: sortierZeilen.length }
 }
