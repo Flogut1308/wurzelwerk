@@ -3,6 +3,7 @@ import i18next from 'i18next'
 import journal from '../../shared/i18n/de/journal.json'
 import menue from '../../shared/i18n/de/menue.json'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
+import { transaktionsBeschreibungUebersetzen } from '../../shared/i18n/transaktions-beschreibung'
 import type { JournalStatusNutzlast } from '../../shared/ipc/vertrag'
 import { JOURNAL_STATUS_KEIN_PROJEKT, journalStatusBeobachterSetzen, journalStatusMelden } from '../journal/journal-status-melder'
 import { redo, undo } from '../journal/undo'
@@ -27,7 +28,8 @@ import { TASTENKUERZEL } from './tastenkuerzel'
  * Namensraum `journal` kommt seit AP-0.10 dazu: `transaktion.beschreibung` speichert einen
  * vollständigen i18n-Schlüssel im Format `<namensraum>.<schlüssel>` (z. B.
  * `journal.person_angelegt`, s. `src/main/befehle/registrierung.ts`) - ein anderer Namensraum als
- * `menue` selbst, darum getrennt geladen und über `transaktionsBeschreibungUebersetzen()` unten
+ * `menue` selbst, darum getrennt geladen und über `transaktionsBeschreibungUebersetzen()`
+ * (`src/shared/i18n/transaktions-beschreibung.ts`, seit AP-1.30 PR 8 mit dem Renderer geteilt)
  * mit explizitem `ns` aufgelöst (i18next-Standard-`keySeparator` `.` würde sonst innerhalb von
  * `menue` nach einem verschachtelten Schlüssel `journal.person_angelegt` suchen, den es dort nicht
  * gibt).
@@ -53,22 +55,6 @@ type MenueUebersetzer = (schluessel: string, optionen?: Record<string, unknown>)
  */
 function menueUebersetzen(schluessel: string, optionen?: Record<string, unknown>): string {
   return optionen === undefined ? menueI18n.t(schluessel) : menueI18n.t(schluessel, optionen)
-}
-
-/**
- * Übersetzt einen `transaktion.beschreibung`-Wert (`<namensraum>.<schlüssel>`, z. B.
- * `journal.person_angelegt`) in den fertigen deutschen Satz (s. Kommentar bei `menueI18n` oben).
- */
-function transaktionsBeschreibungUebersetzen(t: MenueUebersetzer, beschreibungSchluessel: string): string {
-  const trennstelle = beschreibungSchluessel.indexOf('.')
-  if (trennstelle === -1) {
-    // Defensiv: jede von `src/main/befehle/registrierung.ts` erzeugte Beschreibung trägt ein
-    // `<namensraum>.`-Präfix. Dieser Zweig sollte nie erreicht werden (kein `!`, CLAUDE.md §4).
-    return beschreibungSchluessel
-  }
-  const namensraum = beschreibungSchluessel.slice(0, trennstelle)
-  const schluessel = beschreibungSchluessel.slice(trennstelle + 1)
-  return t(schluessel, { ns: namensraum })
 }
 
 /** Beschriftung + Aktivierung eines der beiden Journal-Menüpunkte (Rückgängig/Wiederholen). */

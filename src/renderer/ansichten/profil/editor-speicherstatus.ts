@@ -9,6 +9,27 @@ import { EDITOR_SPEICHER_ANFANG, editorSpeicherAnzeige, editorSpeicherUebergang,
 /** Takt der relativen Zeitangabe („vor n Minuten"): feiner zeigt der Baustein ohnehin nicht. */
 const MINUTENTAKT_MS = 60_000
 
+/**
+ * Minutentakt des Editors: der Zeitpunkt des letzten Takts (Start = Einhängen). Läuft nur, solange
+ * `aktiv` ist — es gibt nichts Relatives zu zeigen, sonst kein Intervall (spart Renderläufe; ein
+ * dauernd laufendes Intervall machte zudem `vi.runAllTimers()` in Tests endlos). Genutzt vom
+ * Speicherstatus (aktiv = „gespeichert") und vom Verlauf der rechten Spalte (aktiv = mindestens ein
+ * Eintrag unter 24 h, AP-1.30 PR 8) — eine Taktlogik, kein zweiter Nachbau.
+ */
+export function useMinutentakt(aktiv: boolean, uhr: () => number = Date.now): number {
+  const [takt, setTakt] = useState(uhr)
+  const uhrRef = useRef(uhr)
+  useEffect(() => {
+    uhrRef.current = uhr
+  })
+  useEffect(() => {
+    if (!aktiv) return
+    const intervall = setInterval(() => setTakt(uhrRef.current()), MINUTENTAKT_MS)
+    return () => clearInterval(intervall)
+  }, [aktiv])
+  return takt
+}
+
 export interface EditorSpeicherstatus {
   readonly beobachter: SchreibBeobachter
   readonly anzeige: EditorSpeicherAnzeige
@@ -25,7 +46,6 @@ export interface EditorSpeicherstatus {
  */
 export function useEditorSpeicherstatus(uhr: () => number = Date.now): EditorSpeicherstatus {
   const [zustand, melden] = useReducer(editorSpeicherUebergang, EDITOR_SPEICHER_ANFANG)
-  const [takt, setTakt] = useState(uhr)
   const naechsteNrRef = useRef(1)
   const uhrRef = useRef(uhr)
   useEffect(() => {
@@ -71,12 +91,7 @@ export function useEditorSpeicherstatus(uhr: () => number = Date.now): EditorSpe
     }
   }, [anzeige, beobachter])
 
-  const gespeichert = anzeige.zustand === 'gespeichert'
-  useEffect(() => {
-    if (!gespeichert) return
-    const intervall = setInterval(() => setTakt(uhrRef.current()), MINUTENTAKT_MS)
-    return () => clearInterval(intervall)
-  }, [gespeichert])
+  const takt = useMinutentakt(anzeige.zustand === 'gespeichert', uhr)
 
   const jetzt = anzeige.zustand === 'gespeichert' ? Math.max(takt, anzeige.gespeichertUm) : takt
   return { beobachter, anzeige, jetzt, erneutVersuchen }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kennungAnzeige } from '../../../core/person/kennung'
+import type { EditorFeld } from '../../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../../core/person/reiter'
 import { reiterZaehler } from '../../../core/person/reiter-zaehler'
 import type { KontexttasteNutzlast } from '../../../shared/ipc/vertrag'
@@ -15,6 +16,9 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
 import { Speicherstatus } from '../../bausteine/speicherstatus'
 import { Text } from '../../bausteine/text'
+import { editorFeldId } from './editor-feld-id'
+import { EditorRechteSpalte } from './editor-rechte-spalte'
+import { sprungzielElement } from './editor-rechte-spalte-logik'
 import { useEditorSpeicherstatus, type EditorSpeicherstatus } from './editor-speicherstatus'
 import { tabImContainerHalten } from './fokusfang'
 import { darfKontexttasteWirken } from './kontexttaste-logik'
@@ -79,6 +83,24 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   const [aktiv, setAktiv] = useState<ReiterId>('person')
   const containerRef = useRef<HTMLDivElement | null>(null)
   const speicherstatus = useEditorSpeicherstatus()
+  /** Letzter Sprung aus der rechten Spalte (neues Objekt je Klick, auch auf denselben Punkt). */
+  const [sprung, setSprung] = useState<{ readonly reiter: ReiterId; readonly feld: EditorFeld } | null>(null)
+
+  // Sprung zu einem offenen Punkt (AP-1.30 PR 8): nach dem Rendern des gewählten Reiters das Feld
+  // fokussieren (`editorFeldId`), sonst den Inhaltsbereich (`tabpanel`, tabIndex 0). Ein Effekt statt
+  // eines direkten `focus()` im Klick, weil der neue Reiterinhalt erst mit dem nächsten Rendern da ist.
+  useEffect(() => {
+    if (sprung === null) return
+    const ziel = sprungzielElement(editorFeldId(ID_PRAEFIX, sprung.feld), reiterInhaltId(ID_PRAEFIX, reiterDomId(sprung.reiter)), (id) =>
+      document.getElementById(id),
+    )
+    ziel?.focus()
+  }, [sprung])
+
+  const zuOffenemPunkt = useCallback((reiter: ReiterId, feld: EditorFeld) => {
+    setAktiv(reiter)
+    setSprung({ reiter, feld })
+  }, [])
 
   useEffect(() => {
     const knoten = containerRef.current
@@ -176,17 +198,20 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
                 if (reiter !== undefined) setAktiv(reiter)
               }}
             />
-            <div className="wz-person-bearbeiten__koerper">
-              <div
-                key={aktiv}
-                role="tabpanel"
-                id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
-                aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
-                tabIndex={0}
-                className="wz-person-bearbeiten__inhalt"
-              >
-                <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} />
+            <div className="wz-person-bearbeiten__koerper-reihe">
+              <div className="wz-person-bearbeiten__koerper">
+                <div
+                  key={aktiv}
+                  role="tabpanel"
+                  id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
+                  aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
+                  tabIndex={0}
+                  className="wz-person-bearbeiten__inhalt"
+                >
+                  <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} />
+                </div>
               </div>
+              <EditorRechteSpalte personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
             </div>
           </>
         ) : null}
