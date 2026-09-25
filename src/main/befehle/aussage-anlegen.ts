@@ -12,6 +12,7 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import { bevorzugteAussagen } from '../abfragen/import-kollision'
 import { datumSpalten } from '../import/datum-spalten'
 import { neueId } from '../id'
+import { ortswertPruefen } from './ortswert'
 
 /**
  * `aussage.subjekt_id` ist polymorph OHNE Fremdschlüssel (E-7, docs/schema/0002_kern.sql §2.7 —
@@ -48,6 +49,7 @@ function subjektExistenzPruefen(tx: Tx, ein: Pick<AussageAnlegenEin, 'subjektTyp
 
 export function aussageAnlegen(tx: Tx, ein: AussageAnlegenEin): { readonly id: string } {
   subjektExistenzPruefen(tx, ein)
+  ortswertPruefen(ein.praedikat, ein.wertZahl)
 
   // Konsistent zum sonstigen Muster (z. B. `elternschaft-anlegen.ts`): eine referenzierte, nicht
   // existierende `zitat`-Zeile wird VOR dem Schreiben geprüft, statt den `INSERT INTO aussage_zitat`

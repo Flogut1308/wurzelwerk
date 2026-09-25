@@ -29,7 +29,8 @@ import { namensSortierschluessel, vergleicheNamen, vergleicheNamensschluessel, t
 // Bausteine wie die kanonische person_flach-Projektion (Bitgleichheit, kein zweiter Nachbau).
 import { nameFormNachnameSql, nameFormVornamenSql } from '../datenbank/abgeleitet-projektion'
 // Vorarbeiten AP-1.30, PR 4a (Eigentümer 25.09.2026): der SICHTBARE Name kommt aus dem Kern
-// (`anzeigenameFuer`), die Projektion (`pf.anzeigename`, `bn.*`) bleibt nur für Sortierung/Suche.
+// (`anzeigenameFuer`), die Projektion (`bn.*`, `person_flach`) bleibt nur für Sortierung/Suche;
+// `pf.anzeigename` wird hier bewusst nicht mehr geladen (hueter #128, Befund 7).
 import { anzeigenamenLaden } from './_anzeigenamen'
 import { DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum } from '../../shared/schemata/gemeinsam'
 import type { PersonListeAus, PersonListeDatumsgruppe, PersonListeEin, PersonListeFilter, PersonListeZeile } from '../../shared/schemata/person-liste'
@@ -112,7 +113,6 @@ function gesamtLaden(db: Database.Database, whereKlausel: string, parameter: Rec
 
 export interface RohZeile {
   readonly person_id: string
-  readonly anzeigename: string
   readonly geburt_jahr: number | null
   readonly geburt_sort_von: number | null
   readonly tod_jahr: number | null
@@ -160,7 +160,7 @@ export function zeilenLaden(db: Database.Database, whereKlausel: string, paramet
     .prepare<
       Record<string, number | string>,
       RohZeile
-    >(`SELECT pf.person_id AS person_id, pf.anzeigename AS anzeigename, pf.geburt_jahr AS geburt_jahr,
+    >(`SELECT pf.person_id AS person_id, pf.geburt_jahr AS geburt_jahr,
               pf.geburt_sort_von AS geburt_sort_von, pf.tod_jahr AS tod_jahr, pf.tod_sort_von AS tod_sort_von,
               pf.geburt_ort_name AS geburt_ort_name, pf.konfidenz_min AS konfidenz_min,
               pf.hat_widerspruch AS hat_widerspruch, p.ist_platzhalter AS ist_platzhalter,

@@ -6,6 +6,15 @@
 //
 // Rein (CLAUDE.md §4).
 
+/** Prädikate, deren Wert ein Ort ist (Ortsverweis oder freier Ortstext). `aussage.anlegen`/`.aendern`
+ * lehnen an ihnen einen Zahlwert ab (`VALIDIERUNG_ORTSWERT`, Vorarbeiten AP-1.30 PR 5); die
+ * Profilabfrage löst ihren `wert_ref_id` als Ort auf, nicht als Person. */
+export const ORTS_PRAEDIKATE = ['geburtsort', 'todesort', 'wohnort'] as const
+
+export function istOrtsPraedikat(praedikat: string): boolean {
+  return ORTS_PRAEDIKATE.some((ortsPraedikat) => ortsPraedikat === praedikat)
+}
+
 export interface OrtWert {
   readonly wertRefId: string | null
   readonly wertText: string | null

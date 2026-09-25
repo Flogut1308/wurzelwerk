@@ -10,6 +10,7 @@ import type Database from 'better-sqlite3'
 import type { JdnIntervall, PlausGeschlecht } from '../../core/plausibilitaet/regeln'
 import { pruefeBestand, type BestandEingabe, type BestandEreignis, type BestandOrt, type BestandPartnerschaft, type BestandPerson } from '../../core/plausibilitaet/regeln'
 import type { PruefhinweiseAus } from '../../shared/schemata/pruefhinweise'
+import { anzeigenamenLaden } from './_anzeigenamen'
 
 export function alsIntervall(von: number | null, bis: number | null): JdnIntervall | undefined {
   if (von === null || bis === null) return undefined
@@ -154,16 +155,6 @@ function beteiligungenLaden(db: Database.Database): readonly BeteiligungZeile[] 
   return db.prepare<[], BeteiligungZeile>(`SELECT ereignis_id AS ereignis_id, person_id AS person_id FROM beteiligung`).all()
 }
 
-interface AnzeigenameZeile {
-  readonly person_id: string
-  readonly anzeigename: string
-}
-
-function anzeigenamenLaden(db: Database.Database): ReadonlyMap<string, string> {
-  const zeilen = db.prepare<[], AnzeigenameZeile>(`SELECT person_id AS person_id, anzeigename AS anzeigename FROM person_flach`).all()
-  return new Map(zeilen.map((zeile) => [zeile.person_id, zeile.anzeigename] as const))
-}
-
 function bestandEingabeLaden(db: Database.Database): BestandEingabe {
   const geburtKarte = datumJePraedikatLaden(db, 'geburtsdatum')
   const todKarte = datumJePraedikatLaden(db, 'todesdatum')
@@ -214,12 +205,18 @@ function bestandEingabeLaden(db: Database.Database): BestandEingabe {
 /** `abfrage:pruefhinweise` (AP-1.8, 70_UX_Konzept.md §2). */
 export function pruefhinweise(db: Database.Database): PruefhinweiseAus {
   const eingabe = bestandEingabeLaden(db)
-  const anzeigenamenKarte = anzeigenamenLaden(db)
+  const hinweise = pruefeBestand(eingabe)
+  // Sichtbarer Name aus dem Kern, nur für die Personen mit Hinweis (Vorarbeiten AP-1.30, PR 4b;
+  // `person_flach.anzeigename` nur noch für Sortierung/Suche). Ohne Namensform: ''.
+  const anzeigenamenKarte = anzeigenamenLaden(
+    db,
+    hinweise.map((hinweis) => hinweis.personId),
+  )
 
-  const eintraege = pruefeBestand(eingabe).map((hinweis) => ({
+  const eintraege = hinweise.map((hinweis) => ({
     code: hinweis.code,
     personId: hinweis.personId,
-    anzeigename: anzeigenamenKarte.get(hinweis.personId) ?? hinweis.personId,
+    anzeigename: anzeigenamenKarte.get(hinweis.personId) ?? '',
   }))
 
   return { eintraege, anzahl: eintraege.length }
