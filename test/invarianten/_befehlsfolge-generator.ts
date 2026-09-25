@@ -87,6 +87,9 @@
 //   - `poolIndexBiased()` gewichtet die Poolwahl zu 80 % auf `person` (Index 0) — der einzige Pool,
 //     der ab der ersten `person.anlegen`-Aktion garantiert befüllt ist — statt gleich zu verteilen.
 //   - `praedikat` bleibt aus einer KLEINEN, festen Wertemenge (jetzt zwei statt vier Werten).
+//     Vorarbeiten AP-1.30 (PR 5a): `konfession` statt `wohnort` — ein Orts-Prädikat nimmt ab PR 5
+//     keinen Zahlwert mehr an (`VALIDIERUNG_ORTSWERT`), der Generator würde sonst ungültige
+//     Befehle erzeugen. Zwei Nicht-Orts-Prädikate erhalten die DEMOTE-DECKUNG unverändert.
 //   - Die eigentliche Garantie liefert die eigene Aktion `aussageFaktAendern`: sie führt Buch über
 //     jedes per `aussage.anlegen`/`aussageFaktAendern` erzeugte (subjektTyp, subjektId, praedikat)
 //     in `zustand.aussageTripel` und WIEDERHOLT bei jeder weiteren Ausführung eines dieser
@@ -922,7 +925,7 @@ function aussageAnlegenAktionArbitrary(): fc.Arbitrary<AktionAussageAnlegen> {
     .record({
       subjektWahlRoh: fc.nat(),
       subjektZielRoh: fc.nat(),
-      praedikat: fc.constantFrom('beruf', 'wohnort'),
+      praedikat: fc.constantFrom('beruf', 'konfession'),
       wert: aussageWertArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
       istBevorzugt: fc.option(fc.constantFrom<0 | 1>(0, 1), { nil: undefined }),
@@ -944,7 +947,7 @@ function aussageFaktAendernAktionArbitrary(): fc.Arbitrary<AktionAussageFaktAend
       tripelWahlRoh: fc.nat(),
       subjektWahlRoh: fc.nat(),
       subjektZielRoh: fc.nat(),
-      praedikat: fc.constantFrom('beruf', 'wohnort'),
+      praedikat: fc.constantFrom('beruf', 'konfession'),
       wert: aussageWertArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
     })
