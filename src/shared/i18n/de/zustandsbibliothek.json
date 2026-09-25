@@ -48,7 +48,8 @@
     "personenwaehler": "Personenwaehler",
     "ortsfeld": "Ortsfeld",
     "archivfeld": "Archivfeld",
-    "reiterleiste": "Reiterleiste"
+    "reiterleiste": "Reiterleiste",
+    "speicherstatus": "Speicherstatus"
   },
   "variante_primaer": "primär",
   "variante_sekundaer": "sekundär",

@@ -34,6 +34,7 @@ import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schal
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
 import { Schrittleiste } from '../../bausteine/schrittleiste'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
+import { Speicherstatus } from '../../bausteine/speicherstatus'
 import { Suchfeld } from '../../bausteine/suchfeld'
 import { Symbol } from '../../bausteine/symbol'
 import { Tabellenzeile } from '../../bausteine/tabellenzeile'
@@ -54,6 +55,8 @@ export interface ZustandsbibliothekProps {
   readonly aufSchliessen: () => void
 }
 
+/** Fester Bezugszeitpunkt für die `Speicherstatus`-Beispiele (kein `Date.now`: Bild bleibt gleich). */
+const BEISPIEL_JETZT_MS = 1_750_000_000_000
 const KONFIDENZ_STUFEN: readonly KonfidenzStufe[] = [1, 2, 3, 4]
 const SCHALTFLAECHE_VARIANTEN: readonly SchaltflaecheVariante[] = ['primaer', 'sekundaer', 'unauffaellig', 'gefaehrlich']
 const ABZEICHEN_VARIANTEN: readonly AbzeichenVariante[] = ['neutral', 'info', 'erfolg', 'warnung', 'fehler']
@@ -828,6 +831,16 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
             <Text rolle="hilfe">{t('beispiel_reiterleiste_fokus')}</Text>
           </div>
         </div>
+      </Abschnitt>
+
+      {/* AP-1.30 PR 6: `Speicherstatus` — alle drei Zustände. Kein Ruhezustand: vor dem ersten
+          Schreiben rendert der Aufrufer den Baustein nicht. Feste Zeitpunkte statt Uhr, damit das
+          Bild deterministisch bleibt. */}
+      <Abschnitt name="speicherstatus">
+        <Speicherstatus zustand="gespeichert" gespeichertUm={BEISPIEL_JETZT_MS} jetzt={BEISPIEL_JETZT_MS} />
+        <Speicherstatus zustand="gespeichert" gespeichertUm={BEISPIEL_JETZT_MS - 5 * 60_000} jetzt={BEISPIEL_JETZT_MS} />
+        <Speicherstatus zustand="speichert" />
+        <Speicherstatus zustand="fehler" aufErneutVersuchen={() => {}} />
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">

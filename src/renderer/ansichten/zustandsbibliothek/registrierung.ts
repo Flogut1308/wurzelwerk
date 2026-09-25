@@ -50,4 +50,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'ortsfeld',
   'archivfeld',
   'reiterleiste',
+  'speicherstatus',
 ]
