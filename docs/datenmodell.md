@@ -246,6 +246,8 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
 
 **Lese-Indizes (Migration `0008_indizes.sql`, Vorarbeiten AP-1.30).** `idx_aussage_subjekt_praedikat` auf `aussage(subjekt_typ, subjekt_id, praedikat)` (Aussagen je Subjekt und Prädikat in `person.detail`) und `idx_medium_zuordnung_subjekt` auf `medium_zuordnung(subjekt_typ, subjekt_id)` (Titelbild einer Person). Rein additiv, keine Spalte, kein Trigger.
 
+**Rolle `verstorbener` am Tod (Migration `0009_rolle_verstorbener.sql`, Vorarbeiten AP-1.30).** Reine Datenmigration: `beteiligung.rolle` `hauptperson` → `verstorbener` an Ereignissen `typ = 'tod'`; hat dieselbe Person im selben Tod schon `verstorbener`, bleibt die `hauptperson`-Zeile stehen. Geburt bleibt `hauptperson` (docs/80 V-E4-geburt). Vorher ein Journal-Schnitt: jede Transaktion, die eine `hauptperson`-Beteiligung an einem (heutigen oder früheren) Tod-Ereignis oder ein solches Ereignis selbst berührt, macht alle angewendeten Transaktionen bis einschließlich der jüngsten betroffenen unrücknehmbar (`rueckgaengig_moeglich = 0`); ist eine zurückgenommene betroffen, wird der Redo-Stapel verworfen. `aenderung` bleibt unverändert, keine neue `transaktion`-Zeile, kein Schema- oder Triggerwechsel. Die Oberfläche legt den Tod seither mit `verstorbener` an; `hauptperson` am Tod bleibt Rückfall für Lebensdaten (Import, `ereignis.aendern`).
+
 **Existenzbehauptung — wo Beleg und Konfidenz einer Entität leben (entschieden 17.09.2026, ADR-026).**
 Beleg und Konfidenz für **Person, Ereignis, Elternschaft und Partnerschaft** werden **nicht** als
 Spalte an der Entität geführt, sondern als Aussage:

@@ -7,8 +7,11 @@
 //    allein sie — auch unbelegt (V-D9-aussage-fuehrt).
 // 2. Sonst springt ein Rückfall-Ereignis ein, das den Wert trägt, auch ohne Beleg (Eigentümer D9):
 //    Geburt = `typ = 'geburt'` mit der Person als `hauptperson` oder `kind`, Tod = `typ = 'tod'` mit
-//    der Person als `verstorbener` oder `hauptperson` (die Oberfläche legt jedes Ereignis mit der
-//    Profilperson als `hauptperson` an). Taufe und Beerdigung sind kein Ersatz (V-D9-rollen).
+//    der Person als `verstorbener` oder `hauptperson`. Die Oberfläche legt den Tod seit Migration
+//    0009 mit `verstorbener` an, und 0009 stellt den Bestand um. `hauptperson` am Tod bleibt
+//    trotzdem Rückfall: der Import reicht Rollen aus Dateien unverändert durch
+//    (src/main/import/schreiben.ts), und `ereignis.aendern` kann einen Typ geburt → tod ändern,
+//    ohne die Rolle anzufassen. Taufe und Beerdigung sind kein Ersatz (V-D9-rollen).
 // 3. Datum und Ort werden je Angabe getrennt aufgelöst (V-D9-getrennt).
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingaben.

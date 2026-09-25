@@ -118,6 +118,24 @@ describe('profil-bearbeiten-logik: Ereignisse (AP-1.15 PR-A)', () => {
     })
   })
 
+  it('ereignisAnlegenEinAusEntwurf: Tod legt die Profilperson als verstorbener an (Migration 0009)', () => {
+    const entwurf: EreignisEntwurfWerte = {
+      ...EREIGNIS_ENTWURF_LEER,
+      typ: 'tod',
+      konfidenz: 3,
+      weitereBeteiligte: [{ schluessel: 'zeile-1', personId: 'person-2', rolle: 'informant' }],
+    }
+    expect(ereignisAnlegenEinAusEntwurf('person-1', entwurf)?.beteiligungen).toEqual([
+      { personId: 'person-1', rolle: 'verstorbener' },
+      { personId: 'person-2', rolle: 'informant' },
+    ])
+  })
+
+  it('ereignisAnlegenEinAusEntwurf: Geburt legt die Profilperson weiter als hauptperson an (Geburt offen, V-E4-geburt)', () => {
+    const entwurf: EreignisEntwurfWerte = { ...EREIGNIS_ENTWURF_LEER, typ: 'geburt', konfidenz: 3 }
+    expect(ereignisAnlegenEinAusEntwurf('person-1', entwurf)?.beteiligungen).toEqual([{ personId: 'person-1', rolle: 'hauptperson' }])
+  })
+
   it('weitererBeteiligterLeer: personId null, Standardrolle informant', () => {
     expect(weitererBeteiligterLeer('zeile-1')).toEqual({ schluessel: 'zeile-1', personId: null, rolle: 'informant' })
   })

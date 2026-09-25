@@ -1522,7 +1522,7 @@ Beziehung); **„aus dem Baum" ist Phase 2**, „aus Gespräch" kommt mit AP-1.2
 ## AP-1.31a — Medien: Kern und Ablage (Migration 0010)
 
 > Nachtrag 25.09.2026 (Vorarbeiten AP-1.30, PR 6): Migration 0008 ist die Index-Migration (`0008_indizes.sql`); die Medienmigration dieses Pakets wird **0009**.
-> Nachtrag 25.09.2026 (Vorarbeiten AP-1.30 Teil 3, Eigentümer-Entscheidung 4): Migration 0009 stellt die Rollen an Geburts-/Todesereignissen um (`hauptperson` → `kind`/`verstorbener`); die Medienmigration dieses Pakets wird **0010**.
+> Nachtrag 25.09.2026 (Vorarbeiten AP-1.30 Teil 3, Eigentümer-Entscheidung 4): Migration 0009 stellt die Rollen an Todesereignissen um (`hauptperson` → `verstorbener`; Geburt offen, docs/80 V-E4-geburt); die Medienmigration dieses Pakets wird **0010**.
 
 **Auftrag** — Artboards 2c/3a–3c, Vorgaben §2.7 und §5.8. **Ersetzt den Zuschnitt von AP-1.20.**
 Der Entwurf verlangt deutlich mehr als „Medien zuordnen" — hier entsteht nur das Fundament.
