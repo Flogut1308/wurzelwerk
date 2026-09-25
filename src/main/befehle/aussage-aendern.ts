@@ -9,7 +9,7 @@ import type { Tx } from '../repositories/basis'
 import * as aussageRepo from '../repositories/aussage-repo'
 import type { AussageZeile } from '../repositories/aussage-repo'
 import { datumSpalten, type DatumSpaltengruppe } from '../import/datum-spalten'
-import { ortswertPruefen } from './aussage-anlegen'
+import { ortswertPruefen } from './ortswert'
 
 function datumUnveraendert(vorher: AussageZeile, neu: DatumSpaltengruppe): boolean {
   return (

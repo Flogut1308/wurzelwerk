@@ -12,17 +12,7 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import { bevorzugteAussagen } from '../abfragen/import-kollision'
 import { datumSpalten } from '../import/datum-spalten'
 import { neueId } from '../id'
-import { istOrtsPraedikat } from '../../core/person/ort-wert'
-
-/** Ein Orts-Prädikat (`geburtsort`, `todesort`, `wohnort`) trägt einen Ortsverweis oder freien
- * Ortstext, nie eine Zahl (Vorarbeiten AP-1.30 PR 5, §31 U-1.34-D-ortspraedikat-wertzahl: Ursache
- * statt Symptom — `traegtOrt` wertet eine Zahl ohnehin als „kein Ort"). Genutzt auch von
- * `aussage.aendern`. */
-export function ortswertPruefen(praedikat: string, wertZahl: number | undefined): void {
-  if (wertZahl !== undefined && istOrtsPraedikat(praedikat)) {
-    throw new WurzelFehler('VALIDIERUNG_ORTSWERT', `Prädikat "${praedikat}" erwartet einen Ort, keine Zahl.`)
-  }
-}
+import { ortswertPruefen } from './ortswert'
 
 /**
  * `aussage.subjekt_id` ist polymorph OHNE Fremdschlüssel (E-7, docs/schema/0002_kern.sql §2.7 —

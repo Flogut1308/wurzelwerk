@@ -16,6 +16,7 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 import { ORTS_PRAEDIKATE } from '../../src/core/person/ort-wert'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 
 type Db = ReturnType<typeof oeffnen>
 
@@ -76,6 +77,21 @@ describe('Orts-Prädikate nehmen keinen Zahlwert an (U-1.34-D-ortspraedikat-wert
       const zeile = db.prepare<{ readonly id: string }, { readonly wert_text: string | null; readonly wert_zahl: number | null }>(`SELECT wert_text, wert_zahl FROM aussage WHERE id = @id`).get({ id })
       expect(zeile).toEqual({ wert_text: 'Dorpat', wert_zahl: null })
       expect(fehlercode(() => fuehreAus(db, 'aussage.aendern', { id, wertText: 'Tartu', konfidenz: 3 }))).toBe('KEIN_FEHLER')
+    })
+  })
+
+  it('O5: Altbestand (Orts-Aussage mit wert_zahl) lässt sich per aussage.aendern in einen Ort umwandeln, nicht als Zahl weiterführen (hueter #130, Befund 5)', () => {
+    mitDb((db) => {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat: 'wohnort', wertText: 'vorläufig', konfidenz: 3 })
+      journalAus(db, 'test-fixture: Altbestand Orts-Aussage mit wert_zahl')
+      try {
+        db.prepare<{ readonly id: string }>(`UPDATE aussage SET wert_text = NULL, wert_zahl = 5 WHERE id = @id`).run({ id })
+      } finally {
+        journalAn(db)
+      }
+      expect(fehlercode(() => fuehreAus(db, 'aussage.aendern', { id, wertZahl: 5, konfidenz: 2 }))).toBe('VALIDIERUNG_ORTSWERT')
+      expect(fehlercode(() => fuehreAus(db, 'aussage.aendern', { id, wertText: 'Dorpat', konfidenz: 2 }))).toBe('KEIN_FEHLER')
     })
   })
 })
