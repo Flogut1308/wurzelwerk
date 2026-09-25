@@ -95,7 +95,9 @@ export function Reiterleiste({ idPraefix, beschriftung, reiter, aktiv, aufWechse
             role="tab"
             id={reiterElementId(idPraefix, eintrag.id)}
             aria-selected={istAktiv}
-            aria-controls={reiterInhaltId(idPraefix, eintrag.id)}
+            // Nur der aktive Reiter verweist auf einen Inhaltsbereich: der Aufrufer rendert nur den
+            // aktiven Bereich, ein Verweis auf nicht vorhandene IDs wäre ungültig (hueter #157, 1).
+            {...(istAktiv ? { 'aria-controls': reiterInhaltId(idPraefix, eintrag.id) } : {})}
             tabIndex={istAktiv ? 0 : -1}
             className={`wz-reiterleiste__reiter${istAktiv ? ' wz-reiterleiste__reiter--aktiv' : ''}`}
             onClick={() => aufWechsel(eintrag.id)}

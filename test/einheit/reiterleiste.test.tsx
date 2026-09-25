@@ -79,12 +79,12 @@ describe('Reiterleiste (docs/71 §2.2 „Reiter", AP-1.30 PR 6)', () => {
     expect(reiterKnoepfe(container)).toHaveLength(REITER.length)
   })
 
-  it('aria-selected nur am aktiven Reiter, aria-controls zeigt auf den Inhaltsbereich', () => {
+  it('aria-selected und aria-controls nur am aktiven Reiter (kein Verweis auf nicht gerenderte Bereiche)', () => {
     act(() => root.render(<Huelle start="namen" aufWechsel={() => {}} />))
     for (const eintrag of REITER) {
       const knopf = reiterMitId(container, eintrag.id)
       expect(knopf.getAttribute('aria-selected')).toBe(eintrag.id === 'namen' ? 'true' : 'false')
-      expect(knopf.getAttribute('aria-controls')).toBe(reiterInhaltId('probe', eintrag.id))
+      expect(knopf.getAttribute('aria-controls')).toBe(eintrag.id === 'namen' ? reiterInhaltId('probe', eintrag.id) : null)
     }
   })
 
