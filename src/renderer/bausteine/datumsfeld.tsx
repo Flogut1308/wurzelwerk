@@ -41,6 +41,8 @@ export interface DatumsfeldProps {
   /** Zugänglicher Name des Eingabefelds — im Regelfall trägt stattdessen `Formularfeld` die
    * sichtbare Beschriftung. */
   readonly ariaLabel?: string
+  /** Das Eingabefeld wird verlassen (Blur) — AP-1.30 PR 9b: der Autosave schreibt dann sofort. */
+  readonly aufVerlassen?: () => void
 }
 
 /**
@@ -64,6 +66,7 @@ export function Datumsfeld({
   name,
   id,
   ariaLabel,
+  aufVerlassen,
 }: DatumsfeldProps) {
   const { t } = useTranslation('felder')
   const { t: tDatum } = useTranslation('datum')
@@ -81,6 +84,7 @@ export function Datumsfeld({
     ...(name !== undefined ? { name } : {}),
     ...(id !== undefined ? { id } : {}),
     ...(ariaLabel !== undefined ? { ariaLabel } : {}),
+    ...(aufVerlassen !== undefined ? { aufVerlassen } : {}),
   }
 
   return (

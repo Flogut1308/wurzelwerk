@@ -40,6 +40,10 @@ export interface OrtsfeldProps {
   /** Zugänglicher Name des Suchfelds, wenn keine sichtbare Beschriftung danebensteht (ADR-011). */
   readonly ariaLabel?: string
   readonly id?: string
+  /** Das Suchfeld wird verlassen (Blur) — AP-1.30 PR 9b: ohne Auswahl stellt der Aufrufer den
+   * gespeicherten Ort wieder her. Ein Klick auf einen Vorschlag löst keinen Blur aus (`mousedown`
+   * mit `preventDefault`). */
+  readonly aufVerlassen?: () => void
 }
 
 /**
@@ -77,6 +81,7 @@ export function Ortsfeld({
   gesperrt = false,
   ariaLabel,
   id,
+  aufVerlassen,
 }: OrtsfeldProps) {
   const { t } = useTranslation('felder')
 
@@ -132,6 +137,7 @@ export function Ortsfeld({
         ariaLabel={ariaLabel ?? t('ortsfeld_beschriftung')}
         gesperrt={gesperrt}
         {...(id === undefined ? {} : { id })}
+        {...(aufVerlassen === undefined ? {} : { aufVerlassen })}
       />
       {zustand === 'leer' ? null : (
         <ul id={listboxId} className="wz-ortsfeld__liste" role="listbox" aria-label={t('ortsfeld_beschriftung')}>
