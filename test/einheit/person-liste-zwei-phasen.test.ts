@@ -235,5 +235,72 @@ describe('Personenliste in zwei Phasen = Einphasen-Referenz (Vorarbeiten AP-1.30
       db.close()
     }
   })
+
+  // Vorarbeiten AP-1.30 Teil 3 (Leistung): Phase 1 lädt je Sortierung nur noch die gebrauchte
+  // Namensspalte. Dieser Bestand trennt die beiden Spalten gezielt — Personen nur mit Vornamen, nur
+  // mit Nachnamen, ein Hauptname ohne Nachnamen bei einer Nebenform mit Nachnamen (die Wahl der Form
+  // muss je Spalte dieselbe bleiben), mehrteilige Vor- und Nachnamen — und prüft `gesamt` unter
+  // Platzhalter-/Privat-Filtern.
+  it('Z4: nur Vor- oder nur Nachname, Hauptname ohne Nachname, Filter mit gesamt = Referenz', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      const personen: string[] = []
+      for (let i = 0; i < 30; i += 1) {
+        const p = fuehreAus(db, 'person.anlegen', { privat: i % 4 === 1 ? 1 : 0, ist_platzhalter: i % 5 === 2 ? 1 : 0 }).id
+        personen.push(p)
+        switch (i % 6) {
+          case 0:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Vor${i % 4}` })
+            break
+          case 1:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', nachname: `Nach${i % 3}` })
+            break
+          case 2: {
+            const neben = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Zweit${i % 3}`, nachname: `Neben${i % 2}` }).id
+            const haupt = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'vulgo', vornamen: `Haupt${i % 5}` }).id
+            fuehreAus(db, 'hauptname.wechseln', { personId: p, alt: neben, neu: haupt })
+            break
+          }
+          case 3:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Anna Maria${i % 2}`, nachname: `von Berg${i % 3}` })
+            break
+          case 4:
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `Vor${i % 4}`, nachname: `Nach${i % 3}` })
+            fuehreAus(db, 'name.anlegen', { personId: p, typ: 'ehename', nachname: `Ehe${i % 2}` })
+            break
+          default:
+            break // ohne Namensform
+        }
+      }
+      expect(personen).toHaveLength(30)
+
+      const filterliste: readonly PersonListeFilter[] = [
+        ALLE,
+        { platzhalter: 'nur', privat: 'alle', nurWiderspruch: false },
+        { platzhalter: 'ohne', privat: 'alle', nurWiderspruch: false },
+        { platzhalter: 'alle', privat: 'nur', nurWiderspruch: false },
+        { platzhalter: 'ohne', privat: 'ohne', nurWiderspruch: false },
+      ]
+      let zeilenGesamt = 0
+      const gesamtWerte = new Set<number>()
+      for (const filter of filterliste) {
+        for (const sortierung of SORTIERUNGEN) {
+          for (const seite of [{ seite: 1, proSeite: 100 }, { seite: 2, proSeite: 4 }, { seite: 3, proSeite: 7 }]) {
+            const ein: PersonListeEin = { ...sortierung, ...seite, filter }
+            const ist = personListe(db, ein)
+            expect(ist, JSON.stringify(ein)).toEqual(referenzListe(db, ein))
+            zeilenGesamt += ist.zeilen.length
+            gesamtWerte.add(ist.gesamt)
+          }
+        }
+      }
+      // Deckung: echte Zeilen und unterschiedliche Gesamtzahlen je Filter.
+      expect(zeilenGesamt).toBeGreaterThan(8 * 30)
+      expect(gesamtWerte.size).toBeGreaterThanOrEqual(4)
+    } finally {
+      db.close()
+    }
+  })
 })
 
