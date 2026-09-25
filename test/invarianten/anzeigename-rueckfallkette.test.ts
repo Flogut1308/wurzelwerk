@@ -7,16 +7,24 @@
 // eine bevorzugte — wie es „genau ein Hauptname je Person" in der Datenbank garantiert):
 //   - `null` genau dann, wenn es keine Form gibt; sonst stammt `formId` aus der Eingabe.
 //   - Stufe 1: gibt es eine Form in der Wunschsprache, gewinnt sie (`quelle: 'sprache'`).
-//   - Stufe 2: sonst gewinnt eine Umschrift-Form (`umschrift_von` gesetzt, `quelle: 'umschrift'`).
-//   - Stufe 3: sonst `quelle: 'hauptname'`, und zwar die bevorzugte Form, wenn es eine gibt.
+//   - Stufe 2: sonst gewinnt eine Umschrift DER HAUPTFORM mit Anzeigetext (`quelle: 'umschrift'`);
+//     die Umschrift einer Nebenform, ein fremder oder ein Selbstverweis und eine leere Umschrift
+//     führen nie zu `'umschrift'` (Eigentümer 25.09.2026, docs/80 §32 V-4-umschrift). Hauptform ist
+//     die Form, die Stufe 3 wählt: die bevorzugte, sonst die kleinste `formId` (§32 V-4b-hauptform).
+//   - Stufe 3: sonst `quelle: 'hauptname'`, und zwar genau die Hauptform.
 //   - innerhalb jeder Stufe gewinnt die bevorzugte Form, sofern sie zu den Kandidaten gehört.
 //   - das Ergebnis hängt nicht von der Reihenfolge der Eingabe ab (Liste, Karte, Suche und Export
 //     laden Formen in unterschiedlicher Reihenfolge).
-// Bis PR 3 der Vorarbeiten AP-1.30 Teil 2 ist der Formen-Generator vorübergehend eingeengt (Kommentar
-// an `formenArbitrary`, docs/80 §32 V-4b-einengung).
+// „Hat Anzeigetext" (Stufe 2) entscheidet `anzeigetextVon` — die Textregel hat unten ihre eigene
+// Property, hier wird nur die Auswahl geprüft (§32 V-4b-orakel). Zweiseitig testlokal geklammert: eine
+// Form ohne jedes Nicht-Leerzeichen hat nie Text; ein nicht leerer Vorname, Vatersname oder Nachname
+// gibt immer Text (diese Arten verlieren beim Zusammensetzen keinen Wert). Dazwischen (mehrere Titel,
+// Präfixe, Zusätze) gilt allein `anzeigetextVon`; ob dort das Verwerfen weiterer Werte gewollt ist,
+// ist offen (§32 V-4b-ersterwert).
+// Die vorübergehende Einengung des Generators aus PR 1 (#134, §32 V-4b-einengung) ist aufgehoben.
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { anzeigenameFuer, type AnzeigeForm } from '../../src/core/name/anzeigename'
+import { anzeigenameFuer, anzeigetextVon, type AnzeigeForm } from '../../src/core/name/anzeigename'
 import type { GeladenerTeil } from '../../src/core/name/zerlegung'
 import type { NamePartArt } from '../../src/core/name/typen'
 
@@ -38,10 +46,23 @@ interface FormRoh {
   readonly teile: readonly GeladenerTeil[]
 }
 
-const formRohArbitrary: fc.Arbitrary<FormRoh> = fc.record({
+/** Worauf `umschrift_von` zeigt: auf die Hauptform, auf eine beliebige Form der Liste (auch eine
+ * Nebenform oder die eigene), auf sich selbst oder auf eine Form außerhalb der Liste. */
+type UmschriftZiel = { readonly art: 'hauptform' | 'selbst' | 'fremd' } | { readonly art: 'index'; readonly index: number }
+
+const umschriftZielArbitrary: fc.Arbitrary<UmschriftZiel> = fc.oneof(
+  fc.constantFrom<UmschriftZiel>({ art: 'hauptform' }, { art: 'selbst' }, { art: 'fremd' }),
+  fc.nat().map((index): UmschriftZiel => ({ art: 'index', index })),
+)
+
+interface FormRohMitZiel extends Omit<FormRoh, 'umschriftVon'> {
+  readonly umschriftZiel: UmschriftZiel | null
+}
+
+const formRohArbitrary: fc.Arbitrary<FormRohMitZiel> = fc.record({
   sprache: fc.option(fc.constantFrom(...SPRACHEN), { nil: null }),
   schrift: fc.option(fc.constantFrom('Latn', 'Cyrl'), { nil: null }),
-  umschriftVon: fc.option(fc.constant('quelle-form'), { nil: null }),
+  umschriftZiel: fc.option(umschriftZielArbitrary, { nil: null }),
   originalText: fc.option(fc.string({ maxLength: 8 }), { nil: null }),
   teile: fc.array(teilArbitrary, { maxLength: 4 }),
 })
@@ -50,22 +71,23 @@ function formIdFuer(index: number): string {
   return `form-${String(index).padStart(2, '0')}`
 }
 
+function umschriftZielId(ziel: UmschriftZiel | null, eigenerIndex: number, hauptformIndex: number, anzahl: number): string | null {
+  if (ziel === null) return null
+  switch (ziel.art) {
+    case 'hauptform':
+      return formIdFuer(hauptformIndex)
+    case 'selbst':
+      return formIdFuer(eigenerIndex)
+    case 'fremd':
+      return 'fremde-form'
+    case 'index':
+      return formIdFuer(ziel.index % anzahl)
+  }
+}
+
 /** 0..6 Formen mit eindeutigen `formId`s und HÖCHSTENS einer bevorzugten (Index `bevorzugtRoh`
- * modulo Länge, oder keine).
- *
- * VORÜBERGEHENDE EINENGUNG des Eingaberaums (Vorarbeiten AP-1.30 Teil 2, PR 1; wird in PR 3
- * aufgehoben; docs/80 §32 V-4b-einengung). Die Eigentümer-Entscheidung vom 25.09.2026 (§32
- * V-4-umschrift-nebenform/-leer) ändert die Umschrift-Stufe: sie greift künftig nur für eine
- * Umschrift DER HAUPTFORM mit Anzeigetext. Damit Produktivcode (PR 2) und Maßstab nie in derselben
- * Iteration wandern (ADR-025), erzeugt der Generator bis PR 3 nur Fälle, in denen alte und neue
- * Regel dasselbe liefern:
- *   - Hauptform ist die Form, die Stufe 3 wählt (die bevorzugte, sonst `form-00`); sie selbst
- *     bekommt nie `umschriftVon`;
- *   - jede Umschrift-Form zeigt auf die Hauptform (keine Umschrift einer Nebenform);
- *   - jede Umschrift-Form hat Anzeigetext: `originalText` enthält per Konstruktion ein
- *     Nicht-Leerzeichen, und der Text fällt ohne Bestandteile auf `originalText` zurück (Text-Vertrag,
- *     eigene Property unten) — ohne die Produktfunktion `hatAnzeigetext` im Maßstab.
- * Keine Zusicherung ist geändert; nur die Eingaben sind enger. */
+ * modulo Länge, oder keine); `umschrift_von` zeigt frei auf Hauptform, Nebenform, eigene oder fremde
+ * Form (§32 V-4b-orakel). */
 const formenArbitrary: fc.Arbitrary<readonly AnzeigeForm[]> = fc
   .record({
     roh: fc.array(formRohArbitrary, { maxLength: 6 }),
@@ -74,18 +96,25 @@ const formenArbitrary: fc.Arbitrary<readonly AnzeigeForm[]> = fc
   .map(({ roh, bevorzugtRoh }) => {
     const bevorzugtIndex = bevorzugtRoh === null || roh.length === 0 ? null : bevorzugtRoh % roh.length
     const hauptformIndex = bevorzugtIndex ?? 0
-    return roh.map((form, index): AnzeigeForm => {
-      const istUmschrift = form.umschriftVon !== null && index !== hauptformIndex
-      const originalText = istUmschrift && (form.originalText === null || form.originalText.trim() === '') ? 'U' : form.originalText
-      return {
-        ...form,
-        umschriftVon: istUmschrift ? formIdFuer(hauptformIndex) : null,
-        originalText,
-        formId: formIdFuer(index),
-        istBevorzugt: bevorzugtIndex === index,
-      }
+    return roh.map(({ umschriftZiel, ...form }, index): AnzeigeForm => {
+      return { ...form, umschriftVon: umschriftZielId(umschriftZiel, index, hauptformIndex, roh.length), formId: formIdFuer(index), istBevorzugt: bevorzugtIndex === index }
     })
   })
+
+/** Hauptform (testlokal): die bevorzugte Form, sonst die kleinste `formId`. */
+function hauptformVon(formen: readonly AnzeigeForm[]): AnzeigeForm | undefined {
+  return formen.find((f) => f.istBevorzugt) ?? [...formen].sort((a, b) => (a.formId < b.formId ? -1 : a.formId > b.formId ? 1 : 0))[0]
+}
+
+/** Untere Klammer: ohne jedes Nicht-Leerzeichen in Bestandteilen und `originalText` kein Text. */
+function sichtbarLeer(form: AnzeigeForm): boolean {
+  return form.teile.every((t) => t.wert.trim() === '') && (form.originalText ?? '').trim() === ''
+}
+
+/** Obere Klammer: ein nicht leerer Vorname, Vatersname oder Nachname gibt immer Text. */
+function sicherMitText(form: AnzeigeForm): boolean {
+  return form.teile.some((t) => (t.art === 'vorname' || t.art === 'vatersname' || t.art === 'nachname') && t.wert.trim() !== '')
+}
 
 const wunschArbitrary: fc.Arbitrary<string | undefined> = fc.option(fc.constantFrom(...SPRACHEN), { nil: undefined })
 
@@ -111,8 +140,16 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
         }
         const gewaehlt = formMitId(formen, ergebnis.formId)
 
+        const hauptform = hauptformVon(formen)
+        if (hauptform === undefined) throw new Error('Keine Hauptform trotz vorhandener Formen.')
         const sprachKandidaten = wunsch === undefined ? [] : formen.filter((f) => f.sprache === wunsch)
-        const umschriftKandidaten = formen.filter((f) => f.umschriftVon !== null)
+        const zeigtAufHauptform = (f: AnzeigeForm): boolean => f.formId !== hauptform.formId && f.umschriftVon === hauptform.formId
+        const umschriftKandidaten = formen.filter((f) => zeigtAufHauptform(f) && anzeigetextVon(f).trim() !== '')
+        // Zweiseitige testlokale Klammer um das Orakel `anzeigetextVon` (Kopfkommentar).
+        for (const f of formen.filter(zeigtAufHauptform)) {
+          if (sichtbarLeer(f)) expect(umschriftKandidaten).not.toContain(f)
+          if (sicherMitText(f)) expect(umschriftKandidaten).toContain(f)
+        }
         const kandidaten =
           sprachKandidaten.length > 0 ? sprachKandidaten : umschriftKandidaten.length > 0 ? umschriftKandidaten : formen
         const erwarteteQuelle = sprachKandidaten.length > 0 ? 'sprache' : umschriftKandidaten.length > 0 ? 'umschrift' : 'hauptname'
@@ -122,6 +159,16 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
         const bevorzugterKandidat = kandidaten.find((f) => f.istBevorzugt)
         if (bevorzugterKandidat !== undefined) {
           expect(gewaehlt.formId).toBe(bevorzugterKandidat.formId)
+        }
+        // Neue Regel (V-4-umschrift) ausdrücklich: eine Umschrift einer Nebenform, ein fremder oder
+        // ein Selbstverweis und eine leere Umschrift verdrängen den Hauptnamen nie.
+        if (ergebnis.quelle === 'umschrift') {
+          expect(gewaehlt.umschriftVon).toBe(hauptform.formId)
+          expect(gewaehlt.formId).not.toBe(hauptform.formId)
+          expect(sichtbarLeer(gewaehlt)).toBe(false)
+        }
+        if (ergebnis.quelle === 'hauptname') {
+          expect(gewaehlt.formId).toBe(hauptform.formId)
         }
       }),
       { seed: 20260924, numRuns: 1000 },
