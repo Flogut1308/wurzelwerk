@@ -53,10 +53,16 @@ function alsOperation(wert: string): JournalOperation {
  * Kandidaten). `null` ist das Signal an den Aufrufer (`src/main/befehle/bus.ts`), dass netto keine
  * Änderung übrig geblieben ist - der Bus behandelt das wie eine leere Transaktion (kein
  * `ereignis:datenGeaendert`, s. dortiger `anzahl === 0`-Zweig): ohne dieses Signal würde der Bus
- * fälschlich ein Ereignis mit einer bereits gelöschten `transaktionId` melden. Mit dem heutigen
- * Befehlsvorrat unerreichbar (nur `person.feldSetzen(notiz)` trägt einen Koaleszenz-Schlüssel, und
- * `notiz`-Änderungen sind nie `insert`/`delete`) - bleibt aber ein correctness-Signal für jeden
- * künftigen Befehl, der einen Schlüssel auf insert/delete-fähigen Zeilen registriert.
+ * fälschlich ein Ereignis mit einer bereits gelöschten `transaktionId` melden.
+ *
+ * Erreichbarkeit (AP-1.30 PR 4): EINZELNE insert+delete-Paare sind seit dem Schlüssel an
+ * `name.aendern` erreichbar — der Befehl löscht die Bestandteile einer Form und legt sie mit neuen
+ * ids wieder an, die Zwischenstände heben sich beim Zusammenfassen auf
+ * (`test/einheit/koaleszenz-name-verdichtung.test.ts`). Dass der GANZE Merge leer wird (`null`),
+ * bleibt mit dem registrierten Befehlsvorrat unerreichbar: jede Transaktion mit Schlüssel ändert
+ * auch eine Zeile, die über beide Transaktionen besteht (`name_form`, `person`, …), und
+ * update+update bleibt eine Zeile. Das `null` bleibt als correctness-Signal für jeden künftigen
+ * Befehl, dessen Transaktion ausschließlich aus Einfügungen/Löschungen besteht.
  */
 export function versucheZusammenfassen(db: Tx, neu: KoaleszenzNeu): string | null {
   if (neu.koaleszenzSchluessel === null || neu.art !== 'nutzer') {

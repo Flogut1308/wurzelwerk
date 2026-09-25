@@ -13,6 +13,7 @@ import {
   NAMEN_EINTRAG_LEER,
   auswahlWertZuSchrift,
   nameAendernEinAusEintrag,
+  geaendertesNamensFeld,
   nameAnlegenEinAusEintrag,
   namenEintragAusPersonDetailName,
   namenEintragHatInhalt,
@@ -100,13 +101,15 @@ function NamenFelder({ name }: NamenFelderProps) {
   const nameLoeschen = useNameLoeschen()
 
   const wert = useMemo(() => namenEintragAusPersonDetailName(name), [name])
-  const [eintrag, setEintrag] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, (naechster) =>
-    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster)),
+  // AP-1.30 PR 4: `feld` nennt das eine geänderte Feld gegenüber dem zuletzt gelesenen Stand (`wert`)
+  // — nur dann fasst der Bus schnelle Folgeänderungen zu einem Undo-Schritt zusammen.
+  const [eintrag, setEintrag, sofortSchreiben] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, (naechster) =>
+    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster, geaendertesNamensFeld(wert, naechster))),
   )
 
   function sofortAendern(naechster: NamenEintragWerte): void {
     setEintrag(naechster)
-    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster))
+    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster, geaendertesNamensFeld(wert, naechster)))
   }
 
   return (
@@ -122,22 +125,22 @@ function NamenFelder({ name }: NamenFelderProps) {
         />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_vornamen_beschriftung')}>
-        <Textfeld wert={eintrag.vornamen} aufAenderung={(wert) => setEintrag({ ...eintrag, vornamen: wert })} />
+        <Textfeld wert={eintrag.vornamen} aufAenderung={(wert) => setEintrag({ ...eintrag, vornamen: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_nachname_beschriftung')}>
-        <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} />
+        <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_rufname_beschriftung')}>
-        <Textfeld wert={eintrag.rufname} aufAenderung={(wert) => setEintrag({ ...eintrag, rufname: wert })} />
+        <Textfeld wert={eintrag.rufname} aufAenderung={(wert) => setEintrag({ ...eintrag, rufname: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_praefix_beschriftung')}>
-        <Textfeld wert={eintrag.praefix} aufAenderung={(wert) => setEintrag({ ...eintrag, praefix: wert })} />
+        <Textfeld wert={eintrag.praefix} aufAenderung={(wert) => setEintrag({ ...eintrag, praefix: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_titel_vor_beschriftung')}>
-        <Textfeld wert={eintrag.titelVor} aufAenderung={(wert) => setEintrag({ ...eintrag, titelVor: wert })} />
+        <Textfeld wert={eintrag.titelVor} aufAenderung={(wert) => setEintrag({ ...eintrag, titelVor: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_zusatz_nach_beschriftung')}>
-        <Textfeld wert={eintrag.zusatzNach} aufAenderung={(wert) => setEintrag({ ...eintrag, zusatzNach: wert })} />
+        <Textfeld wert={eintrag.zusatzNach} aufAenderung={(wert) => setEintrag({ ...eintrag, zusatzNach: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Schaltflaeche variante="gefaehrlich" aufKlick={() => nameLoeschen.mutate({ id: name.id })}>
         {t('name_entfernen')}

@@ -8,7 +8,8 @@
 // Mount-/Unmount-Lebensdauer, die kein `renderToStaticMarkup` liefert — dafür
 // `test/einheit/profil-bearbeiten-debounce.test.tsx` (jsdom nur in dieser einen Testdatei, s.
 // dortiger Kopfkommentar).
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AUTOSAVE_DEBOUNCE_MS } from '../../../shared/autosave'
 
 /**
  * Hält einen lokalen Entwurfswert (jeder Tastendruck/jede Feldänderung aktualisiert ihn sofort,
@@ -48,12 +49,20 @@ import { useEffect, useRef, useState } from 'react'
  * Query-Invalidierung) den laufenden Timer verwerfen und einen neuen `verzoegerungMs`-Timer
  * starten — im ungünstigen Fall verschiebt sich der Commit immer weiter nach hinten. Der Ref hält
  * stattdessen nur die JEWEILS aktuelle Funktion vor, ohne den Timer zurückzusetzen.
+ *
+ * **AP-1.30 PR 4 — „Blur oder 400 ms Debounce schreibt":** die Frist ist `AUTOSAVE_DEBOUNCE_MS`
+ * (`src/shared/autosave.ts`, dieselbe Konstante nutzen die Tests). Der dritte Rückgabewert
+ * `sofortSchreiben` gehört an das Verlassen des Felds (`aufVerlassen` an `Textfeld`/`Langtextfeld`):
+ * ein ausstehender Entwurf wird sofort geschrieben, der laufende Timer findet danach nichts mehr vor
+ * (`ausstehendRef` ist dann `null`) und schreibt nicht doppelt. Ohne ausstehenden Entwurf tut er
+ * nichts. Der Blur beendet die Koaleszenz im Bus NICHT — die entscheidet allein das Zeitfenster
+ * (`src/main/journal/koaleszenz.ts`).
  */
 export function useEntwurfMitVerzoegertemCommit<T>(
   wert: T,
   aufCommit: (wert: T) => void,
-  verzoegerungMs = 600,
-): readonly [T, (wert: T) => void] {
+  verzoegerungMs: number = AUTOSAVE_DEBOUNCE_MS,
+): readonly [T, (wert: T) => void, () => void] {
   const [entwurf, setEntwurf] = useState(wert)
   const [vorherigerWert, setVorherigerWert] = useState(wert)
 
@@ -81,6 +90,8 @@ export function useEntwurfMitVerzoegertemCommit<T>(
     }
     ausstehendRef.current = { entwurf }
     const timer = setTimeout(() => {
+      // Ein Blur-Commit (`sofortSchreiben`) kann den Entwurf bereits geschrieben haben.
+      if (ausstehendRef.current === null) return
       ausstehendRef.current = null
       aufCommitRef.current(entwurf)
     }, verzoegerungMs)
@@ -101,5 +112,13 @@ export function useEntwurfMitVerzoegertemCommit<T>(
     // sind Refs (stabile Identität), kein Zustand, der hier fehlen könnte.
   }, [])
 
-  return [entwurf, setEntwurf] as const
+  const sofortSchreiben = useCallback((): void => {
+    const ausstehend = ausstehendRef.current
+    if (ausstehend !== null) {
+      ausstehendRef.current = null
+      aufCommitRef.current(ausstehend.entwurf)
+    }
+  }, [])
+
+  return [entwurf, setEntwurf, sofortSchreiben] as const
 }

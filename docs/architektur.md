@@ -813,9 +813,17 @@ Wenn jede Feldänderung eine Transaktion ist, dann erzeugt das Tippen in einem N
 Entprellung einen Undo-Schritt. Nach zwei Sätzen ist der Stapel unbrauchbar.
 
 Lösung im Bus, nicht in der Datenbank: Jeder Befehl kann einen `koaleszenzSchluessel` liefern,
-etwa `person:01J…:notiz`. Der Bus fasst die neue Transaktion in die vorhergehende zusammen, wenn
+etwa `person.feldSetzen:01J…:notiz`. Der Bus fasst die neue Transaktion in die vorhergehende zusammen, wenn
 *alle vier* Bedingungen gelten: gleicher Schlüssel, weniger als 2.000 ms Abstand, keine andere
 Transaktion dazwischen, beide `art = 'nutzer'`.
+
+*Nachtrag AP-1.30 (PR 4):* Der Schlüssel hat immer die Form `Befehl:Subjekt:Feld` und wird im Bus
+**in der Transaktion, vor dem Handler** berechnet (`src/main/befehle/koaleszenz-schluessel.ts`) —
+nur dort sind Nutzlast und gespeicherter Stand zugleich sichtbar. Jeder Befehl, den der Autosave
+schreibt (`src/shared/autosave.ts::AUTOSAVE_BEFEHLE`), trägt einen. Befehle, die eine ganze Zeile
+ersetzen (`name`/`ereignis`/`partnerschaft`/`elternschaft`/`aussage.aendern`), bekommen ihn nur mit
+dem optionalen Vertragsfeld `feld` und nur, wenn sich gegenüber dem gespeicherten Stand tatsächlich
+nur dieses Feld ändert. Ein Blur-Commit beendet die Koaleszenz nicht; das tut allein das Zeitfenster.
 
 Zusammenfassen heißt: `aenderung`-Zeilen der neuen Transaktion an die alte hängen und dann pro
 `(tabelle, datensatz_id)` zu **einer** Zeile verdichten:

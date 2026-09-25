@@ -2,7 +2,9 @@
 // armierten Transaktion (CLAUDE.md §2: kein `BEGIN`/`COMMIT` hier).
 // AP-0.22: vorher `lesen()`, Feld-für-Feld-Vergleich (Zeile selbst — die Beteiligungen ändert
 // dieser Befehl nicht, s. Vertragskommentar); bei Gleichheit ein No-op.
-import type { EreignisAendernEin } from '../../shared/schemata/befehle'
+// AP-1.30 PR 4: der Vergleich steht als `ereignisGeaenderteFelder()` für sich — derselbe Vergleich
+// entscheidet über den No-op UND über den Koaleszenzschlüssel (`koaleszenz-schluessel.ts`).
+import type { EreignisAendernEin, EreignisAendernFeld } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { datensatzExistiert, type Tx } from '../repositories/basis'
 import * as ereignisRepo from '../repositories/ereignis-repo'
@@ -25,6 +27,18 @@ function datumUnveraendert(vorher: EreignisZeile, neu: DatumSpaltengruppe): bool
   )
 }
 
+/** Die Vertragsfelder, deren Wert `ein` gegenüber dem gespeicherten Stand ändern würde (die
+ * Datumsgruppe zählt als EIN Feld). */
+export function ereignisGeaenderteFelder(vorher: EreignisZeile, ein: EreignisAendernEin): readonly EreignisAendernFeld[] {
+  const felder: EreignisAendernFeld[] = []
+  if (vorher.typ !== ein.typ) felder.push('typ')
+  if (vorher.ort_id !== (ein.ortId ?? null)) felder.push('ortId')
+  if (!datumUnveraendert(vorher, datumSpalten(ein.datum))) felder.push('datum')
+  if (vorher.beschreibung !== (ein.beschreibung ?? null)) felder.push('beschreibung')
+  if (vorher.notiz !== (ein.notiz ?? null)) felder.push('notiz')
+  return felder
+}
+
 export function ereignisAendern(tx: Tx, ein: EreignisAendernEin): null {
   if (ein.ortId !== undefined && !datensatzExistiert(tx, 'ort', ein.ortId)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_ORT')
@@ -35,28 +49,17 @@ export function ereignisAendern(tx: Tx, ein: EreignisAendernEin): null {
     throw new WurzelFehler('NICHT_GEFUNDEN_EREIGNIS')
   }
 
-  const neuesDatum = datumSpalten(ein.datum)
-  const neuerOrtId = ein.ortId ?? null
-  const neueBeschreibung = ein.beschreibung ?? null
-  const neueNotiz = ein.notiz ?? null
-
-  if (
-    vorher.typ === ein.typ &&
-    vorher.ort_id === neuerOrtId &&
-    datumUnveraendert(vorher, neuesDatum) &&
-    vorher.beschreibung === neueBeschreibung &&
-    vorher.notiz === neueNotiz
-  ) {
+  if (ereignisGeaenderteFelder(vorher, ein).length === 0) {
     return null
   }
 
   ereignisRepo.aktualisieren(tx, {
     id: ein.id,
     typ: ein.typ,
-    ortId: neuerOrtId,
-    datum: neuesDatum,
-    beschreibung: neueBeschreibung,
-    notiz: neueNotiz,
+    ortId: ein.ortId ?? null,
+    datum: datumSpalten(ein.datum),
+    beschreibung: ein.beschreibung ?? null,
+    notiz: ein.notiz ?? null,
     geaendertAm: Date.now(),
   })
   return null

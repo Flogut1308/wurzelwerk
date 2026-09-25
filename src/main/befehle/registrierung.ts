@@ -143,6 +143,14 @@ import { zitatLoeschen } from './zitat-loeschen'
 import { negativbefundAnlegen } from './negativbefund-anlegen'
 import { negativbefundAendern } from './negativbefund-aendern'
 import { negativbefundLoeschen } from './negativbefund-loeschen'
+import {
+  aussageAendernSchluessel,
+  elternschaftAendernSchluessel,
+  ereignisAendernSchluessel,
+  nameAendernSchluessel,
+  partnerschaftAendernSchluessel,
+  personFeldSetzenSchluessel,
+} from './koaleszenz-schluessel'
 import type { TransaktionArt } from '../repositories/journal-repo'
 import type { Tx } from '../repositories/basis'
 
@@ -155,11 +163,14 @@ export interface BefehlDef<Ein, Aus> {
   /**
    * Koaleszenz-Schlüssel (55_Architektur.md §4.8, AP-0.15): liefert `null`, wenn dieser Aufruf
    * NIE mit einer vorangehenden Transaktion zusammengefasst werden darf (Default bei Fehlen),
-   * sonst einen Schlüssel, der über mehrere schnelle Aufrufe hinweg identisch bleibt (z. B.
-   * `person:<id>:notiz`) - `src/main/journal/koaleszenz.ts` entscheidet anhand dieses Schlüssels
-   * plus Zeitfenster, ob ein Merge stattfindet.
+   * sonst einen Schlüssel, der über mehrere schnelle Aufrufe hinweg identisch bleibt — seit AP-1.30
+   * PR 4 immer `Befehl:Subjekt:Feld` (`./koaleszenz-schluessel.ts`) - `src/main/journal/koaleszenz.ts`
+   * entscheidet anhand dieses Schlüssels plus Zeitfenster, ob ein Merge stattfindet.
+   *
+   * Der Bus ruft die Funktion INNERHALB der Transaktion und VOR dem Handler (`bus.ts`): `tx` zeigt
+   * darum den gespeicherten Stand vor diesem Aufruf. Nur lesen, nie schreiben.
    */
-  readonly koaleszenzSchluessel?: (ein: Ein) => string | null
+  readonly koaleszenzSchluessel?: (tx: Tx, ein: Ein) => string | null
 }
 
 interface BefehlKarte {
@@ -225,10 +236,10 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.person_feld_gesetzt',
     handler: personFeldSetzen,
-    // 55_Architektur.md §4.8, AP-0.15: nur `notiz` bekommt einen Koaleszenz-Schlüssel - mehrere
-    // schnelle Notiz-Änderungen an derselben Person verdichten sich zu einem Undo-Schritt. Andere
-    // Felder (geschlecht, privat, ...) sind seltene Einzelaktionen, keine Tastatureingaben.
-    koaleszenzSchluessel: (ein) => (ein.feld === 'notiz' ? `person:${ein.id}:notiz` : null),
+    // 55_Architektur.md §4.8, AP-0.15; AP-1.30 PR 4: jedes Feld bekommt einen Schlüssel
+    // `person.feldSetzen:<id>:<feld>` - der Autosave schreibt alle Felder, und ein Aufruf ändert je
+    // genau eine Spalte.
+    koaleszenzSchluessel: personFeldSetzenSchluessel,
   },
   'person.loeschen': {
     schema: personLoeschenEinSchema,
@@ -247,6 +258,7 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.name_geaendert',
     handler: nameAendern,
+    koaleszenzSchluessel: nameAendernSchluessel,
   },
   'name.loeschen': {
     schema: nameLoeschenEinSchema,
@@ -271,6 +283,7 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.elternschaft_geaendert',
     handler: elternschaftAendern,
+    koaleszenzSchluessel: elternschaftAendernSchluessel,
   },
   'elternschaft.loeschen': {
     schema: elternschaftLoeschenEinSchema,
@@ -289,6 +302,7 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.partnerschaft_geaendert',
     handler: partnerschaftAendern,
+    koaleszenzSchluessel: partnerschaftAendernSchluessel,
   },
   'partnerschaft.loeschen': {
     schema: partnerschaftLoeschenEinSchema,
@@ -307,6 +321,7 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.ereignis_geaendert',
     handler: ereignisAendern,
+    koaleszenzSchluessel: ereignisAendernSchluessel,
   },
   'ereignis.loeschen': {
     schema: ereignisLoeschenEinSchema,
@@ -331,7 +346,9 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.aussage_geaendert',
     handler: aussageAendern,
-    koaleszenzSchluessel: (ein) => `aussage:${ein.id}`,
+    // AP-1.30 PR 4: vorher `aussage:<id>` für JEDEN Aufruf (auch bei mehreren geänderten Feldern) —
+    // jetzt nur mit `feld` und nur bei genau dieser einen Änderung.
+    koaleszenzSchluessel: aussageAendernSchluessel,
   },
   'aussage.loeschen': {
     schema: aussageLoeschenEinSchema,

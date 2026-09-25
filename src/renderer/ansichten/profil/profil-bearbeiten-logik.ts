@@ -11,7 +11,7 @@ import type { z } from 'zod'
 import { parse } from '../../../core/datum/parser'
 import type { Kalender } from '../../../core/datum/typen'
 import type { BeteiligungRolleEnum } from '../../../shared/schemata/beteiligung'
-import type { EreignisAnlegenEin, NameAendernEin, NameAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
+import type { EreignisAnlegenEin, NameAendernEin, NameAendernFeld, NameAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
 import type { EreignisTypEnum } from '../../../shared/schemata/ereignis'
 import type { Datumswert as VertragsDatumswert } from '../../../shared/schemata/import-v1'
 import { istMontierterOriginalText } from '../../../core/name/zerlegung'
@@ -147,11 +147,36 @@ export function nameAnlegenEinAusEintrag(personId: string, eintrag: NamenEintrag
   }
 }
 
+/** Die in der Maske bearbeitbaren Felder und ihr Vertragsname in `name.aendern` (AP-1.30 PR 4). */
+const MASKENFELD_ZU_VERTRAGSFELD: readonly (readonly [keyof NamenEintragWerte, NameAendernFeld])[] = [
+  ['typ', 'typ'],
+  ['schrift', 'schrift'],
+  ['vornamen', 'vornamen'],
+  ['nachname', 'nachname'],
+  ['praefix', 'praefix'],
+  ['titelVor', 'titelVor'],
+  ['zusatzNach', 'zusatzNach'],
+  ['rufname', 'rufnameText'],
+  ['vatersname', 'vatersname'],
+]
+
+/** AP-1.30 PR 4 (Autosave-Koaleszenz): unterscheiden sich `vorher` (zuletzt gelesen) und `nachher`
+ * (Bearbeitungszustand) in GENAU einem Maskenfeld, dessen Vertragsname — sonst `undefined`. Der
+ * Autosave schickt ihn als `feld` mit; nur dann fasst der Bus schnelle Folgeänderungen zu einem
+ * Undo-Schritt zusammen (und prüft dort noch einmal gegen den gespeicherten Stand). */
+export function geaendertesNamensFeld(vorher: NamenEintragWerte, nachher: NamenEintragWerte): NameAendernFeld | undefined {
+  const geaendert = MASKENFELD_ZU_VERTRAGSFELD.filter(([maske]) => vorher[maske] !== nachher[maske])
+  const einziges = geaendert[0]
+  return geaendert.length === 1 && einziges !== undefined ? einziges[1] : undefined
+}
+
 /** `name.aendern` ersetzt die ganze Form — darum JEDES Vertragsfeld, auch die nicht angezeigten
  * (AP-1.30 PR 2a). `istBevorzugt` fehlt bewusst: der Befehl ignoriert es (Hauptname-Wechsel über
- * `befehl:hauptname.wechseln`, AP-1.33). */
-export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte): NameAendernEin {
+ * `befehl:hauptname.wechseln`, AP-1.33). `feld` (AP-1.30 PR 4) nur, wenn der Aufrufer das eine
+ * geänderte Feld kennt (`geaendertesNamensFeld`). */
+export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte, feld?: NameAendernFeld): NameAendernEin {
   return {
+    ...(feld === undefined ? {} : { feld }),
     id,
     typ: eintrag.typ,
     schrift: eintrag.schrift ?? undefined,

@@ -61,11 +61,14 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
   const txId = neueId()
 
   const zeitpunktMs = Date.now()
-  const koaleszenzSchluessel = def.koaleszenzSchluessel?.(nutzlast) ?? null
 
   const lauf: BusLauf<Aus> = db
     .transaction((): BusLauf<Aus> => {
       const lfd = naechsteLfd(db)
+      // AP-1.30 PR 4: der Schlüssel entsteht HIER - in der Transaktion, vor dem Handler. Nur hier
+      // sieht die Schlüsselfunktion den gespeicherten Stand vor diesem Aufruf und kann prüfen, ob
+      // sich wirklich nur das genannte Feld ändert (`./koaleszenz-schluessel.ts`).
+      const koaleszenzSchluessel = def.koaleszenzSchluessel?.(db, nutzlast) ?? null
       transaktionAnlegen(db, {
         id: txId,
         zeitpunkt: zeitpunktMs,
@@ -96,8 +99,9 @@ export function fuehreAusDef<Ein, Aus>(db: Tx, name: string, def: BefehlDef<Ein,
           // Merge hat NICHTS übrig gelassen (insert+delete verdichtet zu `[]`, s. Funktionskommentar
           // von `versucheZusammenfassen`) - beide Transaktionszeilen sind bereits gelöscht. Netto
           // wie eine leere Transaktion behandeln: kein `ereignis:datenGeaendert` mit einer
-          // gelöschten `transaktionId` (heute mit dem registrierten Befehlsvorrat unerreichbar, s.
-          // dort).
+          // gelöschten `transaktionId` (ein ganz leerer Merge ist heute mit dem registrierten
+          // Befehlsvorrat unerreichbar, einzelne insert+delete-Paare seit AP-1.30 PR 4 nicht mehr -
+          // s. dort).
           anzahlEffektiv = 0
         } else {
           effektiveTxId = zusammengefasst

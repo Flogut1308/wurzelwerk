@@ -16,6 +16,8 @@ export interface LangtextfeldProps {
   /** Sichtbare Anfangszeilen (`rows`) — wächst darüber hinaus mit dem Inhalt bis `--wz-abstand-96`
    * (Höhenbegrenzung, §2.2), danach scrollt der Nutzer innerhalb des Felds statt der Seite. */
   readonly zeilen?: number
+  /** Das Feld wird verlassen (Blur) — AP-1.30: der Autosave schreibt dann sofort. */
+  readonly aufVerlassen?: () => void
 }
 
 /**
@@ -36,6 +38,7 @@ export function Langtextfeld({
   id,
   ariaLabel,
   zeilen = 3,
+  aufVerlassen,
 }: LangtextfeldProps) {
   return (
     <textarea
@@ -50,6 +53,7 @@ export function Langtextfeld({
       id={id}
       aria-label={ariaLabel}
       rows={zeilen}
+      onBlur={aufVerlassen}
     />
   )
 }

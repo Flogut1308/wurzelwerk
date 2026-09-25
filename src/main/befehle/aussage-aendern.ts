@@ -6,7 +6,9 @@
 // Vorarbeiten AP-1.30 Teil 3, PR 4b (E5, docs/80 §32 V-E5-erhalt): `datumBeibehalten` übernimmt die
 // gespeicherte Datumsgruppe unverändert — auch an Orts-Prädikaten, deren Altbestand noch ein Datum
 // trägt. Die Orts-Prüfung sieht dann keinen NEUEN Datumswert; ein Datum neu setzen bleibt verboten.
-import type { AussageAendernEin } from '../../shared/schemata/befehle'
+// AP-1.30 PR 4: der Vergleich steht als `aussageGeaenderteFelder()` für sich — derselbe Vergleich
+// entscheidet über den No-op UND über den Koaleszenzschlüssel (`koaleszenz-schluessel.ts`).
+import type { AussageAendernEin, AussageAendernFeld } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as aussageRepo from '../repositories/aussage-repo'
@@ -46,6 +48,27 @@ function datumUnveraendert(vorher: AussageZeile, neu: DatumSpaltengruppe): boole
   )
 }
 
+/** Die Datumsgruppe, die `ein` schreiben würde (`datumBeibehalten` übernimmt die gespeicherte). */
+function neuesDatumVon(vorher: AussageZeile, ein: AussageAendernEin): DatumSpaltengruppe {
+  return ein.datumBeibehalten === true ? gespeichertesDatum(vorher) : datumSpalten(ein.datum)
+}
+
+/** Die Vertragsfelder, deren Wert `ein` gegenüber dem gespeicherten Stand ändern würde (die
+ * Datumsgruppe zählt als EIN Feld). */
+export function aussageGeaenderteFelder(vorher: AussageZeile, ein: AussageAendernEin): readonly AussageAendernFeld[] {
+  const felder: AussageAendernFeld[] = []
+  if (vorher.wert_text !== (ein.wertText ?? null)) felder.push('wertText')
+  if (vorher.wert_zahl !== (ein.wertZahl ?? null)) felder.push('wertZahl')
+  if (vorher.wert_ref_id !== (ein.wertRefId ?? null)) felder.push('wertRefId')
+  if (!datumUnveraendert(vorher, neuesDatumVon(vorher, ein))) felder.push('datum')
+  if (vorher.konfidenz !== ein.konfidenz) felder.push('konfidenz')
+  if (vorher.begruendung !== (ein.begruendung ?? null)) felder.push('begruendung')
+  if (vorher.unsicherheit !== (ein.unsicherheit ?? null)) felder.push('unsicherheit')
+  if (vorher.gueltig_von !== (ein.gueltigVon ?? null)) felder.push('gueltigVon')
+  if (vorher.gueltig_bis !== (ein.gueltigBis ?? null)) felder.push('gueltigBis')
+  return felder
+}
+
 export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   const vorher = aussageRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
@@ -53,40 +76,21 @@ export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   }
   ortswertPruefen(vorher.praedikat, { wertZahl: ein.wertZahl, datum: ein.datum })
 
-  const neuesDatum = ein.datumBeibehalten === true ? gespeichertesDatum(vorher) : datumSpalten(ein.datum)
-  const neuerWertText = ein.wertText ?? null
-  const neuerWertZahl = ein.wertZahl ?? null
-  const neuerWertRefId = ein.wertRefId ?? null
-  const neueBegruendung = ein.begruendung ?? null
-  const neueUnsicherheit = ein.unsicherheit ?? null
-  const neuerGueltigVon = ein.gueltigVon ?? null
-  const neuerGueltigBis = ein.gueltigBis ?? null
-
-  if (
-    vorher.wert_text === neuerWertText &&
-    vorher.wert_zahl === neuerWertZahl &&
-    vorher.wert_ref_id === neuerWertRefId &&
-    datumUnveraendert(vorher, neuesDatum) &&
-    vorher.konfidenz === ein.konfidenz &&
-    vorher.begruendung === neueBegruendung &&
-    vorher.unsicherheit === neueUnsicherheit &&
-    vorher.gueltig_von === neuerGueltigVon &&
-    vorher.gueltig_bis === neuerGueltigBis
-  ) {
+  if (aussageGeaenderteFelder(vorher, ein).length === 0) {
     return null
   }
 
   aussageRepo.aktualisieren(tx, {
     id: ein.id,
-    wertText: neuerWertText,
-    wertZahl: neuerWertZahl,
-    wertRefId: neuerWertRefId,
-    datum: neuesDatum,
+    wertText: ein.wertText ?? null,
+    wertZahl: ein.wertZahl ?? null,
+    wertRefId: ein.wertRefId ?? null,
+    datum: neuesDatumVon(vorher, ein),
     konfidenz: ein.konfidenz,
-    begruendung: neueBegruendung,
-    unsicherheit: neueUnsicherheit,
-    gueltigVon: neuerGueltigVon,
-    gueltigBis: neuerGueltigBis,
+    begruendung: ein.begruendung ?? null,
+    unsicherheit: ein.unsicherheit ?? null,
+    gueltigVon: ein.gueltigVon ?? null,
+    gueltigBis: ein.gueltigBis ?? null,
     geaendertAm: Date.now(),
   })
   return null

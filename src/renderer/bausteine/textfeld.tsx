@@ -14,6 +14,8 @@ export interface TextfeldProps {
   /** Zugänglicher Name, wenn keine sichtbare Beschriftung danebensteht (vom Aufrufer über i18n) —
    * im Regelfall trägt stattdessen `Formularfeld` die sichtbare Beschriftung. */
   readonly ariaLabel?: string
+  /** Das Feld wird verlassen (Blur) — AP-1.30: der Autosave schreibt dann sofort. */
+  readonly aufVerlassen?: () => void
 }
 
 /**
