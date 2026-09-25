@@ -172,13 +172,27 @@ export function sortierZeilenLaden(
     .all(parameter)
 }
 
+/** SQL-Ausdruck für die `aussage.id` des bevorzugten/ersten Eintrags einer Person zu einem Prädikat:
+ * `ist_bevorzugt = 1` zuerst, sonst die niedrigste `id` — dieselbe Wahl wie die `rang = 1`-
+ * Fensterfunktion (`ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY …)`), da `id` eindeutig ist.
+ * `NULL`, wenn die Person keine solche Aussage hat. `praedikat` ist ein fester Bezeichner aus diesem
+ * Modul, kein Nutzerwert. */
+function ersteAussageIdSql(personIdSql: string, praedikat: 'beruf' | 'geburtsdatum' | 'todesdatum'): string {
+  return `(SELECT a1.id FROM aussage a1
+      WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = ${personIdSql} AND a1.praedikat = '${praedikat}'
+      ORDER BY (CASE WHEN a1.ist_bevorzugt = 1 THEN 0 ELSE 1 END), a1.id LIMIT 1)`
+}
+
 /**
- * Phase 2: die vollen Zeilen für die übergebenen Personen (die Seite) samt Beruf, Belegzahl, Kinderzahl und der vollen Geburts-/Todes-Datumsgruppe — in der Reihenfolge von
- * `personIds`. Jede Nebentabelle ist eine EINMAL berechnete, gruppierte Nebenabfrage (Fensterfunktion
- * für „bevorzugter/erster Eintrag je Person", `GROUP BY` für die Zahlen), eingeschränkt auf die
- * Personen der Seite. Die Einschränkung ändert keinen Wert: jede Fensterpartition und jede Gruppe
- * gehört genau einer Person und bleibt vollständig. Die Ids gehen als EIN JSON-Parameter über
- * `json_each` in die Abfrage (benannter Parameter, kein zusammengesetztes SQL, CLAUDE.md §6).
+ * Phase 2: die vollen Zeilen für die übergebenen Personen (die Seite) samt Beruf, Belegzahl,
+ * Kinderzahl und der vollen Geburts-/Todes-Datumsgruppe — in der Reihenfolge von `personIds`.
+ * Beruf und Datumsgruppen: je Zeile ein Index-Zugriff auf die bevorzugte/erste Aussage
+ * (`ersteAussageIdSql`, Vorarbeiten AP-1.30 Teil 3, Leistung) — die vorherigen Fensterfunktions-
+ * Nebenabfragen wurden materialisiert und ohne Index je Zeile durchsucht (`SCAN … LEFT-JOIN`).
+ * Beleg- und Kinderzahl: je eine gruppierte Nebenabfrage (`GROUP BY`), eingeschränkt auf die Personen
+ * der Seite; die Einschränkung ändert keinen Wert, jede Gruppe gehört genau einer Person. Die Ids
+ * gehen als EIN JSON-Parameter über `json_each` in die Abfrage (benannter Parameter, kein
+ * zusammengesetztes SQL, CLAUDE.md §6).
  */
 export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly string[]): readonly SeitenZeile[] {
   if (personIds.length === 0) return []
@@ -191,7 +205,7 @@ export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly st
               pf.geburt_sort_von AS geburt_sort_von, pf.tod_jahr AS tod_jahr, pf.tod_sort_von AS tod_sort_von,
               pf.geburt_ort_name AS geburt_ort_name, pf.konfidenz_min AS konfidenz_min,
               pf.hat_widerspruch AS hat_widerspruch, p.ist_platzhalter AS ist_platzhalter,
-              ber.beruf AS beruf,
+              ber.wert_text AS beruf,
               COALESCE(bz.belegzahl, 0) AS belegzahl,
               COALESCE(kz.kinderzahl, 0) AS kinderzahl,
               gbv.datum_kalender AS geburt_kalender, gbv.datum_modifikator AS geburt_modifikator,
@@ -204,26 +218,9 @@ export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly st
               tdv.datum_sort_von AS tod_datum_sort_von, tdv.datum_sort_bis AS tod_datum_sort_bis
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
-       LEFT JOIN (
-         SELECT subjekt_id AS person_id, wert_text AS beruf,
-           ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-         FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'beruf' AND subjekt_id IN (${ids})
-       ) ber ON ber.person_id = pf.person_id AND ber.rang = 1
-       LEFT JOIN (
-         SELECT subjekt_id AS person_id, datum_kalender, datum_modifikator, datum_praezision,
-           datum_wert1, datum_wert2, datum_originaltext, datum_sort_von, datum_sort_bis,
-           ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-         FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum' AND subjekt_id IN (${ids})
-       ) gbv ON gbv.person_id = pf.person_id AND gbv.rang = 1
-       LEFT JOIN (
-         SELECT subjekt_id AS person_id, datum_kalender, datum_modifikator, datum_praezision,
-           datum_wert1, datum_wert2, datum_originaltext, datum_sort_von, datum_sort_bis,
-           ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
-         FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum' AND subjekt_id IN (${ids})
-       ) tdv ON tdv.person_id = pf.person_id AND tdv.rang = 1
+       LEFT JOIN aussage ber ON ber.id = ${ersteAussageIdSql('pf.person_id', 'beruf')}
+       LEFT JOIN aussage gbv ON gbv.id = ${ersteAussageIdSql('pf.person_id', 'geburtsdatum')}
+       LEFT JOIN aussage tdv ON tdv.id = ${ersteAussageIdSql('pf.person_id', 'todesdatum')}
        LEFT JOIN (
          SELECT a.subjekt_id AS person_id, COUNT(az.zitat_id) AS belegzahl
          FROM aussage a
