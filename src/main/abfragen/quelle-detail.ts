@@ -124,7 +124,6 @@ function zitateLaden(db: Database.Database, quelleId: string): readonly QuelleDe
   }))
 }
 
-/** `abfrage:quelle.detail` (docs/arbeitspakete.md AP-1.17 PR-A2). */
 /** Sichtbarer Name des Informanten aus dem Kern (Vorarbeiten AP-1.30, PR 4b). `null` ohne Informant
  * oder wenn die Person nicht (mehr) existiert — wie vorher der LEFT JOIN auf `person_flach`. */
 function informantAnzeigename(db: Database.Database, personId: string | null): string | null {
@@ -132,6 +131,7 @@ function informantAnzeigename(db: Database.Database, personId: string | null): s
   return anzeigenamenLaden(db, [personId]).get(personId) ?? ''
 }
 
+/** `abfrage:quelle.detail` (docs/arbeitspakete.md AP-1.17 PR-A2). */
 export function quelleDetail(db: Database.Database, ein: QuelleDetailEin): QuelleDetailAus {
   if (!datensatzExistiert(db, 'quelle', ein.quelleId)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_QUELLE')

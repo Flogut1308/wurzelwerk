@@ -142,3 +142,23 @@ describe('Anzeigename aus dem Kern — Prüfhinweise und Informant (Vorarbeiten 
     })
   })
 })
+
+// hueter #131, Befund 7: Randfälle ohne Namensform bzw. mit gelöschtem Informanten.
+describe('Anzeigename aus dem Kern — Randfälle (Vorarbeiten AP-1.30, PR 4b)', () => {
+  it('N8: Prüfhinweis und Informant ohne Namensform zeigen den leeren Namen, ein gelöschter Informant null', () => {
+    mitDb((db) => {
+      const namenlos = person(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: namenlos, praedikat: 'geburtsdatum', wertText: '1900', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1900' }, konfidenz: 3 })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: namenlos, praedikat: 'todesdatum', wertText: '1850', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1850' }, konfidenz: 3 })
+      expect(pruefhinweise(db).eintraege.find((e) => e.personId === namenlos && e.code === 'tod_vor_geburt')?.anzeigename).toBe('')
+
+      const { id: quelleId } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: namenlos, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      expect(quelleDetail(db, { quelleId }).kopf.informant_anzeigename).toBe('')
+
+      const informant = gutnoff(db)
+      const { id: zweite } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: informant, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      fuehreAus(db, 'person.loeschen', { id: informant })
+      expect(quelleDetail(db, { quelleId: zweite }).kopf.informant_anzeigename).toBeNull()
+    })
+  })
+})
