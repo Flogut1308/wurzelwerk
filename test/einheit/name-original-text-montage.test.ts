@@ -44,3 +44,20 @@ describe('istMontierterOriginalText (AP-1.30 PR 2a)', () => {
     expect(istMontierterOriginalText('Johann Müller', gespeichert(eingabe))).toBe(false)
   })
 })
+
+// AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): die Regel kennt die Montage mit Vatersname.
+describe('istMontierterOriginalText mit Vatersname (AP-1.30 PR 3)', () => {
+  it('die Montage mit Vatersname („Iwan Petrowitsch Iwanow") gilt als automatisch', () => {
+    const eingabe = { vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' }
+    expect(montiereOriginalText(eingabe)).toBe('Iwan Petrowitsch Iwanow')
+    expect(istMontierterOriginalText('Iwan Petrowitsch Iwanow', gespeichert(eingabe))).toBe(true)
+  })
+
+  it('festgestellt, nicht entschieden: eine ältere Montage OHNE Vatersname gilt bei einer Form MIT Vatersname als wortgetreu', () => {
+    // Kein Produktivpfad erzeugt diesen Zustand (die Brücke kannte den Vatersnamen bisher nicht und hätte
+    // ihn gelöscht; weder Migration noch Import schreiben ihn). Die Regel bleibt darum streng: nur die
+    // Montage der gespeicherten Teile ist automatisch — „Iwan Iwanow" bliebe als Schreibung erhalten.
+    const eingabe = { vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' }
+    expect(istMontierterOriginalText('Iwan Iwanow', gespeichert(eingabe))).toBe(false)
+  })
+})
