@@ -699,8 +699,8 @@ Eigentümer-Entscheidungen vom 25.09.2026 (fest), eingetragen an den Zeilen oben
 3. **E3 Kein `Latn`-Vorrang** bei mehreren Umschriften der Hauptform (bevorzugt, sonst kleinste `formId`).
 4. **E4 Rollen vereinheitlichen:** die Oberfläche schreibt bei Tod `verstorbener`, bei Geburt `kind` (wie der Import).
    **Migration 0009** stellt vorhandene `hauptperson`-Beteiligungen an Geburts-/Todesereignissen um (undo-sicher,
-   Fixture-DB Stand 8, Prüfsumme). Danach wird der D9-Rückfall auf die eine Rolle je Ereignis verengt. *Ergänzung des Laufs (kein Eigentümer-Wortlaut):*
-   verengt wird erst, wenn Import und Oberfläche nachweislich nur noch diese Rolle schreiben (Test). *„Undo-sicher“ als
+   Fixture-DB Stand 8, Prüfsumme). Danach wird der D9-Rückfall auf die eine Rolle je Ereignis verengt, sofern Import und Oberfläche
+   nachweislich nur noch diese schreiben (Nachweis per Test). *„Undo-sicher“ als
    Prüfpunkt für 0009:* die Migration läuft ohne Journal; ein vor der Migration geschriebener Journaleintrag darf nach
    ihr beim Undo/Redo keine `hauptperson`-Beteiligung an Geburt/Tod wiederherstellen (Journal-Nutzlasten mit umstellen
    oder Undo-Verlauf über die Migration hinweg nachweislich nicht erreichbar — Nachweis im PR). **Die Medienmigration von AP-1.31a wird 0010.**
