@@ -214,6 +214,7 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
           praefix: null,
           titel_vor: null,
           zusatz_nach: null,
+          vatersname: null,
           rufname_text: null,
           // AP-1.30 PR 2a: das Lesemodell trägt jedes Feld, das `name.aendern` annimmt.
           rufname_index: null,

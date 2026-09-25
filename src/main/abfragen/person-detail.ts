@@ -177,6 +177,7 @@ function namenLaden(db: Database.Database, personId: string): Namen {
       praefix: flach.praefix,
       titel_vor: flach.titelVor,
       zusatz_nach: flach.zusatzNach,
+      vatersname: flach.vatersname,
       rufname_text: flach.rufnameText,
       // AP-1.30 PR 2a: alle übrigen Felder, die `name.aendern` annimmt — die Profil-Logik reicht sie
       // unverändert zurück, sonst setzte der „ersetzt alles"-Befehl sie still auf NULL.

@@ -112,6 +112,9 @@ export interface NameAnlegenEin {
   readonly praefix?: string | undefined
   readonly titelVor?: string | undefined
   readonly zusatzNach?: string | undefined
+  /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): EIN `name_part(art = 'vatersname')`, auch
+   * mehrteilig. Wie jedes Feld der flachen Brücke: fehlt = kein Vatersname (`name.aendern` ersetzt). */
+  readonly vatersname?: string | undefined
   readonly originalText?: string | undefined
   readonly sprache?: string | undefined
   readonly istBevorzugt?: 0 | 1 | undefined
@@ -132,6 +135,7 @@ export const nameAnlegenEinSchema: z.ZodType<NameAnlegenEin> = z.object({
   praefix: z.string().optional(),
   titelVor: z.string().optional(),
   zusatzNach: z.string().optional(),
+  vatersname: z.string().optional(),
   originalText: z.string().optional(),
   sprache: z.string().optional(),
   istBevorzugt: BoolWert.optional(),
@@ -154,6 +158,9 @@ export interface NameAendernEin {
   readonly praefix?: string | undefined
   readonly titelVor?: string | undefined
   readonly zusatzNach?: string | undefined
+  /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): EIN `name_part(art = 'vatersname')`, auch
+   * mehrteilig. Wie jedes Feld der flachen Brücke: fehlt = kein Vatersname (`name.aendern` ersetzt). */
+  readonly vatersname?: string | undefined
   readonly originalText?: string | undefined
   readonly sprache?: string | undefined
   readonly istBevorzugt?: 0 | 1 | undefined
@@ -174,6 +181,7 @@ export const nameAendernEinSchema: z.ZodType<NameAendernEin> = z.object({
   praefix: z.string().optional(),
   titelVor: z.string().optional(),
   zusatzNach: z.string().optional(),
+  vatersname: z.string().optional(),
   originalText: z.string().optional(),
   sprache: z.string().optional(),
   istBevorzugt: BoolWert.optional(),

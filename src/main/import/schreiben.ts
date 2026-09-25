@@ -314,6 +314,8 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
             praefix: n.praefix ?? null,
             titelVor: n.titel_vor ?? null,
             zusatzNach: n.zusatz_nach ?? null,
+            // Importvertrag v1 kennt keinen Vatersnamen (56_Import_Vertrag.md §2.2, unverändert).
+            vatersname: null,
             originalText: n.original_text ?? null,
             sprache: n.sprache ?? null,
             istBevorzugt: index === hauptnameIndex ? 1 : 0,

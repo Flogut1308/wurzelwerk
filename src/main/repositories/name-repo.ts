@@ -40,6 +40,9 @@ export interface NameEinfuegenEin {
   readonly praefix: string | null
   readonly titelVor: string | null
   readonly zusatzNach: string | null
+  /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): EIN `name_part(art = 'vatersname')`; kein Feld des
+   * Importvertrags v1 (der Import gibt `null`). */
+  readonly vatersname: string | null
   readonly originalText: string | null
   readonly sprache: string | null
   readonly istBevorzugt: 0 | 1
@@ -58,6 +61,7 @@ function flachVon(ein: NameEinfuegenEin | NameAktualisierenEin): FlacherName {
     praefix: ein.praefix,
     titelVor: ein.titelVor,
     zusatzNach: ein.zusatzNach,
+    vatersname: ein.vatersname,
   }
 }
 
@@ -122,6 +126,9 @@ export interface NameZeile {
   readonly praefix: string | null
   readonly titel_vor: string | null
   readonly zusatz_nach: string | null
+  /** Rekonstruiert aus `name_part(art = 'vatersname')` (AP-1.30 PR 3) — ohne ihn sähe der No-op-
+   * Vergleich in `name-aendern.ts` eine Vatersnamen-Änderung nicht. */
+  readonly vatersname: string | null
   readonly original_text: string | null
   readonly sprache: string | null
   readonly ist_bevorzugt: 0 | 1
@@ -174,6 +181,7 @@ export function lesen(tx: Tx, id: string): NameZeile | undefined {
     praefix: flach.praefix,
     titel_vor: flach.titelVor,
     zusatz_nach: flach.zusatzNach,
+    vatersname: flach.vatersname,
     original_text: form.original_text,
     sprache: form.sprache,
     ist_bevorzugt: form.ist_bevorzugt === 1 ? 1 : 0,
@@ -197,6 +205,9 @@ export interface NameAktualisierenEin {
   readonly praefix: string | null
   readonly titelVor: string | null
   readonly zusatzNach: string | null
+  /** Wie in `NameEinfuegenEin`: `null` entfernt einen vorhandenen Vatersname-Teil (die Bestandteile
+   * werden vollständig neu aufgebaut). */
+  readonly vatersname: string | null
   readonly originalText: string | null
   readonly sprache: string | null
   readonly gueltigVon: number | null

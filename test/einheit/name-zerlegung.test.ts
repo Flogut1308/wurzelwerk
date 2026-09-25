@@ -4,7 +4,8 @@
 // als Rufname markiert werden (verlustfrei), OHNE einen zweiten „Hans"-Token anzulegen. Kein Node/
 // SQL — reine Datenstruktur-Eingabe, deterministisch.
 import { describe, expect, it } from 'vitest'
-import { rekonstruiereFlach, zerlegeName } from '../../src/core/name/zerlegung'
+import { anzeigetextVon } from '../../src/core/name/anzeigename'
+import { montiereOriginalText, rekonstruiereFlach, zerlegeName } from '../../src/core/name/zerlegung'
 
 describe('zerlegeName (src/core/name/zerlegung.ts, AP-1.33)', () => {
   it('markiert einen vorhandenen Vorname-Token als Rufname, wenn rufname_text ihn trifft und rufname_index leer ist', () => {
@@ -50,5 +51,32 @@ describe('rekonstruiereFlach mit Vatersname (U-1.33-vatersname-anzeige)', () => 
     ])
     expect(flach).toMatchObject({ vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow', praefix: null })
     expect(rekonstruiereFlach([]).vatersname).toBeNull()
+  })
+})
+
+// AP-1.30 PR 3 (docs/80 §32 V-3-flache-bruecke-vatersname): Zerlegung und Montage kennen den
+// Vatersnamen — sonst löschte die flache Brücke (`name-repo.aktualisieren`) ihn beim Ändern still.
+describe('zerlegeName/montiereOriginalText mit Vatersname (V-3-flache-bruecke-vatersname)', () => {
+  it('zerlegt den Vatersnamen in GENAU einen Teil mit sortierIndex 0 (auch mehrteilig)', () => {
+    const teile = zerlegeName({ vornamen: 'Iwan', vatersname: 'Petrowitsch Sidorow', nachname: 'Iwanow' })
+    expect(teile.filter((teil) => teil.art === 'vatersname')).toStrictEqual([
+      { art: 'vatersname', wert: 'Petrowitsch Sidorow', istRufname: false, sortierIndex: 0 },
+    ])
+  })
+
+  it('ein leerer oder fehlender Vatersname erzeugt keinen Teil', () => {
+    expect(zerlegeName({ vornamen: 'Iwan', vatersname: '' }).some((teil) => teil.art === 'vatersname')).toBe(false)
+    expect(zerlegeName({ vornamen: 'Iwan', vatersname: null }).some((teil) => teil.art === 'vatersname')).toBe(false)
+  })
+
+  it('montiert „Titel Vornamen Vatersname Präfix Nachname Zusatz" — gleich dem Anzeigetext', () => {
+    const flach = { titelVor: 'Dr.', vornamen: 'Iwan', vatersname: 'Petrowitsch', praefix: 'von', nachname: 'Iwanow', zusatzNach: 'd. Ä.' }
+    expect(montiereOriginalText({ vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' })).toBe('Iwan Petrowitsch Iwanow')
+    expect(montiereOriginalText(flach)).toBe('Dr. Iwan Petrowitsch von Iwanow d. Ä.')
+    expect(montiereOriginalText(flach)).toBe(anzeigetextVon({ teile: zerlegeName(flach), originalText: null }))
+  })
+
+  it('Rundreise: rekonstruiereFlach(zerlegeName(x)).vatersname === x.vatersname', () => {
+    expect(rekonstruiereFlach(zerlegeName({ vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' })).vatersname).toBe('Petrowitsch')
   })
 })

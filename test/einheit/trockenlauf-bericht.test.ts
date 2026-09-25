@@ -57,6 +57,7 @@ function seedeAugustWruck(db: ReturnType<typeof frischeDatenbankMitJournal>): st
       praefix: null,
       titelVor: null,
       zusatzNach: null,
+      vatersname: null,
       originalText: null,
       sprache: null,
       istBevorzugt: 1,

@@ -3,7 +3,8 @@
 // TypeScript, KEIN Node/SQL/shared-Import (CLAUDE.md §2). Die Zerlegungsregel ist wortgleich zur
 // Migration 0006 (docs/schema/0006_namensformen.sql §3): Vornamen an Leerzeichen splitten (0-basierter
 // `sortier_index`, `ist_rufname = pos == rufname_index`), Nachname/Präfix/Titel(→'titel')/Zusatz(→
-// 'suffix') je eine Zeile. Rufname (verlustfrei, Vorrang `rufname_index`): zeigt `rufname_index` auf
+// 'suffix') je eine Zeile; dazu seit AP-1.30 PR 3 der Vatersname (→'vatersname', ebenfalls eine Zeile —
+// die alte flache Tabelle der Migration kannte ihn nicht, darum ist das eine reine Erweiterung). Rufname (verlustfrei, Vorrang `rufname_index`): zeigt `rufname_index` auf
 // keinen vorhandenen Token, markiert `rufname_text` GENAU den gleichlautenden vorhandenen Vorname-
 // Token — und nur wenn es keinen solchen gibt, wird `rufname_text` als zusätzlicher markierter
 // Vorname angehängt. Genutzt von `src/main/repositories/
@@ -20,6 +21,10 @@ export interface FlacherName {
   readonly praefix?: string | null | undefined
   readonly titelVor?: string | null | undefined
   readonly zusatzNach?: string | null | undefined
+  /** Vatersname (`name_part.art = 'vatersname'`) — AP-1.30 PR 3 (docs/80 §32
+   * V-3-flache-bruecke-vatersname): EIN Teil, auch mehrteilig („Petrowitsch Sidorow"); kein Feld des
+   * Importvertrags v1. Ohne ihn löschte die flache Brücke einen vorhandenen Vatersname-Teil still. */
+  readonly vatersname?: string | null | undefined
 }
 
 /** Ein zerlegter Bestandteil (ohne `id`/`name_form_id` — die vergibt der SQL-schreibende Aufrufer). */
@@ -40,7 +45,7 @@ function tokens(text: string | null | undefined): readonly string[] {
 
 /**
  * Zerlegt einen flachen Namen in seine `name_part`-Bestandteile (Reihenfolge wie Migration 0006:
- * Vornamen, dann Nachname/Präfix/Titel/Suffix, dann ein etwaiger zusätzlicher Rufname-Text).
+ * Vornamen, dann Nachname/Vatersname/Präfix/Titel/Suffix, dann ein etwaiger zusätzlicher Rufname-Text).
  */
 export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
   const vornamen = tokens(flach.vornamen)
@@ -72,6 +77,7 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
 
   const einzeln: readonly (readonly [NamePartArt, string | null | undefined])[] = [
     ['nachname', flach.nachname],
+    ['vatersname', flach.vatersname],
     ['praefix', flach.praefix],
     ['titel', flach.titelVor],
     ['suffix', flach.zusatzNach],
@@ -91,8 +97,8 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
 
 /**
  * Baut aus den flachen Feldern den „as written"-Anzeigetext (`name_form.original_text`):
- * `Titel Vornamen Präfix Nachname Zusatz`, leerzeichengetrennt, leere Segmente ausgelassen. `null`,
- * wenn nichts übrig bleibt.
+ * `Titel Vornamen Vatersname Präfix Nachname Zusatz`, leerzeichengetrennt, leere Segmente ausgelassen
+ * — dieselbe Reihenfolge wie `anzeigetextVon` (anzeigename.ts). `null`, wenn nichts übrig bleibt.
  *
  * Warum das gebraucht wird (AP-1.33): der abgeleitete Trigger `abl_name_form_ai`
  * (0006_namensformen.sql) indiziert die FTS-Normalform aus `COALESCE(original_text, …aus name_part…)`
@@ -105,7 +111,7 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
  * der Aufrufer keinen mitbringt.
  */
 export function montiereOriginalText(flach: FlacherName): string | null {
-  const segmente = [flach.titelVor, flach.vornamen, flach.praefix, flach.nachname, flach.zusatzNach].filter(
+  const segmente = [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach].filter(
     (segment): segment is string => segment !== null && segment !== undefined && segment.trim() !== '',
   )
   const text = segmente.join(' ').trim()
@@ -130,7 +136,8 @@ export interface RekonstruierterName {
   readonly titelVor: string | null
   readonly zusatzNach: string | null
   /** Vatersname (`name_part.art = 'vatersname'`), verkettet in `sortierIndex`-Reihenfolge. Kein Feld
-   * der alten flachen Namenssicht — nur für den Anzeigetext (docs/80 §30 U-1.33-vatersname-anzeige). */
+   * der alten flachen Namenssicht; Anzeigetext (docs/80 §30 U-1.33-vatersname-anzeige) und seit AP-1.30
+   * PR 3 auch die flache Brücke (`zerlegeName`/`montiereOriginalText`). */
   readonly vatersname: string | null
 }
 

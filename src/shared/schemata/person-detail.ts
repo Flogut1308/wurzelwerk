@@ -90,6 +90,10 @@ export interface PersonDetailName {
   readonly praefix: string | null
   readonly titel_vor: string | null
   readonly zusatz_nach: string | null
+  /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): rekonstruiert aus `name_part(art = 'vatersname')`.
+   * Die Maske zeigt ihn (noch) nicht — die Profil-Logik reicht ihn zurück, sonst entfernte der „ersetzt
+   * alles"-Befehl ihn. */
+  readonly vatersname: string | null
   readonly rufname_text: string | null
   readonly rufname_index: number | null
   readonly umschrift_von: string | null
