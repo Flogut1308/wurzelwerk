@@ -21,6 +21,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { filterBedingungen, personListe, vergleicheZeilen, whereSql, zeileZuAusgabe, type RohZeile, type SortierEingabe } from '../../src/main/abfragen/person-liste'
 import { suche } from '../../src/main/abfragen/suche'
@@ -231,6 +232,37 @@ describe('Personenliste in zwei Phasen = Einphasen-Referenz (Vorarbeiten AP-1.30
         }
       }
       expect(zeilenGesamt).toBeGreaterThan(8 * 24)
+    } finally {
+      db.close()
+    }
+  })
+
+  // hueter #148 (M1): mehrere Aussagen je Prädikat, KEINE davon bevorzugt (erreichbar über das Demoten in
+  // aussage-repo) — dann entscheidet allein die kleinste id. Ohne diesen Fall überlebte die Mutation
+  // „id DESC“ in der Einzelzeilen-Auswahl.
+  it('Z5: mehrere nicht bevorzugte Aussagen je Prädikat = Referenz', () => {
+    const db = oeffnen(':memory:')
+    try {
+      migrieren(db)
+      for (let i = 0; i < 6; i += 1) {
+        const p = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+        fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', vornamen: `V${i}`, nachname: `N${i}` })
+        for (let b = 0; b < 3; b += 1) {
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'beruf', wertText: `Beruf${i}-${b}`, konfidenz: 2 })
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'geburtsdatum', wertText: `${1800 + b}`, datum: { modifikator: 'exakt', praezision: 'jahr', wert1: `${1800 + i + b}` }, konfidenz: 3 })
+          fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'todesdatum', wertText: `${1880 + b}`, datum: { modifikator: 'exakt', praezision: 'jahr', wert1: `${1880 + i + b}` }, konfidenz: 3 })
+        }
+      }
+      journalAus(db, 'test-fixture: keine bevorzugte Aussage (hueter #148 M1)')
+      try {
+        db.prepare(`UPDATE aussage SET ist_bevorzugt = 0 WHERE subjekt_typ = 'person'`).run()
+      } finally {
+        journalAn(db)
+      }
+      for (const sortierung of SORTIERUNGEN) {
+        const ein: PersonListeEin = { ...sortierung, seite: 1, proSeite: 100, filter: ALLE }
+        expect(personListe(db, ein), JSON.stringify(ein)).toEqual(referenzListe(db, ein))
+      }
     } finally {
       db.close()
     }

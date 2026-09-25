@@ -185,9 +185,11 @@ export function sortierZeilenLaden(
  * Fensterfunktion (`ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY …)`), da `id` eindeutig ist.
  * `NULL`, wenn die Person keine solche Aussage hat. `praedikat` ist ein fester Bezeichner aus diesem
  * Modul, kein Nutzerwert. */
-function ersteAussageIdSql(personIdSql: string, praedikat: 'beruf' | 'geburtsdatum' | 'todesdatum'): string {
+/** `praedikatParameter` ist der NAME eines benannten Parameters (z. B. `@praedikatBeruf`), nie ein Wert —
+ * das Prädikat selbst geht als gebundener Wert in die Abfrage (CLAUDE.md §6, hueter #148). */
+function ersteAussageIdSql(personIdSql: string, praedikatParameter: '@praedikatBeruf' | '@praedikatGeburt' | '@praedikatTod'): string {
   return `(SELECT a1.id FROM aussage a1
-      WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = ${personIdSql} AND a1.praedikat = '${praedikat}'
+      WHERE a1.subjekt_typ = 'person' AND a1.subjekt_id = ${personIdSql} AND a1.praedikat = ${praedikatParameter}
       ORDER BY (CASE WHEN a1.ist_bevorzugt = 1 THEN 0 ELSE 1 END), a1.id LIMIT 1)`
 }
 
@@ -207,7 +209,7 @@ export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly st
   const ids = 'SELECT value FROM json_each(@ids)'
   const zeilen = db
     .prepare<
-      { readonly ids: string },
+      { readonly ids: string; readonly praedikatBeruf: string; readonly praedikatGeburt: string; readonly praedikatTod: string },
       SeitenZeile
     >(`SELECT pf.person_id AS person_id, pf.geburt_jahr AS geburt_jahr,
               pf.geburt_sort_von AS geburt_sort_von, pf.tod_jahr AS tod_jahr, pf.tod_sort_von AS tod_sort_von,
@@ -226,9 +228,9 @@ export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly st
               tdv.datum_sort_von AS tod_datum_sort_von, tdv.datum_sort_bis AS tod_datum_sort_bis
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
-       LEFT JOIN aussage ber ON ber.id = ${ersteAussageIdSql('pf.person_id', 'beruf')}
-       LEFT JOIN aussage gbv ON gbv.id = ${ersteAussageIdSql('pf.person_id', 'geburtsdatum')}
-       LEFT JOIN aussage tdv ON tdv.id = ${ersteAussageIdSql('pf.person_id', 'todesdatum')}
+       LEFT JOIN aussage ber ON ber.id = ${ersteAussageIdSql('pf.person_id', '@praedikatBeruf')}
+       LEFT JOIN aussage gbv ON gbv.id = ${ersteAussageIdSql('pf.person_id', '@praedikatGeburt')}
+       LEFT JOIN aussage tdv ON tdv.id = ${ersteAussageIdSql('pf.person_id', '@praedikatTod')}
        LEFT JOIN (
          SELECT a.subjekt_id AS person_id, COUNT(az.zitat_id) AS belegzahl
          FROM aussage a
@@ -244,7 +246,7 @@ export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly st
        ) kz ON kz.person_id = pf.person_id
        WHERE pf.person_id IN (${ids})`,
     )
-    .all({ ids: JSON.stringify([...new Set(personIds)]) })
+    .all({ ids: JSON.stringify([...new Set(personIds)]), praedikatBeruf: 'beruf', praedikatGeburt: 'geburtsdatum', praedikatTod: 'todesdatum' })
   const jeId = new Map(zeilen.map((zeile) => [zeile.person_id, zeile]))
   return personIds.flatMap((personId) => {
     const zeile = jeId.get(personId)
