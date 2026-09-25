@@ -15,6 +15,10 @@
     "titel": "Wert außerhalb des zulässigen Bereichs",
     "was_tun": "Den eingegebenen Wert prüfen und innerhalb des zulässigen Bereichs anpassen."
   },
+  "VALIDIERUNG_ORTSWERT": {
+    "titel": "Hier gehört ein Ort hin",
+    "was_tun": "Einen Ort aus der Ortsliste wählen oder den Ort als Text eingeben. Eine Zahl ist kein Ort."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."

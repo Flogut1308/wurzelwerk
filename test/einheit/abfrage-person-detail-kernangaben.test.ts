@@ -134,8 +134,17 @@ function zustand(db: Db, personId: string, id: string): string {
   return kern(db, personId)?.aufschluesselung.find((a) => a.id === id)?.zustand ?? '<keine>'
 }
 
+/** Altbestand (vor PR 5 der Vorarbeiten AP-1.30): eine Orts-Aussage nur mit `wert_zahl`. Die Befehle
+ * lehnen das heute ab (`VALIDIERUNG_ORTSWERT`), ältere Projektdateien können es enthalten — darum
+ * per Text anlegen und den Wert ohne Befehlsbus auf eine Zahl umschreiben. */
 function ortZahl(db: Db, personId: string, praedikat: 'geburtsort' | 'todesort', belegt: boolean): void {
-  fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat, wertZahl: 5, konfidenz: 3, ...belege(db, belegt) })
+  const { id } = fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat, wertText: 'vorläufig', konfidenz: 3, ...belege(db, belegt) })
+  journalAus(db, 'test-fixture: Altbestand Orts-Aussage mit wert_zahl')
+  try {
+    db.prepare<{ readonly id: string }>(`UPDATE aussage SET wert_text = NULL, wert_zahl = 5 WHERE id = @id`).run({ id })
+  } finally {
+    journalAn(db)
+  }
 }
 
 /** Beide Richtungen zwischen Kernangaben, Sterbeort und offenen Punkten. */
