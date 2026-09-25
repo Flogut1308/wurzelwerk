@@ -260,6 +260,20 @@ describe('Profil-Aussageänderung erhält alle Felder (AP-1.30 PR 9a)', () => {
     }
   })
 
+  it('zwei geänderte Felder → kein Koaleszenzfeld (hueter #163, 4)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const id = aussageMitAllenFeldern(db, personId, 'nurDatum', neuePerson(db))
+      const ein = profilAendern(db, personId, id, { konfidenz: 1, begruendung: 'zweite Änderung' })
+      expect(ein.feld).toBeUndefined()
+      const einzeln = profilAendern(db, personId, id, { begruendung: 'nur eine Änderung' })
+      expect(einzeln.feld).toBe('begruendung')
+    } finally {
+      db.close()
+    }
+  })
+
   it('ohne Änderung ist die Rundreise ein No-op (keine neue Transaktion)', () => {
     const db = neueTestDatenbank()
     try {
