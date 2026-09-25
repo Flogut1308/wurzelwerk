@@ -8,6 +8,8 @@
 // trägt. Die Orts-Prüfung sieht dann keinen NEUEN Datumswert; ein Datum neu setzen bleibt verboten.
 // AP-1.30 PR 4: der Vergleich steht als `aussageGeaenderteFelder()` für sich — derselbe Vergleich
 // entscheidet über den No-op UND über den Koaleszenzschlüssel (`koaleszenz-schluessel.ts`).
+// AP-1.30 PR 9a (D1): an Datumsprädikaten (`geburtsdatum`/`todesdatum`, wie der Import sie schreibt)
+// genügt die Datumsgruppe als Wert; der Handler prüft das gegen das gespeicherte Prädikat.
 import type { AussageAendernEin, AussageAendernFeld } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
@@ -15,6 +17,7 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import type { AussageZeile } from '../repositories/aussage-repo'
 import { datumSpalten, type DatumSpaltengruppe } from '../import/datum-spalten'
 import { ortswertPruefen } from './ortswert'
+import { aussageWertVerletzung } from '../../core/person/datums-wert'
 
 function gespeichertesDatum(vorher: AussageZeile): DatumSpaltengruppe {
   return {
@@ -69,12 +72,27 @@ export function aussageGeaenderteFelder(vorher: AussageZeile, ein: AussageAender
   return felder
 }
 
+/** AP-1.30 PR 9a (D1): die Wertregel (`aussageWertVerletzung`) gegen das GESPEICHERTE Prädikat — das
+ * Vertragsschema kennt es nicht und lässt darum eine Nutzlast ohne Wert durch, sobald sie ein Datum
+ * trägt oder beibehält. Nur an Datumsprädikaten ist die Datumsgruppe allein ein Wert; `hatDatum` sieht
+ * die Gruppe, die geschrieben WÜRDE (`datumBeibehalten` → die gespeicherte). Die Meldung nennt nur
+ * das Prädikat, nie einen Wert (CLAUDE.md §7). `mehrere` lehnt schon das Vertragsschema ab, das der
+ * Befehlsbus vor jedem Handler prüft (`bus.ts`, `def.schema.parse`). */
+function wertPruefen(praedikat: string, ein: AussageAendernEin, neuesDatum: DatumSpaltengruppe): void {
+  const anzahlWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined).length
+  if (aussageWertVerletzung(praedikat, { anzahlWerte, hatDatum: neuesDatum.wert1 !== null }) === 'keiner') {
+    throw new WurzelFehler('VALIDIERUNG_PFLICHTFELD', `Prädikat "${praedikat}" braucht einen Wert (nur an Datumsprädikaten genügt das Datum).`)
+  }
+}
+
 export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
   const vorher = aussageRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_AUSSAGE')
   }
   ortswertPruefen(vorher.praedikat, { wertZahl: ein.wertZahl, datum: ein.datum })
+  const neuesDatum = neuesDatumVon(vorher, ein)
+  wertPruefen(vorher.praedikat, ein, neuesDatum)
 
   if (aussageGeaenderteFelder(vorher, ein).length === 0) {
     return null
@@ -85,7 +103,7 @@ export function aussageAendern(tx: Tx, ein: AussageAendernEin): null {
     wertText: ein.wertText ?? null,
     wertZahl: ein.wertZahl ?? null,
     wertRefId: ein.wertRefId ?? null,
-    datum: neuesDatumVon(vorher, ein),
+    datum: neuesDatum,
     konfidenz: ein.konfidenz,
     begruendung: ein.begruendung ?? null,
     unsicherheit: ein.unsicherheit ?? null,
