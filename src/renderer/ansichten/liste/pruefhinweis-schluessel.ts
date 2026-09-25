@@ -23,5 +23,26 @@ export function pruefhinweisCodeSchluessel(code: PruefhinweisEintrag['code']): s
       return 'code_zyklus'
     case 'ereignis_vor_ortsexistenz':
       return 'code_ereignis_vor_ortsexistenz'
+    case 'ort_mit_datum':
+      return 'code_ort_mit_datum'
+  }
+}
+
+/** Handlungsanweisung zum Code, wo eine nötig ist (Vorarbeiten AP-1.30 Teil 3, E5: bei
+ * `ort_mit_datum` ist ohne sie unklar, wohin das Datum gehört); sonst `null` — die übrigen Codes
+ * benennen den Widerspruch bereits selbst. Ebenfalls vollständiger `switch`. */
+export function pruefhinweisWasTunSchluessel(code: PruefhinweisEintrag['code']): string | null {
+  switch (code) {
+    case 'ort_mit_datum':
+      return 'code_ort_mit_datum_was_tun'
+    case 'tod_vor_geburt':
+    case 'bestattung_vor_tod':
+    case 'mutter_alter':
+    case 'vater_alter':
+    case 'kind_vor_ehe':
+    case 'alter_ueber_110':
+    case 'zyklus':
+    case 'ereignis_vor_ortsexistenz':
+      return null
   }
 }

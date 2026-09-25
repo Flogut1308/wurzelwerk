@@ -8,7 +8,8 @@
 // docs/80_Offene_Fragen.md).
 import type Database from 'better-sqlite3'
 import type { JdnIntervall, PlausGeschlecht } from '../../core/plausibilitaet/regeln'
-import { pruefeBestand, type BestandEingabe, type BestandEreignis, type BestandOrt, type BestandPartnerschaft, type BestandPerson } from '../../core/plausibilitaet/regeln'
+import { pruefeBestand, type BestandAussage, type BestandEingabe, type BestandEreignis, type BestandOrt, type BestandPartnerschaft, type BestandPerson } from '../../core/plausibilitaet/regeln'
+import { ORTS_PRAEDIKATE } from '../../core/person/ort-wert'
 import type { PruefhinweiseAus } from '../../shared/schemata/pruefhinweise'
 import { anzeigenamenLaden } from './_anzeigenamen'
 
@@ -155,6 +156,42 @@ function beteiligungenLaden(db: Database.Database): readonly BeteiligungZeile[] 
   return db.prepare<[], BeteiligungZeile>(`SELECT ereignis_id AS ereignis_id, person_id AS person_id FROM beteiligung`).all()
 }
 
+/** SQL-Ausdruck „die Aussage trägt ein Datum" (Vorarbeiten AP-1.30 Teil 3, E5, `ort_mit_datum`):
+ * irgendeine Spalte der Datumsgruppe gesetzt — auch ein Bruchstück (nur Originaltext) ist eine
+ * Datumsangabe, die geprüft werden soll. `gueltig_von`/`gueltig_bis` gehören NICHT dazu (§32
+ * V-5b-zeitraum). Ein fester Ausdruck ohne Werte, geteilt mit ./_person-umfeld.ts. */
+export const AUSSAGE_HAT_DATUM_SQL = `(datum_kalender IS NOT NULL OR datum_modifikator IS NOT NULL OR datum_praezision IS NOT NULL
+  OR datum_wert1 IS NOT NULL OR datum_wert2 IS NOT NULL OR datum_originaltext IS NOT NULL
+  OR datum_sort_von IS NOT NULL OR datum_sort_bis IS NOT NULL
+  OR datum_zweitkalender IS NOT NULL OR datum_zweitwert IS NOT NULL OR datum_doppeljahr IS NOT NULL)`
+
+/** Die Orts-Prädikate als JSON-Parameter für `json_each` (wie `_anzeigenamen.ts`). */
+export const ORTS_PRAEDIKATE_JSON = JSON.stringify(ORTS_PRAEDIKATE)
+
+export interface OrtsAussageZeile {
+  readonly person_id: string
+  readonly praedikat: string
+  readonly hat_datum: number
+}
+
+export function alsBestandAussage(zeile: OrtsAussageZeile): BestandAussage {
+  return { personId: zeile.person_id, praedikat: zeile.praedikat, hatDatum: zeile.hat_datum === 1 }
+}
+
+/** Personen-Aussagen an Orts-Prädikaten MIT Datum — nur die kann `ort_mit_datum` melden. Reihenfolge
+ * nach `id`, damit mehrere Hinweise einer Person deterministisch geordnet sind. */
+function ortsAussagenLaden(db: Database.Database): readonly BestandAussage[] {
+  return db
+    .prepare<{ readonly praedikate: string }, OrtsAussageZeile>(
+      `SELECT subjekt_id AS person_id, praedikat AS praedikat, ${AUSSAGE_HAT_DATUM_SQL} AS hat_datum
+       FROM aussage
+       WHERE subjekt_typ = 'person' AND praedikat IN (SELECT value FROM json_each(@praedikate)) AND ${AUSSAGE_HAT_DATUM_SQL}
+       ORDER BY id`,
+    )
+    .all({ praedikate: ORTS_PRAEDIKATE_JSON })
+    .map(alsBestandAussage)
+}
+
 function bestandEingabeLaden(db: Database.Database): BestandEingabe {
   const geburtKarte = datumJePraedikatLaden(db, 'geburtsdatum')
   const todKarte = datumJePraedikatLaden(db, 'todesdatum')
@@ -199,7 +236,7 @@ function bestandEingabeLaden(db: Database.Database): BestandEingabe {
     beteiligteIds: beteiligteJeEreignis.get(zeile.id) ?? [],
   }))
 
-  return { personen, elternschaften, partnerschaften, orte, ereignisse }
+  return { personen, elternschaften, partnerschaften, orte, ereignisse, aussagen: ortsAussagenLaden(db) }
 }
 
 /** `abfrage:pruefhinweise` (AP-1.8, 70_UX_Konzept.md §2). */

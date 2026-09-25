@@ -39,7 +39,7 @@ describe('personUmfeldLaden() — gleich dem Gesamtbestand je Person', () => {
     })
   }
 
-  it('die Zufallsbestände decken alle sieben Nicht-Zyklus-Regeln ab', () => {
+  it('die Zufallsbestände decken alle Nicht-Zyklus-Regeln ab (samt ort_mit_datum, AP-1.30 Vorarbeiten Teil 3)', () => {
     const gesehen = new Set<string>()
     for (const seed of [1, 2, 3, 4, 5]) {
       const db = neueTestDatenbank()
@@ -50,7 +50,7 @@ describe('personUmfeldLaden() — gleich dem Gesamtbestand je Person', () => {
         db.close()
       }
     }
-    for (const code of ['tod_vor_geburt', 'bestattung_vor_tod', 'mutter_alter', 'vater_alter', 'kind_vor_ehe', 'alter_ueber_110', 'ereignis_vor_ortsexistenz']) {
+    for (const code of ['tod_vor_geburt', 'bestattung_vor_tod', 'mutter_alter', 'vater_alter', 'kind_vor_ehe', 'alter_ueber_110', 'ereignis_vor_ortsexistenz', 'ort_mit_datum']) {
       expect(gesehen, code).toContain(code)
     }
   })

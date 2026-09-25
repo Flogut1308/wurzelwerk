@@ -1,7 +1,7 @@
 // AP-1.34 PR-C2b (§31 U-1.34-C2-O1): deterministischer, absichtlich fehlerhafter Bestand für den
 // Konsistenztest „Feldwarnungen je Person = Prüfhinweise des Gesamtbestands, gefiltert auf die
 // Person". Seed-gesteuerter LCG statt `Math.random` (CLAUDE.md §13: reproduzierbar). Erzeugt alle
-// Fälle, die die acht Bestandsregeln unterscheiden: Platzhalter, fehlendes/gemischtes Geschlecht,
+// Fälle, die die Bestandsregeln unterscheiden: Platzhalter, fehlendes/gemischtes Geschlecht,
 // mehrere (bevorzugte/nicht bevorzugte) Datumsaussagen, doppelte Elternkanten, Selbstkanten und
 // Zyklen, Partnerschaften mit einem/mehreren Beteiligten, Ereignisse mit/ohne Ort und Datum,
 // doppelte Beteiligung derselben Person, Bestattungen mit anderer Rolle. Rohes SQL wie in
@@ -96,6 +96,40 @@ export function zufallsBestandAufbauen(db: Database.Database, seed: number, anza
       beteiligung.run({ id: `b-${id}-${b}`, ereignisId: id, personId: zufall() < 0.3 ? erster : wahl(personIds), rolle: wahl(['verstorbener', 'verstorbener', 'hauptperson']) })
     }
   }
+
+  // Vorarbeiten AP-1.30 Teil 3 (E5, `ort_mit_datum`): Orts-Aussagen mit vollem Datum, nur mit
+  // Originaltext (Bruchstück der Datumsgruppe), nur mit Gültigkeitszeitraum (kein Datum) oder ganz
+  // ohne, dazu ein Nicht-Orts-Prädikat mit Datum. Eigener Zufallsstrom, damit der Bestand oben für
+  // jeden Seed unverändert bleibt.
+  const ortsZufall = lcg(seed ^ 0x5bd1e995)
+  const ortsAussage = db.prepare(
+    `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, datum_kalender, datum_modifikator, datum_praezision, datum_wert1, datum_originaltext, datum_sort_von, datum_sort_bis, gueltig_von, gueltig_bis, ist_bevorzugt)
+     VALUES (@id, 'person', @personId, @praedikat, 'Ort', @kalender, @modifikator, @praezision, @wert1, @originaltext, @von, @bis, @gueltigVon, @gueltigBis, 1)`,
+  )
+  personIds.forEach((personId, i) => {
+    for (const praedikat of ['geburtsort', 'todesort', 'wohnort', 'beruf'] as const) {
+      const anzahl = Math.floor(ortsZufall() * 3)
+      for (let a = 0; a < anzahl; a += 1) {
+        const art = Math.floor(ortsZufall() * 4)
+        const { von, bis } = jahr(1750 + Math.floor(ortsZufall() * 150))
+        const voll = art === 0
+        ortsAussage.run({
+          id: `ao-${String(i).padStart(3, '0')}-${praedikat}-${a}`,
+          personId,
+          praedikat,
+          kalender: voll ? 'gregorian' : null,
+          modifikator: voll ? 'exakt' : null,
+          praezision: voll ? 'jahr' : null,
+          wert1: voll ? '1800' : null,
+          originaltext: art === 1 ? 'um 1800' : null,
+          von: voll ? von : null,
+          bis: voll ? bis : null,
+          gueltigVon: art === 2 ? von : null,
+          gueltigBis: art === 2 ? bis : null,
+        })
+      }
+    }
+  })
 
   return { personIds }
 }

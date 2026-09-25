@@ -16,5 +16,7 @@
   "code_kind_vor_ehe": "Kind vor der Eheschließung der Eltern geboren",
   "code_alter_ueber_110": "Alter über 110 Jahre",
   "code_zyklus": "Zyklus im Stammbaum — Person wäre ihr eigener Vorfahre",
-  "code_ereignis_vor_ortsexistenz": "Ereignis liegt außerhalb der Existenz des Ortes"
+  "code_ereignis_vor_ortsexistenz": "Ereignis liegt außerhalb der Existenz des Ortes",
+  "code_ort_mit_datum": "Ort mit Datum – bitte prüfen",
+  "code_ort_mit_datum_was_tun": "Das Datum gehört an das Ereignis oder als Zeitraum (gültig von–bis) an die Angabe. Datum prüfen und übertragen oder entfernen."
 }

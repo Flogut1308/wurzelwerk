@@ -16,6 +16,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [],
       ereignisse: [],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
@@ -27,6 +28,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [],
       ereignisse: [],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
@@ -41,6 +43,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [],
       ereignisse: [],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
@@ -55,6 +58,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [],
       ereignisse: [],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
@@ -72,6 +76,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [],
       ereignisse: [],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
@@ -83,6 +88,7 @@ describe('pruefeBestand() — Platzhalter werden übersprungen (A-17)', () => {
       partnerschaften: [],
       orte: [{ id: 'ort', existiert: { von: JAHR(1900), bis: JAHR(1945) } }],
       ereignisse: [{ ortId: 'ort', datum: { von: JAHR(1950), bis: JAHR(1950) }, beteiligteIds: ['a'] }],
+      aussagen: [],
     }
     expect(pruefeBestand(eingabe)).toEqual([])
   })
