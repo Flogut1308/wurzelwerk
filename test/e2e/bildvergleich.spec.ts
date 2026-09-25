@@ -134,10 +134,45 @@ async function fensterAufFesteGroesseSetzen(
   )
 }
 
-/** AP-1.30 PR 8: breites Fenster für die rechte Spalte „Zustand" (sichtbar erst ab 1100 px). Alle
+/** AP-1.30 PR 8: breite Ansicht für die rechte Spalte „Zustand" (sichtbar erst ab 1100 px). Alle
  * übrigen Motive bleiben bei 1000×600 — dort ist die Spalte ausgeblendet, ihre Bilder unverändert. */
 const FENSTER_BREITE_SPALTE = 1280
 const FENSTER_HOEHE_SPALTE = 800
+
+type Fenster = Awaited<ReturnType<Awaited<ReturnType<typeof electron.launch>>['firstWindow']>>
+type CdpSitzung = Awaited<ReturnType<ReturnType<Fenster['context']>['newCDPSession']>>
+
+/** Emuliert eine Ansichtsgröße über CDP (`Emulation.setDeviceMetricsOverride`), statt das echte
+ * Fenster zu vergrößern. Belegt (Referenzbilder-Lauf 36194961731): 1280×800 passt NICHT auf den
+ * Bildschirm des macOS-CI-Runners — macOS klemmt das Fenster auf die Arbeitsfläche (derselbe
+ * Runner machte aus dem Standardfenster 1200×800 eine Inhaltsfläche von 1024×643, s.
+ * `FENSTER_BREITE` oben), `window.innerWidth === 1280` wurde nie wahr und der Hook lief in den
+ * Timeout. Die Emulation ist bildschirmunabhängig; der Renderer sieht 1280×800 CSS-Pixel,
+ * Medienabfragen (`min-width: 1100px`) greifen, die Aufnahme hat 1280×800. Das echte Fenster
+ * bleibt die ganze Zeit bei 1000×600 — `ansichtsEmulationBeenden` hebt die Emulation auf und
+ * weist die 1000×600 wieder nach, damit Folgemotive unberührt bleiben. */
+async function ansichtsgroesseEmulieren(fenster: Fenster, breite: number, hoehe: number): Promise<CdpSitzung> {
+  const sitzung = await fenster.context().newCDPSession(fenster)
+  await sitzung.send('Emulation.setDeviceMetricsOverride', { width: breite, height: hoehe, deviceScaleFactor: 0, mobile: false })
+  await fenster.waitForFunction(
+    (groesse) => window.innerWidth === groesse.breite && window.innerHeight === groesse.hoehe,
+    { breite, hoehe },
+  )
+  return sitzung
+}
+
+async function ansichtsEmulationBeenden(
+  app: Awaited<ReturnType<typeof electron.launch>>,
+  fenster: Fenster,
+  sitzung: CdpSitzung | undefined,
+): Promise<void> {
+  if (sitzung !== undefined) {
+    await sitzung.send('Emulation.clearDeviceMetricsOverride')
+    await sitzung.detach()
+  }
+  // Auch ohne Sitzung (Hook vorher gescheitert): feste Größe erneut setzen und nachweisen.
+  await fensterAufFesteGroesseSetzen(app, fenster)
+}
 
 test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
   test.skip(process.platform !== 'darwin', 'nur macOS vergleicht pixelgenau (ADR-012)')
@@ -527,15 +562,19 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         // AP-1.30 PR 8: rechte Spalte „Zustand" (Vollständigkeit, offene Punkte, Verlauf) bei 1280 px.
         // Walter: Kernangaben mit gemischten Zuständen, offene Punkte (Sterbeort, Eltern, Kind ohne
         // Partnerschaft mit Namen). Die Verlaufszeiten („gerade eben"/„vor n Minuten") hängen an der
-        // Laufzeit des Runners und sind maskiert; alles andere ist fester Inhalt. Die Fenstergröße wird
-        // danach auf 1000×600 zurückgesetzt, damit die folgenden Motive unverändert bleiben.
+        // Laufzeit des Runners und sind maskiert; alles andere ist fester Inhalt. Die 1280×800 sind
+        // emuliert (`ansichtsgroesseEmulieren`, bildschirmunabhängig); danach gilt wieder 1000×600,
+        // damit die folgenden Motive unverändert bleiben.
         test.describe('Rechte Spalte (1280 px) — vier Kombinationen', () => {
+          let emulation: CdpSitzung | undefined
+
           test.beforeAll(async () => {
-            await fensterAufFesteGroesseSetzen(app, fenster, FENSTER_BREITE_SPALTE, FENSTER_HOEHE_SPALTE)
+            emulation = await ansichtsgroesseEmulieren(fenster, FENSTER_BREITE_SPALTE, FENSTER_HOEHE_SPALTE)
           })
 
           test.afterAll(async () => {
-            await fensterAufFesteGroesseSetzen(app, fenster)
+            await ansichtsEmulationBeenden(app, fenster, emulation)
+            emulation = undefined
           })
 
           for (const kombination of VIER_KOMBINATIONEN) {
@@ -583,6 +622,13 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
             test(`orte-${kombination.theme}-${kombination.dichte}`, async () => {
               // Order-Unabhängigkeit (PR #71, Nachzug): weist die geöffnete Schublade selbst nach.
               await expect(ortSchublade).toBeVisible()
+              // Scrollstand des Editorkörpers festlegen: der Klick auf „Ort bearbeiten" (Knopf am
+              // unteren Rand, halb unter der Fußleiste) scrollt den Körper nicht reproduzierbar mit:
+              // im Referenzbild gar nicht, im Lauf 36194961731 um 23 px, lokal (main wie PR 8) um
+              // 29 px — Playwrights Scroll-ins-Bild vor dem Klick, kein Bildinhalt. Referenzstand: 0.
+              await editor.locator('.wz-person-bearbeiten__koerper').evaluate((koerper) => {
+                koerper.scrollTop = 0
+              })
               await aufnahme(fenster, `orte-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
             })
           }

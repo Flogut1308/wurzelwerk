@@ -43,6 +43,7 @@ test.describe('Ablauf 09 — Person bearbeiten: rechte Spalte', () => {
   let app: Awaited<ReturnType<typeof electron.launch>>
   let fenster: Awaited<ReturnType<typeof app.firstWindow>>
   let elternordner: string
+  let emulation: Awaited<ReturnType<ReturnType<typeof fenster.context>['newCDPSession']>> | undefined
 
   test.beforeAll(async () => {
     elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-rechte-spalte-'))
@@ -56,13 +57,13 @@ test.describe('Ablauf 09 — Person bearbeiten: rechte Spalte', () => {
     rmSync(elternordner, { recursive: true, force: true })
   })
 
+  /** Ansichtsgröße über CDP emulieren statt das Fenster zu vergrößern: 1280×800 passt nicht auf den
+   * Bildschirm des macOS-CI-Runners (macOS klemmt das Fenster, `innerWidth` erreicht 1280 nie —
+   * Referenzbilder-Lauf 36194961731, `bildvergleich.spec.ts`). Die Emulation ist bildschirmunabhängig. */
   async function fensterbreite(breite: number, hoehe: number): Promise<void> {
-    await app.evaluate(
-      ({ BrowserWindow }, groesse) => {
-        for (const handle of BrowserWindow.getAllWindows()) handle.setContentSize(groesse.breite, groesse.hoehe)
-      },
-      { breite, hoehe },
-    )
+    // Sitzung offen lassen: die Emulation gilt nur, solange ihre CDP-Sitzung verbunden ist.
+    emulation ??= await fenster.context().newCDPSession(fenster)
+    await emulation.send('Emulation.setDeviceMetricsOverride', { width: breite, height: hoehe, deviceScaleFactor: 0, mobile: false })
     await fenster.waitForFunction((groesse) => window.innerWidth === groesse.breite && window.innerHeight === groesse.hoehe, { breite, hoehe })
   }
 
