@@ -24,6 +24,7 @@ import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
+import { kernangabenAuswerten, type KernAussage } from '../../core/person/kernangaben'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
@@ -40,6 +41,7 @@ import type {
   PersonDetailEreignis,
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
+  PersonDetailKernangaben,
   PersonDetailName,
   PersonDetailOffenerPunkt,
   PersonDetailSterbeort,
@@ -505,11 +507,11 @@ function todEreignisseLaden(db: Database.Database, personId: string): readonly T
 
 /** Sterbeort (AP-1.34 PR-C2a): Auswahl im Kern (`sterbeortAufloesen`), hier nur Laden + Namens-
  * auflösung. Der Ortsname kommt wie bei `geburtsort` aus dem bevorzugten `ortsname`. */
-function sterbeortBauen(db: Database.Database, personId: string, aussagen: readonly AussageZeile[]): PersonDetailSterbeort | null {
+function sterbeortBauen(db: Database.Database, aussagen: readonly AussageZeile[], todEreignisZeilen: readonly TodEreignisZeile[]): PersonDetailSterbeort | null {
   const todesorte = aussagen
     .filter((aussage) => aussage.praedikat === 'todesort')
     .map((aussage) => ({ id: aussage.id, istBevorzugt: aussage.ist_bevorzugt === 1, wertRefId: aussage.wert_ref_id, wertText: aussage.wert_text }))
-  const todEreignisse = todEreignisseLaden(db, personId).map((zeile) => ({ id: zeile.id, ortId: zeile.ort_id }))
+  const todEreignisse = todEreignisZeilen.map((zeile) => ({ id: zeile.id, ortId: zeile.ort_id }))
   const sterbeort = sterbeortAufloesen(todesorte, todEreignisse)
   if (sterbeort === null) return null
   const ortName = sterbeort.ortId === null ? null : (ortsnamenLaden(db, [sterbeort.ortId]).get(sterbeort.ortId) ?? null)
@@ -523,9 +525,11 @@ interface ElternKindZeile {
   readonly ist_platzhalter: number
 }
 
-/** Elternzeile mit Geschlecht — `elternPlaetze` (offene Punkte, AP-1.34 PR-C2c) braucht es. */
+/** Elternzeile mit Geschlecht — `elternPlaetze` (offene Punkte, AP-1.34 PR-C2c) braucht es — und
+ * `kante_id` (`elternschaft.id`) für den Kanten-Beleg der Kernangaben (AP-1.34 PR-D). */
 interface ElternZeile extends ElternKindZeile {
   readonly geschlecht: string | null
+  readonly kante_id: string
 }
 
 function elternLaden(db: Database.Database, personId: string): readonly ElternZeile[] {
@@ -534,7 +538,7 @@ function elternLaden(db: Database.Database, personId: string): readonly ElternZe
       { readonly personId: string },
       ElternZeile
     >(`SELECT el.elternteil_id AS person_id, pf.anzeigename AS anzeigename, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
-              p.geschlecht AS geschlecht
+              p.geschlecht AS geschlecht, el.id AS kante_id
        FROM elternschaft el
        JOIN person_flach pf ON pf.person_id = el.elternteil_id
        JOIN person p ON p.id = el.elternteil_id
@@ -747,6 +751,88 @@ function offenePunkteBauen(
   }))
 }
 
+interface KernBelegZeile {
+  readonly subjekt_typ: string
+  readonly subjekt_id: string
+}
+
+interface KernBelege {
+  readonly hauptformBelegt: boolean
+  readonly belegteKanten: ReadonlySet<string>
+  readonly belegteTodOrte: ReadonlySet<string>
+}
+
+/** Beleg-Nachweise der Kernangaben außerhalb der Personen-Aussagen (AP-1.34 PR-D, ADR-031), EINE
+ * Anweisung: welche Aussage-Subjekte haben mindestens einen `aussage_zitat` —
+ * - die Hauptform (`name_form.ist_bevorzugt = 1`, jede Aussage über sie, D3),
+ * - jede Elternkante zur Person als Kind (jede Aussage an der Kante, D7),
+ * - jedes Tod-Ereignis mit Ort (Rolle `verstorbener`), dessen Existenz-Aussage einen Beleg für den
+ *   Ort trägt (`feld` NULL = ganze Aussage oder `ort`, D6).
+ * Bewusst ein einziger Durchlauf über `aussage` statt drei EXISTS-Unterabfragen: es gibt keinen
+ * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index). */
+function kernBelegeLaden(db: Database.Database, personId: string): KernBelege {
+  const zeilen = db
+    .prepare<
+      { readonly personId: string },
+      KernBelegZeile
+    >(`SELECT DISTINCT a.subjekt_typ AS subjekt_typ, a.subjekt_id AS subjekt_id
+       FROM aussage a
+       JOIN aussage_zitat az ON az.aussage_id = a.id
+       WHERE (a.subjekt_typ = 'name'
+              AND a.subjekt_id IN (SELECT nf.id FROM name_form nf WHERE nf.person_id = @personId AND nf.ist_bevorzugt = 1))
+          OR (a.subjekt_typ = 'elternschaft'
+              AND a.subjekt_id IN (SELECT el.id FROM elternschaft el WHERE el.kind_id = @personId))
+          OR (a.subjekt_typ = 'ereignis' AND a.praedikat = 'existenz' AND (az.feld IS NULL OR az.feld = 'ort')
+              AND a.subjekt_id IN (
+                SELECT e.id FROM beteiligung b JOIN ereignis e ON e.id = b.ereignis_id
+                WHERE b.person_id = @personId AND b.rolle = 'verstorbener' AND e.typ = 'tod' AND e.ort_id IS NOT NULL))`,
+    )
+    .all({ personId })
+  const idsVon = (typ: string): ReadonlySet<string> => new Set(zeilen.filter((z) => z.subjekt_typ === typ).map((z) => z.subjekt_id))
+  return { hauptformBelegt: zeilen.some((z) => z.subjekt_typ === 'name'), belegteKanten: idsVon('elternschaft'), belegteTodOrte: idsVon('ereignis') }
+}
+
+/** Kernangaben (AP-1.34 PR-D, ADR-031): Auswertung im Kern (`kernangabenAuswerten`), hier nur die
+ * Eingabe aus bereits geladenen Teilen plus EINE Nachladung (`kernBelegeLaden`). Platzhalter: `null`
+ * ohne Nachladen. „Hat Wert" = `wert_text`/`wert_zahl`/`wert_ref_id`/`datum_wert1` nicht NULL,
+ * „belegt" = mindestens ein `aussage_zitat` (D1). */
+function kernangabenBauen(
+  db: Database.Database,
+  kopfZeile: KopfZeile,
+  aussagen: readonly AussageZeile[],
+  belegeKarte: ReadonlyMap<string, readonly PersonDetailBeleg[]>,
+  eltern: readonly ElternZeile[],
+  todEreignisZeilen: readonly TodEreignisZeile[],
+): PersonDetailKernangaben | null {
+  if (kopfZeile.ist_platzhalter === 1) return null
+
+  const belege = kernBelegeLaden(db, kopfZeile.person_id)
+  const aussagenZu = (praedikat: string): readonly KernAussage[] =>
+    aussagen
+      .filter((a) => a.praedikat === praedikat)
+      .map((a) => ({
+        hatWert: a.wert_text !== null || a.wert_zahl !== null || a.wert_ref_id !== null || a.datum_wert1 !== null,
+        belegt: (belegeKarte.get(a.id)?.length ?? 0) > 0,
+      }))
+
+  return kernangabenAuswerten({
+    istPlatzhalter: false,
+    lebendStatus: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
+    geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
+    hauptformBelegt: belege.hauptformBelegt,
+    geburtsdatum: aussagenZu('geburtsdatum'),
+    geburtsort: aussagenZu('geburtsort'),
+    todesdatum: aussagenZu('todesdatum'),
+    todesort: aussagenZu('todesort'),
+    todEreignisse: todEreignisZeilen.map((e) => ({ ortVorhanden: e.ort_id !== null, ortBelegt: belege.belegteTodOrte.has(e.id) })),
+    eltern: eltern.map((zeile) => ({
+      id: zeile.person_id,
+      geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht),
+      belegt: belege.belegteKanten.has(zeile.kante_id),
+    })),
+  })
+}
+
 /** `abfrage:person.detail` (55_Architektur.md §5, AP-1.7 PR-A). */
 export function personDetail(db: Database.Database, ein: PersonDetailEin): PersonDetailAus {
   if (!datensatzExistiert(db, 'person', ein.personId)) {
@@ -771,7 +857,8 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
 
   const beziehungsZeilen = beziehungsZeilenLaden(db, ein.personId)
   const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
-  const sterbeort = sterbeortBauen(db, ein.personId, aussagen)
+  const todEreignisZeilen = todEreignisseLaden(db, ein.personId)
+  const sterbeort = sterbeortBauen(db, aussagen, todEreignisZeilen)
   const warnungen = warnungenBauen(db, ein.personId)
 
   return {
@@ -795,5 +882,6 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     sterbeort,
     warnungen,
     offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
+    kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, todEreignisZeilen),
   }
 }
