@@ -491,6 +491,23 @@ describe('name.anlegen/name.aendern mit Vatersname (AP-1.30 PR 3, V-3-flache-bru
     }
   })
 
+  it('nur den Vatersnamen ändern bei WORTGETREUEM original_text ist KEIN No-op (hueter #153, 6)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      // Wortgetreue Schreibung, die nicht der Montage gleicht: der No-op-Vergleich darf sich nicht allein
+      // auf original_text stützen, sonst würde die Änderung des Vatersnamens still verschluckt.
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN, originalText: 'Ivan Petrovič' })
+      const anzahlVorher = transaktionAnzahl(db)
+      fuehreAus(db, 'name.aendern', { id, ...IWAN, vatersname: 'Pawlowitsch', originalText: 'Ivan Petrovič' })
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Pawlowitsch', sortier_index: 0 }])
+      expect(originalText(db, id)).toBe('Ivan Petrovič')
+    } finally {
+      db.close()
+    }
+  })
+
   it('identische Werte samt Vatersname bleiben ein No-op (AP-0.22)', () => {
     const db = neueTestDatenbank()
     try {
