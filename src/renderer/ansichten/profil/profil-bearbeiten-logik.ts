@@ -14,7 +14,8 @@ import type { BeteiligungRolleEnum } from '../../../shared/schemata/beteiligung'
 import type { EreignisAnlegenEin, NameAendernEin, NameAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
 import type { EreignisTypEnum } from '../../../shared/schemata/ereignis'
 import type { Datumswert as VertragsDatumswert } from '../../../shared/schemata/import-v1'
-import type { NameTypEnum, SchriftEnum } from '../../../shared/schemata/name'
+import { istMontierterOriginalText } from '../../../core/name/zerlegung'
+import type { NameTypEnum, SchriftEnum, UmschriftNormEnum } from '../../../shared/schemata/name'
 import type { GeschlechtEnum, PlatzhalterGrundEnum } from '../../../shared/schemata/person'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
 import type { SucheEin } from '../../../shared/schemata/person-liste'
@@ -33,6 +34,20 @@ export interface NamenEintragWerte {
   readonly titelVor: string
   readonly zusatzNach: string
   readonly rufname: string
+  /** AP-1.30 PR 2a (Bugfix Namens-Rundreise): Felder, die die Maske NICHT anzeigt, die
+   * `name.aendern` („ersetzt alles") aber sonst auf NULL setzte — unverändert aus dem Lesemodell
+   * mitgetragen und zurückgereicht. `rufnameIndex` gilt nur, solange er noch auf den Rufnamen zeigt
+   * (s. `nameAendernEinAusEintrag`). */
+  readonly rufnameIndex: number | null
+  readonly umschriftVon: string | null
+  readonly umschriftNorm: z.infer<typeof UmschriftNormEnum> | null
+  readonly sprache: string | null
+  readonly gueltigVon: number | null
+  readonly gueltigBis: number | null
+  /** Die WORTGETREUE Schreibung (`original_text`), die erhalten bleiben muss — `null`, wenn der
+   * gespeicherte Text nur die automatische Montage der Teile war (dann montiert der Befehl ihn aus
+   * den neuen Teilen neu). Entschieden beim Lesen (`namenEintragAusPersonDetailName`). */
+  readonly originalTextWortgetreu: string | null
 }
 
 /** Startwert des „neuen Namen erfassen"-Formulars — `typ: 'sonstiges'`, weil ein neu ergänzter
@@ -47,6 +62,31 @@ export const NAMEN_EINTRAG_LEER: NamenEintragWerte = {
   titelVor: '',
   zusatzNach: '',
   rufname: '',
+  rufnameIndex: null,
+  umschriftVon: null,
+  umschriftNorm: null,
+  sprache: null,
+  gueltigVon: null,
+  gueltigBis: null,
+  originalTextWortgetreu: null,
+}
+
+/** Die `original_text`-Regel (AP-1.30 PR 2a) steht NUR hier: ein gespeicherter Text, der der
+ * Montage der gespeicherten Teile entspricht, war automatisch erzeugt und wird verworfen (der Befehl
+ * montiert neu); jeder andere ist eine wortgetreue Schreibung und wird zurückgereicht. Hier statt in
+ * `name-aendern.ts`, weil der Befehl seine Semantik „ersetzt alles, ein fehlender `originalText` wird
+ * montiert" behält — nur der Aufrufer, der die Form gelesen hat, weiß, ob er eine Quelle zurückgibt. */
+function wortgetreuerOriginalText(name: PersonDetailName): string | null {
+  const flach = {
+    vornamen: name.vornamen,
+    rufnameIndex: name.rufname_index,
+    rufnameText: name.rufname_text,
+    nachname: name.nachname,
+    praefix: name.praefix,
+    titelVor: name.titel_vor,
+    zusatzNach: name.zusatz_nach,
+  }
+  return istMontierterOriginalText(name.original_text, flach) ? null : name.original_text
 }
 
 export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEintragWerte {
@@ -59,7 +99,24 @@ export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEi
     titelVor: name.titel_vor ?? '',
     zusatzNach: name.zusatz_nach ?? '',
     rufname: name.rufname_text ?? '',
+    rufnameIndex: name.rufname_index,
+    umschriftVon: name.umschrift_von,
+    umschriftNorm: name.umschrift_norm,
+    sprache: name.sprache,
+    gueltigVon: name.gueltig_von,
+    gueltigBis: name.gueltig_bis,
+    originalTextWortgetreu: wortgetreuerOriginalText(name),
   }
+}
+
+/** Der mitgetragene `rufnameIndex` gilt nur, solange er auf einen Vornamen zeigt, der dem (evtl.
+ * geänderten) Rufnamen gleicht — sonst gewönne der alte Index in `zerlegeName` gegen einen neu
+ * eingetippten Rufnamen bzw. markierte nach geänderten Vornamen den falschen. Er bleibt nötig, wo der
+ * Text allein mehrdeutig ist (zwei gleiche Vornamen, „Johann Georg Johann"). */
+function gueltigerRufnameIndex(eintrag: NamenEintragWerte): number | undefined {
+  if (eintrag.rufnameIndex === null) return undefined
+  const vornamen = eintrag.vornamen.trim().split(/\s+/u)
+  return vornamen[eintrag.rufnameIndex] === eintrag.rufname.trim() ? eintrag.rufnameIndex : undefined
 }
 
 /** `''` → `undefined` (Befehlsnutzlast kennt optionale Felder, keinen leeren String, s.
@@ -83,6 +140,9 @@ export function nameAnlegenEinAusEintrag(personId: string, eintrag: NamenEintrag
   }
 }
 
+/** `name.aendern` ersetzt die ganze Form — darum JEDES Vertragsfeld, auch die nicht angezeigten
+ * (AP-1.30 PR 2a). `istBevorzugt` fehlt bewusst: der Befehl ignoriert es (Hauptname-Wechsel über
+ * `befehl:hauptname.wechseln`, AP-1.33). */
 export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte): NameAendernEin {
   return {
     id,
@@ -94,6 +154,13 @@ export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte)
     titelVor: textOderUndefined(eintrag.titelVor),
     zusatzNach: textOderUndefined(eintrag.zusatzNach),
     rufnameText: textOderUndefined(eintrag.rufname),
+    rufnameIndex: gueltigerRufnameIndex(eintrag),
+    umschriftVon: eintrag.umschriftVon ?? undefined,
+    umschriftNorm: eintrag.umschriftNorm ?? undefined,
+    sprache: eintrag.sprache ?? undefined,
+    gueltigVon: eintrag.gueltigVon ?? undefined,
+    gueltigBis: eintrag.gueltigBis ?? undefined,
+    originalText: eintrag.originalTextWortgetreu ?? undefined,
   }
 }
 

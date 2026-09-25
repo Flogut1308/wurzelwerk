@@ -22,7 +22,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
-import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
+import { NamePartArtEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from '../../shared/schemata/name'
 import { hatAnzeigetext } from '../../core/name/anzeigename'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
@@ -103,6 +103,10 @@ interface FormZeile {
   readonly schrift: string | null
   readonly ist_bevorzugt: number
   readonly original_text: string | null
+  readonly umschrift_norm: string | null
+  readonly sprache: string | null
+  readonly gueltig_von: number | null
+  readonly gueltig_bis: number | null
 }
 
 interface Namen {
@@ -129,7 +133,9 @@ function namenLaden(db: Database.Database, personId: string): Namen {
       { readonly personId: string },
       FormZeile
     >(`SELECT id AS id, rolle AS rolle, umschrift_von AS umschrift_von, schrift AS schrift,
-              ist_bevorzugt AS ist_bevorzugt, original_text AS original_text
+              ist_bevorzugt AS ist_bevorzugt, original_text AS original_text,
+              umschrift_norm AS umschrift_norm, sprache AS sprache,
+              gueltig_von AS gueltig_von, gueltig_bis AS gueltig_bis
        FROM name_form
        WHERE person_id = @personId
        ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id`,
@@ -172,6 +178,15 @@ function namenLaden(db: Database.Database, personId: string): Namen {
       titel_vor: flach.titelVor,
       zusatz_nach: flach.zusatzNach,
       rufname_text: flach.rufnameText,
+      // AP-1.30 PR 2a: alle übrigen Felder, die `name.aendern` annimmt — die Profil-Logik reicht sie
+      // unverändert zurück, sonst setzte der „ersetzt alles"-Befehl sie still auf NULL.
+      rufname_index: flach.rufnameIndex,
+      umschrift_von: form.umschrift_von,
+      umschrift_norm: form.umschrift_norm === null ? null : UmschriftNormEnum.parse(form.umschrift_norm),
+      sprache: form.sprache,
+      gueltig_von: form.gueltig_von,
+      gueltig_bis: form.gueltig_bis,
+      original_text: form.original_text,
     }
   })
   return { namen, nameVorhanden }
