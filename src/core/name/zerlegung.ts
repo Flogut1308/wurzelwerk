@@ -134,15 +134,15 @@ export interface RekonstruierterName {
   readonly vatersname: string | null
 }
 
-function ersterWert(teile: readonly GeladenerTeil[], art: NamePartArt): string | null {
-  const treffer = teile.filter((teil) => teil.art === art).sort((a, b) => a.sortierIndex - b.sortierIndex)
-  const erster = treffer[0]
-  return erster !== undefined ? erster.wert : null
-}
-
+/** Verkettet alle Teile einer Art in `sortierIndex`-Reihenfolge (gleicher Index: Ladereihenfolge),
+ * leerzeichengetrennt. Teile aus reinen Leerzeichen zählen nicht mit (sie werden normalerweise gar nicht
+ * persistiert, Vorgaben §2.3) — sonst verdrängte ein leerer Wert nichts, erzeugte aber Doppelleerzeichen.
+ * Gilt für alle Arten außer `vorname` (dort zählt die Position für `rufnameIndex`). Seit der
+ * Eigentümer-Entscheidung E2 vom 25.09.2026 (docs/80 §32 V-4b-ersterwert) auch für Titel, Präfix und
+ * Zusatz: vorher übernahm die Rekonstruktion je Art nur den ersten Wert. */
 function verkette(teile: readonly GeladenerTeil[], art: NamePartArt): string | null {
   const treffer = teile
-    .filter((teil) => teil.art === art)
+    .filter((teil) => teil.art === art && teil.wert.trim() !== '')
     .sort((a, b) => a.sortierIndex - b.sortierIndex)
     .map((teil) => teil.wert)
   return treffer.length > 0 ? treffer.join(' ') : null
@@ -167,9 +167,9 @@ export function rekonstruiereFlach(teile: readonly GeladenerTeil[]): Rekonstruie
     rufnameIndex: rufnamePosition >= 0 ? rufnamePosition : null,
     rufnameText: rufname !== undefined ? rufname.wert : null,
     nachname: verkette(teile, 'nachname'),
-    praefix: ersterWert(teile, 'praefix'),
-    titelVor: ersterWert(teile, 'titel'),
-    zusatzNach: ersterWert(teile, 'suffix'),
+    praefix: verkette(teile, 'praefix'),
+    titelVor: verkette(teile, 'titel'),
+    zusatzNach: verkette(teile, 'suffix'),
     vatersname: verkette(teile, 'vatersname'),
   }
 }
