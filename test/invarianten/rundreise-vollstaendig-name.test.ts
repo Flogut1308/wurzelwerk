@@ -9,6 +9,14 @@
 // Eiserne Regel §5: rot gegen den unveränderten Stand, grün nach dem Fix. Der Vollständigkeitstest
 // läuft über die Schlüssel des Vertragsschemas von `name.aendern` — ein neuer Vertragsschlüssel ohne
 // Rundreise (Lesemodell → Profil → Befehl) macht ihn rot.
+//
+// GESCHÜTZTER PRÜFPFAD (AP-1.30 PR 9a-b, ADR-025, docs/80 §33 V-130-2a-rundreise): aus
+// `test/einheit/profil-name-rundreise.test.ts` hierher verschoben, Zusicherungen unverändert. Dazu
+// sind die Ausnahmelisten `BEWUSST_IGNORIERT`/`KEIN_SPALTENWERT` fest gepinnt (erster Test unten):
+// eine stille Erweiterung schaltete den Vollständigkeitstest für diesen Schlüssel ab — jetzt ist sie
+// eine Änderung am geschützten Prüfpfad mit eigener Begründung im Review. Der Import aus
+// `src/renderer` ist zulässig: dependency-cruiser prüft nur `src/`, ESLint hat für `test/` keine
+// Schichtregel (tsconfig.json schließt `test` und `src/renderer` gemeinsam ein).
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -129,6 +137,11 @@ function quellformAnlegen(db: Db, personId: string): string {
 }
 
 describe('Profil-Namensänderung erhält alle Felder der Form (AP-1.30 PR 2a)', () => {
+  it('Ausnahmelisten sind fest gepinnt: jede Erweiterung ist eine Prüfpfad-Änderung (AP-1.30 PR 9a-b)', () => {
+    expect([...BEWUSST_IGNORIERT].sort()).toStrictEqual(['id', 'istBevorzugt'])
+    expect([...KEIN_SPALTENWERT].sort()).toStrictEqual(['feld', 'id'])
+  })
+
   it('Vollständigkeit: jeder Vertragsschlüssel von name.aendern hat einen Nicht-Standardwert und eine Spalte', () => {
     const db = neueTestDatenbank()
     try {
