@@ -60,6 +60,13 @@ export type Zweig =
   /** `aussage.aendern` mit `datumBeibehalten: true` an einer Aussage, die vorher ein Datum trug —
    * nach dem Befehl dieselbe Datumsgruppe in allen elf Spalten (AP-1.30 PR 4c, V-E5-erhalt). */
   | 'aussage.aendern.datumBeibehalten'
+  /** `name.anlegen`/`name.aendern` (auch die weitere Form), nach dem Befehl hat die Form einen
+   * `name_part(art = 'vatersname')` — am Datenbankergebnis gemessen (AP-1.30 PR 3b, docs/80 §33
+   * V-130-3-vatersname). */
+  | 'name.vatersname.gesetzt'
+  /** `name.aendern` an einer Form, die vorher einen Vatersnamen-Teil trug und danach keinen mehr
+   * (Löschen des Teils, fehlt = null). */
+  | 'name.vatersname.entfernt'
   | 'beleg.anlegen.ohneAnker'
   | 'beleg.anlegen.anker'
   /** Der Ausschnitt enthält eine Nicht-ASCII-Codeeinheit. */
