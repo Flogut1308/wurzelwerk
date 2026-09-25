@@ -326,6 +326,8 @@ export interface AktionNameAnlegen {
   readonly typ: NameTyp
   readonly nachname: string
   readonly vornamen: string
+  /** AP-1.30 PR 3b: fehlt = kein Vatersname (null, V-130-2a), s. `vatersnameArbitrary()`. */
+  readonly vatersname?: string
 }
 
 export interface AktionNameAendern {
@@ -334,6 +336,8 @@ export interface AktionNameAendern {
   readonly typ: NameTyp
   readonly nachname: string
   readonly vornamen: string
+  /** AP-1.30 PR 3b: fehlt = kein Vatersname (null, V-130-2a), s. `vatersnameArbitrary()`. */
+  readonly vatersname?: string
 }
 
 export interface AktionNameLoeschen {
@@ -369,6 +373,8 @@ export interface AktionNameWeitereFormAnlegen {
   readonly typ: NameTyp
   readonly nachname: string
   readonly vornamen: string
+  /** AP-1.30 PR 3b: fehlt = kein Vatersname (null, V-130-2a), s. `vatersnameArbitrary()`. */
+  readonly vatersname?: string
 }
 
 export interface AktionElternschaftAnlegen {
@@ -799,6 +805,39 @@ function feldwertArbitrary(): fc.Arbitrary<FeldwertOhneId> {
   )
 }
 
+/**
+ * AP-1.30 PR 3b (Prüfpfad-Folge zu #153, docs/80 §33 V-130-3-vatersname): Vatersname für
+ * `name.anlegen`/`name.aendern`. Der Schlüssel fehlt in etwa der Hälfte der Aktionen
+ * (`requiredKeys` ohne `vatersname`) — ein `name.aendern` ohne ihn LÖSCHT einen vorhandenen
+ * Vatersnamen-Teil (fehlt = null), eines mit ihm legt den Teil neu an; beides prüft
+ * `undo-bitgleich` (Rücknahme stellt `name_part` bitgleich her), `kennung-nie-neu-vergeben` (neue
+ * `name_part`-IDs) und `genau-ein-hauptname` mit. Werte: ein- und mehrteilig („Petrowitsch
+ * Sidorow" — EIN Teil, `sortier_index` 0), Apostroph/Sonderzeichen/Kyrillisch/Ersatzpaar, freie
+ * Zeichenketten (auch leer — erzeugt keinen Teil), und mit kleinem Gewicht reiner Leerraum: das
+ * Schema (`z.string().optional()`) und `name_part.wert` (nur `NOT NULL`) nehmen ihn an,
+ * `zerlegeName` legt ihn als Teil an.
+ */
+function vatersnameArbitrary(): fc.Arbitrary<string> {
+  return fc.oneof(
+    {
+      weight: 3,
+      arbitrary: fc.constantFrom(
+        'Iwanowitsch',
+        'Petrowitsch Sidorow',
+        "O'Brien",
+        "d'Aboville",
+        'Ольгович',
+        'ibn Chaldūn',
+        'Nikolajewna-Šimková',
+        'Sohn des 😀 Jakob',
+      ),
+    },
+    { weight: 2, arbitrary: fc.string() },
+    { weight: 1, arbitrary: fc.array(fc.string({ minLength: 1 }), { minLength: 2, maxLength: 3 }).map((w) => w.join(' ')) },
+    { weight: 1, arbitrary: fc.constantFrom(' ', '  \t') },
+  )
+}
+
 function nameAnlegenAktionArbitrary(): fc.Arbitrary<AktionNameAnlegen> {
   return fc
     .record({
@@ -806,7 +845,8 @@ function nameAnlegenAktionArbitrary(): fc.Arbitrary<AktionNameAnlegen> {
       typ: fc.constantFrom(...NameTypEnum.options),
       nachname: fc.string(),
       vornamen: fc.string(),
-    })
+      vatersname: vatersnameArbitrary(),
+    }, { requiredKeys: ['personZielRoh', 'typ', 'nachname', 'vornamen'] })
     .map((r): AktionNameAnlegen => ({ art: 'nameAnlegen', ...r }))
 }
 
@@ -817,7 +857,8 @@ function nameAendernAktionArbitrary(): fc.Arbitrary<AktionNameAendern> {
       typ: fc.constantFrom(...NameTypEnum.options),
       nachname: fc.string(),
       vornamen: fc.string(),
-    })
+      vatersname: vatersnameArbitrary(),
+    }, { requiredKeys: ['nameZielRoh', 'typ', 'nachname', 'vornamen'] })
     .map((r): AktionNameAendern => ({ art: 'nameAendern', ...r }))
 }
 
@@ -833,7 +874,8 @@ function nameWeitereFormAnlegenAktionArbitrary(): fc.Arbitrary<AktionNameWeitere
       typ: fc.constantFrom(...NameTypEnum.options),
       nachname: fc.string(),
       vornamen: fc.string(),
-    })
+      vatersname: vatersnameArbitrary(),
+    }, { requiredKeys: ['nameZielRoh', 'typ', 'nachname', 'vornamen'] })
     .map((r): AktionNameWeitereFormAnlegen => ({ art: 'nameWeitereFormAnlegen', ...r }))
 }
 
@@ -1285,6 +1327,15 @@ export type GeneratorProfil = 'bestand' | 'beleg'
  * `partnerschaft.loeschen` im Profil `bestand` auf 5 Treffer (Schwelle 6, main 12). Korrektur über
  * die Gewichtung (ADR-009-Nachtrag, nie Seed/`numRuns`): `partnerschaftLoeschen` steigt im Profil
  * `bestand` auf 2 (danach 23 Treffer); alle übrigen Schwellen bleiben erfüllt.
+ *
+ * AP-1.30 PR 3b (Vatersname in den Namensaktionen, `vatersnameArbitrary()`): der neue Schlüssel
+ * verschiebt den Zufallsstrom erneut; danach fiel `aussage_zitat.aendern` auf 1 (Schwelle 3), mit
+ * nur diesem Ausgleich `elternschaft.aendern` auf 6 (Schwelle 7) und `ortszugehoerigkeit.*` unter
+ * ihre Schwellen. Korrektur über die Gewichtung, nur im Profil `bestand` (ADR-009-Nachtrag, nie
+ * Seed/`numRuns`): `aussageZitatAendern` 1 → 2, `elternschaftAendern` 1 → 2,
+ * `ortszugehoerigkeitAnlegen` 2 → 3. Danach u. a. `aussage_zitat.aendern` 6, `elternschaft.aendern`
+ * 11, `ortszugehoerigkeit.aendern`/`.anlegen`/`.loeschen` 9/55/7, `name.aendern` 24, alle übrigen
+ * Schwellen erfüllt (vollständige Zahlen im PR-Bericht).
  */
 function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
   // `g(bestand, beleg)`: Gewicht je Profil (s. `GeneratorProfil`).
@@ -1304,7 +1355,7 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: 2, arbitrary: hauptnameWechselnAktionArbitrary() },
     { weight: g(2, 3), arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
-    { weight: 1, arbitrary: elternschaftAendernAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: elternschaftAendernAktionArbitrary() },
     { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: partnerschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: partnerschaftAendernAktionArbitrary() },
@@ -1318,7 +1369,7 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: 3, arbitrary: aussageFaktAendernAktionArbitrary() },
     { weight: g(2, 1), arbitrary: aussageAendernAktionArbitrary() },
     { weight: g(2, 4), arbitrary: aussageZitatAnlegenAktionArbitrary(profil) },
-    { weight: g(1, 3), arbitrary: aussageZitatAendernAktionArbitrary() },
+    { weight: g(2, 3), arbitrary: aussageZitatAendernAktionArbitrary() },
     { weight: g(1, 2), arbitrary: belegAblehnenAktionArbitrary() },
     { weight: 1, arbitrary: aussageZitatLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ortAnlegenAktionArbitrary() },
@@ -1326,7 +1377,7 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: g(2, 1), arbitrary: ortsnameAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
-    { weight: g(2, 3), arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
+    { weight: 3, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
     { weight: g(2, 1), arbitrary: ortExterneIdAnlegenAktionArbitrary() },
@@ -1796,6 +1847,41 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): read
   return zweige
 }
 
+/**
+ * AP-1.30 PR 3b: Rundreise-Orakel für den Vatersnamen nach `name.anlegen`/`name.aendern`, am
+ * Datenbankergebnis. Ohne Eingabe (fehlt = null) oder bei leerer Eingabe trägt die Form KEINEN
+ * `name_part(art = 'vatersname')`, sonst GENAU EINEN mit `wert` = Eingabe (auch mehrteilig, V-130-3-
+ * vatersname). Ein Verlust, den Anlegen/Ändern gleichmäßig machen, bliebe sonst undo-bitgleich und
+ * unbemerkt (Gegenprobe: `aktualisieren` ohne Vatersname). Gibt zurück, ob die Form einen trägt
+ * (Deckungszweige `name.vatersname.*`).
+ */
+function vatersnamePruefen(db: Tx, nameFormId: string, erwartet: string | undefined): boolean {
+  const teile = db
+    .prepare<{ readonly nameFormId: string }, { readonly wert: string }>(
+      "SELECT wert FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname' ORDER BY id",
+    )
+    .all({ nameFormId })
+    .map((t) => t.wert)
+  const soll = erwartet === undefined || erwartet === '' ? [] : [erwartet]
+  if (teile.length !== soll.length || teile.some((wert, i) => wert !== soll[i])) {
+    throw new Error(
+      `Vatersname-Rundreise verletzt (name_form ${nameFormId}): erwartet ${JSON.stringify(soll)}, gespeichert ${JSON.stringify(teile)}.`,
+    )
+  }
+  return teile.length > 0
+}
+
+/** Trägt die Form VOR `name.aendern` einen Vatersnamen-Teil? (Zweig `name.vatersname.entfernt`). */
+function vatersnameTeilVorhanden(db: Tx, nameFormId: string): boolean {
+  return (
+    db
+      .prepare<{ readonly nameFormId: string }, { readonly id: string }>(
+        "SELECT id FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname'",
+      )
+      .get({ nameFormId }) !== undefined
+  )
+}
+
 /** Bevorzugte Aussage desselben (Subjekt, Prädikat) vorhanden? — dann demoted ein weiteres
  * `aussage.anlegen` mit `istBevorzugt: 1` sie (Zweig `demote`). */
 function bevorzugteAussageBesteht(db: Tx, subjektTyp: AussageSubjektKind, subjektId: string, praedikat: string): boolean {
@@ -1900,7 +1986,11 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         typ: aktion.typ,
         nachname: aktion.nachname,
         vornamen: aktion.vornamen,
+        vatersname: aktion.vatersname,
       })
+      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+        zweige.push('name.vatersname.gesetzt')
+      }
       zustand.namen.push({ id, personId })
       return
     }
@@ -1910,7 +2000,19 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      befehl(zweige, db, 'name.aendern', { id: ziel.id, typ: aktion.typ, nachname: aktion.nachname, vornamen: aktion.vornamen })
+      const vorherMitVatersname = vatersnameTeilVorhanden(db, ziel.id)
+      befehl(zweige, db, 'name.aendern', {
+        id: ziel.id,
+        typ: aktion.typ,
+        nachname: aktion.nachname,
+        vornamen: aktion.vornamen,
+        vatersname: aktion.vatersname,
+      })
+      if (vatersnamePruefen(db, ziel.id, aktion.vatersname)) {
+        zweige.push('name.vatersname.gesetzt')
+      } else if (vorherMitVatersname) {
+        zweige.push('name.vatersname.entfernt')
+      }
       return
     }
 
@@ -1939,7 +2041,11 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         typ: aktion.typ,
         nachname: aktion.nachname,
         vornamen: aktion.vornamen,
+        vatersname: aktion.vatersname,
       })
+      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+        zweige.push('name.vatersname.gesetzt')
+      }
       zustand.namen.push({ id, personId: vorhandene.personId })
       return
     }

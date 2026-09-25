@@ -168,6 +168,11 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['undo.entwertung', 1],
   // AP-1.30 Vorarbeiten Teil 3, PR 4c (V-E5-erhalt): Branch-Wert 8 mit diesem Seed/`numRuns`.
   ['aussage.aendern.datumBeibehalten', 4],
+  // AP-1.30 PR 3b (docs/80 §33 V-130-3-vatersname), am Datenbankergebnis gemessen: Form trägt nach
+  // `name.anlegen`/`name.aendern` einen Vatersnamen-Teil (Branch-Wert 202) bzw. `name.aendern` hat
+  // ihn gelöscht (Branch-Wert 4) — Schwelle je die Hälfte.
+  ['name.vatersname.gesetzt', 101],
+  ['name.vatersname.entfernt', 2],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
