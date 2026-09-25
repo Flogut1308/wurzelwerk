@@ -17,7 +17,7 @@
   },
   "VALIDIERUNG_ORTSWERT": {
     "titel": "Hier gehört ein Ort hin",
-    "was_tun": "Einen Ort aus der Ortsliste wählen oder den Ort als Text eingeben. Eine Zahl ist kein Ort."
+    "was_tun": "Einen Ort aus der Ortsliste wählen oder den Ort als Text eingeben. Eine Zahl oder ein Datum ist kein Ort."
   },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",

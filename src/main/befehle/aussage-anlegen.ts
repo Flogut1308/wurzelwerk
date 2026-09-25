@@ -49,7 +49,7 @@ function subjektExistenzPruefen(tx: Tx, ein: Pick<AussageAnlegenEin, 'subjektTyp
 
 export function aussageAnlegen(tx: Tx, ein: AussageAnlegenEin): { readonly id: string } {
   subjektExistenzPruefen(tx, ein)
-  ortswertPruefen(ein.praedikat, ein.wertZahl)
+  ortswertPruefen(ein.praedikat, { wertZahl: ein.wertZahl, datum: ein.datum })
 
   // Konsistent zum sonstigen Muster (z. B. `elternschaft-anlegen.ts`): eine referenzierte, nicht
   // existierende `zitat`-Zeile wird VOR dem Schreiben geprüft, statt den `INSERT INTO aussage_zitat`
