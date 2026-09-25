@@ -16,14 +16,14 @@
 // AP-1.10 PR-A (U-1.6-suche-ohne-filter-sortierung-seite): `ein.grenze` bleibt das Kandidatenfenster
 // über Volltext+Phonetik (wie bisher), aber Filter/Sortierung/Seite wirken jetzt DARAUF — mit genau
 // den Funktionen aus `src/main/abfragen/person-liste.ts` (`filterBedingungen`, `whereSql`,
-// `zeilenLaden`, `vergleicheZeilen`, `zeileZuAusgabe`), keine zweite Implementierung. Die
+// `sortierZeilenLaden`, `sortiereZeilen`, `zeilenFuerIdsLaden`, `zeileZuAusgabe`), keine zweite Implementierung. Die
 // Bedienelemente der Listenansicht bleiben darum während einer aktiven Suche wirksam, statt
 // sichtbar gesperrt zu werden (`src/renderer/ansichten/liste/listen-ansicht.tsx`).
 import type Database from 'better-sqlite3'
 import { sucheAnfrageBauen } from '../../core/suche/anfrage'
 import type { SucheAus, SucheEin, SucheTreffer } from '../../shared/schemata/person-liste'
 import { anzeigenamenLaden } from './_anzeigenamen'
-import { filterBedingungen, sortiereZeilen, whereSql, zeileZuAusgabe, zeilenLaden } from './person-liste'
+import { filterBedingungen, sortiereZeilen, sortierZeilenLaden, whereSql, zeileZuAusgabe, zeilenFuerIdsLaden } from './person-liste'
 
 interface VolltextZeile {
   readonly person_id: string | null
@@ -143,17 +143,16 @@ export function suche(db: Database.Database, ein: SucheEin): SucheAus {
   const { bedingungen, parameter } = filterBedingungen(ein.filter)
   const { bedingung: idsBedingungText, parameter: idsParameter } = idsBedingung(kandidatenIds)
   const whereKlausel = whereSql([...bedingungen, idsBedingungText])
-  const zeilen = zeilenLaden(db, whereKlausel, { ...parameter, ...idsParameter })
+  const zeilen = sortierZeilenLaden(db, whereKlausel, { ...parameter, ...idsParameter }, ein.sortierung)
 
   const sortiert = sortiereZeilen(zeilen, ein)
   const start = (ein.seite - 1) * ein.proSeite
-  const seite = sortiert.slice(start, start + ein.proSeite)
+  const seitenIds = sortiert.slice(start, start + ein.proSeite).map((zeile) => zeile.person_id)
 
-  // Sichtbarer Name aus dem Kern, nur für die Treffer der Seite (Vorarbeiten AP-1.30, PR 4a).
-  const anzeigenamen = anzeigenamenLaden(
-    db,
-    seite.map((zeile) => zeile.person_id),
-  )
+  // Volle Zeilen und sichtbarer Name (aus dem Kern) nur für die Treffer der Seite (Vorarbeiten
+  // AP-1.30, PR 4a; zwei Phasen seit Teil 2, PR 5).
+  const seite = zeilenFuerIdsLaden(db, seitenIds)
+  const anzeigenamen = anzeigenamenLaden(db, seitenIds)
   const treffervoll: SucheTreffer[] = []
   for (const zeile of seite) {
     const quelle = quelleJePersonId.get(zeile.person_id)

@@ -3,7 +3,7 @@
 // die 2000er-Fixture (test/hilfsmittel/grossbestand.ts) und gegen gezielte Umlaut-/Leerfälle.
 import { describe, expect, it } from 'vitest'
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
-import { filterBedingungen, sortiereZeilen, vergleicheZeilen, whereSql, zeilenLaden, type RohZeile, type SortierEingabe } from '../../src/main/abfragen/person-liste'
+import { filterBedingungen, sortiereZeilen, sortierZeilenLaden, vergleicheZeilen, whereSql, type SortierEingabe, type SortierZeile } from '../../src/main/abfragen/person-liste'
 import { namensSortierschluessel, vergleicheNamen, vergleicheNamensschluessel } from '../../src/core/liste/sortierung'
 
 const SORTIERUNGEN: readonly SortierEingabe[] = (['nachname', 'vornamen', 'geburt', 'tod'] as const).flatMap((sortierung) =>
@@ -15,10 +15,10 @@ describe('sortiereZeilen = Referenzsortierung (Vorarbeiten AP-1.30, PR 4a)', () 
     const db = grossbestandAufbauen()
     try {
       const { bedingungen, parameter } = filterBedingungen({ platzhalter: 'alle', privat: 'alle', nurWiderspruch: false })
-      const zeilen = zeilenLaden(db, whereSql(bedingungen), parameter)
-      expect(zeilen.length).toBeGreaterThan(1000)
       for (const ein of SORTIERUNGEN) {
-        const referenz = [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein)).map((z: RohZeile) => z.person_id)
+        const zeilen = sortierZeilenLaden(db, whereSql(bedingungen), parameter, ein.sortierung)
+        expect(zeilen.length).toBeGreaterThan(1000)
+        const referenz = [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein)).map((z: SortierZeile) => z.person_id)
         expect(sortiereZeilen(zeilen, ein).map((z) => z.person_id)).toEqual(referenz)
       }
     } finally {
