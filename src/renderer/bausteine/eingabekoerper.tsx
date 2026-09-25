@@ -21,6 +21,9 @@ export interface EingabekoerperProps {
   readonly ariaLabel?: string
   /** Das Feld wird verlassen (Blur) — AP-1.30: der Autosave schreibt dann sofort. */
   readonly aufVerlassen?: () => void
+  /** `id` eines Elements, das das Feld beschreibt (`aria-describedby`) — z. B. der
+   * Widerspruch-Hinweis direkt unter dem Feld (Design-Review E6). */
+  readonly beschreibungId?: string
 }
 
 /**
@@ -40,6 +43,7 @@ export function Eingabekoerper({
   id,
   ariaLabel,
   aufVerlassen,
+  beschreibungId,
 }: EingabekoerperProps) {
   return (
     <input
@@ -54,6 +58,7 @@ export function Eingabekoerper({
       name={name}
       id={id}
       aria-label={ariaLabel}
+      aria-describedby={beschreibungId}
       onBlur={aufVerlassen}
     />
   )

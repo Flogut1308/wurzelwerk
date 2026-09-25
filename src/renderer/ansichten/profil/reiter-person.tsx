@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../../core/datum/typen'
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
@@ -218,10 +218,10 @@ function Lebensstatus({ personId, status, warnungen, aufTodEinblenden }: Lebenss
 
 /** Feldwarnungen als Text unter dem Feld (D7, WCAG: Bedeutung nicht nur über Farbe). Text aus den
  * vorhandenen Prüfhinweis-Meldungen (U-1.34-C2b-texte). */
-function FeldWarnungen({ codes }: { readonly codes: readonly BestandHinweisCode[] }) {
+function FeldWarnungen({ codes, id }: { readonly codes: readonly BestandHinweisCode[]; readonly id?: string }) {
   const { t } = useTranslation('pruefhinweise')
   return (
-    <ul className="wz-reiter-person__warnungen">
+    <ul className="wz-reiter-person__warnungen" id={id}>
       {codes.map((code, index) => (
         // Mehrfachfunde desselben Codes sind möglich (U-1.34-C2b-mehrfach) — Position als Schlüssel.
         <li key={`${code}-${index}`} className="wz-reiter-person__warnung">
@@ -230,6 +230,17 @@ function FeldWarnungen({ codes }: { readonly codes: readonly BestandHinweisCode[
       ))}
     </ul>
   )
+}
+
+/** Feldwarnungen als `hinweis`-Slot von `Datumsfeld`/`Ortsfeld`: direkt unter dem Eingabekörper,
+ * per `aria-describedby` verknüpft (Design-Review E6). Ohne Warnung kein Slot. */
+function feldHinweis(codes: readonly BestandHinweisCode[]): { readonly hinweis?: ReactNode } {
+  return codes.length > 0 ? { hinweis: <FeldWarnungen codes={codes} /> } : {}
+}
+
+/** `id` der Feldwarnungen am gesperrten Wert (Ziel von `aria-describedby`). */
+function warnungenId(feldId: string): string {
+  return `${feldId}-hinweis`
 }
 
 /** Übersetzungsfunktion mit Werten (i18next `t`), für die reinen Hilfsfunktionen unten. */
@@ -404,12 +415,12 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
               }}
               kalenderErweitert={kalenderErweitert}
               aufKalenderErweitertAenderung={setKalenderErweitert}
+              {...feldHinweis(warnungen)}
             />
           </Formularfeld>
         </div>
         <Sicherheit angabe={angabe} aussage={aussage} feld={feld} schreiber={schreiber} aufBelegeOeffnen={aufBelegeOeffnen} />
       </div>
-      {warnungen.length > 0 ? <FeldWarnungen codes={warnungen} /> : null}
     </div>
   )
 }
@@ -499,6 +510,7 @@ function OrtAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, aufB
                 setSucht(false)
                 setHervorgehoben(null)
               }}
+              {...feldHinweis(warnungen)}
             />
           </Formularfeld>
         </div>
@@ -517,7 +529,6 @@ function OrtAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, aufB
           </Schaltflaeche>
         </div>
       )}
-      {warnungen.length > 0 ? <FeldWarnungen codes={warnungen} /> : null}
     </div>
   )
 }
@@ -597,7 +608,9 @@ function GesperrterWert({ personId, zustand, warnungen, idPraefix, aufSprung }: 
             wert={ereignisWertText(zustand.wert, t, tDatum)}
             aufAenderung={() => undefined}
             nurLesen
+            {...(warnungen.length > 0 ? { beschreibungId: warnungenId(editorFeldId(idPraefix, zustand.angabe)) } : {})}
           />
+          {warnungen.length > 0 ? <FeldWarnungen codes={warnungen} id={warnungenId(editorFeldId(idPraefix, zustand.angabe))} /> : null}
         </Formularfeld>
       </div>
       <Text rolle="hilfe" als="p">
@@ -613,7 +626,6 @@ function GesperrterWert({ personId, zustand, warnungen, idPraefix, aufSprung }: 
           {t('lebensdatum_ereignis_bearbeiten')}
         </Schaltflaeche>
       </div>
-      {warnungen.length > 0 ? <FeldWarnungen codes={warnungen} /> : null}
     </div>
   )
 }

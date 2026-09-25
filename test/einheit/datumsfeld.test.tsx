@@ -72,4 +72,26 @@ describe('Datumsfeld (docs/71_Designsystem.md §2.2/§3.1, AP-1.13 PR-A)', () =>
     const markup = renderToStaticMarkup(<Datumsfeld text="" aufAenderung={() => {}} {...GRUND_PROPS} ariaLabel="Geburtsdatum" gesperrt />)
     expect(markup).toContain('disabled=""')
   })
+
+  // Design-Review E6: der Widerspruch-Hinweis steht DIREKT unter dem Eingabekörper (vor Deutung und
+  // Kalenderknopf) und beschreibt das Eingabefeld per aria-describedby.
+  it('hinweis: folgt direkt auf das <input> und ist per aria-describedby verknüpft', () => {
+    const markup = renderToStaticMarkup(
+      <Datumsfeld text="1850" aufAenderung={() => {}} {...GRUND_PROPS} id="tod" ariaLabel="Todesdatum" hinweis="Tod vor Geburt" />,
+    )
+    expect(markup).toMatch(/<input[^>]*aria-describedby="tod-hinweis"[^>]*\/?><div id="tod-hinweis" class="wz-datumsfeld__hinweis">Tod vor Geburt<\/div><div class="wz-datumsfeld__interpretation"/)
+  })
+
+  it('ohne hinweis: kein aria-describedby, kein Hinweiselement', () => {
+    const markup = renderToStaticMarkup(<Datumsfeld text="1850" aufAenderung={() => {}} {...GRUND_PROPS} id="tod" ariaLabel="Todesdatum" />)
+    expect(markup).not.toContain('aria-describedby')
+    expect(markup).not.toContain('wz-datumsfeld__hinweis')
+  })
+
+  it('hinweis ohne id: die erzeugte Beschreibungs-id verweist auf das Hinweiselement', () => {
+    const markup = renderToStaticMarkup(<Datumsfeld text="" aufAenderung={() => {}} {...GRUND_PROPS} ariaLabel="Todesdatum" hinweis="Tod vor Geburt" />)
+    const treffer = /aria-describedby="([^"]+)"/.exec(markup)
+    expect(treffer).not.toBeNull()
+    expect(markup).toContain(`<div id="${treffer?.[1] ?? ''}" class="wz-datumsfeld__hinweis">`)
+  })
 })

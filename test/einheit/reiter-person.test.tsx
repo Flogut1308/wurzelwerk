@@ -302,6 +302,55 @@ describe('ReiterPerson (AP-1.30 PR 9b)', () => {
       expect(gruppe(container, 'Eckdaten')?.textContent).not.toContain('Tod vor Geburt')
       expect(aufrufe).toHaveLength(0)
     })
+
+    // Design-Review E6: die Warnung steht DIREKT unter dem Eingabekörper (vor Deutungszeile und
+    // Kalenderknopf) und beschreibt das Feld per aria-describedby — nicht unter der ganzen Angabe.
+    function beschreibung(feld: HTMLInputElement): HTMLElement {
+      const beschreibungId = feld.getAttribute('aria-describedby')
+      if (beschreibungId === null) throw new Error('aria-describedby fehlt')
+      const ziel = document.getElementById(beschreibungId)
+      if (ziel === null) throw new Error(`Beschreibung ${beschreibungId} fehlt`)
+      return ziel
+    }
+
+    it('Datum: Warnung folgt direkt auf das Eingabefeld und ist per aria-describedby verknüpft', () => {
+      zeigen(detail({ warnungen: [warnung] }))
+      const feld = eingabe(`${PRAEFIX}-feld-todesdatum`)
+      expect(feld.nextElementSibling).toBe(beschreibung(feld))
+      expect(beschreibung(feld).textContent).toBe('Tod vor Geburt')
+      expect(eingabe(`${PRAEFIX}-feld-geburtsdatum`).hasAttribute('aria-describedby')).toBe(false)
+    })
+
+    it('Ort: Warnung folgt direkt auf das Suchfeld und ist per aria-describedby verknüpft', () => {
+      zeigen(detail({ warnungen: [{ code: 'ereignis_vor_ortsexistenz', reiter: 'person', feld: 'geburtsort' }] }))
+      const feld = eingabe(`${PRAEFIX}-feld-geburtsort`)
+      expect(feld.nextElementSibling).toBe(beschreibung(feld))
+      expect(beschreibung(feld).textContent).toBe('Ereignis liegt außerhalb der Existenz des Ortes')
+    })
+
+    it('Wert aus Ereignis: Warnung folgt direkt auf den gesperrten Wert und ist per aria-describedby verknüpft', () => {
+      zeigen(
+        detail({
+          grunddaten: [],
+          lebensdaten: [
+            leer('geburtsdatum'),
+            leer('geburtsort'),
+            {
+              ...leer('todesdatum'),
+              herkunft: 'ereignis',
+              ereignis_id: 'e-2',
+              datum: { kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: '1850', wert2: null, originaltext: null, sortVon: 1, sortBis: 2 },
+            },
+            leer('todesort'),
+          ],
+          warnungen: [warnung],
+        }),
+      )
+      const feld = eingabe(`${PRAEFIX}-feld-todesdatum`)
+      expect(feld.readOnly).toBe(true)
+      expect(feld.nextElementSibling).toBe(beschreibung(feld))
+      expect(beschreibung(feld).textContent).toBe('Tod vor Geburt')
+    })
   })
 
   describe('Datum (D10, Autosave)', () => {

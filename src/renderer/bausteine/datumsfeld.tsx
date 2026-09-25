@@ -1,3 +1,4 @@
+import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../core/datum/typen'
 import { Auswahlfeld, type AuswahlfeldOption } from './auswahlfeld'
@@ -43,6 +44,11 @@ export interface DatumsfeldProps {
   readonly ariaLabel?: string
   /** Das Eingabefeld wird verlassen (Blur) — AP-1.30 PR 9b: der Autosave schreibt dann sofort. */
   readonly aufVerlassen?: () => void
+  /** Widerspruch-Hinweis zu diesem Feld (z. B. „Tod vor Geburt", D7/E6). Steht DIREKT unter dem
+   * Eingabekörper — vor Deutungszeile und Kalenderknopf, damit er eindeutig diesem Feld und nicht
+   * dem folgenden zugeordnet wird (Design-Review E6) — und beschreibt das Eingabefeld per
+   * `aria-describedby`. */
+  readonly hinweis?: ReactNode
 }
 
 /**
@@ -67,8 +73,12 @@ export function Datumsfeld({
   id,
   ariaLabel,
   aufVerlassen,
+  hinweis,
 }: DatumsfeldProps) {
   const { t } = useTranslation('felder')
+  const erzeugteId = useId()
+  const hinweisId = `${id ?? erzeugteId}-hinweis`
+  const hatHinweis = hinweis !== undefined && hinweis !== null
   const { t: tDatum } = useTranslation('datum')
   const interpretation = datumsfeldInterpretation(text)
 
@@ -85,6 +95,7 @@ export function Datumsfeld({
     ...(id !== undefined ? { id } : {}),
     ...(ariaLabel !== undefined ? { ariaLabel } : {}),
     ...(aufVerlassen !== undefined ? { aufVerlassen } : {}),
+    ...(hatHinweis ? { beschreibungId: hinweisId } : {}),
   }
 
   return (
@@ -97,6 +108,11 @@ export function Datumsfeld({
         ungueltig={interpretation.art === 'nicht_aufloesbar'}
         {...eingabekoerperExtra}
       />
+      {hatHinweis ? (
+        <div id={hinweisId} className="wz-datumsfeld__hinweis">
+          {hinweis}
+        </div>
+      ) : null}
       <div className="wz-datumsfeld__interpretation" aria-live="polite">
         {interpretation.art === 'nicht_aufloesbar' ? (
           <Text rolle="hilfe" farbe="akzent" als="p">

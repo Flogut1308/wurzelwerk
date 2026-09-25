@@ -210,3 +210,26 @@ describe('Ortsfeld (docs/71 §3.2, AP-1.13 PR-C)', () => {
     expect(markup).not.toContain('wz-ortsfeld__zeile-geltung')
   })
 })
+
+// Design-Review E6: Widerspruch-Hinweis am Ortsfeld — ohne Suche direkt unter dem Eingabekörper,
+// während der Suche bleibt die Vorschlagsliste am Feld und der Hinweis folgt ihr; immer per
+// aria-describedby verknüpft.
+describe('Ortsfeld — Widerspruch-Hinweis (Design-Review E6)', () => {
+  const grund = { aufAenderung: () => {}, aufAusgewaehlt: () => {}, aufNeuAnlegen: () => {}, hervorgehobenerIndex: null, treffer: [] }
+
+  it('ohne Suche: folgt direkt auf das <input> und ist per aria-describedby verknüpft', () => {
+    const markup = renderToStaticMarkup(<Ortsfeld {...grund} text="Marienwerder" zustand="leer" id="ort" hinweis="Ereignis liegt außerhalb" />)
+    expect(markup).toMatch(/<input[^>]*aria-describedby="ort-hinweis"[^>]*\/?><div id="ort-hinweis" class="wz-ortsfeld__widerspruch">Ereignis liegt außerhalb<\/div><\/div>$/)
+  })
+
+  it('während der Suche: die Vorschlagsliste bleibt direkt am Feld, der Hinweis folgt ihr', () => {
+    const markup = renderToStaticMarkup(<Ortsfeld {...grund} text="Mar" zustand="bereit" treffer={[treffer()]} id="ort" hinweis="Ereignis liegt außerhalb" />)
+    expect(markup).toMatch(/<input[^>]*\/?><ul id="ort-liste"/)
+    expect(markup).toMatch(/<\/ul><div id="ort-hinweis" class="wz-ortsfeld__widerspruch">/)
+  })
+
+  it('ohne hinweis: kein aria-describedby', () => {
+    const markup = renderToStaticMarkup(<Ortsfeld {...grund} text="" zustand="leer" id="ort" />)
+    expect(markup).not.toContain('aria-describedby')
+  })
+})

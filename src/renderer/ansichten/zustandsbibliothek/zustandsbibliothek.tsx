@@ -485,6 +485,18 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
           ariaLabel={t('beispiel_formularfeld_beschriftung')}
           gesperrt
         />
+        {/* Design-Review E6: Datumsfeld mit Widerspruch-Hinweis — der Hinweis steht direkt unter dem
+            Eingabekörper, vor der Deutungszeile. */}
+        <Datumsfeld
+          text="1850"
+          aufAenderung={() => {}}
+          kalender="gregorian"
+          aufKalenderAenderung={() => {}}
+          kalenderErweitert={false}
+          aufKalenderErweitertAenderung={() => {}}
+          ariaLabel={t('beispiel_formularfeld_beschriftung')}
+          hinweis={t('beispiel_datumsfeld_widerspruch')}
+        />
       </Abschnitt>
 
       <Abschnitt name="auswahlfeld">
@@ -742,6 +754,18 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
           aufAusgewaehlt={() => {}}
           aufNeuAnlegen={() => {}}
           ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+        />
+        {/* Design-Review E6: Ortsfeld mit Widerspruch-Hinweis (ohne Suche direkt unter dem Feld). */}
+        <Ortsfeld
+          text="Marienwerder"
+          zustand="leer"
+          treffer={[]}
+          hervorgehobenerIndex={null}
+          aufAenderung={() => {}}
+          aufAusgewaehlt={() => {}}
+          aufNeuAnlegen={() => {}}
+          ariaLabel={t('beispiel_ortsfeld_beschriftung')}
+          hinweis={t('beispiel_ortsfeld_widerspruch')}
         />
       </Abschnitt>
 
