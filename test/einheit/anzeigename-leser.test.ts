@@ -89,6 +89,25 @@ describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)'
       const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
       expect(zeile?.anzeigename).toBe('Ivan Ivanov')
       expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('Ivan Ivanov')
+
+      // Sortiert wird nach der Hauptform (V-4-sortierung, hueter #128 Befund 9): „Zander" steht vor
+      // „Иванов" (Kyrillisch nach Latein), obwohl die angezeigte Umschrift „Ivan Ivanov" davor läge.
+      const zander = person(db)
+      fuehreAus(db, 'name.anlegen', { personId: zander, typ: 'geburtsname', vornamen: 'Anton', nachname: 'Zander' })
+      const reihenfolge = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE })
+        .zeilen.map((z) => z.person_id)
+        .filter((id) => id === p || id === zander)
+      expect(reihenfolge).toEqual([zander, p])
+    })
+  })
+
+  it('N3b: ein Personen-Wertverweis auf eine gelöschte Person bleibt ohne Namen (hueter #128, Befund 3)', () => {
+    mitDb((db) => {
+      const kind = gutnoff(db)
+      const pate = gutnoff(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: kind, praedikat: 'taufpate', wertRefId: pate, konfidenz: 3 })
+      fuehreAus(db, 'person.loeschen', { id: pate })
+      expect(personDetail(db, { personId: kind }).grunddaten.find((f) => f.praedikat === 'taufpate')?.wert).toBeNull()
     })
   })
 
