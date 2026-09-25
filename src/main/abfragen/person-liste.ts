@@ -28,6 +28,9 @@ import { vergleicheNamen } from '../../core/liste/sortierung'
 // AP-1.33: bevorzugter Name je Person aus name_form + name_part rekonstruiert — dieselben SQL-
 // Bausteine wie die kanonische person_flach-Projektion (Bitgleichheit, kein zweiter Nachbau).
 import { nameFormNachnameSql, nameFormVornamenSql } from '../datenbank/abgeleitet-projektion'
+// Vorarbeiten AP-1.30, PR 4a (Eigentümer 25.09.2026): der SICHTBARE Name kommt aus dem Kern
+// (`anzeigenameFuer`), die Projektion (`pf.anzeigename`, `bn.*`) bleibt nur für Sortierung/Suche.
+import { anzeigenamenLaden } from './_anzeigenamen'
 import { DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum } from '../../shared/schemata/gemeinsam'
 import type { PersonListeAus, PersonListeDatumsgruppe, PersonListeEin, PersonListeFilter, PersonListeZeile } from '../../shared/schemata/person-liste'
 import { PersonListeRichtungEnum, PersonListeSortierungEnum } from '../../shared/schemata/person-liste'
@@ -319,10 +322,12 @@ function todDatumsgruppe(zeile: RohZeile): PersonListeDatumsgruppe | null {
   })
 }
 
-export function zeileZuAusgabe(zeile: RohZeile): PersonListeZeile {
+/** `anzeigenamen`: sichtbarer Name je Person aus `anzeigenamenLaden` (nur für die Zeilen der Seite
+ * geladen); fehlt die Person dort, hat sie keine Namensform (''). */
+export function zeileZuAusgabe(zeile: RohZeile, anzeigenamen: ReadonlyMap<string, string>): PersonListeZeile {
   return {
     person_id: zeile.person_id,
-    anzeigename: zeile.anzeigename,
+    anzeigename: anzeigenamen.get(zeile.person_id) ?? '',
     geburt_jahr: zeile.geburt_jahr,
     tod_jahr: zeile.tod_jahr,
     geburt_ort_name: zeile.geburt_ort_name,
@@ -349,5 +354,9 @@ export function personListe(db: Database.Database, ein: PersonListeEin): PersonL
   const start = (ein.seite - 1) * ein.proSeite
   const seite = sortiert.slice(start, start + ein.proSeite)
 
-  return { zeilen: seite.map(zeileZuAusgabe), gesamt }
+  const anzeigenamen = anzeigenamenLaden(
+    db,
+    seite.map((zeile) => zeile.person_id),
+  )
+  return { zeilen: seite.map((zeile) => zeileZuAusgabe(zeile, anzeigenamen)), gesamt }
 }

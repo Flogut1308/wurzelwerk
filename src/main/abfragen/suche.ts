@@ -22,6 +22,7 @@
 import type Database from 'better-sqlite3'
 import { sucheAnfrageBauen } from '../../core/suche/anfrage'
 import type { SucheAus, SucheEin, SucheTreffer } from '../../shared/schemata/person-liste'
+import { anzeigenamenLaden } from './_anzeigenamen'
 import { filterBedingungen, vergleicheZeilen, whereSql, zeileZuAusgabe, zeilenLaden } from './person-liste'
 
 interface VolltextZeile {
@@ -148,6 +149,11 @@ export function suche(db: Database.Database, ein: SucheEin): SucheAus {
   const start = (ein.seite - 1) * ein.proSeite
   const seite = sortiert.slice(start, start + ein.proSeite)
 
+  // Sichtbarer Name aus dem Kern, nur für die Treffer der Seite (Vorarbeiten AP-1.30, PR 4a).
+  const anzeigenamen = anzeigenamenLaden(
+    db,
+    seite.map((zeile) => zeile.person_id),
+  )
   const treffervoll: SucheTreffer[] = []
   for (const zeile of seite) {
     const quelle = quelleJePersonId.get(zeile.person_id)
@@ -155,7 +161,7 @@ export function suche(db: Database.Database, ein: SucheEin): SucheAus {
     // Einsammeln oben einen Eintrag in `quelleJePersonId` erhalten — dieser Zweig sollte unerreichbar
     // sein, schützt aber vor einer stillen `undefined`-Weitergabe, falls sich das je ändert.
     if (quelle === undefined) continue
-    treffervoll.push({ ...zeileZuAusgabe(zeile), quelle })
+    treffervoll.push({ ...zeileZuAusgabe(zeile, anzeigenamen), quelle })
   }
 
   return { treffer: treffervoll, gesamt: zeilen.length }

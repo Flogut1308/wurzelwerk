@@ -1,0 +1,100 @@
+// Vorarbeiten AP-1.30, PR 4a (docs/80 §30 U-1.33-anzeigename-unbenutzt, Eigentümer 25.09.2026): der
+// sichtbare Name kommt in Liste, Suche und Profil aus `anzeigenameFuer` (src/core/name/anzeigename.ts),
+// nicht aus der SQL-Projektion `person_flach.anzeigename` (die nur Vornamen + Nachname der Hauptform
+// kennt: „Dr. Florian von Gutnoff" erschien als „Florian Gutnoff"). Rot zuerst (CLAUDE.md §5).
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../src/main/protokoll/logger', () => ({
+  protokollFehler: vi.fn(),
+  protokollInfo: vi.fn(),
+  protokollDebug: vi.fn(),
+}))
+vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
+
+import { oeffnen } from '../../src/main/datenbank/verbindung'
+import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import { fuehreAus } from '../../src/main/befehle/bus'
+import { personDetail } from '../../src/main/abfragen/person-detail'
+import { personListe } from '../../src/main/abfragen/person-liste'
+import { suche } from '../../src/main/abfragen/suche'
+import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
+
+type Db = ReturnType<typeof oeffnen>
+
+const FILTER_ALLE: PersonListeFilter = { platzhalter: 'alle', privat: 'alle', nurWiderspruch: false }
+const VOLL = 'Dr. Florian von Gutnoff Jr.'
+
+function mitDb(fn: (db: Db) => void): void {
+  const db = oeffnen(':memory:')
+  try {
+    migrieren(db)
+    fn(db)
+  } finally {
+    db.close()
+  }
+}
+
+function person(db: Db): string {
+  return fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+}
+
+/** Person mit Titel, Präfix und Zusatz — die SQL-Projektion kennt nur Vornamen + Nachname. */
+function gutnoff(db: Db): string {
+  const p = person(db)
+  fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', titelVor: 'Dr.', vornamen: 'Florian', praefix: 'von', nachname: 'Gutnoff', zusatzNach: 'Jr.' })
+  return p
+}
+
+describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)', () => {
+  it('N1: Personenliste zeigt den Kern-Anzeigenamen', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
+      expect(zeile?.anzeigename).toBe(VOLL)
+    })
+  })
+
+  it('N2: Suche zeigt den Kern-Anzeigenamen', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      const treffer = suche(db, { text: 'Gutnoff', grenze: 50, filter: FILTER_ALLE, sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100 }).treffer.find((z) => z.person_id === p)
+      expect(treffer?.anzeigename).toBe(VOLL)
+    })
+  })
+
+  it('N3: Profilkopf, Beziehungen und Personen-Wertverweise zeigen den Kern-Anzeigenamen', () => {
+    mitDb((db) => {
+      const vater = gutnoff(db)
+      const kind = person(db)
+      fuehreAus(db, 'name.anlegen', { personId: kind, typ: 'geburtsname', vornamen: 'Anna', praefix: 'von', nachname: 'Gutnoff' })
+      fuehreAus(db, 'elternschaft.anlegen', { elternteilId: vater, kindId: kind, typ: 'biologisch', konfidenz: 3 })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: kind, praedikat: 'taufpate', wertRefId: vater, konfidenz: 3 })
+
+      expect(personDetail(db, { personId: vater }).kopf.anzeigename).toBe(VOLL)
+      const detail = personDetail(db, { personId: kind })
+      expect(detail.kopf.anzeigename).toBe('Anna von Gutnoff')
+      expect(detail.beziehungen.find((b) => b.person_id === vater)?.anzeigename).toBe(VOLL)
+      expect(personDetail(db, { personId: vater }).beziehungen.find((b) => b.person_id === kind)?.anzeigename).toBe('Anna von Gutnoff')
+      expect(detail.grunddaten.find((f) => f.praedikat === 'taufpate')?.wert).toBe(VOLL)
+    })
+  })
+
+  it('N4: die Rückfallkette gilt auch in der Liste — eine Umschrift-Form wird angezeigt, sortiert wird weiter nach der Hauptform', () => {
+    mitDb((db) => {
+      const p = person(db)
+      const haupt = fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', schrift: 'cyrl', vornamen: 'Иван', nachname: 'Иванов' }).id
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'transliteriert', schrift: 'latn', umschriftVon: haupt, umschriftNorm: 'iso9', vornamen: 'Ivan', nachname: 'Ivanov' })
+      const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
+      expect(zeile?.anzeigename).toBe('Ivan Ivanov')
+      expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('Ivan Ivanov')
+    })
+  })
+
+  it('N5: eine Person ohne Namensform bleibt leer (wie bisher)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('')
+      expect(personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)?.anzeigename).toBe('')
+    })
+  })
+})
