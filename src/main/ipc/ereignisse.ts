@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, type WebContents } from 'electron'
 import type { EreignisKanal, EreignisNutzlast } from '../../shared/ipc/vertrag'
 
 /**
@@ -11,4 +11,12 @@ export function sendeEreignis<K extends EreignisKanal>(kanal: K, nutzlast: Ereig
   for (const fenster of BrowserWindow.getAllWindows()) {
     fenster.webContents.send(kanal, nutzlast)
   }
+}
+
+/**
+ * Wie `sendeEreignis`, aber an genau ein Fenster (AP-1.30 PR 7c): eine beobachtete Taste gehört dem
+ * Fenster, in dem sie gedrückt wurde (`ereignis:kontexttaste`), nicht allen offenen Fenstern.
+ */
+export function sendeEreignisAn<K extends EreignisKanal>(ziel: WebContents, kanal: K, nutzlast: EreignisNutzlast<K>): void {
+  ziel.send(kanal, nutzlast)
 }

@@ -16,10 +16,11 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import type { AppFehler } from '../../shared/fehler/app-fehler'
 import type { Ergebnis } from '../../shared/ipc/ergebnis'
-import type { Aus, Ein, JournalStatusNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
+import type { Aus, Ein, JournalStatusNutzlast, KontexttasteNutzlast, ProjektGeschlossenNutzlast, UndoErgebnis } from '../../shared/ipc/vertrag'
 import {
   datenGeaendertNutzlastSchema,
   journalStatusNutzlastSchema,
+  kontexttasteNutzlastSchema,
   projektGeschlossenNutzlastSchema,
   zustandsbibliothekOeffnenNutzlastSchema,
 } from '../../shared/schemata/ereignisse'
@@ -305,6 +306,20 @@ export function useZustandsbibliothekOeffnenAbo(bei: () => void): void {
     return window.wurzelwerk.abonnieren('ereignis:zustandsbibliothekOeffnen', (nutzlast) => {
       zustandsbibliothekOeffnenNutzlastSchema.parse(nutzlast)
       bei()
+    })
+  }, [bei])
+}
+
+/**
+ * Reicht jeden `ereignis:kontexttaste`-Push an `bei` weiter (AP-1.30 PR 7c, Tasten 1…8 im Editor).
+ * Der Hauptprozess hat Modifikatoren, Wiederholung und IME bereits ausgeschlossen; ob die Taste
+ * wirkt (Fokus, offene Schublade), entscheidet der Abonnent. `kontexttasteNutzlastSchema.parse`
+ * prüft die Nutzlast wie bei den anderen `ereignis:`-Hooks (kein `as`, CLAUDE.md §4).
+ */
+export function useKontexttasteAbo(bei: (nutzlast: KontexttasteNutzlast) => void): void {
+  useEffect(() => {
+    return window.wurzelwerk.abonnieren('ereignis:kontexttaste', (nutzlast) => {
+      bei(kontexttasteNutzlastSchema.parse(nutzlast))
     })
   }, [bei])
 }

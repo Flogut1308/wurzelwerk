@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kennungAnzeige } from '../../../core/person/kennung'
 import { REITER, type ReiterId } from '../../../core/person/reiter'
 import { reiterZaehler } from '../../../core/person/reiter-zaehler'
+import type { KontexttasteNutzlast } from '../../../shared/ipc/vertrag'
 import { reiterZaehlerEingabeAus, type PersonDetailAus, type PersonDetailKopf } from '../../../shared/schemata/person-detail'
 import { usePersonDetail } from '../../brücke/abfrage-hooks'
+import { useKontexttasteAbo } from '../../brücke/befehl-hooks'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { personennameIstErsatz, personennameText } from '../../bausteine/personenname-anzeige'
 import { Reiterleiste, reiterElementId, reiterInhaltId, type ReiterleisteReiter } from '../../bausteine/reiterleiste'
@@ -12,6 +14,7 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
 import { Text } from '../../bausteine/text'
 import { tabImContainerHalten } from './fokusfang'
+import { darfKontexttasteWirken } from './kontexttaste-logik'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
@@ -82,6 +85,23 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
     // späteres Neuladen der Daten (z. B. nach `ereignis:datenGeaendert`) darf ihn nicht aus einem
     // Feld reißen, in dem gerade getippt wird.
   }, [])
+
+  // Tasten 1…8 (AP-1.30 PR 7c, V-130-7-tasten): der Hauptprozess meldet die Ziffer, ohne sie zu
+  // blockieren; hier wirkt sie nur außerhalb von Eingabeelementen und ohne offene Schublade. Der
+  // Fokus folgt auf den gewählten Reiter (wie bei Pfeiltasten in der `Reiterleiste`) — auch, weil ein
+  // fokussierter Knopf im alten Inhalt beim Wechsel aushängt und der Fokus sonst verloren ginge.
+  const kontexttaste = useCallback((taste: KontexttasteNutzlast) => {
+    const knoten = containerRef.current
+    const reiter = REITER[taste.reiterIndex]
+    if (knoten === null || reiter === undefined) return
+    if (!darfKontexttasteWirken(knoten, document)) return
+    const reiterElement = knoten.querySelector<HTMLElement>(`#${reiterElementId(ID_PRAEFIX, reiterDomId(reiter))}`)
+    // Ohne Reiterleiste (Laden, Fehler) gibt es nichts zu wählen.
+    if (reiterElement === null) return
+    setAktiv(reiter)
+    reiterElement.focus()
+  }, [])
+  useKontexttasteAbo(kontexttaste)
 
   function tastendruck(ereignis: KeyboardEvent<HTMLDivElement>) {
     if (ereignis.key === 'Escape') {

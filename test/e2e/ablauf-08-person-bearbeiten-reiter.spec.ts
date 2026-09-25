@@ -53,6 +53,26 @@ test.describe('Ablauf 08 — Person bearbeiten: Reiter', () => {
     }, pfad)
   }
 
+  /**
+   * Drückt eine Ziffer der oberen Reihe über `webContents.sendInputEvent` (keyDown, char, keyUp).
+   * `fenster.keyboard.press` reicht nicht: Playwright spritzt Tasten über das DevTools-Protokoll
+   * direkt in den Renderer, daran vorbei feuert `before-input-event` im Hauptprozess nie (lokal
+   * belegt) — genau der Weg, den die Tasten 1…8 nehmen (AP-1.30 PR 7c). `sendInputEvent` läuft
+   * dagegen wie eine echte Taste durch den Hauptprozess (`code` = `Digit<n>`).
+   */
+  async function ziffertasteNativ(ziffer: string, modifikatoren: readonly ('shift' | 'control' | 'alt' | 'meta')[] = []): Promise<void> {
+    await app.evaluate(
+      ({ BrowserWindow }, taste) => {
+        const inhalt = BrowserWindow.getAllWindows()[0]?.webContents
+        if (inhalt === undefined) throw new Error('kein Fenster')
+        for (const type of ['keyDown', 'char', 'keyUp'] as const) {
+          inhalt.sendInputEvent({ type, keyCode: taste.ziffer, modifiers: [...taste.modifikatoren] })
+        }
+      },
+      { ziffer, modifikatoren },
+    )
+  }
+
   async function personDetail(personId: string): Promise<{ readonly notiz: string | null; readonly namenAnzahl: number }> {
     const ergebnis = await fenster.evaluate(async (id) => window.wurzelwerk.aufrufen('abfrage:person.detail', { personId: id }), personId)
     if (!ergebnis.ok) throw new Error('abfrage:person.detail fehlgeschlagen')
@@ -140,5 +160,43 @@ test.describe('Ablauf 08 — Person bearbeiten: Reiter', () => {
     await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
     await expect(editor.getByRole('tab', { name: /^Person/ })).toHaveAttribute('aria-selected', 'true')
     await expect(editor.getByRole('tab', { name: /^Notizen/ })).toHaveAttribute('aria-selected', 'false')
+
+    // AP-1.30 PR 7c (V-130-7-tasten): Taste 3 wählt „Leben" (der Hauptprozess beobachtet die Ziffer
+    // über `before-input-event`, der Renderer wählt den Reiter), der Fokus folgt auf den Reiter.
+    // Shift+3 ist keine Kontexttaste. Tasten über `ziffertasteNativ` (s. dort), nicht `keyboard.press`.
+    const lebenReiter = editor.getByRole('tab', { name: /^Leben/ })
+    // Shift+3 darf „Leben" nie wählen — auch nicht kurz: ein Beobachter am Reiter merkt jede
+    // Auswahl, danach wählt Taste 2 „Namen" (gleiche Reihenfolge der Push-Ereignisse, also ist
+    // Shift+3 sicher verarbeitet, wenn „Namen" aktiv ist).
+    await fenster.evaluate(() => {
+      const ablage = window as unknown as { lebenJeGewaehlt?: boolean } // nur Testablage am Fenster
+      ablage.lebenJeGewaehlt = false
+      const reiter = document.getElementById('person-bearbeiten-reiter-leben')
+      if (reiter === null) throw new Error('Reiter Leben fehlt')
+      new MutationObserver(() => {
+        if (reiter.getAttribute('aria-selected') === 'true') ablage.lebenJeGewaehlt = true
+      }).observe(reiter, { attributes: true, attributeFilter: ['aria-selected'] })
+    })
+    await ziffertasteNativ('3', ['shift'])
+    await ziffertasteNativ('2')
+    await expect(editor.getByRole('tab', { name: /^Namen/ })).toHaveAttribute('aria-selected', 'true')
+    expect(await fenster.evaluate(() => (window as unknown as { lebenJeGewaehlt?: boolean }).lebenJeGewaehlt)).toBe(false) // Testablage, s. o.
+    await ziffertasteNativ('3')
+    await expect(lebenReiter).toHaveAttribute('aria-selected', 'true')
+    await expect(lebenReiter).toBeFocused()
+    await expect(editor.getByRole('tabpanel').getByText('Neues Ereignis erfassen', { exact: true })).toBeVisible()
+    await ziffertasteNativ('7')
+    const notizenReiter = editor.getByRole('tab', { name: /^Notizen/ })
+    await expect(notizenReiter).toHaveAttribute('aria-selected', 'true')
+
+    // Eine Ziffer im Notizfeld wird getippt und wechselt den Reiter nicht (nicht blockiert).
+    const notizFeld = editor.getByRole('textbox', { name: 'Notiz', exact: true })
+    await notizFeld.click()
+    await notizFeld.press('End')
+    await ziffertasteNativ('2')
+    await expect(notizFeld).toHaveValue('Start neu2')
+    await expect(notizenReiter).toHaveAttribute('aria-selected', 'true')
+    await expect(editor.getByRole('tab', { name: /^Namen/ })).toHaveAttribute('aria-selected', 'false')
+    await expect.poll(async () => (await personDetail(personId)).notiz, { timeout: AUTOSAVE_DEBOUNCE_MS * 10 }).toBe('Start neu2')
   })
 })

@@ -189,6 +189,19 @@ export interface ProjektGeschlossenNutzlast {
 export type ZustandsbibliothekOeffnenNutzlast = null
 
 /**
+ * Nutzlast von `ereignis:kontexttaste` (AP-1.30 PR 7c, docs/80 §33 V-130-7-tasten): der
+ * Hauptprozess hat eine bloße Kontexttaste beobachtet (`src/main/menue/tastenkuerzel.ts`, Tasten
+ * 1…8 → Reiter in fester Reihenfolge). Er blockiert sie nicht; ob sie wirkt, entscheidet der
+ * Renderer (Fokus nicht in einem Eingabeelement, keine Schublade offen). Nur an das Fenster
+ * gesendet, in dem die Taste gedrückt wurde.
+ */
+export interface KontexttasteNutzlast {
+  readonly aktion: 'reiterWaehlen'
+  /** 0-basierter Index in `REITER` (`src/core/person/reiter.ts`). */
+  readonly reiterIndex: number
+}
+
+/**
  * Deckt `transaktion.art` (`docs/schema/0001_grundgeruest.sql`-CHECK) als geschlossene Union ab
  * (AP-0.9). Steht in `src/shared`, nicht in `src/main/repositories/journal-repo.ts`, weil
  * `VerlaufEintrag` (AP-0.10, unten) diese Union ebenfalls braucht und `src/shared` nichts aus
@@ -403,6 +416,7 @@ export interface EreignisVertrag {
   'ereignis:journalStatus': JournalStatusNutzlast
   'ereignis:projektGeschlossen': ProjektGeschlossenNutzlast
   'ereignis:zustandsbibliothekOeffnen': ZustandsbibliothekOeffnenNutzlast
+  'ereignis:kontexttaste': KontexttasteNutzlast
 }
 
 export type EreignisKanal = keyof EreignisVertrag

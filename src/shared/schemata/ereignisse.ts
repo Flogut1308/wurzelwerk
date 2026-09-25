@@ -5,7 +5,13 @@
 // hier selbst. AP-0.20 konsolidiert alle `ereignis:`-Schemata in dieser einen Datei (vorher lag
 // `journalStatusNutzlastSchema` allein in `journal.ts`) — ein Kanal, ein Ort.
 import { z } from 'zod'
-import type { DatenGeaendertNutzlast, JournalStatusNutzlast, ProjektGeschlossenNutzlast, ZustandsbibliothekOeffnenNutzlast } from '../ipc/vertrag'
+import type {
+  DatenGeaendertNutzlast,
+  JournalStatusNutzlast,
+  KontexttasteNutzlast,
+  ProjektGeschlossenNutzlast,
+  ZustandsbibliothekOeffnenNutzlast,
+} from '../ipc/vertrag'
 
 /** Prüft die Nutzlast von `ereignis:datenGeaendert` (AP-0.9) gegen `DatenGeaendertNutzlast`. */
 export const datenGeaendertNutzlastSchema: z.ZodType<DatenGeaendertNutzlast> = z.object({
@@ -28,3 +34,9 @@ export const projektGeschlossenNutzlastSchema: z.ZodType<ProjektGeschlossenNutzl
 
 /** Prüft die Nutzlast von `ereignis:zustandsbibliothekOeffnen` (AP-1.11) gegen `ZustandsbibliothekOeffnenNutzlast`. */
 export const zustandsbibliothekOeffnenNutzlastSchema: z.ZodType<ZustandsbibliothekOeffnenNutzlast> = z.null()
+
+/** Prüft die Nutzlast von `ereignis:kontexttaste` (AP-1.30 PR 7c) gegen `KontexttasteNutzlast`. */
+export const kontexttasteNutzlastSchema: z.ZodType<KontexttasteNutzlast> = z.object({
+  aktion: z.literal('reiterWaehlen'),
+  reiterIndex: z.number().int().nonnegative(),
+})
