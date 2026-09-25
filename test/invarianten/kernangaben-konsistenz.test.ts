@@ -22,6 +22,13 @@
 //   Z7  fehlend = Ids mit `unbelegt`/`fehlt` in Aufschlüsselungsreihenfolge; erfuellt + |fehlend| = anwendbar.
 // Deckung: der Lauf zählt, dass jede Sterbeort-Herkunft, jeder todesort-Zustand und jeder offene
 // Elternplatz-Schlüssel mindestens einmal vorkam — sonst prüfte die Invariante leere Mengen.
+// Grenzen (hueter #133): die Invariante prüft die Konsistenz ZWISCHEN den Lesern. Einen Fehler, den
+// Kernangaben und Sterbeort gleich machen (z. B. eine Rolle fehlt in `RUECKFALL_ROLLEN` für beide),
+// fangen die Einheitstests (test/einheit/kernangaben*.test.ts, lebensdaten.test.ts), nicht diese
+// Datei. Geburtsdatum/-ort werden nicht über Kreuz geprüft — für sie gibt es keinen zweiten Leser
+// (kein aufgelöstes Grunddatenfeld bis AP-1.30, §32 V-D9-anzeige). Z5 ist bewusst als „Zustand
+// `fehlt` ⇔ offener Punkt" formuliert, nicht als „Id ∈ fehlend ⇔ Punkt": ein besetzter Platz mit
+// unbelegter Kante steht in `fehlend` (`unbelegt`), löst aber keinen offenen Punkt aus.
 import { describe, expect, it, vi } from 'vitest'
 import fc from 'fast-check'
 
