@@ -237,8 +237,10 @@ function ReiterInhalt({ reiter, personId, daten }: ReiterInhaltProps) {
 }
 
 /** Leerzustand eines Reiters, dessen Inhalt ein späterer PR bringt (Muster „leer" der
- * Zustandsbibliothek). Keine Funktion geht verloren: die Lesesicht zeigt diese Angaben weiter. */
+ * Zustandsbibliothek). Keine Funktion geht verloren: die Lesesicht zeigt diese Angaben weiter — außer
+ * „Verwaltung“, deren Inhalte (Herkunft, Verlauf, Löschen) es noch nirgends gibt; dort ein eigener Text
+ * (hueter #160, 8). */
 function ReiterSpaeter({ reiter }: { readonly reiter: ReiterId }) {
   const { t } = useTranslation('profil')
-  return <LeerzustandBlock symbol="tray" titel={t('reiter_spaeter_titel', { reiter: t(reiterSchluessel(reiter)) })} text={t('reiter_spaeter_text')} />
+  return <LeerzustandBlock symbol="tray" titel={t('reiter_spaeter_titel', { reiter: t(reiterSchluessel(reiter)) })} text={t(reiter === 'verwaltung' ? 'reiter_spaeter_text_verwaltung' : 'reiter_spaeter_text')} />
 }

@@ -143,6 +143,7 @@
   "reiter_verwaltung": "Verwaltung",
   "reiter_spaeter_titel": "{{reiter}} kommt in einem späteren Schritt",
   "reiter_spaeter_text": "Bis dahin zeigt das Profil diese Angaben — „Fertig“ führt dorthin zurück.",
+  "reiter_spaeter_text_verwaltung": "Die Kennung steht oben im Kopf. Herkunft des Datensatzes, Verlauf und Löschen folgen in einem späteren Schritt.",
 
   "abschnitt_namen_bearbeiten": "Namen",
   "name_vornamen_beschriftung": "Vorname(n)",
