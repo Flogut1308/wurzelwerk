@@ -1,0 +1,61 @@
+/*
+ * Baustein `Speicherstatus` — Kopf von „Person bearbeiten" (Artboard 1a: Punkt + „Gespeichert ·
+ * gerade eben" in Akzenttext). Farben nur über Rollen: gespeichert = `--wz-akzent-basis` (Punkt)
+ * und `--wz-text-akzent` (Text), genau die Designwerte #35726E/#2C625F; speichert = neutral
+ * (`--wz-status-neutral-basis`/`--wz-text-tertiaer`), fehler = `--wz-status-fehler-basis`/
+ * `--wz-status-fehler-text`. „Speichert …" pulsiert NICHT (§1.5: keine Bewegung ohne echten
+ * Fortschritt). Schrift `--wz-schrift-hilfe` (12.5 px wie im Artboard).
+ */
+
+.wz-speicherstatus {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  font: var(--wz-schrift-hilfe);
+}
+
+.wz-speicherstatus__punkt {
+  display: inline-block;
+  flex: none;
+  width: var(--wz-abstand-8);
+  height: var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+}
+
+.wz-speicherstatus--gespeichert {
+  color: var(--wz-text-akzent);
+}
+.wz-speicherstatus--gespeichert .wz-speicherstatus__punkt {
+  background: var(--wz-akzent-basis);
+}
+
+.wz-speicherstatus--speichert {
+  color: var(--wz-text-tertiaer);
+}
+.wz-speicherstatus--speichert .wz-speicherstatus__punkt {
+  background: var(--wz-status-neutral-basis);
+}
+
+.wz-speicherstatus--fehler {
+  color: var(--wz-status-fehler-text);
+}
+.wz-speicherstatus--fehler .wz-speicherstatus__punkt {
+  background: var(--wz-status-fehler-basis);
+}
+
+/* „erneut versuchen" — Verweisstil in der Statusschrift, keine Knopffläche. */
+.wz-speicherstatus__aktion {
+  min-height: var(--wz-trefferflaeche-min);
+  margin-left: calc(-1 * var(--wz-abstand-4));
+  padding: 0 var(--wz-abstand-4);
+  border: 0;
+  border-radius: var(--wz-radius-klein);
+  background: transparent;
+  color: var(--wz-text-akzent);
+  font: var(--wz-schrift-hilfe);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.wz-speicherstatus__aktion:hover {
+  color: var(--wz-akzent-hover);
+}

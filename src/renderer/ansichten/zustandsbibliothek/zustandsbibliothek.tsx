@@ -29,10 +29,12 @@ import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
 import { Ortsfeld } from '../../bausteine/ortsfeld'
 import { Personenwaehler } from '../../bausteine/personenwaehler'
+import { Reiterleiste, reiterElementId, reiterInhaltId, type ReiterleisteReiter } from '../../bausteine/reiterleiste'
 import { Schaltflaeche, type SchaltflaecheVariante } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
 import { Schrittleiste } from '../../bausteine/schrittleiste'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
+import { Speicherstatus } from '../../bausteine/speicherstatus'
 import { Suchfeld } from '../../bausteine/suchfeld'
 import { Symbol } from '../../bausteine/symbol'
 import { Tabellenzeile } from '../../bausteine/tabellenzeile'
@@ -53,6 +55,8 @@ export interface ZustandsbibliothekProps {
   readonly aufSchliessen: () => void
 }
 
+/** Fester Bezugszeitpunkt für die `Speicherstatus`-Beispiele (kein `Date.now`: Bild bleibt gleich). */
+const BEISPIEL_JETZT_MS = 1_750_000_000_000
 const KONFIDENZ_STUFEN: readonly KonfidenzStufe[] = [1, 2, 3, 4]
 const SCHALTFLAECHE_VARIANTEN: readonly SchaltflaecheVariante[] = ['primaer', 'sekundaer', 'unauffaellig', 'gefaehrlich']
 const ABZEICHEN_VARIANTEN: readonly AbzeichenVariante[] = ['neutral', 'info', 'erfolg', 'warnung', 'fehler']
@@ -226,6 +230,15 @@ function Abschnitt({ name, children }: { readonly name: string; readonly childre
  */
 export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
   const { t } = useTranslation('zustandsbibliothek')
+  // AP-1.30 PR 6 — Zustandsfolge wie Artboard 1a: aktiv ohne Zähler, zwei mit Zähler, einer mit
+  // Zähler UND Punkt, einer nur mit Punkt.
+  const beispielReiter: readonly ReiterleisteReiter[] = [
+    { id: 'person', beschriftung: t('beispiel_reiter_person') },
+    { id: 'namen', beschriftung: t('beispiel_reiter_namen'), anzahl: 3 },
+    { id: 'leben', beschriftung: t('beispiel_reiter_leben'), anzahl: 4 },
+    { id: 'beziehungen', beschriftung: t('beispiel_reiter_beziehungen'), anzahl: 5, offenerPunkt: true },
+    { id: 'notizen', beschriftung: t('beispiel_reiter_notizen'), offenerPunkt: true },
+  ]
 
   return (
     <div className="wz-zb" data-testid="wz-zustandsbibliothek">
@@ -786,6 +799,48 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
           aufNeuAnlegen={() => {}}
           ariaLabel={t('beispiel_archivfeld_beschriftung')}
         />
+      </Abschnitt>
+
+      {/* AP-1.30 PR 6: `Reiterleiste` (71 §2.2 „Reiter", Artboard 1a). Eine Leiste zeigt alle
+          Reiterzustände nebeneinander: aktiv („Person"), inaktiv, mit Zähler („Namen", „Leben"),
+          mit Zähler und Punkt („Beziehungen"), nur mit Punkt („Notizen"). Die zweite Leiste zeigt
+          den Fokuszustand als Anschauungsstück (wie `Fokusring`: ein Screenshot hat keinen echten
+          Fokus) — `wz-zb__fokusProbe` legt denselben Ring an den aktiven Reiter. */}
+      <Abschnitt name="reiterleiste">
+        <div className="wz-zb__reiterProbe">
+          <Reiterleiste
+            idPraefix="wz-zb-reiter"
+            beschriftung={t('beispiel_reiterleiste_beschriftung')}
+            reiter={beispielReiter}
+            aktiv="person"
+            aufWechsel={() => {}}
+          />
+          <div role="tabpanel" id={reiterInhaltId('wz-zb-reiter', 'person')} aria-labelledby={reiterElementId('wz-zb-reiter', 'person')}>
+            <Text rolle="hilfe">{t('beispiel_reiter_inhalt')}</Text>
+          </div>
+        </div>
+        <div className="wz-zb__reiterProbe wz-zb__fokusProbe">
+          <Reiterleiste
+            idPraefix="wz-zb-reiter-fokus"
+            beschriftung={t('beispiel_reiterleiste_fokus')}
+            reiter={beispielReiter}
+            aktiv="namen"
+            aufWechsel={() => {}}
+          />
+          <div role="tabpanel" id={reiterInhaltId('wz-zb-reiter-fokus', 'namen')} aria-labelledby={reiterElementId('wz-zb-reiter-fokus', 'namen')}>
+            <Text rolle="hilfe">{t('beispiel_reiterleiste_fokus')}</Text>
+          </div>
+        </div>
+      </Abschnitt>
+
+      {/* AP-1.30 PR 6: `Speicherstatus` — alle drei Zustände. Kein Ruhezustand: vor dem ersten
+          Schreiben rendert der Aufrufer den Baustein nicht. Feste Zeitpunkte statt Uhr, damit das
+          Bild deterministisch bleibt. */}
+      <Abschnitt name="speicherstatus">
+        <Speicherstatus zustand="gespeichert" gespeichertUm={BEISPIEL_JETZT_MS} jetzt={BEISPIEL_JETZT_MS} />
+        <Speicherstatus zustand="gespeichert" gespeichertUm={BEISPIEL_JETZT_MS - 5 * 60_000} jetzt={BEISPIEL_JETZT_MS} />
+        <Speicherstatus zustand="speichert" />
+        <Speicherstatus zustand="fehler" aufErneutVersuchen={() => {}} />
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">

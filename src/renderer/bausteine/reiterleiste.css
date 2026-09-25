@@ -1,0 +1,68 @@
+/*
+ * Baustein `Reiterleiste` — Molekül `Reiter` (docs/71_Designsystem.md §2.2), Vorlage Artboard 1a
+ * (docs/design/Wurzelwerk Person bearbeiten.dc.html). Leiste auf `--wz-flaeche-erhoben` mit feiner
+ * Unterkante; der aktive Reiter trägt eine 2-px-Akzentunterkante, Halbfett und eine abgesetzte
+ * Fläche, die inaktiven Reiter sekundären Text. Der Punkt „offener Punkt" nutzt die Warnrolle
+ * `--wz-status-warnung-basis` (Designwert #A9761E ist genau diese Rolle, kein neuer Farbwert).
+ * Höhe = Zeilenhöhe von `--wz-schrift-koerper` + 2 × 8 px (≈ 40 px wie im Design); dessen
+ * kompakte Fassung (§1.6) macht die Leiste in der kompakten Dichte flacher, ohne ein fünftes
+ * Dichtetoken. Trefferfläche ≥ 32 px in beiden Dichten (§5). Kein `transition` (§1.5).
+ */
+
+.wz-reiterleiste {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--wz-abstand-2);
+  padding: var(--wz-abstand-16) var(--wz-abstand-24) 0;
+  background: var(--wz-flaeche-erhoben);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-reiterleiste__reiter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  position: relative;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-16);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--wz-radius-standard) var(--wz-radius-standard) 0 0;
+  background: transparent;
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-koerper);
+  cursor: pointer;
+}
+
+.wz-reiterleiste__reiter:hover:not(.wz-reiterleiste__reiter--aktiv) {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-reiterleiste__reiter--aktiv {
+  border-bottom-color: var(--wz-akzent-basis);
+  background: var(--wz-flaeche-basis);
+  color: var(--wz-text-primaer);
+  font-weight: 600;
+}
+
+.wz-reiterleiste__punkt {
+  display: inline-block;
+  flex: none;
+  width: var(--wz-abstand-8);
+  height: var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-status-warnung-basis);
+}
+
+/* Visuell verborgen, für Hilfstechnik vorhanden — dasselbe Muster wie `datentabelle.css`. */
+.wz-reiterleiste__verborgen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

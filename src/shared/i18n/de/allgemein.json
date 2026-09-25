@@ -27,5 +27,17 @@
   "start_sync_anbieter_onedrive": "OneDrive",
 
   "start_projekt_geoeffnet": "Projekt geöffnet: {{name}}",
-  "start_projekt_schliessen_button": "Projekt schließen"
+  "start_projekt_schliessen_button": "Projekt schließen",
+
+  "reiter_offener_punkt": "offene Punkte in diesem Bereich",
+
+  "speicherstatus_gespeichert": "Gespeichert · {{zeit}}",
+  "speicherstatus_zeit_gerade_eben": "gerade eben",
+  "speicherstatus_zeit_minuten_one": "vor {{count}} Minute",
+  "speicherstatus_zeit_minuten_other": "vor {{count}} Minuten",
+  "speicherstatus_zeit_stunden_one": "vor {{count}} Stunde",
+  "speicherstatus_zeit_stunden_other": "vor {{count}} Stunden",
+  "speicherstatus_speichert": "Speichert …",
+  "speicherstatus_fehler": "Nicht gespeichert —",
+  "speicherstatus_erneut_versuchen": "erneut versuchen"
 }
