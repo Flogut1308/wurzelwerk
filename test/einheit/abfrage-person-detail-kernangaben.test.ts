@@ -15,6 +15,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import type { PersonDetailKernangaben } from '../../src/shared/schemata/person-detail'
 
 type Db = ReturnType<typeof oeffnen>
@@ -298,14 +299,39 @@ describe('person.detail — Kernangaben (AP-1.34 PR-D, ADR-031)', () => {
   it('KA13: die Aussage führt — eine unbelegte Aussage verdrängt ein belegtes Geburtsereignis (V-D9-aussage-fuehrt)', () => {
     mitDb((db) => {
       const p = person(db)
-      const e = geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db), belegt: true })
+      geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db), belegt: true })
       expect(zustand(db, p, 'geburtsdatum')).toBe('belegt')
       expect(zustand(db, p, 'geburtsort')).toBe('belegt')
       datum(db, p, 'geburtsdatum', false)
       expect(zustand(db, p, 'geburtsdatum')).toBe('unbelegt')
       expect(zustand(db, p, 'geburtsort')).toBe('belegt')
-      // Ein Beleg nur für den Ort an einem zweiten Ereignis belegt das Datum nicht.
-      expect(e).not.toBe('')
+    })
+  })
+
+  it('KA13b: ein Beleg an einem Ereignis, das für die Person kein Rückfall ist (Rolle vater), wirkt nie (hueter #125, H3)', () => {
+    mitDb((db) => {
+      const p = person(db)
+      geburtEreignis(db, p, { rolle: 'hauptperson', datum: true, ortId: ort(db) })
+      geburtEreignis(db, p, { rolle: 'vater', datum: true, ortId: ort(db), belegt: true })
+      expect(zustand(db, p, 'geburtsdatum')).toBe('vorhanden')
+      expect(zustand(db, p, 'geburtsort')).toBe('vorhanden')
+    })
+  })
+
+  it('KA13c: ein Ereignis nur mit Originaltext-Datum zählt; ein Name nur aus original_text ist vorhanden (hueter #125, H4)', () => {
+    mitDb((db) => {
+      const p = person(db, { lebendStatus: 'verstorben' })
+      fuehreAus(db, 'name.anlegen', { personId: p, typ: 'geburtsname', originalText: 'Hans der Schmied' })
+      const e = fuehreAus(db, 'ereignis.anlegen', { typ: 'tod', datum: { modifikator: 'etwa', praezision: 'jahr', wert1: '1812', original_text: 'um Martini 1812' }, beteiligungen: [{ personId: p, rolle: 'hauptperson' }], konfidenz: 2 }).id
+      // Altbestand: die Schreibbefehle verlangen wert1, ältere Daten können nur den Originaltext tragen.
+      journalAus(db, 'test-fixture: Altbestand ohne datum_wert1')
+      try {
+        db.prepare<{ readonly id: string }>(`UPDATE ereignis SET datum_wert1 = NULL WHERE id = @id`).run({ id: e })
+      } finally {
+        journalAn(db)
+      }
+      expect(zustand(db, p, 'name')).toBe('vorhanden')
+      expect(zustand(db, p, 'todesdatum')).toBe('vorhanden')
     })
   })
 

@@ -39,6 +39,12 @@ export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText'>
   return form.originalText ?? ''
 }
 
+/** Hat die Form einen nicht-leeren Anzeigetext? Die Kernangabe `name` gilt genau dann als vorhanden
+ * (Nachtrag ADR-031, §32 V-D1-name-vorhanden) — hier im Kern, damit kein Leser die Regel nachbaut. */
+export function hatAnzeigetext(form: Pick<AnzeigeForm, 'teile' | 'originalText'>): boolean {
+  return anzeigetextVon(form).trim() !== ''
+}
+
 /**
  * Sortiername einer Form: `"Nachname, Vornamen"` — das Präfix (van/von/zu) zählt bewusst NICHT mit
  * (E-Namensregeln: „von Gutnoff" sortiert unter „G"). Ohne Nachname bleibt es bei den Vornamen.

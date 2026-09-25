@@ -23,7 +23,7 @@ import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
-import { anzeigetextVon } from '../../core/name/anzeigename'
+import { hatAnzeigetext } from '../../core/name/anzeigename'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
 import { ereignisHatDatum, istRueckfallEreignis } from '../../core/person/lebensdaten'
@@ -146,7 +146,7 @@ function namenLaden(db: Database.Database, personId: string): Namen {
 
   const hauptform = formen.find((form) => form.ist_bevorzugt === 1)
   const nameVorhanden =
-    hauptform !== undefined && anzeigetextVon({ teile: teileJeForm.get(hauptform.id) ?? [], originalText: hauptform.original_text }).trim() !== ''
+    hauptform !== undefined && hatAnzeigetext({ teile: teileJeForm.get(hauptform.id) ?? [], originalText: hauptform.original_text })
 
   const namen = formen.map((form) => {
     const flach = rekonstruiereFlach(teileJeForm.get(form.id) ?? [])

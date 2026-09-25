@@ -76,7 +76,20 @@ describe('kernangabenAuswerten (AP-1.34 PR-D, ADR-031)', () => {
     const tod: Partial<KernangabenEingabe> = { todesdatum: [BELEGT], todesort: [ORT_BELEGT] }
     expect(auswerten({ ...VOLL, ...tod, lebendStatus: 'verstorben' })).toMatchObject({ erfuellt: 8, anwendbar: 8, prozent: 100 })
     for (const lebendStatus of ['lebend', 'vermutet_verstorben', null] as const) {
-      expect(auswerten({ ...VOLL, ...tod, lebendStatus })).toMatchObject({ erfuellt: 6, anwendbar: 6, prozent: 100, fehlend: [] })
+      expect(auswerten({ ...VOLL, ...tod, lebendStatus })).toEqual({
+        erfuellt: 6,
+        anwendbar: 6,
+        prozent: 100,
+        fehlend: [],
+        aufschluesselung: [
+          { id: 'name', zustand: 'belegt' },
+          { id: 'geschlecht', zustand: 'vorhanden' },
+          { id: 'geburtsdatum', zustand: 'belegt' },
+          { id: 'geburtsort', zustand: 'belegt' },
+          { id: 'vater', zustand: 'belegt' },
+          { id: 'mutter', zustand: 'belegt' },
+        ],
+      })
     }
     expect(auswerten({ lebendStatus: 'verstorben' })?.fehlend).toEqual(['name', 'geschlecht', 'geburtsdatum', 'geburtsort', 'todesdatum', 'todesort', 'vater', 'mutter'])
   })

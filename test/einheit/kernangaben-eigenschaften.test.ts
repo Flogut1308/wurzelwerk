@@ -104,13 +104,39 @@ describe('kernangabenAuswerten — Eigenschaften (AP-1.34 PR-D)', () => {
       fc.property(eingabeArb, (e) => {
         const k = kernangabenAuswerten(e)
         if (k === null) throw new Error('null für Nicht-Platzhalter')
-        const faelle = [
+        const faelle: [string, boolean, boolean][] = [
           ['geburtsdatum', e.geburtsdatum.some((a) => a.hatWert), e.geburtEreignisse.some((x) => x.datumVorhanden)],
           ['geburtsort', e.geburtsort.some((a) => a.wertRefId !== null || a.wertText !== null), e.geburtEreignisse.some((x) => x.ortVorhanden)],
-        ] as const
+        ]
+        if (e.lebendStatus === 'verstorben') {
+          faelle.push(
+            ['todesdatum', e.todesdatum.some((a) => a.hatWert), e.todEreignisse.some((x) => x.datumVorhanden)],
+            ['todesort', e.todesort.some((a) => a.wertRefId !== null || a.wertText !== null), e.todEreignisse.some((x) => x.ortVorhanden)],
+          )
+        }
         for (const [id, aussageMitWert, ereignisMitWert] of faelle) {
           if (!aussageMitWert && ereignisMitWert) expect(k.fehlend).not.toContain(id)
           if (!aussageMitWert && !ereignisMitWert) expect(k.fehlend).toContain(id)
+        }
+      }),
+      { seed: SEED, numRuns: LAEUFE },
+    )
+  })
+
+  it('E6: die Aussage führt — gibt es eine Aussage mit Wert, ist die Angabe genau dann erfüllt, wenn eine davon belegt ist', () => {
+    fc.assert(
+      fc.property(eingabeArb, (e) => {
+        const k = kernangabenAuswerten(e)
+        if (k === null) throw new Error('null für Nicht-Platzhalter')
+        const traegtOrt = (a: { readonly wertRefId: string | null; readonly wertText: string | null }): boolean => a.wertRefId !== null || a.wertText !== null
+        const faelle: [string, readonly { readonly belegt: boolean }[]][] = [
+          ['geburtsdatum', e.geburtsdatum.filter((a) => a.hatWert)],
+          ['geburtsort', e.geburtsort.filter(traegtOrt)],
+        ]
+        if (e.lebendStatus === 'verstorben') faelle.push(['todesdatum', e.todesdatum.filter((a) => a.hatWert)], ['todesort', e.todesort.filter(traegtOrt)])
+        for (const [id, mitWert] of faelle) {
+          if (mitWert.length === 0) continue
+          expect(k.fehlend.some((f) => f === id)).toBe(!mitWert.some((a) => a.belegt))
         }
       }),
       { seed: SEED, numRuns: LAEUFE },

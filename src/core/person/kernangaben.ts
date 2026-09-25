@@ -76,7 +76,7 @@ export interface KernangabenEingabe {
   readonly istPlatzhalter: boolean
   readonly lebendStatus: KernangabenLebendStatus | null
   readonly geschlecht: ElternGeschlecht | null
-  /** Die Hauptform hat einen nicht-leeren Anzeigetext (`anzeigetextVon`, src/core/name/anzeigename.ts). */
+  /** Die Hauptform hat einen nicht-leeren Anzeigetext (`hatAnzeigetext`, src/core/name/anzeigename.ts). */
   readonly nameVorhanden: boolean
   /** Eine Aussage über die Hauptform hat mindestens einen Beleg (D3). */
   readonly hauptformBelegt: boolean
