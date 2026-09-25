@@ -46,11 +46,17 @@ export function zufallsBestandAufbauen(db: Database.Database, seed: number, anza
     personIds.push(id)
     person.run({ id, istPlatzhalter: i % 13 === 7 ? 1 : 0, geschlecht: wahl(['M', 'F', 'F', 'M', 'U', null]) })
     const geburtsjahr = 1700 + ganz(200)
-    for (const [praedikat, basis, streuung] of [['geburtsdatum', geburtsjahr - 2, 5], ['todesdatum', geburtsjahr - 10, 140]] as const) {
-      const anzahl = ganz(3)
+    // hueter PR #121 H1: jede sechste Person bekommt sicher Geburt UND ein bevorzugtes Todesdatum
+    // vor der Geburt (erste Todesaussage), damit `tod_vor_geburt` in jedem Seed mehrfach vorkommt.
+    const rueckdatiert = i % 6 === 1
+    for (const [praedikat, basis, streuung] of [['geburtsdatum', geburtsjahr - 2, 5], ['todesdatum', geburtsjahr - 30, 160]] as const) {
+      const anzahl = Math.max(ganz(3), rueckdatiert ? 1 : 0)
       for (let a = 0; a < anzahl; a += 1) {
-        const { von, bis } = jahr(basis + ganz(streuung))
-        aussage.run({ id: `a-${id}-${praedikat}-${a}`, personId: id, praedikat, von, bis, istBevorzugt: zufall() < 0.4 ? 1 : 0 })
+        const zufallsJahr = basis + ganz(streuung)
+        const zufallsBevorzugt = zufall() < 0.4 ? 1 : 0
+        const erzwungen = rueckdatiert && praedikat === 'todesdatum' && a === 0
+        const { von, bis } = jahr(erzwungen ? geburtsjahr - 5 : zufallsJahr)
+        aussage.run({ id: `a-${id}-${praedikat}-${a}`, personId: id, praedikat, von, bis, istBevorzugt: erzwungen ? 1 : zufallsBevorzugt })
       }
     }
   }

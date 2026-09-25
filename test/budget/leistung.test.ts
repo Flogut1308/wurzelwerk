@@ -110,10 +110,10 @@ describe('Leistungsbudget: abfrage:person.detail bei 2000 Personen (AP-1.34 PR-C
     const db = grossbestandAufbauen()
     try {
       const personIds = db
-        .prepare<[], { readonly id: string }>(
-          `SELECT elternteil_id AS id FROM elternschaft GROUP BY elternteil_id ORDER BY COUNT(*) DESC, elternteil_id LIMIT ${DURCHLAEUFE}`,
+        .prepare<{ readonly n: number }, { readonly id: string }>(
+          `SELECT elternteil_id AS id FROM elternschaft GROUP BY elternteil_id ORDER BY COUNT(*) DESC, elternteil_id LIMIT @n`,
         )
-        .all()
+        .all({ n: DURCHLAEUFE })
         .map((zeile) => zeile.id)
       expect(personIds.length).toBeGreaterThan(0)
       const laufzeitenMs: number[] = []

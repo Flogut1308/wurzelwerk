@@ -12,6 +12,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
 import type Database from 'better-sqlite3'
 import { nachJdn } from '../../src/core/datum/kalender'
+import { BESTAND_HINWEIS_CODES } from '../../src/core/plausibilitaet/regeln'
 import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
@@ -207,6 +208,21 @@ describe('person.detail — Feldwarnungen (AP-1.34 PR-C2b)', () => {
         })
       })
     }
+
+    it('die Seeds 11–13 decken als Feldwarnung alle acht Hinweiscodes ab (hueter PR #121 H1)', () => {
+      const gesehen = new Map<string, number>()
+      for (const seed of [11, 12, 13]) {
+        mitDb((db) => {
+          const { personIds } = zufallsBestandAufbauen(db, seed)
+          for (const personId of personIds) {
+            for (const w of personDetail(db, { personId }).warnungen) gesehen.set(w.code, (gesehen.get(w.code) ?? 0) + 1)
+          }
+        })
+      }
+      for (const code of BESTAND_HINWEIS_CODES) expect(gesehen.get(code) ?? 0, code).toBeGreaterThan(0)
+      // tod_vor_geburt entsteht sonst nur zufällig und selten — der Generator erzwingt es.
+      expect(gesehen.get('tod_vor_geburt') ?? 0).toBeGreaterThanOrEqual(3 * 5)
+    })
   })
 })
 
