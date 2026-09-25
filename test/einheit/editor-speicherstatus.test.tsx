@@ -96,4 +96,28 @@ describe('useEditorSpeicherstatus', () => {
     expect(schreibeA).toHaveBeenCalledTimes(2)
     expect(aktuell().anzeige).toEqual({ zustand: 'fehler', felder: ['a'] })
   })
+
+  it('„erneut versuchen" wiederholt den NEUESTEN Fehlschlag, auch wenn ein älterer danach eintrifft', async () => {
+    let aelterAblehnen: (fehler: Error) => void = () => undefined
+    const aelter = vi.fn(
+      () =>
+        new Promise<null>((_, ablehnen) => {
+          aelterAblehnen = ablehnen
+        }),
+    )
+    const neuer = vi.fn(() => Promise.reject(new Error('neuer')))
+    await act(async () => {
+      const ersterLauf = aktuell().beobachter.beobachten('a', aelter).catch(() => undefined)
+      await aktuell().beobachter.beobachten('a', neuer).catch(() => undefined)
+      aelterAblehnen(new Error('aelter'))
+      await ersterLauf
+    })
+    expect(aktuell().anzeige).toEqual({ zustand: 'fehler', felder: ['a'] })
+    await act(async () => {
+      aktuell().erneutVersuchen()
+      await Promise.resolve()
+    })
+    expect(aelter).toHaveBeenCalledTimes(1)
+    expect(neuer).toHaveBeenCalledTimes(2)
+  })
 })

@@ -75,6 +75,15 @@ describe('editorSpeicherAnzeige / editorSpeicherUebergang', () => {
     expect(editorSpeicherAnzeige(z)).toEqual({ zustand: 'fehler', felder: ['a', 'b'] })
   })
 
+  it('ein älterer Fehlschlag nach einem neueren desselben Felds überschreibt den neueren nicht', () => {
+    // Die Wiederholung schreibt den Stand des neuesten Fehlschlags — ein später eintreffender
+    // älterer darf ihn nicht verdrängen (hueter #161).
+    const z = nach(start(1, 'a'), start(2, 'a'), fehler(2, 'a'), fehler(1, 'a'))
+    expect(z.fehler).toEqual([{ nr: 2, feld: 'a' }])
+    // Die Wiederholung (nr 3) gilt als laufend für den Fehler nr 2 — und nur dafür.
+    expect(editorSpeicherAnzeige(editorSpeicherUebergang(z, start(3, 'a')))).toEqual({ zustand: 'speichert' })
+  })
+
   it('ist rein: der Ausgangszustand bleibt unverändert', () => {
     const vorher = nach(start(1, 'a'), fehler(1, 'a'))
     const kopie = JSON.stringify(vorher)

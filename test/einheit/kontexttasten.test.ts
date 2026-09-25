@@ -27,6 +27,14 @@ describe('kontexttasteErkennen (Tasten 1…8, V-130-7-tasten)', () => {
     }
   })
 
+  it('AZERTY: die Taste „1" meldet key „&", code Digit1 — sie wählt Reiter 1 (Erkennung über code, nie key)', () => {
+    // Electrons `Input` trägt `key` mit; die Erkennung darf es nicht auswerten (hueter #161).
+    const azerty = { ...eingabe({ code: 'Digit1' }), key: '&' }
+    expect(kontexttasteErkennen(azerty)).toEqual({ aktion: 'reiterWaehlen', reiterIndex: 0 })
+    const azertyZwei = { ...eingabe({ code: 'Digit2' }), key: 'é' }
+    expect(kontexttasteErkennen(azertyZwei)).toEqual({ aktion: 'reiterWaehlen', reiterIndex: 1 })
+  })
+
   it('Digit9, Digit0 und der Ziffernblock sind keine Kontexttaste', () => {
     expect(kontexttasteErkennen(eingabe({ code: 'Digit9' }))).toBeNull()
     expect(kontexttasteErkennen(eingabe({ code: 'Digit0' }))).toBeNull()
