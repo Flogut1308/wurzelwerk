@@ -85,3 +85,18 @@
   border-radius: var(--wz-radius-standard);
   overflow: hidden;
 }
+
+/* AP-1.30 PR 6: Reiterleiste in voller Probenbreite, darunter ihr Inhaltsbereich. */
+.wz-zb__reiterProbe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  width: 100%;
+}
+
+/* Fokuszustand als Anschauungsstück (wie `Fokusring`): dieselben Tokens wie der globale
+ * `:focus-visible`-Ring in `basis.css`, hier fest am aktiven Reiter der Probe. */
+.wz-zb__fokusProbe .wz-reiterleiste__reiter--aktiv {
+  outline: var(--wz-rahmen-fokus-breite) solid var(--wz-rahmen-fokus);
+  outline-offset: var(--wz-rahmen-fokus-versatz);
+}

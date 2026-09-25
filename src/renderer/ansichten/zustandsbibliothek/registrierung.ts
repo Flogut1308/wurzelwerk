@@ -49,4 +49,5 @@ export const ZUSTANDSBIBLIOTHEK_EINTRAEGE: readonly string[] = [
   'personenwaehler',
   'ortsfeld',
   'archivfeld',
+  'reiterleiste',
 ]
