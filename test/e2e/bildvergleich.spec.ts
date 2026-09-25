@@ -94,6 +94,7 @@ async function aufnahme(
   theme: 'hell' | 'dunkel',
   dichte: 'standard' | 'kompakt' = 'standard',
   clip?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+  maske?: readonly ReturnType<typeof fenster.locator>[],
 ): Promise<void> {
   await fenster.evaluate(kombinationImDomSetzen, { theme, dichte })
   // Maus auf eine neutrale, nicht-interaktive Position bewegen: Chromium blendet die
@@ -102,7 +103,11 @@ async function aufnahme(
   // einem Klick, dessen Position sich mit dem Layout verschiebt) — sichtbar geworden an den
   // Filterfeldern „Geburtsjahr zwischen" der Liste.
   await fenster.mouse.move(0, 0)
-  await expect(fenster).toHaveScreenshot(`${name}.png`, clip === undefined ? AUFNAHME_OPTIONEN : { ...AUFNAHME_OPTIONEN, clip })
+  await expect(fenster).toHaveScreenshot(`${name}.png`, {
+    ...AUFNAHME_OPTIONEN,
+    ...(clip === undefined ? {} : { clip }),
+    ...(maske === undefined ? {} : { mask: [...maske] }),
+  })
 }
 
 /** `setContentSize` kehrt zurück, bevor der Renderer die neue Größe übernommen hat — ohne diese
@@ -111,6 +116,8 @@ async function aufnahme(
 async function fensterAufFesteGroesseSetzen(
   app: Awaited<ReturnType<typeof electron.launch>>,
   fenster: Awaited<ReturnType<Awaited<ReturnType<typeof electron.launch>>['firstWindow']>>,
+  breite: number = FENSTER_BREITE,
+  hoehe: number = FENSTER_HOEHE,
 ): Promise<void> {
   await app.evaluate(
     ({ BrowserWindow }, groesse) => {
@@ -118,14 +125,19 @@ async function fensterAufFesteGroesseSetzen(
         fensterHandle.setContentSize(groesse.breite, groesse.hoehe)
       }
     },
-    { breite: FENSTER_BREITE, hoehe: FENSTER_HOEHE },
+    { breite, hoehe },
   )
 
   await fenster.waitForFunction(
     (groesse) => window.innerWidth === groesse.breite && window.innerHeight === groesse.hoehe,
-    { breite: FENSTER_BREITE, hoehe: FENSTER_HOEHE },
+    { breite, hoehe },
   )
 }
+
+/** AP-1.30 PR 8: breites Fenster für die rechte Spalte „Zustand" (sichtbar erst ab 1100 px). Alle
+ * übrigen Motive bleiben bei 1000×600 — dort ist die Spalte ausgeblendet, ihre Bilder unverändert. */
+const FENSTER_BREITE_SPALTE = 1280
+const FENSTER_HOEHE_SPALTE = 800
 
 test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
   test.skip(process.platform !== 'darwin', 'nur macOS vergleicht pixelgenau (ADR-012)')
@@ -508,6 +520,34 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
               await reiterWaehlen(/^Verwaltung/)
               await expect(editor.getByRole('tabpanel')).toContainText('kommt in einem späteren Schritt')
               await aufnahme(fenster, `person-bearbeiten-verwaltung-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
+            })
+          }
+        })
+
+        // AP-1.30 PR 8: rechte Spalte „Zustand" (Vollständigkeit, offene Punkte, Verlauf) bei 1280 px.
+        // Walter: Kernangaben mit gemischten Zuständen, offene Punkte (Sterbeort, Eltern, Kind ohne
+        // Partnerschaft mit Namen). Die Verlaufszeiten („gerade eben"/„vor n Minuten") hängen an der
+        // Laufzeit des Runners und sind maskiert; alles andere ist fester Inhalt. Die Fenstergröße wird
+        // danach auf 1000×600 zurückgesetzt, damit die folgenden Motive unverändert bleiben.
+        test.describe('Rechte Spalte (1280 px) — vier Kombinationen', () => {
+          test.beforeAll(async () => {
+            await fensterAufFesteGroesseSetzen(app, fenster, FENSTER_BREITE_SPALTE, FENSTER_HOEHE_SPALTE)
+          })
+
+          test.afterAll(async () => {
+            await fensterAufFesteGroesseSetzen(app, fenster)
+          })
+
+          for (const kombination of VIER_KOMBINATIONEN) {
+            test(`person-bearbeiten-spalte-${kombination.theme}-${kombination.dichte}`, async () => {
+              await reiterWaehlen(/^Person/)
+              const spalte = editor.getByRole('complementary', { name: 'Zustand der Person' })
+              await expect(spalte).toBeVisible()
+              await expect(spalte.locator('[data-kernangabe]').first()).toBeVisible()
+              await expect(spalte.locator('.wz-editor-rechte-spalte__verlauf-eintrag').first()).toBeAttached()
+              await aufnahme(fenster, `person-bearbeiten-spalte-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte, undefined, [
+                spalte.locator('.wz-editor-rechte-spalte__zeit'),
+              ])
             })
           }
         })
