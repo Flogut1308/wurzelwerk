@@ -19,6 +19,7 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', () => ({
 }))
 
 import { GrunddatenBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-grunddaten'
+import { NotizBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-notiz'
 import {
   boolZuKontrollkaestchenZustand,
   kontrollkaestchenZustandZuBool,
@@ -71,10 +72,11 @@ describe('profil-bearbeiten-logik: Grunddaten (AP-1.14a)', () => {
 })
 
 describe('GrunddatenBearbeitenAbschnitt (AP-1.14a, S-20 Kernfelder)', () => {
-  it('zeigt Geschlecht-Auswahl und Notiz, OHNE Platzhalter-Grund, wenn das Kennzeichen NICHT gesetzt ist', () => {
-    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf()} notiz="Eine Notiz" />)
+  it('zeigt Geschlecht-Auswahl, OHNE Platzhalter-Grund, wenn das Kennzeichen NICHT gesetzt ist', () => {
+    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf()} />)
     expect(markup).toContain('Geschlecht')
-    expect(markup).toContain('Eine Notiz')
+    // AP-1.30 PR 7b: die Notiz ist in den Reiter „Notizen" gezogen (NotizBearbeitenAbschnitt, unten).
+    expect(markup).not.toContain('<textarea')
     // "Nicht identifiziert" ist NUR eine Platzhalter-Grund-Option — eindeutiger als "Grund"
     // (steckt bereits in "Grunddaten", der Abschnittsüberschrift).
     expect(markup).not.toContain('Nicht identifiziert')
@@ -82,30 +84,42 @@ describe('GrunddatenBearbeitenAbschnitt (AP-1.14a, S-20 Kernfelder)', () => {
 
   it('zeigt den Platzhalter-Grund NUR, wenn ist_platzhalter gesetzt ist', () => {
     const markup = renderToStaticMarkup(
-      <GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true, platzhalter_grund: 'unbekannt' })} notiz={null} />,
+      <GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true, platzhalter_grund: 'unbekannt' })} />,
     )
     expect(markup).toContain('Grund')
     expect(markup).toContain('Unbekannt')
   })
 
   it('das Platzhalter-Kennzeichen ist ein Kontrollkästchen (Trefferfläche/Zustand aus der Zustandsbibliothek, kein selbstgebautes Steuerelement)', () => {
-    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true })} notiz={null} />)
+    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true })} />)
     expect(markup).toContain('wz-kontrollkaestchen')
     expect(markup).toContain('role="checkbox"')
     expect(markup).toContain('aria-checked="true"')
   })
 
   it('ohne ist_platzhalter: Kontrollkästchen zeigt aria-checked="false"', () => {
-    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: false })} notiz={null} />)
+    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: false })} />)
     expect(markup).toContain('aria-checked="false"')
   })
 
   it('kein Farbliteral im Markup (Token-Vertrag, CLAUDE.md §14)', () => {
     const markup = renderToStaticMarkup(
-      <GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true, platzhalter_grund: 'unbekannt' })} notiz="x" />,
+      <GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf({ ist_platzhalter: true, platzhalter_grund: 'unbekannt' })} />,
     )
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(markup).not.toMatch(/rgb\(/)
+  })
+
+  it('NotizBearbeitenAbschnitt (AP-1.30 PR 7b, Reiter „Notizen"): zeigt die Notiz im beschrifteten Langtextfeld', () => {
+    const markup = renderToStaticMarkup(<NotizBearbeitenAbschnitt personId="person-1" notiz="Eine Notiz" />)
+    expect(markup).toContain('Notiz')
+    expect(markup).toMatch(/<textarea[^>]*>Eine Notiz<\/textarea>/)
+  })
+
+  it('NotizBearbeitenAbschnitt: ohne Notiz ein leeres Feld, kein Farbliteral', () => {
+    const markup = renderToStaticMarkup(<NotizBearbeitenAbschnitt personId="person-1" notiz={null} />)
+    expect(markup).toMatch(/<textarea[^>]*><\/textarea>/)
+    expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
   })
 
   // CLAUDE.md §5 „additive Tests": AP-1.14b baut Lebensdaten (Konfidenz+Beleg) NACH, dieser

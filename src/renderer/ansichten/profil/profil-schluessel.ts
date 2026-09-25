@@ -3,6 +3,7 @@
 // vollständiger Abdeckung, damit ein künftiger Enum-Wert hier einen Typfehler erzeugt, keinen
 // stillen Fall). Reines TypeScript, kein JSX, kein DOM — leicht ohne Renderer testbar.
 import type { z } from 'zod'
+import type { ReiterId } from '../../../core/person/reiter'
 import type { BeteiligungRolleEnum } from '../../../shared/schemata/beteiligung'
 import type { ElternschaftTypEnum } from '../../../shared/schemata/elternschaft'
 import type { EreignisTypEnum } from '../../../shared/schemata/ereignis'
@@ -276,5 +277,28 @@ export function platzhalterGrundSchluessel(grund: z.infer<typeof PlatzhalterGrun
       return 'platzhalter_grund_nicht_identifiziert'
     case 'forschungsluecke':
       return 'platzhalter_grund_forschungsluecke'
+  }
+}
+
+/** Reiter der Bearbeitungsansicht (AP-1.30 PR 7b, `src/core/person/reiter.ts`) — Beschriftung am
+ * Reiter und im Leerzustand seines Inhaltsbereichs. */
+export function reiterSchluessel(reiter: ReiterId): string {
+  switch (reiter) {
+    case 'person':
+      return 'reiter_person'
+    case 'namen':
+      return 'reiter_namen'
+    case 'leben':
+      return 'reiter_leben'
+    case 'beziehungen':
+      return 'reiter_beziehungen'
+    case 'belege_medien':
+      return 'reiter_belege_medien'
+    case 'gesundheit':
+      return 'reiter_gesundheit'
+    case 'notizen':
+      return 'reiter_notizen'
+    case 'verwaltung':
+      return 'reiter_verwaltung'
   }
 }
