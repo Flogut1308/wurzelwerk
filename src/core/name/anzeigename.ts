@@ -1,8 +1,8 @@
 // AP-1.33: der eine kanonische Anzeigename über MEHRERE Namensformen einer Person (name_form +
 // name_part). Reine Funktion, KEIN Node/SQL/shared (CLAUDE.md §2/§4: kein Date.now/Math.random). Die
-// Rückfallkette ist: gewünschte Sprache → lateinische Umschrift (umschrift_von gesetzt) → Hauptname
-// (ist_bevorzugt). `text` ist ein zusammengesetzter Anzeigestring aus den Bestandteilen; die
-// endgültige, i18n-abhängige Formatierung (Rufname hervorheben o. Ä.) bleibt dem Renderer über
+// Rückfallkette ist: gewünschte Sprache → Umschrift der Hauptform (umschrift_von = Hauptform, mit
+// Anzeigetext; Eigentümer 25.09.2026) → Hauptname (ist_bevorzugt). `text` ist ein zusammengesetzter
+// Anzeigestring aus den Bestandteilen; die endgültige, i18n-abhängige Formatierung (Rufname hervorheben o. Ä.) bleibt dem Renderer über
 // `anzeige.ts` (Segment-Builder) vorbehalten — dieses Modul liefert den flachen Text + die Herkunft.
 import { rekonstruiereFlach, type GeladenerTeil } from './zerlegung'
 
@@ -61,6 +61,8 @@ export function sortierName(form: AnzeigeForm): string {
 /**
  * Wählt aus allen Formen einer Person die anzuzeigende nach der Rückfallkette Sprache → Umschrift →
  * Hauptname und liefert `{ text, quelle, formId }`. `null`, wenn die Person gar keine Form hat.
+ * Die Umschrift-Stufe zählt nur eine Umschrift der Hauptform mit Anzeigetext; die Umschrift einer
+ * Nebenform oder eine leere Umschrift verdrängt den Hauptnamen nicht (docs/80 §32 V-4-umschrift).
  * `wunschSprache` steuert die erste Stufe (z. B. die UI-Sprache); fehlt sie oder gibt es keine
  * passende Form, wird sie übersprungen.
  */
@@ -74,13 +76,17 @@ export function anzeigenameFuer(formen: readonly AnzeigeForm[], wunschSprache?: 
     }
   }
 
-  const umschrift = [...formen].filter((form) => form.umschriftVon !== null).sort(vergleiche)[0]
+  const hauptname = [...formen].sort(vergleiche)[0]
+  if (hauptname === undefined) return null
+
+  // Eigentümer 25.09.2026 (docs/80 §32 V-4-umschrift-nebenform/-leer): nur eine Umschrift DER
+  // Hauptform mit Anzeigetext verdrängt den Hauptnamen — nicht die Umschrift einer Nebenform, nicht
+  // eine leere Umschrift. Hauptform ist die Form, die sonst Stufe 3 wählt (§32 V-4b-hauptform).
+  const umschrift = formen.filter((form) => form.umschriftVon === hauptname.formId && hatAnzeigetext(form)).sort(vergleiche)[0]
   if (umschrift !== undefined) {
     return { text: anzeigetextVon(umschrift), quelle: 'umschrift', formId: umschrift.formId }
   }
 
-  const hauptname = [...formen].sort(vergleiche)[0]
-  if (hauptname === undefined) return null
   return { text: anzeigetextVon(hauptname), quelle: 'hauptname', formId: hauptname.formId }
 }
 
