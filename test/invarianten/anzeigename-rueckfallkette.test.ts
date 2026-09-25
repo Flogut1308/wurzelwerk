@@ -18,9 +18,11 @@
 // „Hat Anzeigetext" (Stufe 2) entscheidet `anzeigetextVon` — die Textregel hat unten ihre eigene
 // Property, hier wird nur die Auswahl geprüft (§32 V-4b-orakel). Zweiseitig testlokal geklammert: eine
 // Form ohne jedes Nicht-Leerzeichen hat nie Text; ein nicht leerer Vorname, Vatersname oder Nachname
-// gibt immer Text (diese Arten verlieren beim Zusammensetzen keinen Wert). Dazwischen (mehrere Titel,
-// Präfixe, Zusätze) gilt allein `anzeigetextVon`; ob dort das Verwerfen weiterer Werte gewollt ist,
-// ist offen (§32 V-4b-ersterwert).
+// gibt immer Text (diese Arten verlieren beim Zusammensetzen keinen Wert). Dazwischen (Formen, deren
+// Text nur aus Titel, Präfix, Zusatz oder `originalText` käme) gilt allein `anzeigetextVon`, dessen
+// Text-Vertrag die Property unten prüft; ob das Verwerfen weiterer Titel/Präfixe/Zusätze gewollt ist,
+// ist offen (§32 V-4b-ersterwert). Umschriften aus reinen Leerzeichen erzeugt der allgemeine
+// Generator kaum — sie haben einen eigenen Fall (hueter #136, H1).
 // Die vorübergehende Einengung des Generators aus PR 1 (#134, §32 V-4b-einengung) ist aufgehoben.
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
@@ -172,6 +174,32 @@ describe('Property: Anzeigename-Rückfallkette Sprache → Umschrift → Hauptna
         }
       }),
       { seed: 20260924, numRuns: 1000 },
+    )
+  })
+
+  // Vorarbeiten AP-1.30 Teil 2, PR 3 (hueter #136, H1): Umschriften der Hauptform, deren Text nur aus
+  // Leerzeichen besteht (Bestandteile ' ', '\t', originalText '', ' ' …), verdrängen den Hauptnamen
+  // nie; eine daneben stehende gefüllte Umschrift der Hauptform gewinnt trotzdem.
+  it('eine Umschrift der Hauptform aus reinen Leerzeichen verdrängt den Hauptnamen nie', () => {
+    const leer = fc.constantFrom('', ' ', '  ', '\t', '\n', '\u00a0', '\u3000')
+    const leereUmschrift = fc.record({
+      teile: fc.array(fc.record({ art: fc.constantFrom(...ARTEN), wert: leer, istRufname: fc.constant(false), sortierIndex: fc.nat({ max: 5 }) }), { maxLength: 4 }),
+      originalText: fc.option(leer, { nil: null }),
+    })
+    fc.assert(
+      fc.property(fc.array(leereUmschrift, { minLength: 1, maxLength: 3 }), fc.boolean(), fc.boolean(), (leere, mitGefuellter, hauptBevorzugt) => {
+        const haupt: AnzeigeForm = { formId: 'form-00', sprache: null, schrift: null, istBevorzugt: hauptBevorzugt, umschriftVon: null, originalText: 'Иванов', teile: [] }
+        const leerFormen = leere.map(
+          (f, index): AnzeigeForm => ({ ...f, formId: formIdFuer(index + 1), sprache: null, schrift: null, istBevorzugt: false, umschriftVon: 'form-00' }),
+        )
+        const gefuellt: AnzeigeForm = { formId: 'form-09', sprache: null, schrift: null, istBevorzugt: false, umschriftVon: 'form-00', originalText: 'Ivanov', teile: [] }
+        const formen = mitGefuellter ? [...leerFormen, gefuellt, haupt] : [...leerFormen, haupt]
+        for (const f of leerFormen) expect(sichtbarLeer(f)).toBe(true)
+        expect(anzeigenameFuer(formen)).toEqual(
+          mitGefuellter ? { text: 'Ivanov', quelle: 'umschrift', formId: 'form-09' } : { text: 'Иванов', quelle: 'hauptname', formId: 'form-00' },
+        )
+      }),
+      { seed: 20260925, numRuns: 500 },
     )
   })
 
