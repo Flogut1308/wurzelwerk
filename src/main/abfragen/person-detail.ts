@@ -23,8 +23,10 @@ import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
+import { hatAnzeigetext } from '../../core/name/anzeigename'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
-import { kernangabenAuswerten, type KernAussage, type KernOrtAussage } from '../../core/person/kernangaben'
+import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
+import { ereignisHatDatum, istRueckfallEreignis } from '../../core/person/lebensdaten'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
@@ -88,6 +90,14 @@ interface FormZeile {
   readonly rolle: string | null
   readonly umschrift_von: string | null
   readonly schrift: string | null
+  readonly ist_bevorzugt: number
+  readonly original_text: string | null
+}
+
+interface Namen {
+  readonly namen: readonly PersonDetailName[]
+  /** Die Hauptform hat einen nicht-leeren Anzeigetext (Kernangabe `name`, Nachtrag ADR-031). */
+  readonly nameVorhanden: boolean
 }
 
 interface TeilZeile {
@@ -102,18 +112,19 @@ interface TeilZeile {
  * name_part) — read-only als FLACHE `PersonDetailName` rekonstruiert (dieselbe Rekonstruktion wie die
  * Projektion, src/core/name/zerlegung.ts). Sortiert nach `ist_bevorzugt` (bevorzugte Form zuerst),
  * dann `id` als stabiler Tie-Break. */
-function namenLaden(db: Database.Database, personId: string): readonly PersonDetailName[] {
+function namenLaden(db: Database.Database, personId: string): Namen {
   const formen = db
     .prepare<
       { readonly personId: string },
       FormZeile
-    >(`SELECT id AS id, rolle AS rolle, umschrift_von AS umschrift_von, schrift AS schrift
+    >(`SELECT id AS id, rolle AS rolle, umschrift_von AS umschrift_von, schrift AS schrift,
+              ist_bevorzugt AS ist_bevorzugt, original_text AS original_text
        FROM name_form
        WHERE person_id = @personId
        ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id`,
     )
     .all({ personId })
-  if (formen.length === 0) return []
+  if (formen.length === 0) return { namen: [], nameVorhanden: false }
 
   const teileJeForm = new Map<string, GeladenerTeil[]>()
   const teile = db
@@ -133,7 +144,11 @@ function namenLaden(db: Database.Database, personId: string): readonly PersonDet
     teileJeForm.set(zeile.name_form_id, liste)
   }
 
-  return formen.map((form) => {
+  const hauptform = formen.find((form) => form.ist_bevorzugt === 1)
+  const nameVorhanden =
+    hauptform !== undefined && hatAnzeigetext({ teile: teileJeForm.get(hauptform.id) ?? [], originalText: hauptform.original_text })
+
+  const namen = formen.map((form) => {
     const flach = rekonstruiereFlach(teileJeForm.get(form.id) ?? [])
     const typ = form.rolle ?? (form.umschrift_von !== null ? 'transliteriert' : 'sonstiges')
     return {
@@ -148,6 +163,7 @@ function namenLaden(db: Database.Database, personId: string): readonly PersonDet
       rufname_text: flach.rufnameText,
     }
   })
+  return { namen, nameVorhanden }
 }
 
 interface AussageZeile {
@@ -482,32 +498,60 @@ function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readon
   }))
 }
 
-interface TodEreignisZeile {
+interface LebensereignisZeile {
   readonly id: string
+  readonly typ: string
+  readonly rolle: string
   readonly ort_id: string | null
+  readonly datum_wert1: string | null
+  readonly datum_originaltext: string | null
 }
 
-/** Tod-Ereignisse, an denen die Person als `verstorbener` beteiligt ist (AP-1.34 PR-C2a, §31
- * U-1.34-E5) — der Rückfall für den Sterbeort. Andere Rollen (`informant`, `pfarrer`, …) und andere
- * Ereignistypen zählen bewusst nicht. `DISTINCT`: eine doppelte Beteiligung derselben Person im
- * selben Ereignis ist kein zweites Ereignis. */
-function todEreignisseLaden(db: Database.Database, personId: string): readonly TodEreignisZeile[] {
-  return db
+/** Ein Geburts- bzw. Tod-Rückfall der Person (ohne Rolle; je Ereignis einmal). */
+interface RueckfallEreignis {
+  readonly id: string
+  readonly ort_id: string | null
+  readonly datum_wert1: string | null
+  readonly datum_originaltext: string | null
+}
+
+interface Lebensereignisse {
+  readonly geburt: readonly RueckfallEreignis[]
+  readonly tod: readonly RueckfallEreignis[]
+}
+
+/** Geburts- und Tod-Ereignisse der Person — der Rückfall für Datum und Ort (AP-1.34 PR-C2a §31
+ * U-1.34-E5; Nachtrag ADR-031 vom 25.09.2026). WELCHE Beteiligung zählt, entscheidet allein der Kern
+ * (`istRueckfallEreignis`: Geburt mit `hauptperson`/`kind`, Tod mit `verstorbener`/`hauptperson`);
+ * hier werden nur die Kandidaten `typ IN ('geburt','tod')` geladen. Eine mehrfache Beteiligung
+ * derselben Person am selben Ereignis ist kein zweites Ereignis (Entdopplung je `id`). */
+function lebensereignisseLaden(db: Database.Database, personId: string): Lebensereignisse {
+  const zeilen = db
     .prepare<
       { readonly personId: string },
-      TodEreignisZeile
-    >(`SELECT DISTINCT e.id AS id, e.ort_id AS ort_id
+      LebensereignisZeile
+    >(`SELECT e.id AS id, e.typ AS typ, b.rolle AS rolle, e.ort_id AS ort_id,
+              e.datum_wert1 AS datum_wert1, e.datum_originaltext AS datum_originaltext
        FROM beteiligung b
        JOIN ereignis e ON e.id = b.ereignis_id
-       WHERE b.person_id = @personId AND b.rolle = 'verstorbener' AND e.typ = 'tod'
+       WHERE b.person_id = @personId AND e.typ IN ('geburt', 'tod')
        ORDER BY e.id`,
     )
     .all({ personId })
+  const geburt = new Map<string, RueckfallEreignis>()
+  const tod = new Map<string, RueckfallEreignis>()
+  for (const zeile of zeilen) {
+    const art = istRueckfallEreignis(zeile.typ, zeile.rolle)
+    if (art === null) continue
+    const ziel = art === 'geburt' ? geburt : tod
+    ziel.set(zeile.id, { id: zeile.id, ort_id: zeile.ort_id, datum_wert1: zeile.datum_wert1, datum_originaltext: zeile.datum_originaltext })
+  }
+  return { geburt: [...geburt.values()], tod: [...tod.values()] }
 }
 
 /** Sterbeort (AP-1.34 PR-C2a): Auswahl im Kern (`sterbeortAufloesen`), hier nur Laden + Namens-
  * auflösung. Der Ortsname kommt wie bei `geburtsort` aus dem bevorzugten `ortsname`. */
-function sterbeortBauen(db: Database.Database, aussagen: readonly AussageZeile[], todEreignisZeilen: readonly TodEreignisZeile[]): PersonDetailSterbeort | null {
+function sterbeortBauen(db: Database.Database, aussagen: readonly AussageZeile[], todEreignisZeilen: readonly RueckfallEreignis[]): PersonDetailSterbeort | null {
   const todesorte = aussagen
     .filter((aussage) => aussage.praedikat === 'todesort')
     .map((aussage) => ({ id: aussage.id, istBevorzugt: aussage.ist_bevorzugt === 1, wertRefId: aussage.wert_ref_id, wertText: aussage.wert_text }))
@@ -754,45 +798,57 @@ function offenePunkteBauen(
 interface KernBelegZeile {
   readonly subjekt_typ: string
   readonly subjekt_id: string
+  readonly feld: string | null
 }
 
 interface KernBelege {
   readonly hauptformBelegt: boolean
   readonly belegteKanten: ReadonlySet<string>
-  readonly belegteTodOrte: ReadonlySet<string>
+  /** Ereignis-id → belegte Felder der Existenz-Aussage; `null` = die ganze Aussage (feld NULL). */
+  readonly ereignisFelder: ReadonlyMap<string, ReadonlySet<string | null>>
 }
 
 /** Beleg-Nachweise der Kernangaben außerhalb der Personen-Aussagen (AP-1.34 PR-D, ADR-031), EINE
  * Anweisung: welche Aussage-Subjekte haben mindestens einen `aussage_zitat` —
  * - die Hauptform (`name_form.ist_bevorzugt = 1`, jede Aussage über sie, D3),
  * - jede Elternkante zur Person als Kind (jede Aussage an der Kante, D7),
- * - jedes Tod-Ereignis mit Ort (Rolle `verstorbener`), dessen Existenz-Aussage einen Beleg für den
- *   Ort trägt (`feld` NULL = ganze Aussage oder `ort`, D6).
+ * - jedes Geburts-/Tod-Ereignis der Person, dessen Existenz-Aussage einen Beleg mit `feld` NULL (ganze
+ *   Aussage), `datum` oder `ort` trägt (D6; Nachtrag ADR-031: belegt Datum bzw. Ort des Rückfalls).
  * Bewusst ein einziger Durchlauf über `aussage` statt drei EXISTS-Unterabfragen: es gibt keinen
- * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index).
- * `e.typ = 'tod'`, `b.rolle = 'verstorbener'` und `e.ort_id IS NOT NULL` sind BEWUSST doppelt zu
- * `todEreignisseLaden` bzw. `ortVorhanden` im Kern (Absicherung, hueter #123 H6): ein Beleg-Nachweis
- * soll nie für ein Ereignis entstehen, das nicht als Sterbeort-Rückfall in Frage kommt. */
+ * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index). Welche Ereignisse
+ * überhaupt Rückfall sind (Rolle), entscheidet der Kern (`istRueckfallEreignis`); die Karte wird nur
+ * für die dort gewählten Ereignisse abgefragt, ein Beleg an einem anderen Ereignis wirkt also nie. */
 function kernBelegeLaden(db: Database.Database, personId: string): KernBelege {
   const zeilen = db
     .prepare<
       { readonly personId: string },
       KernBelegZeile
-    >(`SELECT DISTINCT a.subjekt_typ AS subjekt_typ, a.subjekt_id AS subjekt_id
+    >(`SELECT DISTINCT a.subjekt_typ AS subjekt_typ, a.subjekt_id AS subjekt_id,
+              CASE WHEN a.subjekt_typ = 'ereignis' THEN az.feld ELSE NULL END AS feld
        FROM aussage a
        JOIN aussage_zitat az ON az.aussage_id = a.id
        WHERE (a.subjekt_typ = 'name'
               AND a.subjekt_id IN (SELECT nf.id FROM name_form nf WHERE nf.person_id = @personId AND nf.ist_bevorzugt = 1))
           OR (a.subjekt_typ = 'elternschaft'
               AND a.subjekt_id IN (SELECT el.id FROM elternschaft el WHERE el.kind_id = @personId))
-          OR (a.subjekt_typ = 'ereignis' AND a.praedikat = 'existenz' AND (az.feld IS NULL OR az.feld = 'ort')
+          OR (a.subjekt_typ = 'ereignis' AND a.praedikat = 'existenz' AND (az.feld IS NULL OR az.feld IN ('datum', 'ort'))
               AND a.subjekt_id IN (
-                SELECT e.id FROM beteiligung b JOIN ereignis e ON e.id = b.ereignis_id
-                WHERE b.person_id = @personId AND b.rolle = 'verstorbener' AND e.typ = 'tod' AND e.ort_id IS NOT NULL))`,
+                SELECT b.ereignis_id FROM beteiligung b JOIN ereignis e ON e.id = b.ereignis_id
+                WHERE b.person_id = @personId AND e.typ IN ('geburt', 'tod')))`,
     )
     .all({ personId })
-  const idsVon = (typ: string): ReadonlySet<string> => new Set(zeilen.filter((z) => z.subjekt_typ === typ).map((z) => z.subjekt_id))
-  return { hauptformBelegt: zeilen.some((z) => z.subjekt_typ === 'name'), belegteKanten: idsVon('elternschaft'), belegteTodOrte: idsVon('ereignis') }
+  const ereignisFelder = new Map<string, Set<string | null>>()
+  for (const zeile of zeilen) {
+    if (zeile.subjekt_typ !== 'ereignis') continue
+    const felder = ereignisFelder.get(zeile.subjekt_id) ?? new Set<string | null>()
+    felder.add(zeile.feld)
+    ereignisFelder.set(zeile.subjekt_id, felder)
+  }
+  return {
+    hauptformBelegt: zeilen.some((z) => z.subjekt_typ === 'name'),
+    belegteKanten: new Set(zeilen.filter((z) => z.subjekt_typ === 'elternschaft').map((z) => z.subjekt_id)),
+    ereignisFelder,
+  }
 }
 
 /** Kernangaben (AP-1.34 PR-D, ADR-031): Auswertung im Kern (`kernangabenAuswerten`), hier nur die
@@ -805,7 +861,8 @@ function kernangabenBauen(
   aussagen: readonly AussageZeile[],
   belegeKarte: ReadonlyMap<string, readonly PersonDetailBeleg[]>,
   eltern: readonly ElternZeile[],
-  todEreignisZeilen: readonly TodEreignisZeile[],
+  nameVorhanden: boolean,
+  lebensereignisse: Lebensereignisse,
 ): PersonDetailKernangaben | null {
   if (kopfZeile.ist_platzhalter === 1) return null
 
@@ -822,17 +879,30 @@ function kernangabenBauen(
     aussagen
       .filter((a) => a.praedikat === praedikat)
       .map((a) => ({ wertRefId: a.wert_ref_id, wertText: a.wert_text, belegt: (belegeKarte.get(a.id)?.length ?? 0) > 0 }))
+  const felderBelegt = (ereignisId: string, feld: 'datum' | 'ort'): boolean => {
+    const felder = belege.ereignisFelder.get(ereignisId)
+    return felder !== undefined && (felder.has(null) || felder.has(feld))
+  }
+  const kernEreignisse = (ereignisse: readonly RueckfallEreignis[]): readonly KernEreignis[] =>
+    ereignisse.map((e) => ({
+      datumVorhanden: ereignisHatDatum({ datumWert1: e.datum_wert1, datumOriginaltext: e.datum_originaltext }),
+      ortVorhanden: e.ort_id !== null,
+      datumBelegt: felderBelegt(e.id, 'datum'),
+      ortBelegt: felderBelegt(e.id, 'ort'),
+    }))
 
   return kernangabenAuswerten({
     istPlatzhalter: false,
     lebendStatus: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
     geschlecht: kopfZeile.geschlecht === null ? null : GeschlechtEnum.parse(kopfZeile.geschlecht),
+    nameVorhanden,
     hauptformBelegt: belege.hauptformBelegt,
     geburtsdatum: aussagenZu('geburtsdatum'),
     geburtsort: ortAussagenZu('geburtsort'),
     todesdatum: aussagenZu('todesdatum'),
     todesort: ortAussagenZu('todesort'),
-    todEreignisse: todEreignisZeilen.map((e) => ({ ortVorhanden: e.ort_id !== null, ortBelegt: belege.belegteTodOrte.has(e.id) })),
+    geburtEreignisse: kernEreignisse(lebensereignisse.geburt),
+    todEreignisse: kernEreignisse(lebensereignisse.tod),
     eltern: eltern.map((zeile) => ({
       id: zeile.person_id,
       geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht),
@@ -865,8 +935,9 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
 
   const beziehungsZeilen = beziehungsZeilenLaden(db, ein.personId)
   const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
-  const todEreignisZeilen = todEreignisseLaden(db, ein.personId)
-  const sterbeort = sterbeortBauen(db, aussagen, todEreignisZeilen)
+  const lebensereignisse = lebensereignisseLaden(db, ein.personId)
+  const sterbeort = sterbeortBauen(db, aussagen, lebensereignisse.tod)
+  const { namen, nameVorhanden } = namenLaden(db, ein.personId)
   const warnungen = warnungenBauen(db, ein.personId)
 
   return {
@@ -881,7 +952,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
       kennung: KennungSchema.parse(kopfZeile.kennung),
       lebend_status: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
     },
-    namen: namenLaden(db, ein.personId),
+    namen,
     grunddaten,
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
     beziehungen: beziehungenBauen(beziehungsZeilen),
@@ -890,6 +961,6 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     sterbeort,
     warnungen,
     offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
-    kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, todEreignisZeilen),
+    kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, nameVorhanden, lebensereignisse),
   }
 }

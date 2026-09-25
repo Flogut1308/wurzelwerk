@@ -7,11 +7,15 @@
 //    ODER `wert_text` (freier Ortstext ohne Ortsdatensatz, dann `ortId = null`). Eine Aussage ohne
 //    beides trägt keinen Ort und wird übergangen.
 // 2. Fehlt eine solche Aussage, gilt der Ort des Tod-Ereignisses (Rückfall). Der AUFRUFER filtert
-//    auf Ereignisse `typ = 'tod'` mit Beteiligung der Person in der Rolle `verstorbener` — hier
-//    kommt nur `{id, ortId}` an. Unter mehreren gewinnt das mit Ort und kleinster `id`.
+//    auf Tod-Rückfälle (`istRueckfallEreignis`, ./lebensdaten.ts: `typ = 'tod'`, Rolle
+//    `verstorbener` oder `hauptperson`) — hier kommt nur `{id, ortId}` an. Unter mehreren gewinnt
+//    das mit Ort und kleinster `id`.
 // 3. Sonst `null`.
+// Welche Quelle führt, entscheidet `fuehrendeQuelle` (./lebensdaten.ts) — dieselbe Regel wie bei
+// den Kernangaben (Nachtrag ADR-031, 25.09.2026).
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingaben.
+import { fuehrendeQuelle } from './lebensdaten'
 import { traegtOrt } from './ort-wert'
 
 export interface SterbeortAussage {
@@ -48,15 +52,13 @@ export function sterbeortAufloesen(
   aussagen: readonly SterbeortAussage[],
   todEreignisse: readonly SterbeortTodEreignis[],
 ): Sterbeort | null {
-  const mitWert = aussagen.filter(traegtOrt).sort(nachId)
-  const gewaehlt = mitWert.find((a) => a.istBevorzugt) ?? mitWert[0]
-  if (gewaehlt !== undefined) {
-    return { herkunft: 'aussage', ortId: gewaehlt.wertRefId, aussageId: gewaehlt.id }
+  const fuehrung = fuehrendeQuelle(aussagen, traegtOrt, todEreignisse, (e) => e.ortId !== null)
+  if (fuehrung === null) return null
+  if (fuehrung.herkunft === 'aussage') {
+    const mitWert = [...fuehrung.kandidaten].sort(nachId)
+    const gewaehlt = mitWert.find((a) => a.istBevorzugt) ?? mitWert[0]
+    return gewaehlt === undefined ? null : { herkunft: 'aussage', ortId: gewaehlt.wertRefId, aussageId: gewaehlt.id }
   }
-
-  const ereignis = todEreignisse.filter((e) => e.ortId !== null).sort(nachId)[0]
-  if (ereignis !== undefined) {
-    return { herkunft: 'ereignis', ortId: ereignis.ortId, aussageId: null }
-  }
-  return null
+  const ereignis = [...fuehrung.kandidaten].sort(nachId)[0]
+  return ereignis === undefined ? null : { herkunft: 'ereignis', ortId: ereignis.ortId, aussageId: null }
 }

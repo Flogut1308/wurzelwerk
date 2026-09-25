@@ -2,7 +2,7 @@
 // (Rückfallkette Sprache → Umschrift → Hauptname) + `sortierName` (Nachname, Vornamen; Präfix zählt
 // NICHT mit) aus src/core/name/anzeigename.ts ab. Kein Node/SQL — reine Datenstruktur-Eingabe.
 import { describe, expect, it } from 'vitest'
-import { anzeigenameFuer, sortierName, type AnzeigeForm } from '../../src/core/name/anzeigename'
+import { anzeigenameFuer, hatAnzeigetext, sortierName, type AnzeigeForm } from '../../src/core/name/anzeigename'
 import type { GeladenerTeil } from '../../src/core/name/zerlegung'
 
 function teil(art: GeladenerTeil['art'], wert: string, sortierIndex = 0, istRufname = false): GeladenerTeil {
@@ -64,5 +64,15 @@ describe('anzeigenameFuer (Rückfallkette, AP-1.33)', () => {
   it('fällt ohne Sprache/Umschrift auf den Hauptnamen zurück (quelle: hauptname)', () => {
     const ergebnis = anzeigenameFuer([original])
     expect(ergebnis).toEqual({ text: 'Ivanov', quelle: 'hauptname', formId: 'orig' })
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 2 (hueter #125, H5): „Name vorhanden" steht im Kern.
+describe('hatAnzeigetext (Nachtrag ADR-031, V-D1-name-vorhanden)', () => {
+  it('Bestandteile oder original_text zählen, reine Leerzeichen und nichts nicht', () => {
+    expect(hatAnzeigetext(form({ formId: 'f', teile: [teil('nachname', 'Muster')] }))).toBe(true)
+    expect(hatAnzeigetext(form({ formId: 'f', originalText: 'Hans der Schmied' }))).toBe(true)
+    expect(hatAnzeigetext(form({ formId: 'f', originalText: '   ' }))).toBe(false)
+    expect(hatAnzeigetext(form({ formId: 'f' }))).toBe(false)
   })
 })

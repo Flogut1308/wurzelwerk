@@ -101,6 +101,21 @@ describe('person.detail — Sterbeort (AP-1.34, E5)', () => {
     }
   })
 
+  it('D2c: Rolle hauptperson zählt wie verstorbener — so legt die Oberfläche jedes Ereignis an (Nachtrag ADR-031, §32 V-D9-rollen)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db, 'verstorben')
+      const ortId = neuerOrt(db, 'Oberflächendorf')
+      fuehreAus(db, 'ereignis.anlegen', { typ: 'tod', ortId, beteiligungen: [{ personId, rolle: 'hauptperson' }], konfidenz: 2 })
+
+      const detail = personDetail(db, { personId })
+      expect(detail.sterbeort).toEqual({ herkunft: 'ereignis', ort_id: ortId, ort_name: 'Oberflächendorf', aussage_id: null })
+      expect(detail.offene_punkte.some((p) => p.regel_id === 'sterbeort_fehlt')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
   it('D3: kopf.lebend_status spiegelt person.lebend_status (auch NULL)', () => {
     const db = neueTestDatenbank()
     try {
