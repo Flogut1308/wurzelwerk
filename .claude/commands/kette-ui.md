@@ -42,7 +42,7 @@ Paket ein fertiges Bild still verändert. Der Nutzer sieht gestapelt hin, an den
 
 **Kette 3b — Medien** (`/kette-ui 3b`): ⏸ → AP-1.31b → AP-1.31c → AP-1.31d → AP-1.19
   Erst nach ausdrücklicher Freigabe von Checkpoint 3 starten.
-  **⏸ = AP-1.31a (Migration 0008) läuft vorher einzeln über `/ap`.** Die Kette beginnt erst,
+  **⏸ = AP-1.31a (Migration 0009; 0008 ist seit 25.09.2026 die Index-Migration) läuft vorher einzeln über `/ap`.** Die Kette beginnt erst,
   wenn 1.31a auf `main` ist.
   AP-1.19 am Ende: füllt den Gesundheitsreiter aus AP-1.30, kein eigener Bildschirm mehr.
   **Danach ANHALTEN — Checkpoint 4.**

@@ -244,6 +244,8 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
   kann sich darum nicht auf zwei Stellen desselben Zitats stützen. Mehrere Anker bräuchten eine
   eigene Tabelle (neue Entscheidung, nicht Teil von AP-1.34).
 
+**Lese-Indizes (Migration `0008_indizes.sql`, Vorarbeiten AP-1.30).** `idx_aussage_subjekt_praedikat` auf `aussage(subjekt_typ, subjekt_id, praedikat)` (Aussagen je Subjekt und Prädikat in `person.detail`) und `idx_medium_zuordnung_subjekt` auf `medium_zuordnung(subjekt_typ, subjekt_id)` (Titelbild einer Person). Rein additiv, keine Spalte, kein Trigger.
+
 **Existenzbehauptung — wo Beleg und Konfidenz einer Entität leben (entschieden 17.09.2026, ADR-026).**
 Beleg und Konfidenz für **Person, Ereignis, Elternschaft und Partnerschaft** werden **nicht** als
 Spalte an der Entität geführt, sondern als Aussage:
