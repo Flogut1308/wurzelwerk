@@ -30,10 +30,10 @@ function indexSpalten(db: Database.Database, index: string): readonly string[] {
     .map((zeile) => zeile.name)
 }
 
-function plan(db: Database.Database, sql: string): string {
+function plan(db: Database.Database, sql: string, parameter: Record<string, string>): string {
   return db
-    .prepare<[], { readonly detail: string }>(`EXPLAIN QUERY PLAN ${sql}`)
-    .all()
+    .prepare<Record<string, string>, { readonly detail: string }>(`EXPLAIN QUERY PLAN ${sql}`)
+    .all(parameter)
     .map((zeile) => zeile.detail)
     .join(' | ')
 }
@@ -79,9 +79,9 @@ describe('test/migration/indizes-0008 (Vorarbeiten AP-1.30, PR 6)', () => {
     const db = oeffnen(dbPfad)
     try {
       migrieren(db)
-      const aussagePlan = plan(db, `SELECT id FROM aussage WHERE subjekt_typ = 'person' AND subjekt_id = 'x' AND praedikat = 'geburtsdatum'`)
+      const aussagePlan = plan(db, `SELECT id FROM aussage WHERE subjekt_typ = @typ AND subjekt_id = @id AND praedikat = @praedikat`, { typ: 'person', id: 'x', praedikat: 'geburtsdatum' })
       expect(aussagePlan).toContain('idx_aussage_subjekt_praedikat')
-      const zuordnungPlan = plan(db, `SELECT medium_id FROM medium_zuordnung WHERE subjekt_typ = 'person' AND subjekt_id = 'x'`)
+      const zuordnungPlan = plan(db, `SELECT medium_id FROM medium_zuordnung WHERE subjekt_typ = @typ AND subjekt_id = @id`, { typ: 'person', id: 'x' })
       expect(zuordnungPlan).toContain('idx_medium_zuordnung_subjekt')
     } finally {
       db.close()
