@@ -22,6 +22,7 @@ import { NegativbefundAbschnitt } from './negativbefund-abschnitt'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
+import { grunddatenZeilen, type EreignisWert, type GrunddatenZeile } from './profil-lebensdaten-logik'
 import { beteiligungRolleSchluessel, ereignisTypSchluessel, gesundheitArtSchluessel, kantentypSchluessel, praedikatSchluessel, richtungSchluessel } from './profil-schluessel'
 import { Widerspruchsblock } from './widerspruchsblock'
 import './profil-ansicht.css'
@@ -37,12 +38,6 @@ export interface ProfilAnsichtProps {
 type SchubladeZustand = { readonly art: 'keine' } | { readonly art: 'beleg' | 'widerspruch'; readonly feld: PersonDetailGrunddatenFeld }
 
 const SCHUBLADE_KEINE: SchubladeZustand = { art: 'keine' }
-
-/** ADR-026: `existenz` ist die importinterne Trägeraussage für Beleg/Konfidenz der Person selbst
- * (`docs/datenmodell.md` §2.7) — kein Feld, das ein Mensch als Fakt lesen will. Wird hier aus der
- * Grunddaten-Anzeige gefiltert, nicht aus dem Datensatz selbst (`docs/80_Offene_Fragen.md`,
- * AP-1.7-Nachtrag). */
-const PRAEDIKAT_EXISTENZ = 'existenz'
 
 const FOKUSSIERBAR_SELEKTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -222,7 +217,11 @@ function ProfilInhalt({ personId, daten, aufBelegOeffnen, aufWiderspruchOeffnen 
   return (
     <>
       <ProfilKopf kopf={daten.kopf} />
-      <GrunddatenAbschnitt felder={daten.grunddaten} aufBelegOeffnen={aufBelegOeffnen} aufWiderspruchOeffnen={aufWiderspruchOeffnen} />
+      <GrunddatenAbschnitt
+        zeilen={grunddatenZeilen({ grunddaten: daten.grunddaten, lebensdaten: daten.lebensdaten, lebendStatus: daten.kopf.lebend_status })}
+        aufBelegOeffnen={aufBelegOeffnen}
+        aufWiderspruchOeffnen={aufWiderspruchOeffnen}
+      />
       <EreignisAbschnitt ereignisse={daten.ereignisse} />
       <BeziehungenAbschnitt beziehungen={daten.beziehungen} />
       <GesundheitAbschnitt gesundheit={daten.gesundheit} />
@@ -284,17 +283,20 @@ function ProfilKopf({ kopf }: { readonly kopf: PersonDetailKopf }) {
 }
 
 interface GrunddatenAbschnittProps {
-  readonly felder: readonly PersonDetailGrunddatenFeld[]
+  readonly zeilen: readonly GrunddatenZeile[]
   readonly aufBelegOeffnen: (feld: PersonDetailGrunddatenFeld) => void
   readonly aufWiderspruchOeffnen: (feld: PersonDetailGrunddatenFeld) => void
 }
 
-/** Grunddaten-Feldliste (S-07 Punkt 2, E21): je Feld `FeldKonfidenz` (die zwei E21-Zeichen). Ohne
- * die importinterne `existenz`-Aussage (s. Kopfkommentar `PRAEDIKAT_EXISTENZ`). */
-function GrunddatenAbschnitt({ felder, aufBelegOeffnen, aufWiderspruchOeffnen }: GrunddatenAbschnittProps) {
+/** Grunddaten-Feldliste (S-07 Punkt 2, E21): je Aussage-Feld `FeldKonfidenz` (die zwei E21-Zeichen).
+ * Ohne die importinterne `existenz`-Aussage (ADR-026). Seit AP-1.30 PR 1 (V-D9-anzeige) steht ein
+ * Geburts-/Todesdatum oder -ort aus einem Ereignis in der Zeile seines Prädikats, wenn keine Aussage
+ * führt — nur lesend, mit Herkunft „aus dem Ereignis …" statt der E21-Zeichen (Muster „aus Beziehung
+ * abgeleitet", Entwicklungsvorgaben §1). Die Zeilen bildet `grunddatenZeilen`
+ * (./profil-lebensdaten-logik.ts). */
+function GrunddatenAbschnitt({ zeilen, aufBelegOeffnen, aufWiderspruchOeffnen }: GrunddatenAbschnittProps) {
   const { t } = useTranslation('profil')
-  const sichtbareFelder = felder.filter((feld) => feld.praedikat !== PRAEDIKAT_EXISTENZ)
-  if (sichtbareFelder.length === 0) return null
+  if (zeilen.length === 0) return null
 
   return (
     <section className="wz-profil-ansicht__abschnitt" aria-labelledby="wz-profil-grunddaten-titel">
@@ -302,39 +304,83 @@ function GrunddatenAbschnitt({ felder, aufBelegOeffnen, aufWiderspruchOeffnen }:
         {t('abschnitt_grunddaten')}
       </Text>
       <dl className="wz-profil-ansicht__grunddaten">
-        {sichtbareFelder.map((feld) => {
-          const schluessel = praedikatSchluessel(feld.praedikat)
-          const label = schluessel === undefined ? feld.praedikat : t(schluessel)
+        {zeilen.map((zeile) => {
+          const schluessel = praedikatSchluessel(zeile.praedikat)
+          const label = schluessel === undefined ? zeile.praedikat : t(schluessel)
           return (
-            <div key={feld.praedikat} className="wz-profil-ansicht__grunddaten-zeile">
+            <div key={zeile.praedikat} className="wz-profil-ansicht__grunddaten-zeile">
               <Text rolle="beschriftung" als="dt">
                 {label}
               </Text>
-              {feld.wert === null ? (
-                <Text rolle="hilfe" als="dd">
-                  {t('wert_unbekannt')}
-                </Text>
+              {zeile.art === 'aussage' ? (
+                <>
+                  {zeile.wert === null ? (
+                    <Text rolle="hilfe" als="dd">
+                      {t('wert_unbekannt')}
+                    </Text>
+                  ) : (
+                    <Text rolle="koerper" als="dd">
+                      {zeile.wert}
+                    </Text>
+                  )}
+                  <dd className="wz-profil-ansicht__grunddaten-zeichen">
+                    <FeldKonfidenz
+                      konfidenz={zeile.feld.konfidenz}
+                      belegzahl={zeile.feld.belegzahl}
+                      hatKonkurrierende={zeile.feld.hatKonkurrierende}
+                      hatWiderspruch={zeile.feld.hat_widerspruch}
+                      aufBelegKlick={() => aufBelegOeffnen(zeile.feld)}
+                      aufWiderspruchKlick={() => aufWiderspruchOeffnen(zeile.feld)}
+                    />
+                  </dd>
+                </>
               ) : (
-                <Text rolle="koerper" als="dd">
-                  {feld.wert}
-                </Text>
+                <>
+                  <EreignisWertAnzeige wert={zeile.wert} />
+                  <Text rolle="hilfe" als="dd">
+                    {t(zeile.herkunftSchluessel)}
+                  </Text>
+                </>
               )}
-              <dd className="wz-profil-ansicht__grunddaten-zeichen">
-                <FeldKonfidenz
-                  konfidenz={feld.konfidenz}
-                  belegzahl={feld.belegzahl}
-                  hatKonkurrierende={feld.hatKonkurrierende}
-                  hatWiderspruch={feld.hat_widerspruch}
-                  aufBelegKlick={() => aufBelegOeffnen(feld)}
-                  aufWiderspruchKlick={() => aufWiderspruchOeffnen(feld)}
-                />
-              </dd>
             </div>
           )
         })}
       </dl>
     </section>
   )
+}
+
+/** Wert einer Ereignis-Zeile: Datum über den Formatierer (Namensraum `datum`), Originaltext
+ * gekennzeichnet (Rolle `original`), Ortsname, sonst „unbekannt". */
+function EreignisWertAnzeige({ wert }: { readonly wert: EreignisWert }) {
+  const { t } = useTranslation('profil')
+  const { t: tDatum } = useTranslation('datum')
+  switch (wert.art) {
+    case 'datum':
+      return (
+        <Text rolle="koerper" als="dd">
+          {tDatum(wert.ergebnis.schluessel, wert.ergebnis.werte)}
+        </Text>
+      )
+    case 'originaltext':
+      return (
+        <Text rolle="original" als="dd">
+          {t('wert_originaltext', { text: wert.text })}
+        </Text>
+      )
+    case 'text':
+      return (
+        <Text rolle="koerper" als="dd">
+          {wert.text}
+        </Text>
+      )
+    case 'unbekannt':
+      return (
+        <Text rolle="hilfe" als="dd">
+          {t('wert_unbekannt')}
+        </Text>
+      )
+  }
 }
 
 /** `EreignisZeitstrahl` (docs/71_Designsystem.md §2.3, C-15): chronologisch — die Sortierung

@@ -11,6 +11,9 @@
   "platzhalter_bezeichnung": "Platzhalter",
   "privat_kennzeichnung": "Privat",
   "wert_unbekannt": "unbekannt",
+  "wert_originaltext": "{{text}} (Originaltext)",
+  "herkunft_ereignis_geburt": "aus dem Ereignis Geburt",
+  "herkunft_ereignis_tod": "aus dem Ereignis Tod",
 
   "abschnitt_grunddaten": "Grunddaten",
   "abschnitt_ereignisse": "Ereignisse",
