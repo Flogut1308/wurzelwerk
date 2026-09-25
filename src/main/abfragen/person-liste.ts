@@ -16,11 +16,13 @@
 // sortieren, dann seitenweise schneiden" günstiger als zwei Abfragepfade (SQL-Sortierung für
 // geburt/tod, JS-Nachsortierung für nachname/vornamen) mit doppelter Wartungslast zu pflegen.
 //
-// AP-1.10 PR-A (Listen-Vertrag): `zeilenLaden` trägt zusätzlich Beruf, Belegzahl, Kinderzahl und die
+// AP-1.10 PR-A (Listen-Vertrag): die Zeile trägt zusätzlich Beruf, Belegzahl, Kinderzahl und die
 // volle Datums-Spaltengruppe für Geburt/Tod — jeweils über EINE gruppierte Nebenabfrage (Fenster-
 // funktion bzw. `GROUP BY`) statt einer Abfrage je Person (Budget: test/budget/leistung.test.ts hält
-// das 20-ms-Median-Budget ohne neuen Index, s. dortiger Kommentar). `filterBedingungen`,
-// `vergleicheZeilen`, `whereSql`, `zeilenLaden` und `zeileZuAusgabe` sind ab hier benannt exportiert:
+// das 20-ms-Median-Budget ohne neuen Index, s. dortiger Kommentar). Seit den Vorarbeiten zu AP-1.30
+// (Teil 2, PR 5) in zwei Phasen: `sortierZeilenLaden` (alle gefilterten Personen, nur Sortierschlüssel)
+// und `zeilenFuerIdsLaden` (volle Zeilen nur für die Seite). `filterBedingungen`, `vergleicheZeilen`,
+// `whereSql`, `sortierZeilenLaden`, `zeilenFuerIdsLaden` und `zeileZuAusgabe` sind benannt exportiert:
 // `src/main/abfragen/suche.ts` verwendet sie unverändert wieder (U-1.6-suche-ohne-filter-sortierung-
 // seite), statt eine zweite Filter-/Sortier-/Lade-Implementierung zu pflegen.
 import type Database from 'better-sqlite3'
@@ -144,21 +146,67 @@ export interface RohZeile {
   readonly tod_datum_sort_bis: number | null
 }
 
+/** Die Felder, nach denen die Liste sortiert und seitenweise geschnitten wird (Phase 1). */
+export type SortierZeile = Pick<RohZeile, 'person_id' | 'nachname' | 'vornamen' | 'geburt_sort_von' | 'tod_sort_von'>
+
+/** Rohname der bevorzugten Form je Person (Sortierung nach Name). `personFilter` schränkt die Formen
+ * auf eine Personenmenge ein (Phase 2: nur die Seite), sonst alle. */
+function bevorzugterNameSql(personFilter: string): string {
+  return `SELECT nf.person_id AS person_id,
+           ${nameFormVornamenSql('nf.id')} AS vornamen,
+           ${nameFormNachnameSql('nf.id')} AS nachname,
+           ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
+         FROM name_form nf${personFilter === '' ? '' : ` WHERE nf.person_id IN (${personFilter})`}`
+}
+
 /**
- * Lädt gefilterte Zeilen samt bevorzugtem Namen, Beruf, Belegzahl, Kinderzahl und der vollen
- * Geburts-/Todes-Datumsgruppe. Fünf zusätzliche `LEFT JOIN`s gegenüber der Stufe-1-Fassung, JEDER
- * davon eine EINMALIG berechnete, gruppierte Nebentabelle (Fensterfunktion für "bevorzugter/erster
- * Eintrag je Person" bei Beruf/Geburt/Tod, `GROUP BY` für Belegzahl/Kinderzahl) — keine Nebenabfrage
- * PRO Person (analog `belegzahlJePraedikatLaden`, src/main/abfragen/person-detail.ts). `aussage`/
- * `elternschaft` haben keinen Index auf `subjekt_id`/`elternteil_id` außer dem bereits vorhandenen
- * `idx_elternschaft_elternteil_id` (docs/schema/0002_kern.sql) — beim aktuellen Formfaktor (einige
- * Tausend Personen, s. Kopfkommentar) hält das Budget trotzdem (test/budget/leistung.test.ts), ein
- * zusätzlicher Index wäre eine Migration (Phase-1-Verbot, CLAUDE.md §10).
+ * Phase 1 (Vorarbeiten AP-1.30 Teil 2, PR 5): für ALLE gefilterten Personen nur die Id und den
+ * Sortierschlüssel. Den Namen der bevorzugten Form (teuerster Teil: `group_concat` je Form) braucht nur
+ * die Sortierung nach Nach-/Vornamen; bei Geburt/Tod genügen die Sortierwerte aus `person_flach`.
+ * Beruf, Datumsgruppen, Beleg- und Kinderzahl lädt erst Phase 2 für die Zeilen der Seite
+ * (`zeilenFuerIdsLaden`) — vorher wurden sie für jede gefilterte Person berechnet und fast alle
+ * wieder verworfen. Das Ergebnis ist bitgleich (test/einheit/person-liste-zwei-phasen.test.ts).
  */
-export function zeilenLaden(db: Database.Database, whereKlausel: string, parameter: Record<string, number | string>): readonly RohZeile[] {
+export function sortierZeilenLaden(
+  db: Database.Database,
+  whereKlausel: string,
+  parameter: Record<string, number | string>,
+  sortierung: SortierEingabe['sortierung'],
+): readonly SortierZeile[] {
+  const mitName = sortierung === 'nachname' || sortierung === 'vornamen'
   return db
+    .prepare<Record<string, number | string>, SortierZeile>(
+      mitName
+        ? `SELECT pf.person_id AS person_id, pf.geburt_sort_von AS geburt_sort_von, pf.tod_sort_von AS tod_sort_von,
+                  bn.nachname AS nachname, bn.vornamen AS vornamen
+           FROM person_flach pf
+           JOIN person p ON p.id = pf.person_id
+           LEFT JOIN (${bevorzugterNameSql('')}) bn ON bn.person_id = pf.person_id AND bn.rang = 1
+           ${whereKlausel}`
+        : `SELECT pf.person_id AS person_id, pf.geburt_sort_von AS geburt_sort_von, pf.tod_sort_von AS tod_sort_von,
+                  NULL AS nachname, NULL AS vornamen
+           FROM person_flach pf
+           JOIN person p ON p.id = pf.person_id
+           ${whereKlausel}`,
+    )
+    .all(parameter)
+}
+
+/**
+ * Phase 2: die vollen Zeilen für die übergebenen Personen (die Seite) samt bevorzugtem Namen, Beruf,
+ * Belegzahl, Kinderzahl und der vollen Geburts-/Todes-Datumsgruppe — in der Reihenfolge von
+ * `personIds`. Jede Nebentabelle ist eine EINMAL berechnete, gruppierte Nebenabfrage (Fensterfunktion
+ * für „bevorzugter/erster Eintrag je Person", `GROUP BY` für die Zahlen), eingeschränkt auf die
+ * Personen der Seite. Die Einschränkung ändert keinen Wert: jede Fensterpartition und jede Gruppe
+ * gehört genau einer Person und bleibt vollständig. Die Ids gehen als EIN JSON-Parameter über
+ * `json_each` in die Abfrage (benannter Parameter, kein zusammengesetztes SQL, CLAUDE.md §6).
+ */
+export function zeilenFuerIdsLaden(db: Database.Database, personIds: readonly string[]): readonly RohZeile[] {
+  if (personIds.length === 0) return []
+  const ids = 'SELECT value FROM json_each(@ids)'
+  const zeilen = db
     .prepare<
-      Record<string, number | string>,
+      { readonly ids: string },
       RohZeile
     >(`SELECT pf.person_id AS person_id, pf.geburt_jahr AS geburt_jahr,
               pf.geburt_sort_von AS geburt_sort_von, pf.tod_jahr AS tod_jahr, pf.tod_sort_von AS tod_sort_von,
@@ -178,48 +226,48 @@ export function zeilenLaden(db: Database.Database, whereKlausel: string, paramet
               tdv.datum_sort_von AS tod_datum_sort_von, tdv.datum_sort_bis AS tod_datum_sort_bis
        FROM person_flach pf
        JOIN person p ON p.id = pf.person_id
-       LEFT JOIN (
-         SELECT nf.person_id AS person_id,
-           ${nameFormVornamenSql('nf.id')} AS vornamen,
-           ${nameFormNachnameSql('nf.id')} AS nachname,
-           ROW_NUMBER() OVER (PARTITION BY nf.person_id ORDER BY (CASE WHEN nf.ist_bevorzugt = 1 THEN 0 ELSE 1 END), nf.id) AS rang
-         FROM name_form nf
-       ) bn ON bn.person_id = pf.person_id AND bn.rang = 1
+       LEFT JOIN (${bevorzugterNameSql(ids)}) bn ON bn.person_id = pf.person_id AND bn.rang = 1
        LEFT JOIN (
          SELECT subjekt_id AS person_id, wert_text AS beruf,
            ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
          FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'beruf'
+         WHERE subjekt_typ = 'person' AND praedikat = 'beruf' AND subjekt_id IN (${ids})
        ) ber ON ber.person_id = pf.person_id AND ber.rang = 1
        LEFT JOIN (
          SELECT subjekt_id AS person_id, datum_kalender, datum_modifikator, datum_praezision,
            datum_wert1, datum_wert2, datum_originaltext, datum_sort_von, datum_sort_bis,
            ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
          FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum'
+         WHERE subjekt_typ = 'person' AND praedikat = 'geburtsdatum' AND subjekt_id IN (${ids})
        ) gbv ON gbv.person_id = pf.person_id AND gbv.rang = 1
        LEFT JOIN (
          SELECT subjekt_id AS person_id, datum_kalender, datum_modifikator, datum_praezision,
            datum_wert1, datum_wert2, datum_originaltext, datum_sort_von, datum_sort_bis,
            ROW_NUMBER() OVER (PARTITION BY subjekt_id ORDER BY (CASE WHEN ist_bevorzugt = 1 THEN 0 ELSE 1 END), id) AS rang
          FROM aussage
-         WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum'
+         WHERE subjekt_typ = 'person' AND praedikat = 'todesdatum' AND subjekt_id IN (${ids})
        ) tdv ON tdv.person_id = pf.person_id AND tdv.rang = 1
        LEFT JOIN (
          SELECT a.subjekt_id AS person_id, COUNT(az.zitat_id) AS belegzahl
          FROM aussage a
          LEFT JOIN aussage_zitat az ON az.aussage_id = a.id
-         WHERE a.subjekt_typ = 'person'
+         WHERE a.subjekt_typ = 'person' AND a.subjekt_id IN (${ids})
          GROUP BY a.subjekt_id
        ) bz ON bz.person_id = pf.person_id
        LEFT JOIN (
          SELECT elternteil_id AS person_id, COUNT(*) AS kinderzahl
          FROM elternschaft
+         WHERE elternteil_id IN (${ids})
          GROUP BY elternteil_id
        ) kz ON kz.person_id = pf.person_id
-       ${whereKlausel}`,
+       WHERE pf.person_id IN (${ids})`,
     )
-    .all(parameter)
+    .all({ ids: JSON.stringify([...new Set(personIds)]) })
+  const jeId = new Map(zeilen.map((zeile) => [zeile.person_id, zeile]))
+  return personIds.flatMap((personId) => {
+    const zeile = jeId.get(personId)
+    return zeile === undefined ? [] : [zeile]
+  })
 }
 
 /** Zahlenvergleich mit NULL-Werten immer am Ende, unabhängig von `richtungFaktor` (unbekanntes
@@ -238,7 +286,7 @@ export interface SortierEingabe {
   readonly richtung: z.infer<typeof PersonListeRichtungEnum>
 }
 
-export function vergleicheZeilen(a: RohZeile, b: RohZeile, ein: SortierEingabe): number {
+export function vergleicheZeilen(a: SortierZeile, b: SortierZeile, ein: SortierEingabe): number {
   const richtungFaktor = ein.richtung === 'auf' ? 1 : -1
   let vergleich: number
   switch (ein.sortierung) {
@@ -270,13 +318,13 @@ export function vergleicheZeilen(a: RohZeile, b: RohZeile, ein: SortierEingabe):
  * kommt pro Seite hinzu. `vergleicheZeilen` bleibt die Referenz (Gleichheit geprüft in
  * test/einheit/person-liste-sortierung.test.ts).
  */
-export function sortiereZeilen(zeilen: readonly RohZeile[], ein: SortierEingabe): readonly RohZeile[] {
+export function sortiereZeilen<Z extends SortierZeile>(zeilen: readonly Z[], ein: SortierEingabe): readonly Z[] {
   if (ein.sortierung !== 'nachname' && ein.sortierung !== 'vornamen') {
     return [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein))
   }
   const richtungFaktor = ein.richtung === 'auf' ? 1 : -1
   const nachVornamen = ein.sortierung === 'vornamen'
-  const geschmueckt: { readonly zeile: RohZeile; readonly schluessel: NamensSortierschluessel }[] = zeilen.map((zeile) => ({
+  const geschmueckt: { readonly zeile: Z; readonly schluessel: NamensSortierschluessel }[] = zeilen.map((zeile) => ({
     zeile,
     schluessel: namensSortierschluessel((nachVornamen ? zeile.vornamen : zeile.nachname) ?? ''),
   }))
@@ -375,15 +423,11 @@ export function personListe(db: Database.Database, ein: PersonListeEin): PersonL
   const whereKlausel = whereSql(bedingungen)
 
   const gesamt = gesamtLaden(db, whereKlausel, parameter)
-  const zeilen = zeilenLaden(db, whereKlausel, parameter)
-
-  const sortiert = sortiereZeilen(zeilen, ein)
+  const sortiert = sortiereZeilen(sortierZeilenLaden(db, whereKlausel, parameter, ein.sortierung), ein)
   const start = (ein.seite - 1) * ein.proSeite
-  const seite = sortiert.slice(start, start + ein.proSeite)
+  const seitenIds = sortiert.slice(start, start + ein.proSeite).map((zeile) => zeile.person_id)
 
-  const anzeigenamen = anzeigenamenLaden(
-    db,
-    seite.map((zeile) => zeile.person_id),
-  )
+  const seite = zeilenFuerIdsLaden(db, seitenIds)
+  const anzeigenamen = anzeigenamenLaden(db, seitenIds)
   return { zeilen: seite.map((zeile) => zeileZuAusgabe(zeile, anzeigenamen)), gesamt }
 }

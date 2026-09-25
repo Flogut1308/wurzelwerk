@@ -5,8 +5,8 @@
 // zusätzliches SQL hier, kein `Math.random`/`Date.now` (CLAUDE.md §4/§13): ein fester `seed` liefert
 // bei jedem Lauf exakt dieselbe Datenbank, das Leistungsbudget bleibt reproduzierbar.
 //
-// AP-1.10 PR-A-Ergänzung: `zeilenLaden()` (src/main/abfragen/person-liste.ts) joint seit dieser
-// Stufe zusätzlich gegen `aussage`/`aussage_zitat`/`elternschaft` (Beruf, Belegzahl, Kinderzahl,
+// AP-1.10 PR-A-Ergänzung: die Zeilenabfrage der Liste (heute `zeilenFuerIdsLaden()`,
+// src/main/abfragen/person-liste.ts, nur für die Seite) joint seit dieser Stufe zusätzlich gegen `aussage`/`aussage_zitat`/`elternschaft` (Beruf, Belegzahl, Kinderzahl,
 // volle Geburts-/Todes-Datumsgruppe) — ohne echte Zeilen in diesen Tabellen würde das
 // Leistungsbudget nur den leeren Best case messen, nicht den tatsächlichen Worst Case. Jede der
 // `ANZAHL_PERSONEN` Personen bekommt darum: eine `geburtsdatum`- und eine `todesdatum`-Aussage (mit
