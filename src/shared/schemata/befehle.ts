@@ -23,6 +23,7 @@ import { ExterneIdSystemEnum } from './ort-externe-id'
 import { type Datumswert, datumswertSchema } from './import-v1'
 import { InformationsartEnum, QuelleArtEnum, QuelleFormEnum, QuelleTypEnum, UnmittelbarkeitEnum } from './quelle'
 import { type BelegFeld, BelegFeldEnum } from './aussage-zitat'
+import { aussageWertVerletzung } from '../../core/person/datums-wert'
 
 /** Liste bestehender `zitat.id`-Werte, mit denen eine neue Aussage verknüpft wird (AP-1.12) —
  * bewusst NUR Kennungen, keine `quelle`/`zitat`-Anlage in diesem Arbeitspaket (das bleibt dem
@@ -521,17 +522,23 @@ const aussageAnlegenBasis = z.object({
   belege: zitatIdsSchema,
 })
 
+/** Anzahl der gesetzten Wertangaben `wertText`/`wertZahl`/`wertRefId`. */
+function anzahlWerte(ein: { readonly wertText?: string | undefined; readonly wertZahl?: number | undefined; readonly wertRefId?: string | undefined }): number {
+  return [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined).length
+}
+
 /** Genau eines von `wertText`/`wertZahl`/`wertRefId` (Nutzerentscheidung AP-1.12) — anders als
  * der Import-Vertrag (`aussageSchema` in `./import-v1`, "mindestens eines"), weil eine direkt vom
  * Nutzer erfasste Aussage einen einzigen, eindeutigen Wert hat statt mehrerer gleichzeitig
- * belegter Werttypen. */
+ * belegter Werttypen. AP-1.30 PR 9a (D1): an Datumsprädikaten (`DATUMS_PRAEDIKATE`) genügt statt
+ * dessen das `datum` allein — so schreibt der Import `geburtsdatum`/`todesdatum`. Die Regel steht
+ * im Kern (`aussageWertVerletzung`, src/core/person/datums-wert.ts). */
 export const aussageAnlegenEinSchema: z.ZodType<AussageAnlegenEin> = aussageAnlegenBasis.superRefine((ein, ctx) => {
-  const gesetzteWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined)
-  if (gesetzteWerte.length !== 1) {
+  if (aussageWertVerletzung(ein.praedikat, { anzahlWerte: anzahlWerte(ein), hatDatum: ein.datum !== undefined }) !== null) {
     ctx.addIssue({
       code: 'custom',
       path: ['wertText'],
-      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht.',
+      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht (an Datumsprädikaten genügt das Datum).',
     })
   }
 })
@@ -542,9 +549,11 @@ export const AussageAendernFeldEnum = z.enum(['wertText', 'wertZahl', 'wertRefId
 export type AussageAendernFeld = z.infer<typeof AussageAendernFeldEnum>
 
 /** Nutzlast von `befehl:aussage.aendern` (AP-1.29 PR-A) — s. Abschnittskommentar oben:
- * `subjektTyp`/`subjektId`/`praedikat`/`istBevorzugt` fehlen bewusst. Dieselbe „genau eines von
- * wertText/wertZahl/wertRefId"-Regel wie beim Anlegen (Nutzerentscheidung AP-1.12) gilt weiter —
- * ein geänderter Fakt hat weiterhin einen einzigen, eindeutigen Wert. */
+ * `subjektTyp`/`subjektId`/`praedikat`/`istBevorzugt` fehlen bewusst. Dieselbe Wertregel wie beim
+ * Anlegen (`aussageWertVerletzung`, AP-1.12 + AP-1.30 PR 9a D1) gilt weiter. Weil das Prädikat hier
+ * nicht in der Nutzlast steht, prüft das Schema nur, was ohne Prädikat entscheidbar ist (nie zwei
+ * Werte; kein Wert nur mit `datum` oder `datumBeibehalten`); ob das Datum an DIESEM Prädikat als
+ * Wert genügt, prüft der Handler (`src/main/befehle/aussage-aendern.ts`, `VALIDIERUNG_PFLICHTFELD`). */
 export interface AussageAendernEin {
   readonly id: string
   readonly wertText?: string | undefined
@@ -583,12 +592,12 @@ const aussageAendernBasis = z.object({
 })
 
 export const aussageAendernEinSchema: z.ZodType<AussageAendernEin> = aussageAendernBasis.superRefine((ein, ctx) => {
-  const gesetzteWerte = [ein.wertText, ein.wertZahl, ein.wertRefId].filter((wert) => wert !== undefined)
-  if (gesetzteWerte.length !== 1) {
+  const anzahl = anzahlWerte(ein)
+  if (anzahl > 1 || (anzahl === 0 && ein.datum === undefined && ein.datumBeibehalten !== true)) {
     ctx.addIssue({
       code: 'custom',
       path: ['wertText'],
-      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht.',
+      message: 'Genau eines von wertText, wertZahl oder wertRefId ist Pflicht (an Datumsprädikaten genügt das Datum).',
     })
   }
   if (ein.datumBeibehalten === true && ein.datum !== undefined) {
