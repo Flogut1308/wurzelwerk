@@ -11,6 +11,7 @@
 // echten Regressionen liegt im lokalen Lauf. Diese Unterscheidung trifft `budgetErfuellen`.
 import { describe, expect, it } from 'vitest'
 import { grossbestandAufbauen } from '../hilfsmittel/grossbestand'
+import { personDetail } from '../../src/main/abfragen/person-detail'
 import { personListe } from '../../src/main/abfragen/person-liste'
 import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
 import { suche } from '../../src/main/abfragen/suche'
@@ -95,6 +96,33 @@ describe('Leistungsbudget: abfrage:pruefhinweise bei 2000 Personen (AP-1.8)', ()
         laufzeitenMs.push(performance.now() - start)
       }
       budgetErfuellen(median(laufzeitenMs), 1000, 'abfrage:pruefhinweise')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('Leistungsbudget: abfrage:person.detail bei 2000 Personen (AP-1.34 PR-C2b)', () => {
+  // Die Feldwarnungen (Umfeld-Lader + Vorfahren-CTE) laufen bei JEDER Profilantwort mit — darum
+  // ein eigenes Budget. Gemessen an Eltern mit den meisten Kindern (größtes Umfeld), je Lauf eine
+  // andere Person, Median über alle Läufe.
+  it('abfrage:person.detail (inkl. Feldwarnungen) liegt im Median unter 50 ms', () => {
+    const db = grossbestandAufbauen()
+    try {
+      const personIds = db
+        .prepare<[], { readonly id: string }>(
+          `SELECT elternteil_id AS id FROM elternschaft GROUP BY elternteil_id ORDER BY COUNT(*) DESC, elternteil_id LIMIT ${DURCHLAEUFE}`,
+        )
+        .all()
+        .map((zeile) => zeile.id)
+      expect(personIds.length).toBeGreaterThan(0)
+      const laufzeitenMs: number[] = []
+      for (const personId of personIds) {
+        const start = performance.now()
+        personDetail(db, { personId })
+        laufzeitenMs.push(performance.now() - start)
+      }
+      budgetErfuellen(median(laufzeitenMs), 50, 'abfrage:person.detail')
     } finally {
       db.close()
     }
