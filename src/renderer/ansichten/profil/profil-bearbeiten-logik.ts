@@ -39,6 +39,9 @@ export interface NamenEintragWerte {
    * mitgetragen und zurückgereicht. `rufnameIndex` gilt nur, solange er noch auf den Rufnamen zeigt
    * (s. `nameAendernEinAusEintrag`). */
   readonly rufnameIndex: number | null
+  /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): die Maske zeigt ihn noch nicht (kommt mit dem
+   * Namen-Reiter) — `''` bedeutet „kein Vatersname" wie bei den sichtbaren Feldern. */
+  readonly vatersname: string
   readonly umschriftVon: string | null
   readonly umschriftNorm: z.infer<typeof UmschriftNormEnum> | null
   readonly sprache: string | null
@@ -63,6 +66,7 @@ export const NAMEN_EINTRAG_LEER: NamenEintragWerte = {
   zusatzNach: '',
   rufname: '',
   rufnameIndex: null,
+  vatersname: '',
   umschriftVon: null,
   umschriftNorm: null,
   sprache: null,
@@ -85,6 +89,7 @@ function wortgetreuerOriginalText(name: PersonDetailName): string | null {
     praefix: name.praefix,
     titelVor: name.titel_vor,
     zusatzNach: name.zusatz_nach,
+    vatersname: name.vatersname,
   }
   return istMontierterOriginalText(name.original_text, flach) ? null : name.original_text
 }
@@ -100,6 +105,7 @@ export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEi
     zusatzNach: name.zusatz_nach ?? '',
     rufname: name.rufname_text ?? '',
     rufnameIndex: name.rufname_index,
+    vatersname: name.vatersname ?? '',
     umschriftVon: name.umschrift_von,
     umschriftNorm: name.umschrift_norm,
     sprache: name.sprache,
@@ -136,6 +142,7 @@ export function nameAnlegenEinAusEintrag(personId: string, eintrag: NamenEintrag
     praefix: textOderUndefined(eintrag.praefix),
     titelVor: textOderUndefined(eintrag.titelVor),
     zusatzNach: textOderUndefined(eintrag.zusatzNach),
+    vatersname: textOderUndefined(eintrag.vatersname),
     rufnameText: textOderUndefined(eintrag.rufname),
   }
 }
@@ -155,6 +162,7 @@ export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte)
     zusatzNach: textOderUndefined(eintrag.zusatzNach),
     rufnameText: textOderUndefined(eintrag.rufname),
     rufnameIndex: gueltigerRufnameIndex(eintrag),
+    vatersname: textOderUndefined(eintrag.vatersname),
     umschriftVon: eintrag.umschriftVon ?? undefined,
     umschriftNorm: eintrag.umschriftNorm ?? undefined,
     sprache: eintrag.sprache ?? undefined,
@@ -168,7 +176,7 @@ export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte)
  * tatsächlich Inhalt tragen, sonst legt ein Klick eine vollständig leere `name`-Zeile an, die im
  * Lesezweig keinen Anzeigenamen ergäbe (Leerzustand-Falle, C-04). */
 export function namenEintragHatInhalt(eintrag: NamenEintragWerte): boolean {
-  return [eintrag.vornamen, eintrag.nachname, eintrag.praefix, eintrag.titelVor, eintrag.zusatzNach, eintrag.rufname].some(
+  return [eintrag.vornamen, eintrag.nachname, eintrag.praefix, eintrag.titelVor, eintrag.zusatzNach, eintrag.vatersname, eintrag.rufname].some(
     (wert) => wert.trim() !== '',
   )
 }

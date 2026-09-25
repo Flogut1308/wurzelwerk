@@ -72,6 +72,8 @@ describe('profil-bearbeiten-logik: Namen (AP-1.14a)', () => {
       // AP-1.30 PR 2a: nicht angezeigte Felder werden mitgetragen; der montierte original_text zählt
       // nicht als wortgetreu.
       rufnameIndex: null,
+      // AP-1.30 PR 3: der Vatersname wird mitgetragen (null -> '').
+      vatersname: '',
       umschriftVon: null,
       umschriftNorm: null,
       sprache: null,

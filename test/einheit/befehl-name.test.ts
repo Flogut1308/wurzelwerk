@@ -389,3 +389,153 @@ describe('hauptname.wechseln (AP-1.33)', () => {
     }
   })
 })
+
+// AP-1.30 PR 3 (docs/80 §32 V-3-flache-bruecke-vatersname): die flache Namensbrücke kennt den
+// Vatersnamen (`name_part.art = 'vatersname'`). Semantik wie alle Felder der Brücke (Option C,
+// V-130-2a): `vatersname` im Vertrag, fehlt = null (ersetzt). Gespeichert als EIN Teil (sortier_index 0),
+// montiert zwischen Vornamen und Präfix/Nachname („Iwan Petrowitsch Iwanow").
+interface TeilRoh {
+  readonly id: string
+  readonly art: string
+  readonly wert: string
+  readonly ist_rufname: number
+  readonly sortier_index: number
+  readonly feminine_variante: string | null
+  readonly erstellt_am: number | null
+  readonly geaendert_am: number | null
+}
+
+function vatersnameTeile(db: ReturnType<typeof oeffnen>, id: string): readonly { readonly wert: string; readonly sortier_index: number }[] {
+  return db
+    .prepare<{ readonly id: string }, { readonly wert: string; readonly sortier_index: number }>(
+      `SELECT wert, sortier_index FROM name_part WHERE name_form_id = @id AND art = 'vatersname' ORDER BY sortier_index`,
+    )
+    .all({ id })
+}
+
+function originalText(db: ReturnType<typeof oeffnen>, id: string): string | null | undefined {
+  return db
+    .prepare<{ readonly id: string }, { readonly original_text: string | null }>('SELECT original_text FROM name_form WHERE id = @id')
+    .get({ id })?.original_text
+}
+
+/** Rohzustand einer Form: alle name_form-Spalten plus alle Bestandteile (für bitgleiche Undo/Redo-Vergleiche). */
+function formRoh(db: ReturnType<typeof oeffnen>, id: string): unknown {
+  const form = db
+    .prepare<{ readonly id: string }, Readonly<Record<string, unknown>>>(
+      `SELECT id, person_id, sprache, schrift, reihenfolge, rolle, rollen_notiz, ist_bevorzugt, umschrift_von, umschrift_norm,
+              konfidenz, sortier_index, gueltig_von, gueltig_bis, original_text, erstellt_am, geaendert_am
+       FROM name_form WHERE id = @id`,
+    )
+    .get({ id })
+  const teile = db
+    .prepare<{ readonly id: string }, TeilRoh>(
+      `SELECT id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am
+       FROM name_part WHERE name_form_id = @id ORDER BY id`,
+    )
+    .all({ id })
+  return { form, teile }
+}
+
+const IWAN = { typ: 'geburtsname', vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' } as const
+
+describe('name.anlegen/name.aendern mit Vatersname (AP-1.30 PR 3, V-3-flache-bruecke-vatersname)', () => {
+  it('name.anlegen speichert den Vatersnamen als EINEN Teil und montiert original_text „Iwan Petrowitsch Iwanow"', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Petrowitsch', sortier_index: 0 }])
+      expect(originalText(db, id)).toBe('Iwan Petrowitsch Iwanow')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('mehrteiliger Vatersname bleibt ein Teil (kein Zerlegen an Leerzeichen)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN, vatersname: 'Petrowitsch Sidorow' })
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Petrowitsch Sidorow', sortier_index: 0 }])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('name.aendern ändert nur den Nachnamen → der Vatersname bleibt, original_text wird neu montiert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      fuehreAus(db, 'name.aendern', { id, ...IWAN, nachname: 'Iwanowa' })
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Petrowitsch', sortier_index: 0 }])
+      expect(originalText(db, id)).toBe('Iwan Petrowitsch Iwanowa')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nur den Vatersnamen ändern ist KEIN No-op: neue Transaktion, neuer Wert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      const anzahlVorher = transaktionAnzahl(db)
+      fuehreAus(db, 'name.aendern', { id, ...IWAN, vatersname: 'Pawlowitsch' })
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Pawlowitsch', sortier_index: 0 }])
+      expect(originalText(db, id)).toBe('Iwan Pawlowitsch Iwanow')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('identische Werte samt Vatersname bleiben ein No-op (AP-0.22)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      const anzahlVorher = transaktionAnzahl(db)
+      fuehreAus(db, 'name.aendern', { id, ...IWAN })
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Option C: ein weggelassener Vatersname wird entfernt (fehlt = null, wie jedes Feld der Brücke)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      expect(vatersnameTeile(db, id)).toHaveLength(1)
+      fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Iwan', nachname: 'Iwanow' })
+      expect(vatersnameTeile(db, id)).toStrictEqual([])
+      expect(originalText(db, id)).toBe('Iwan Iwanow')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo/Redo einer Vatersnamen-Änderung stellen Form und Teile bitgleich her', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, ...IWAN })
+      const vorAendern = formRoh(db, id)
+      fuehreAus(db, 'name.aendern', { id, ...IWAN, vatersname: 'Pawlowitsch' })
+      const nachAendern = formRoh(db, id)
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Pawlowitsch', sortier_index: 0 }])
+
+      undo(db)
+      expect(formRoh(db, id)).toStrictEqual(vorAendern)
+      expect(vatersnameTeile(db, id)).toStrictEqual([{ wert: 'Petrowitsch', sortier_index: 0 }])
+
+      redo(db)
+      expect(formRoh(db, id)).toStrictEqual(nachAendern)
+    } finally {
+      db.close()
+    }
+  })
+})

@@ -25,6 +25,7 @@ function effektiverOriginalText(ein: NameAendernEin): string | null {
       praefix: ein.praefix,
       titelVor: ein.titelVor,
       zusatzNach: ein.zusatzNach,
+      vatersname: ein.vatersname,
     })
   )
 }
@@ -45,6 +46,7 @@ function unveraendert(vorher: NameZeile, ein: NameAendernEin): boolean {
     vorher.praefix === (ein.praefix ?? null) &&
     vorher.titel_vor === (ein.titelVor ?? null) &&
     vorher.zusatz_nach === (ein.zusatzNach ?? null) &&
+    vorher.vatersname === (ein.vatersname ?? null) &&
     vorher.original_text === effektiverOriginalText(ein) &&
     vorher.sprache === (ein.sprache ?? null) &&
     vorher.gueltig_von === (ein.gueltigVon ?? null) &&
@@ -75,7 +77,7 @@ export function nameAendern(tx: Tx, ein: NameAendernEin): null {
       praefix: ein.praefix ?? null,
       titelVor: ein.titelVor ?? null,
       zusatzNach: ein.zusatzNach ?? null,
-      vatersname: null,
+      vatersname: ein.vatersname ?? null,
       originalText: ein.originalText ?? null,
       sprache: ein.sprache ?? null,
       gueltigVon: ein.gueltigVon ?? null,

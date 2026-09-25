@@ -20,6 +20,7 @@ vi.mock('../../src/main/protokoll/logger', () => ({
 vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
 import { oeffnen } from '../../src/main/datenbank/verbindung'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
@@ -74,6 +75,7 @@ function nichtStandard(umschriftVon: string): { readonly [K in Exclude<keyof Nam
   istBevorzugt: 1,
   gueltigVon: 17500101,
   gueltigBis: 17991231,
+  vatersname: 'Petrowitsch',
   }
 }
 
@@ -260,6 +262,56 @@ describe('Profil-Namensänderung erhält alle Felder der Form (AP-1.30 PR 2a)', 
       const zeile = nameRepo.lesen(db, id)
       expect(zeile?.rufname_index).toBe(0)
       expect(zeile?.rufname_text).toBe('Johann')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// AP-1.30 PR 3 (docs/80 §32 V-3-flache-bruecke-vatersname): der Vatersname übersteht die Profil-
+// Rundreise — auch ein Altbestands-Teil, der NICHT über die Brücke geschrieben wurde.
+function vatersnameWerte(db: Db, id: string): readonly string[] {
+  return namePartRepo
+    .teileFuerForm(db, id)
+    .filter((teil) => teil.art === 'vatersname')
+    .map((teil) => teil.wert)
+}
+
+describe('Profil-Namensänderung erhält den Vatersnamen (AP-1.30 PR 3)', () => {
+  it('über name.anlegen geschriebener Vatersname bleibt nach Nachnamen-Änderung im Profil', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const id = formAnlegen(db, personId, { typ: 'geburtsname', vornamen: 'Iwan', vatersname: 'Petrowitsch', nachname: 'Iwanow' })
+      profilAendern(db, personId, id, (eintrag) => ({ ...eintrag, nachname: 'Iwanowa' }))
+      expect(vatersnameWerte(db, id)).toStrictEqual(['Petrowitsch'])
+      expect(nameRepo.lesen(db, id)?.original_text).toBe('Iwan Petrowitsch Iwanowa')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Altbestand: ein direkt eingefügter Vatersname-Teil bleibt nach Nachnamen-Änderung im Profil', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const id = formAnlegen(db, personId, { typ: 'geburtsname', vornamen: 'Iwan', nachname: 'Iwanow', originalText: 'Iwan Petrowitsch Iwanow' })
+      journalAus(db, 'Testvorbereitung (AP-1.30 PR 3): Altbestands-Vatersname ohne Befehl einfügen.')
+      namePartRepo.einfuegen(db, {
+        id: 'altbestand-vatersname',
+        nameFormId: id,
+        art: 'vatersname',
+        wert: 'Petrowitsch',
+        istRufname: 0,
+        sortierIndex: 0,
+        feminineVariante: null,
+        erstelltAm: 1,
+        geaendertAm: 1,
+      })
+      journalAn(db)
+      profilAendern(db, personId, id, (eintrag) => ({ ...eintrag, nachname: 'Iwanowa' }))
+      expect(vatersnameWerte(db, id)).toStrictEqual(['Petrowitsch'])
+      expect(nameRepo.lesen(db, id)?.original_text).toBe('Iwan Petrowitsch Iwanowa')
     } finally {
       db.close()
     }
