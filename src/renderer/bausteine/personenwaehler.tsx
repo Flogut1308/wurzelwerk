@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { SucheTreffer } from '../../shared/schemata/person-liste'
 import { Eingabekoerper } from './eingabekoerper'
 import { KonfidenzPunkt, type KonfidenzStufe } from './konfidenz-punkt'
+import { personennameIstErsatz, personennameText } from './personenname-anzeige'
 import {
   personenwaehlerLebensdatenText,
   personenwaehlerNaechsterIndex,
@@ -86,7 +87,7 @@ export function Personenwaehler({
   id,
 }: PersonenwaehlerProps) {
   const { t } = useTranslation('felder')
-  const { t: tListe } = useTranslation('liste')
+  const { t: tAllgemein } = useTranslation('allgemein')
 
   const zeilen: readonly PersonenwaehlerZeile[] = zustand === 'bereit' ? personenwaehlerZeilenAufbauen(treffer) : []
   const listboxId = id === undefined ? 'wz-personenwaehler-liste' : `${id}-liste`
@@ -111,7 +112,7 @@ export function Personenwaehler({
   function zeileText(zeile: PersonenwaehlerZeile): string {
     switch (zeile.art) {
       case 'treffer':
-        return zeile.treffer.ist_platzhalter ? tListe('platzhalter_bezeichnung') : zeile.treffer.anzeigename
+        return personennameText(zeile.treffer, tAllgemein)
       case 'neuAnlegen':
         return t('personenwaehler_neu_anlegen')
       case 'platzhalterAnlegen':
@@ -161,7 +162,7 @@ export function Personenwaehler({
                   personenwaehlerZeileAktivieren(zeile, { aufAusgewaehlt, aufNeuAnlegen, aufPlatzhalterAnlegen })
                 }}
               >
-                <Text rolle="koerper" farbe={zeile.art === 'treffer' && zeile.treffer.ist_platzhalter ? 'tertiaer' : 'primaer'}>
+                <Text rolle="koerper" farbe={zeile.art === 'treffer' && personennameIstErsatz(zeile.treffer) ? 'tertiaer' : 'primaer'}>
                   {zeileText(zeile)}
                 </Text>
                 {zeile.art === 'treffer' ? (

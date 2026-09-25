@@ -25,6 +25,7 @@ import { Datumsfeld } from '../../bausteine/datumsfeld'
 import { Formularfeld } from '../../bausteine/formularfeld'
 import { Konfidenzwaehler } from '../../bausteine/konfidenzwaehler'
 import { Langtextfeld } from '../../bausteine/langtextfeld'
+import { PERSONENNAME_SCHLUESSEL, personennameText } from '../../bausteine/personenname-anzeige'
 import { Personenwaehler, type PersonenwaehlerZustand } from '../../bausteine/personenwaehler'
 import { personenwaehlerNeuAnlegenEin, personenwaehlerPlatzhalterAnlegenEin } from '../../bausteine/personenwaehler-logik'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
@@ -137,6 +138,7 @@ function unmittelbarkeitOptionen(t: (schluessel: string) => string): readonly Au
  * Objekts (Kopfkommentar `QuelleKopfEntwurfWerte.archivId`, `quelle-bearbeiten-logik.ts`). */
 function QuelleKopfAbschnitt({ quelleId, kopf }: { readonly quelleId: string; readonly kopf: QuelleDetailKopf }) {
   const { t } = useTranslation('quellen')
+  const { t: tAllgemein } = useTranslation('allgemein')
   const quelleAendern = useQuelleAendern()
   const archivAnlegen = useArchivAnlegen()
   const personAnlegen = usePersonAnlegen()
@@ -171,7 +173,9 @@ function QuelleKopfAbschnitt({ quelleId, kopf }: { readonly quelleId: string; re
 
   const [informantSuchtext, setInformantSuchtext] = useState(kopf.informant_anzeigename ?? '')
   const [informantHervorgehobenerIndex, setInformantHervorgehobenerIndex] = useState<number | null>(null)
-  const [informantAnzeigename, setInformantAnzeigename] = useState<string | null>(kopf.informant_anzeigename)
+  const [informantAnzeigename, setInformantAnzeigename] = useState<string | null>(
+    kopf.informant_anzeigename === null ? null : personennameText({ anzeigename: kopf.informant_anzeigename }, tAllgemein),
+  )
   const informantSucheAktiv = informantSuchtext.trim() !== ''
   const informantSucheAbfrage = useSuche(ereignisPersonSucheEin(informantSuchtext), { enabled: informantSucheAktiv })
   const informantZustand: PersonenwaehlerZustand = informantSucheAktiv ? (informantSucheAbfrage.isPending ? 'laedt' : 'bereit') : 'leer'
@@ -179,7 +183,7 @@ function QuelleKopfAbschnitt({ quelleId, kopf }: { readonly quelleId: string; re
 
   function informantAusgewaehlt(personId: string): void {
     const treffergefunden = informantTreffer.find((eintrag) => eintrag.person_id === personId)
-    setInformantAnzeigename(treffergefunden?.ist_platzhalter === true ? t('informant_platzhalter_bezeichnung') : (treffergefunden?.anzeigename ?? null))
+    setInformantAnzeigename(treffergefunden === undefined ? null : personennameText(treffergefunden, tAllgemein))
     sofortAendern({ ...entwurf, informantPersonId: personId })
   }
 
@@ -191,7 +195,7 @@ function QuelleKopfAbschnitt({ quelleId, kopf }: { readonly quelleId: string; re
 
   async function informantPlatzhalterAnlegen(): Promise<void> {
     const ergebnis = await personAnlegen.mutateAsync(personenwaehlerPlatzhalterAnlegenEin())
-    setInformantAnzeigename(t('informant_platzhalter_bezeichnung'))
+    setInformantAnzeigename(tAllgemein(PERSONENNAME_SCHLUESSEL.platzhalter))
     sofortAendern({ ...entwurf, informantPersonId: ergebnis.id })
   }
 

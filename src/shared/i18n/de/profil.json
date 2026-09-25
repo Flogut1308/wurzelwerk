@@ -8,7 +8,6 @@
   "fehler_titel": "Profil konnte nicht geladen werden",
   "fehler_text": "Beim Laden des Profils ist ein Fehler aufgetreten.",
 
-  "platzhalter_bezeichnung": "Platzhalter",
   "privat_kennzeichnung": "Privat",
   "wert_unbekannt": "unbekannt",
   "wert_originaltext": "{{text}} (Originaltext)",

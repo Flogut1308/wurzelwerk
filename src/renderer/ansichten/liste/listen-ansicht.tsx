@@ -12,6 +12,7 @@ import type { PersonListeRichtungWert, PersonListeSortierungWert } from '../../b
 import { Filterleiste } from '../../bausteine/filterleiste'
 import { boolZuUmschalterZustand } from '../../bausteine/filterleiste-logik'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
+import { personennameIstErsatz, personennameText } from '../../bausteine/personenname-anzeige'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Suchfeld } from '../../bausteine/suchfeld'
@@ -233,8 +234,8 @@ export function ListenAnsicht({ projekt, aufProjektGeschlossen }: ListenAnsichtP
               {pruefhinweiseAbfrage.data.eintraege.map((eintrag, index) => (
                 <li key={`${eintrag.personId}-${eintrag.code}-${index}`} className="wz-pruefhinweis-liste__eintrag">
                   <div className="wz-pruefhinweis-liste__text">
-                    <Text rolle="koerper" als="span">
-                      {eintrag.anzeigename}
+                    <Text rolle="koerper" farbe={personennameIstErsatz(eintrag) ? 'tertiaer' : 'primaer'} als="span">
+                      {personennameText(eintrag, tAllgemein)}
                     </Text>
                     <Text rolle="hilfe" als="span">
                       {tPruef(pruefhinweisCodeSchluessel(eintrag.code))}

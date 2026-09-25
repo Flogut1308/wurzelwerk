@@ -9,6 +9,7 @@ import { Formularfeld } from '../../bausteine/formularfeld'
 import { Konfidenzwaehler } from '../../bausteine/konfidenzwaehler'
 import { Ortsfeld, type OrtsfeldZustand } from '../../bausteine/ortsfeld'
 import { ortsfeldNeuAnlegenEin } from '../../bausteine/ortsfeld-logik'
+import { PERSONENNAME_SCHLUESSEL, personennameText } from '../../bausteine/personenname-anzeige'
 import { Personenwaehler, type PersonenwaehlerZustand } from '../../bausteine/personenwaehler'
 import { personenwaehlerNeuAnlegenEin, personenwaehlerPlatzhalterAnlegenEin } from '../../bausteine/personenwaehler-logik'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
@@ -121,6 +122,7 @@ interface WeitererBeteiligterZeileProps {
  * zweites Auswahlfeld für die Rolle bleibt in JEDEM Zustand bedienbar. */
 function WeitererBeteiligterZeile({ eintrag, aufAenderung, aufEntfernen }: WeitererBeteiligterZeileProps) {
   const { t } = useTranslation('profil')
+  const { t: tAllgemein } = useTranslation('allgemein')
   const personAnlegen = usePersonAnlegen()
   const [suchtext, setSuchtext] = useState('')
   const [hervorgehobenerIndex, setHervorgehobenerIndex] = useState<number | null>(null)
@@ -133,7 +135,7 @@ function WeitererBeteiligterZeile({ eintrag, aufAenderung, aufEntfernen }: Weite
 
   function ausgewaehlt(personId: string) {
     const treffergefunden = treffer.find((eintragTreffer) => eintragTreffer.person_id === personId)
-    setGewaehlterName(treffergefunden?.ist_platzhalter === true ? t('platzhalter_bezeichnung') : (treffergefunden?.anzeigename ?? null))
+    setGewaehlterName(treffergefunden === undefined ? null : personennameText(treffergefunden, tAllgemein))
     aufAenderung({ ...eintrag, personId })
   }
 
@@ -145,7 +147,7 @@ function WeitererBeteiligterZeile({ eintrag, aufAenderung, aufEntfernen }: Weite
 
   async function platzhalterAnlegen() {
     const ergebnis = await personAnlegen.mutateAsync(personenwaehlerPlatzhalterAnlegenEin())
-    setGewaehlterName(t('platzhalter_bezeichnung'))
+    setGewaehlterName(tAllgemein(PERSONENNAME_SCHLUESSEL.platzhalter))
     aufAenderung({ ...eintrag, personId: ergebnis.id })
   }
 
