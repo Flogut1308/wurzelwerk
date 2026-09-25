@@ -129,6 +129,9 @@ export interface RekonstruierterName {
   readonly praefix: string | null
   readonly titelVor: string | null
   readonly zusatzNach: string | null
+  /** Vatersname (`name_part.art = 'vatersname'`), verkettet in `sortierIndex`-Reihenfolge. Kein Feld
+   * der alten flachen Namenssicht — nur für den Anzeigetext (docs/80 §30 U-1.33-vatersname-anzeige). */
+  readonly vatersname: string | null
 }
 
 function ersterWert(teile: readonly GeladenerTeil[], art: NamePartArt): string | null {
@@ -167,5 +170,6 @@ export function rekonstruiereFlach(teile: readonly GeladenerTeil[]): Rekonstruie
     praefix: ersterWert(teile, 'praefix'),
     titelVor: ersterWert(teile, 'titel'),
     zusatzNach: ersterWert(teile, 'suffix'),
+    vatersname: verkette(teile, 'vatersname'),
   }
 }
