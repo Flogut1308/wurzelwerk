@@ -699,11 +699,18 @@ Eigentümer-Entscheidungen vom 25.09.2026 (fest), eingetragen an den Zeilen oben
 3. **E3 Kein `Latn`-Vorrang** bei mehreren Umschriften der Hauptform (bevorzugt, sonst kleinste `formId`).
 4. **E4 Rollen vereinheitlichen:** die Oberfläche schreibt bei Tod `verstorbener`, bei Geburt `kind` (wie der Import).
    **Migration 0009** stellt vorhandene `hauptperson`-Beteiligungen an Geburts-/Todesereignissen um (undo-sicher,
-   Fixture-DB Stand 8, Prüfsumme). Danach wird der D9-Rückfall auf die eine Rolle je Ereignis verengt, sofern Import
-   und Oberfläche nachweislich nur noch diese schreiben. **Die Medienmigration von AP-1.31a wird 0010.**
+   Fixture-DB Stand 8, Prüfsumme). Danach wird der D9-Rückfall auf die eine Rolle je Ereignis verengt. *Ergänzung des Laufs (kein Eigentümer-Wortlaut):*
+   verengt wird erst, wenn Import und Oberfläche nachweislich nur noch diese Rolle schreiben (Test). *„Undo-sicher“ als
+   Prüfpunkt für 0009:* die Migration läuft ohne Journal; ein vor der Migration geschriebener Journaleintrag darf nach
+   ihr beim Undo/Redo keine `hauptperson`-Beteiligung an Geburt/Tod wiederherstellen (Journal-Nutzlasten mit umstellen
+   oder Undo-Verlauf über die Migration hinweg nachweislich nicht erreichbar — Nachweis im PR). **Die Medienmigration von AP-1.31a wird 0010.**
 5. **E5 Orts-Aussagen mit Datum im Altbestand:** nichts löschen. Ein Prüfhinweis „Ort mit Datum – bitte prüfen“ macht
    die Fälle sichtbar; beim Ändern erhält die Oberfläche das Datum oder lässt den Nutzer entscheiden, nie still
-   weglassen. Kein Import-Vertragsbruch in diesem Lauf (U-1.34-D-import-ortswert bleibt offen).
+   weglassen. Kein Import-Vertragsbruch in diesem Lauf (U-1.34-D-import-ortswert bleibt offen). *Spannung zum geltenden Code:* seit
+   Teil 2 PR 4 lehnt `aussage.aendern` ein Datum an Orts-Prädikaten ab (Test O10); „erhalten“ geht also nur über eine
+   Regelanpassung (z. B. ein unverändertes Bestandsdatum wird nicht abgelehnt) oder über eine Nutzerentscheidung im
+   Formular (Datum entfernen / als „gültig von–bis“ übernehmen). Die Wahl trifft PR 4 dieses Teils mit Außenperspektive
+   (Zeile unten).
 6. **E6 weiter gültig:** V-D9-anzeige ist der erste AP-1.30-PR (Grunddatenfeld Geburt/Tod mit Herkunft „aus
    Ereignis“); die Feldwarnungs-Zuordnung (U-1.34-C2b-feldzuordnung) wird am echten Reiter reviewt (Design-Review,
    Außenperspektive, Screenshot im PR).
@@ -715,7 +722,7 @@ Detailentscheidungen dieses Laufs (je mit Außenperspektive `planer`/`hueter`, O
 
 ## 33. AP-1.30 Person bearbeiten: Gerüst und Reiter (autonomer Durchlauf ab 25.09.2026)
 
-Zuschnitt und Stand: `Wissen/58a_Ergebnisse.md` (Abschnitt AP-1.30). Jede nicht triviale Entscheidung mit
+Zuschnitt und Stand: `Wissen/58a_Ergebnisse.md`, Abschnitt „AP-1.30“ (wird vor dem ersten AP-1.30-PR angelegt). Jede nicht triviale Entscheidung mit
 Außenperspektive (`planer`/`hueter`, Opus, ohne eigene Präferenz); Design-Lücken und -Abweichungen nach CLAUDE.md §14
 sind mit **[Design-Review]** markiert.
 

@@ -1542,12 +1542,12 @@ Der Entwurf verlangt deutlich mehr als „Medien zuordnen" — hier entsteht nur
 Gastzugang aus Phase 4 voraus — als §14-Abweichung vermerkt), `media.folder_id` (die Vorgaben
 sagen selbst: bis zur Entscheidung nicht bauen, nur nicht verbauen).
 
-**Nutzerentscheidung 23.09.2026 — Ablage umstellen, mit Umzug:** Dateiname = SHA-256 + Endung (ersetzt die Vorentscheidung `medien/<uuid7>.<endung>` aus Phase 1). 0009 benennt bestehende Dateien im Projektordner **einmalig** um und schreibt `medium.pfad` nach; die Medienkopie des Imports (`src/main/import/medienkopie.ts`) wird im selben Paket umgestellt — danach gibt es genau ein Ablageschema. Der Umzug ist **absturzsicher** (erst kopieren/umbenennen, dann DB, Wiederanlauf erkennt halbfertige Umzüge) und mit Schnappschuss davor. Zwei Medien mit gleichem Hash sind eine Datei.
+**Nutzerentscheidung 23.09.2026 — Ablage umstellen, mit Umzug:** Dateiname = SHA-256 + Endung (ersetzt die Vorentscheidung `medien/<uuid7>.<endung>` aus Phase 1). 0010 benennt bestehende Dateien im Projektordner **einmalig** um und schreibt `medium.pfad` nach; die Medienkopie des Imports (`src/main/import/medienkopie.ts`) wird im selben Paket umgestellt — danach gibt es genau ein Ablageschema. Der Umzug ist **absturzsicher** (erst kopieren/umbenennen, dann DB, Wiederanlauf erkennt halbfertige Umzüge) und mit Schnappschuss davor. Zwei Medien mit gleichem Hash sind eine Datei.
 
 **Abnahme** — Datei **inhaltsadressiert** über SHA-256 im Projektordner, Original unverändert, nie
 verschoben, nie von außen verlinkt; Vorschauen asynchron; große Dateien nie ganz in den Speicher;
 PDF seitenweise. `ist_titelbild` höchstens einmal je Person (Constraint), nur bei Bildern.
-Fixture-Datenbank auf Stand 7 eingefroren. **Läuft einzeln über `/ap`, nicht in der Kette** (Migration; Nachtrag 23.09.2026).
+Fixture-Datenbank auf Stand 9 eingefroren (Vorgängerversion von 0010; Nachtrag 25.09.2026). **Läuft einzeln über `/ap`, nicht in der Kette** (Migration; Nachtrag 23.09.2026).
 
 ---
 
