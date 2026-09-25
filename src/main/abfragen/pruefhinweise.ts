@@ -11,12 +11,12 @@ import type { JdnIntervall, PlausGeschlecht } from '../../core/plausibilitaet/re
 import { pruefeBestand, type BestandEingabe, type BestandEreignis, type BestandOrt, type BestandPartnerschaft, type BestandPerson } from '../../core/plausibilitaet/regeln'
 import type { PruefhinweiseAus } from '../../shared/schemata/pruefhinweise'
 
-function alsIntervall(von: number | null, bis: number | null): JdnIntervall | undefined {
+export function alsIntervall(von: number | null, bis: number | null): JdnIntervall | undefined {
   if (von === null || bis === null) return undefined
   return { von, bis }
 }
 
-function alsGeschlecht(wert: string | null): PlausGeschlecht | undefined {
+export function alsGeschlecht(wert: string | null): PlausGeschlecht | undefined {
   if (wert === 'M' || wert === 'F' || wert === 'U' || wert === 'X') return wert
   return undefined
 }
