@@ -23,7 +23,7 @@ import type Database from 'better-sqlite3'
 import { sucheAnfrageBauen } from '../../core/suche/anfrage'
 import type { SucheAus, SucheEin, SucheTreffer } from '../../shared/schemata/person-liste'
 import { anzeigenamenLaden } from './_anzeigenamen'
-import { filterBedingungen, vergleicheZeilen, whereSql, zeileZuAusgabe, zeilenLaden } from './person-liste'
+import { filterBedingungen, sortiereZeilen, whereSql, zeileZuAusgabe, zeilenLaden } from './person-liste'
 
 interface VolltextZeile {
   readonly person_id: string | null
@@ -145,7 +145,7 @@ export function suche(db: Database.Database, ein: SucheEin): SucheAus {
   const whereKlausel = whereSql([...bedingungen, idsBedingungText])
   const zeilen = zeilenLaden(db, whereKlausel, { ...parameter, ...idsParameter })
 
-  const sortiert = [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein))
+  const sortiert = sortiereZeilen(zeilen, ein)
   const start = (ein.seite - 1) * ein.proSeite
   const seite = sortiert.slice(start, start + ein.proSeite)
 

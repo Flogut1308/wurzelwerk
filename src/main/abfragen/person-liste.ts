@@ -24,7 +24,7 @@
 // `src/main/abfragen/suche.ts` verwendet sie unverändert wieder (U-1.6-suche-ohne-filter-sortierung-
 // seite), statt eine zweite Filter-/Sortier-/Lade-Implementierung zu pflegen.
 import type Database from 'better-sqlite3'
-import { vergleicheNamen } from '../../core/liste/sortierung'
+import { namensSortierschluessel, vergleicheNamen, vergleicheNamensschluessel, type NamensSortierschluessel } from '../../core/liste/sortierung'
 // AP-1.33: bevorzugter Name je Person aus name_form + name_part rekonstruiert — dieselben SQL-
 // Bausteine wie die kanonische person_flach-Projektion (Bitgleichheit, kein zweiter Nachbau).
 import { nameFormNachnameSql, nameFormVornamenSql } from '../datenbank/abgeleitet-projektion'
@@ -263,6 +263,33 @@ export function vergleicheZeilen(a: RohZeile, b: RohZeile, ein: SortierEingabe):
   return 0
 }
 
+/**
+ * Sortiert Zeilen in genau der Ordnung von `vergleicheZeilen` (Vorarbeiten AP-1.30, PR 4a), berechnet
+ * den Namens-Sortierschlüssel aber EINMAL je Zeile statt in jedem der ~n·log n Vergleiche: der
+ * Leistungsbudget-Lauf (2000 Personen, 20 ms) lag schon vorher auf Kante, und der Kern-Anzeigename
+ * kommt pro Seite hinzu. `vergleicheZeilen` bleibt die Referenz (Gleichheit geprüft in
+ * test/einheit/person-liste-sortierung.test.ts).
+ */
+export function sortiereZeilen(zeilen: readonly RohZeile[], ein: SortierEingabe): readonly RohZeile[] {
+  if (ein.sortierung !== 'nachname' && ein.sortierung !== 'vornamen') {
+    return [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein))
+  }
+  const richtungFaktor = ein.richtung === 'auf' ? 1 : -1
+  const nachVornamen = ein.sortierung === 'vornamen'
+  const geschmueckt: { readonly zeile: RohZeile; readonly schluessel: NamensSortierschluessel }[] = zeilen.map((zeile) => ({
+    zeile,
+    schluessel: namensSortierschluessel((nachVornamen ? zeile.vornamen : zeile.nachname) ?? ''),
+  }))
+  geschmueckt.sort((a, b) => {
+    const vergleich = richtungFaktor * vergleicheNamensschluessel(a.schluessel, b.schluessel)
+    if (vergleich !== 0) return vergleich
+    if (a.zeile.person_id < b.zeile.person_id) return -1
+    if (a.zeile.person_id > b.zeile.person_id) return 1
+    return 0
+  })
+  return geschmueckt.map((eintrag) => eintrag.zeile)
+}
+
 interface DatumsgruppeRoh {
   readonly kalender: string | null
   readonly modifikator: string | null
@@ -350,7 +377,7 @@ export function personListe(db: Database.Database, ein: PersonListeEin): PersonL
   const gesamt = gesamtLaden(db, whereKlausel, parameter)
   const zeilen = zeilenLaden(db, whereKlausel, parameter)
 
-  const sortiert = [...zeilen].sort((a, b) => vergleicheZeilen(a, b, ein))
+  const sortiert = sortiereZeilen(zeilen, ein)
   const start = (ein.seite - 1) * ein.proSeite
   const seite = sortiert.slice(start, start + ein.proSeite)
 
