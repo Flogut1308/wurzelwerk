@@ -224,6 +224,12 @@
 // (`Zweig`), die `undo-bitgleich.test.ts` und `textanker-gueltig.test.ts` zählen. Eine Aktion löst
 // weiterhin HÖCHSTENS EINEN erfolgreichen `fuehreAus()` aus (ein Schnappschuss je Aktion in
 // `undo-bitgleich`) — Deckung entsteht über gewichtete Zielwahl, nicht über Befehlsketten.
+// AUSNAHME seit AP-1.30 PR 4b: die Aktion „Serie" (`_befehlsfolge-koaleszenz.ts`) ruft denselben
+// Autosave-Befehl 2–5-mal auf und meldet die Aufrufe dazwischen über `zwischenSchritt` an den
+// Aufrufer (`aktionAusfuehren(…, zwischenSchritt)`), damit Tests, die Undo-Schritte mitschreiben,
+// jeden Zwischenstand sehen. Dazu: feste Testuhr je Aktion (`Date` über `vi.setSystemTime()`) und
+// wahlweise `feld` an `name`/`ereignis`/`partnerschaft`/`elternschaft`/`aussage.aendern` (passend
+// oder absichtlich unpassend, `feldAusRoh()`).
 //
 // GRUNDSATZÄNDERUNG „NICHT NUR GÜLTIGE EINGABEN" (E-B2-2): alles oben Gesagte über „gültige statt
 // zufällig scheiternde Eingaben" gilt weiter für JEDE Aktion außer `belegAblehnen`. Diese eine
@@ -279,6 +285,24 @@ import {
   type Zweig,
 } from './_befehlsfolge-beleg'
 
+import {
+  befehlBeobachtet,
+  feldAusRoh,
+  serieAktionArbitrary,
+  serieAusfuehren,
+  uhrVorruecken,
+  UHR_SCHRITT_MS,
+  UHR_START_MS,
+  type AktionSerie,
+} from './_befehlsfolge-koaleszenz'
+import {
+  AussageAendernFeldEnum,
+  ElternschaftAendernFeldEnum,
+  EreignisAendernFeldEnum,
+  NameAendernFeldEnum,
+  PartnerschaftAendernFeldEnum,
+} from '../../src/shared/schemata/befehle'
+
 export type { Zweig } from './_befehlsfolge-beleg'
 
 /**
@@ -333,6 +357,9 @@ export interface AktionNameAnlegen {
 export interface AktionNameAendern {
   readonly art: 'nameAendern'
   readonly nameZielRoh: number
+  /** AP-1.30 PR 4b: `undefined` = kein `feld` (kein Koaleszenzschlüssel); sonst über `feldAusRoh()`
+   * (`_befehlsfolge-koaleszenz.ts`) ein gesendetes oder ein absichtlich unpassendes Vertragsfeld. */
+  readonly feldRoh: number | undefined
   readonly typ: NameTyp
   readonly nachname: string
   readonly vornamen: string
@@ -389,6 +416,9 @@ export interface AktionElternschaftAnlegen {
 export interface AktionElternschaftAendern {
   readonly art: 'elternschaftAendern'
   readonly elternschaftZielRoh: number
+  /** AP-1.30 PR 4b: `undefined` = kein `feld` (kein Koaleszenzschlüssel); sonst über `feldAusRoh()`
+   * (`_befehlsfolge-koaleszenz.ts`) ein gesendetes oder ein absichtlich unpassendes Vertragsfeld. */
+  readonly feldRoh: number | undefined
   readonly typ: ElternschaftTyp
   readonly notiz: string
 }
@@ -410,6 +440,9 @@ export interface AktionPartnerschaftAnlegen {
 export interface AktionPartnerschaftAendern {
   readonly art: 'partnerschaftAendern'
   readonly partnerschaftZielRoh: number
+  /** AP-1.30 PR 4b: `undefined` = kein `feld` (kein Koaleszenzschlüssel); sonst über `feldAusRoh()`
+   * (`_befehlsfolge-koaleszenz.ts`) ein gesendetes oder ein absichtlich unpassendes Vertragsfeld. */
+  readonly feldRoh: number | undefined
   readonly typ: PartnerschaftTyp
   readonly endeGrund: EndeGrund
   readonly notiz: string
@@ -432,6 +465,9 @@ export interface AktionEreignisAnlegen {
 export interface AktionEreignisAendern {
   readonly art: 'ereignisAendern'
   readonly ereignisZielRoh: number
+  /** AP-1.30 PR 4b: `undefined` = kein `feld` (kein Koaleszenzschlüssel); sonst über `feldAusRoh()`
+   * (`_befehlsfolge-koaleszenz.ts`) ein gesendetes oder ein absichtlich unpassendes Vertragsfeld. */
+  readonly feldRoh: number | undefined
   readonly typ: EreignisTyp
   readonly beschreibung: string
 }
@@ -508,6 +544,9 @@ export interface AktionAussageLoeschen {
 export interface AktionAussageAendern {
   readonly art: 'aussageAendern'
   readonly aussageZielRoh: number
+  /** AP-1.30 PR 4b: `undefined` = kein `feld` (kein Koaleszenzschlüssel); sonst über `feldAusRoh()`
+   * (`_befehlsfolge-koaleszenz.ts`) ein gesendetes oder ein absichtlich unpassendes Vertragsfeld. */
+  readonly feldRoh: number | undefined
   readonly wert: AktionAussageWert
   readonly konfidenz: number
   readonly begruendung: string
@@ -775,6 +814,7 @@ export type Aktion =
   | AktionNegativbefundAnlegen
   | AktionNegativbefundAendern
   | AktionNegativbefundLoeschen
+  | AktionSerie
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -854,11 +894,12 @@ function nameAendernAktionArbitrary(): fc.Arbitrary<AktionNameAendern> {
   return fc
     .record({
       nameZielRoh: fc.nat(),
+      feldRoh: fc.option(fc.nat(), { nil: undefined }),
       typ: fc.constantFrom(...NameTypEnum.options),
       nachname: fc.string(),
       vornamen: fc.string(),
       vatersname: vatersnameArbitrary(),
-    }, { requiredKeys: ['nameZielRoh', 'typ', 'nachname', 'vornamen'] })
+    }, { requiredKeys: ['nameZielRoh', 'feldRoh', 'typ', 'nachname', 'vornamen'] })
     .map((r): AktionNameAendern => ({ art: 'nameAendern', ...r }))
 }
 
@@ -900,6 +941,7 @@ function elternschaftAendernAktionArbitrary(): fc.Arbitrary<AktionElternschaftAe
   return fc
     .record({
       elternschaftZielRoh: fc.nat(),
+      feldRoh: fc.option(fc.nat(), { nil: undefined }),
       typ: fc.constantFrom(...ElternschaftTypEnum.options),
       notiz: fc.string(),
     })
@@ -926,6 +968,7 @@ function partnerschaftAendernAktionArbitrary(): fc.Arbitrary<AktionPartnerschaft
   return fc
     .record({
       partnerschaftZielRoh: fc.nat(),
+      feldRoh: fc.option(fc.nat(), { nil: undefined }),
       typ: fc.constantFrom(...PartnerschaftTypEnum.options),
       endeGrund: fc.constantFrom(...EndeGrundEnum.options),
       notiz: fc.string(),
@@ -953,6 +996,7 @@ function ereignisAendernAktionArbitrary(): fc.Arbitrary<AktionEreignisAendern> {
   return fc
     .record({
       ereignisZielRoh: fc.nat(),
+      feldRoh: fc.option(fc.nat(), { nil: undefined }),
       typ: fc.constantFrom(...EreignisTypEnum.options),
       beschreibung: fc.string(),
     })
@@ -1040,6 +1084,7 @@ function aussageAendernAktionArbitrary(): fc.Arbitrary<AktionAussageAendern> {
   return fc
     .record({
       aussageZielRoh: fc.nat(),
+      feldRoh: fc.option(fc.nat(), { nil: undefined }),
       wert: aussageWertArbitrary(),
       konfidenz: fc.integer({ min: 1, max: 4 }),
       begruendung: fc.string(),
@@ -1336,6 +1381,17 @@ export type GeneratorProfil = 'bestand' | 'beleg'
  * `ortszugehoerigkeitAnlegen` 2 → 3. Danach u. a. `aussage_zitat.aendern` 6, `elternschaft.aendern`
  * 11, `ortszugehoerigkeit.aendern`/`.anlegen`/`.loeschen` 9/55/7, `name.aendern` 24, alle übrigen
  * Schwellen erfüllt (vollständige Zahlen im PR-Bericht).
+ *
+ * AP-1.30 PR 4b (Koaleszenz-Folgen, `_befehlsfolge-koaleszenz.ts`): neue Aktion `serie` (Gewicht 2
+ * in beiden Profilen) und `feldRoh` an den fünf `*.aendern`-Aktionen verschieben den Zufallsstrom
+ * erneut; danach fielen im Profil `bestand` u. a. `ortszugehoerigkeit.loeschen` auf 2 (Schwelle 5),
+ * `ortszugehoerigkeit.aendern` auf 3 (Schwelle 6), `elternschaft.loeschen` auf 4 (Schwelle 5),
+ * `ereignis.loeschen` auf 17/18 (Schwelle 19) und `nachruecken` auf 0–1 (Schwelle 3), je nach
+ * Serie-Gewicht. Korrektur über die Gewichtung, nur im Profil `bestand` (ADR-009-Nachtrag, nie
+ * Seed/`numRuns`): `ortszugehoerigkeitAendern`/`-Loeschen`, `elternschaftLoeschen` und
+ * `ereignisLoeschen` je 1 → 2. Danach u. a. `ortszugehoerigkeit.aendern`/`.loeschen` ≥ Schwelle,
+ * `ereignis.aendern`/`.loeschen` 26/47, `nachruecken` ≥ 3, alle Schwellen erfüllt (Zahlen im
+ * PR-Bericht).
  */
 function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
   // `g(bestand, beleg)`: Gewicht je Profil (s. `GeneratorProfil`).
@@ -1356,13 +1412,13 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: g(2, 3), arbitrary: nameWeitereFormAnlegenAktionArbitrary() },
     { weight: 2, arbitrary: elternschaftAnlegenAktionArbitrary() },
     { weight: g(2, 1), arbitrary: elternschaftAendernAktionArbitrary() },
-    { weight: 1, arbitrary: elternschaftLoeschenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: elternschaftLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: partnerschaftAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: partnerschaftAendernAktionArbitrary() },
     { weight: g(2, 1), arbitrary: partnerschaftLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: ereignisAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ereignisAendernAktionArbitrary() },
-    { weight: 1, arbitrary: ereignisLoeschenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ereignisLoeschenAktionArbitrary() },
     { weight: 1, arbitrary: beteiligungLoeschenAktionArbitrary() },
     { weight: 2, arbitrary: aussageAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: aussageLoeschenAktionArbitrary() },
@@ -1378,8 +1434,8 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: 1, arbitrary: ortsnameAendernAktionArbitrary() },
     { weight: 1, arbitrary: ortsnameLoeschenAktionArbitrary() },
     { weight: 3, arbitrary: ortszugehoerigkeitAnlegenAktionArbitrary() },
-    { weight: 1, arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
-    { weight: 1, arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortszugehoerigkeitAendernAktionArbitrary() },
+    { weight: g(2, 1), arbitrary: ortszugehoerigkeitLoeschenAktionArbitrary() },
     { weight: g(2, 1), arbitrary: ortExterneIdAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: ortExterneIdLoeschenAktionArbitrary() },
     { weight: g(2, 1), arbitrary: archivAnlegenAktionArbitrary() },
@@ -1392,6 +1448,7 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
     { weight: g(2, 1), arbitrary: negativbefundAnlegenAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundAendernAktionArbitrary() },
     { weight: 1, arbitrary: negativbefundLoeschenAktionArbitrary() },
+    { weight: 2, arbitrary: serieAktionArbitrary() },
   )
 }
 
@@ -1564,6 +1621,10 @@ export interface Zustand {
   /** AP-1.34 PR-B2 (hueter PR #119 H3): Anforderung des zuletzt ausgeführten `aussage_zitat.anlegen`,
    * wie `belegAenderung` zu Beginn jeder Aktion zurückgesetzt. */
   belegAnlage: BelegAenderungInfo | undefined
+  /** AP-1.30 PR 4b: Testuhr (s. `_befehlsfolge-koaleszenz.ts`, Modul-Kommentar UHR). */
+  uhrMs: number
+  /** AP-1.30 PR 4b: vom Aufrufer von `aktionAusfuehren()` — nach jedem Serienaufruf außer dem letzten. */
+  zwischenSchritt: () => void
 }
 
 export function neuerZustand(): Zustand {
@@ -1587,6 +1648,10 @@ export function neuerZustand(): Zustand {
     negativbefundIds: [],
     belegAenderung: undefined,
     belegAnlage: undefined,
+    uhrMs: UHR_START_MS,
+    zwischenSchritt: () => {
+      // Standard: kein Beobachter (Aufrufer, die keine Undo-Schritte mitschreiben).
+    },
   }
 }
 
@@ -1839,10 +1904,15 @@ function datumsgruppeLesen(db: Tx, id: string): { readonly gesetzt: boolean; rea
  * AP-1.34 PR-B2: gibt die tatsächlich getroffenen Deckungszweige zurück (`Zweig`,
  * `_befehlsfolge-beleg.ts`); Aufrufer, die nicht zählen, ignorieren das Ergebnis.
  */
-export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion): readonly Zweig[] {
+export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion, zwischenSchritt?: () => void): readonly Zweig[] {
   const zweige: Zweig[] = []
   zustand.belegAenderung = undefined
   zustand.belegAnlage = undefined
+  if (zwischenSchritt !== undefined) {
+    zustand.zwischenSchritt = zwischenSchritt
+  }
+  // AP-1.30 PR 4b: feste Testuhr statt Wanduhr (s. `_befehlsfolge-koaleszenz.ts`, UHR).
+  uhrVorruecken(zustand, UHR_SCHRITT_MS)
   aktionAusfuehrenIn(db, zustand, aktion, zweige)
   return zweige
 }
@@ -1927,6 +1997,12 @@ function aussageVorlaufFuer(db: Tx, zustand: Zustand): AussageVorlauf {
 
 function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zweig[]): void {
   switch (aktion.art) {
+    case 'serie': {
+      // AP-1.30 PR 4b: s. `_befehlsfolge-koaleszenz.ts` (Serie, Orakel, Uhr).
+      serieAusfuehren(db, zustand, aktion, zweige, zustand.zwischenSchritt)
+      return
+    }
+
     case 'anlegen': {
       const { id } = befehl(zweige, db, 'person.anlegen', aktion.ein)
       zustand.personIds.push(id)
@@ -1938,7 +2014,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (id === undefined) {
         return
       }
-      befehl(zweige, db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
+      befehlBeobachtet(zweige, db, 'person.feldSetzen', feldSetzenEin(id, aktion.feldwert))
       return
     }
 
@@ -2001,12 +2077,13 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         return
       }
       const vorherMitVatersname = vatersnameTeilVorhanden(db, ziel.id)
-      befehl(zweige, db, 'name.aendern', {
+      befehlBeobachtet(zweige, db, 'name.aendern', {
         id: ziel.id,
         typ: aktion.typ,
         nachname: aktion.nachname,
         vornamen: aktion.vornamen,
         vatersname: aktion.vatersname,
+        feld: feldAusRoh(aktion.feldRoh, ['typ', 'nachname', 'vornamen', 'vatersname'], NameAendernFeldEnum.options),
       })
       if (vatersnamePruefen(db, ziel.id, aktion.vatersname)) {
         zweige.push('name.vatersname.gesetzt')
@@ -2094,7 +2171,12 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      befehl(zweige, db, 'elternschaft.aendern', { id: ziel.id, typ: aktion.typ, notiz: aktion.notiz })
+      befehlBeobachtet(zweige, db, 'elternschaft.aendern', {
+        id: ziel.id,
+        typ: aktion.typ,
+        notiz: aktion.notiz,
+        feld: feldAusRoh(aktion.feldRoh, ['typ', 'notiz'], ElternschaftAendernFeldEnum.options),
+      })
       return
     }
 
@@ -2142,7 +2224,13 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      befehl(zweige, db, 'partnerschaft.aendern', { id: ziel.id, typ: aktion.typ, endeGrund: aktion.endeGrund, notiz: aktion.notiz })
+      befehlBeobachtet(zweige, db, 'partnerschaft.aendern', {
+        id: ziel.id,
+        typ: aktion.typ,
+        endeGrund: aktion.endeGrund,
+        notiz: aktion.notiz,
+        feld: feldAusRoh(aktion.feldRoh, ['typ', 'endeGrund', 'notiz'], PartnerschaftAendernFeldEnum.options),
+      })
       return
     }
 
@@ -2188,7 +2276,12 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      befehl(zweige, db, 'ereignis.aendern', { id: ziel.id, typ: aktion.typ, beschreibung: aktion.beschreibung })
+      befehlBeobachtet(zweige, db, 'ereignis.aendern', {
+        id: ziel.id,
+        typ: aktion.typ,
+        beschreibung: aktion.beschreibung,
+        feld: feldAusRoh(aktion.feldRoh, ['typ', 'beschreibung'], EreignisAendernFeldEnum.options),
+      })
       return
     }
 
@@ -2279,8 +2372,9 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       }
       // AP-1.30 PR 4c (V-E5-erhalt): Datumsgruppe vorher/nachher am Datenbankergebnis vergleichen.
       const datumVorher = aktion.datumBeibehalten ? datumsgruppeLesen(db, ziel.id) : undefined
-      befehl(zweige, db, 'aussage.aendern', {
+      befehlBeobachtet(zweige, db, 'aussage.aendern', {
         id: ziel.id,
+        feld: feldAusRoh(aktion.feldRoh, ['konfidenz', 'begruendung', 'unsicherheit', 'gueltigVon', 'gueltigBis', aktion.wert.art === 'text' ? 'wertText' : 'wertZahl'], AussageAendernFeldEnum.options),
         konfidenz: aktion.konfidenz,
         begruendung: aktion.begruendung,
         unsicherheit: aktion.unsicherheit,

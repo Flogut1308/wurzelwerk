@@ -44,6 +44,28 @@
 //    `schnappschuesse` ist damit exakt die Folge der Zustände nach 0, 1, 2, … tatsächlich
 //    ANWENDBAREN (nicht bloß tabellenweise gezählten) Undo-Schritten — unabhängig von No-ops
 //    (Modul-Kommentar `_befehlsfolge-generator.ts`) und von Koaleszenz.
+//
+//    AP-1.30 PR 4b (KOALESZIERTE FOLGEN, `_befehlsfolge-koaleszenz.ts`): seit der Aktion „Serie"
+//    (2–5 Aufrufe desselben Autosave-Befehls auf dasselbe Subjekt+Feld, feste Testuhr, Abstände
+//    teils < 2000 ms, teils ≥ 2000 ms) kann EINE Aktion mehrere Undo-Schritte erzeugen. Die
+//    Erfassung (`schrittErfassen`) läuft darum nach JEDEM Serienaufruf (`zwischenSchritt`) und nach
+//    jeder Aktion, und sie führt je Schritt die tragende Transaktions-`id` mit (`schrittIds`)
+//    statt nur „gleich wie vorher / anders". Drei Fälle:
+//    (a) eine unbekannte `id` liegt oben → neuer Schritt, Schnappschuss ANGEHÄNGT;
+//    (b) dieselbe `id` → No-op oder Koaleszenz, der letzte Schnappschuss wird ERSETZT. Der
+//        Vorzustand des Schritts (`schnappschuesse[length - 2]`) bleibt dabei unangetastet — die
+//        Zusicherung „Undo stellt den Vorzustand bitgleich her" gilt für einen koaleszierten Schritt
+//        also gegen den Zustand VOR DEM ERSTEN zusammengefassten Aufruf, nicht vor dem letzten;
+//    (c) eine FRÜHERE `id` (oder keine) liegt oben → ein Merge ist leer geworden
+//        (`versucheZusammenfassen()` → `null`, beide Transaktionszeilen gelöscht): die Schritte
+//        danach werden ENTFERNT statt ein neuer angehängt, und zusätzlich muss der jetzige Stand
+//        bitgleich der vor dem verschwundenen Schritt sein. Die frühere Fassung hätte hier einen
+//        Schnappschuss ANGEHÄNGT (die `id` hatte sich ja „geändert") und damit einen Schritt zu viel
+//        gezählt. Mit dem heutigen Befehlsvorrat ist (c) laut `koaleszenz.ts` unerreichbar (jede
+//        Transaktion mit Schlüssel ändert auch eine über beide bestehende Zeile) — der Zweig ist das
+//        Sicherheitsnetz für einen künftigen Befehl, der es erreicht.
+//    Keine bisherige Zusicherung entfällt: jeder Rücknahmeschritt wird weiter gegen genau seinen
+//    Vorzustand verglichen, am Ende muss `undoZiel` leer sein.
 // 3. `undo()` GENAU `schnappschuesse.length - 1`-mal aufrufen — nach dem i-ten `undo()`-Aufruf MUSS
 //    der kanonische Abzug mit `schnappschuesse[schnappschuesse.length - 1 - i]` übereinstimmen: das
 //    prüft nicht nur den Endzustand, sondern JEDEN einzelnen Rücknahmeschritt gegen den exakt
@@ -77,7 +99,7 @@
 // korrigieren, nie Seed oder `numRuns`. Ein abgelehnter Befehl (`belegAblehnen`, E-B2-2) erzeugt
 // keine Transaktion und fällt in Punkt 2 unter „gleiche oberste Transaktion" (identischer
 // Schnappschuss ersetzt den letzten).
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { vi } from 'vitest'
 
@@ -182,6 +204,15 @@ function zaehle(schluessel: Zaehlschluessel): void {
 }
 
 describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her (ADR-009 §2, 55_Architektur.md §4.9 Punkt 5)', () => {
+  // AP-1.30 PR 4b: nur `Date` gefälscht (Timer laufen echt) — der Generator stellt die Uhr je Aufruf
+  // (`_befehlsfolge-koaleszenz.ts`, Modul-Kommentar UHR).
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+  })
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (alle registrierten Schreibbefehle, AP-1.12 PR-B) trifft exakt den passenden Vorzustand', () => {
     fc.assert(
       fc.property(befehlsfolgeArbitrary(), (folge) => {
@@ -190,23 +221,21 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
           // Zweige je Undo-Schritt: `schrittZweige[i]` gehört zum Übergang schnappschuesse[i] → [i + 1].
           const schrittZweige: Set<Zweig>[] = []
-          // `id` der aktuell obersten anwendbaren Transaktion — `undefined`, solange keine existiert.
-          // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neue Transaktion vs. No-op/Koaleszenz).
-          let oberstesTxIdVorher = undoZiel(db)?.id
+          // `schrittIds[i]`: `id` der Transaktion, die Undo-Schritt i trägt (Übergang schnappschuesse[i] → [i + 1]).
+          // s. Modul-Kommentar Punkt 2 für die Fallunterscheidung (neu / gleich / zurückgefallen).
+          const schrittIds: string[] = []
 
-          const zustand = neuerZustand()
-          for (const aktion of folge) {
-            const zweige = aktionAusfuehren(db, zustand, aktion)
-            for (const z of zweige) {
-              zaehle(z)
-            }
-            const oberstesTxIdJetzt = undoZiel(db)?.id
-            if (oberstesTxIdJetzt !== oberstesTxIdVorher) {
-              schnappschuesse.push(kanonischerAbzug(db))
-              schrittZweige.push(new Set(zweige))
-            } else if (oberstesTxIdJetzt !== undefined) {
-              const letzterIndex = schnappschuesse.length - 1
-              schnappschuesse[letzterIndex] = kanonischerAbzug(db)
+          // Nach jedem Befehl (Aktion, bzw. jedem Serienaufruf — `zwischenSchritt`) aufgerufen.
+          const schrittErfassen = (zweige: readonly Zweig[]): void => {
+            const jetzt = undoZiel(db)?.id
+            const letzteId = schrittIds[schrittIds.length - 1]
+            if (jetzt === letzteId) {
+              if (jetzt === undefined) {
+                return
+              }
+              // (b) No-op oder Koaleszenz: derselbe Schritt, neuer Nachzustand. Der Vorzustand
+              // `schnappschuesse[length - 2]` bleibt der vor dem ERSTEN zusammengefassten Aufruf.
+              schnappschuesse[schnappschuesse.length - 1] = kanonischerAbzug(db)
               const letzteZweige = schrittZweige[schrittZweige.length - 1]
               if (letzteZweige === undefined) {
                 throw new Error('unerreichbar: eine oberste Transaktion existiert, also auch ein Schritt.')
@@ -214,8 +243,33 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
               for (const z of zweige) {
                 letzteZweige.add(z)
               }
+              return
             }
-            oberstesTxIdVorher = oberstesTxIdJetzt
+            const frueher = jetzt === undefined ? -1 : schrittIds.indexOf(jetzt)
+            if (jetzt === undefined || frueher >= 0) {
+              // (c) Zurückgefallen: ein Merge ist leer geworden (`versucheZusammenfassen()` → `null`),
+              // der jüngste Schritt ist verschwunden, `undoZiel` zeigt auf einen älteren (oder keinen).
+              // Die Schritte danach werden ENTFERNT statt ein neuer angehängt — und der jetzige Stand
+              // muss der vor dem verschwundenen Schritt sein (bitgleich, zusätzliche Zusicherung).
+              schrittIds.length = frueher + 1
+              schrittZweige.length = frueher + 1
+              schnappschuesse.length = frueher + 2
+              expect(kanonischerAbzug(db), 'leerer Merge: Stand gleich dem vor dem verschwundenen Schritt').toBe(schnappschuesse[frueher + 1])
+              return
+            }
+            // (a) Neue Transaktion oben: ein neuer Undo-Schritt.
+            schrittIds.push(jetzt)
+            schnappschuesse.push(kanonischerAbzug(db))
+            schrittZweige.push(new Set(zweige))
+          }
+
+          const zustand = neuerZustand()
+          for (const aktion of folge) {
+            const zweige = aktionAusfuehren(db, zustand, aktion, () => schrittErfassen([]))
+            for (const z of zweige) {
+              zaehle(z)
+            }
+            schrittErfassen(zweige)
           }
 
           const anzahlSchritte = schnappschuesse.length - 1

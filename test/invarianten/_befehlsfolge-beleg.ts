@@ -67,6 +67,17 @@ export type Zweig =
   /** `name.aendern` an einer Form, die vorher einen Vatersnamen-Teil trug und danach keinen mehr
    * (Löschen des Teils, fehlt = null). */
   | 'name.vatersname.entfernt'
+  /** AP-1.30 PR 4b (`_befehlsfolge-koaleszenz.ts`), am Journal gemessen: ein Aufruf wurde mit der
+   * obersten Transaktion zusammengefasst (keine neue angewendete Transaktion, ihre Änderungszeilen
+   * neu verdichtet). */
+  | 'koaleszenz.zusammengefasst'
+  /** … und dabei verschwand ein `insert` der obersten Transaktion ganz (insert+delete-Paar). */
+  | 'koaleszenz.verdichtet'
+  /** Serienaufruf mit demselben Schlüssel wie die oberste Transaktion, aber nach Ablauf des Fensters
+   * (≥ 2000 ms): neuer Undo-Schritt. */
+  | 'koaleszenz.fensterAbgelaufen'
+  /** Serienaufruf mit absichtlich unpassendem `feld`: neue Transaktion ohne Schlüssel. */
+  | 'koaleszenz.feldUnpassend'
   | 'beleg.anlegen.ohneAnker'
   | 'beleg.anlegen.anker'
   /** Der Ausschnitt enthält eine Nicht-ASCII-Codeeinheit. */
