@@ -85,7 +85,8 @@ export function datumsfeldInterpretation(text: string): DatumsfeldInterpretation
 
 /** Die EINE Stelle, an der der Renderer aus einer Freitext-Datumseingabe einen Vertrags-`Datumswert`
  * (`src/shared/schemata/import-v1.ts`) baut — genutzt vom Ereignisformular
- * (`ereignisDatumwertAusEntwurf`) und vom Gesprächsdatum (`gespraechsdatumAusEntwurf`).
+ * (`ereignisDatumwertAusEntwurf`), vom Gesprächsdatum (`gespraechsdatumAusEntwurf`) und von den
+ * Datums-Aussagen im Reiter Person (`reiter-person.tsx`).
  * `undefined` bei leerem/nicht auflösbarem Text.
  *
  * AP-1.30 Bugfix U-130-9b: `parse()` setzt `originaltext` nur für Doppeljahr/eingebettetes Jahr,
@@ -103,13 +104,15 @@ export function datumswertAusText(text: string, kalender: Kalender): VertragsDat
   if (!ergebnis.ok) return undefined
   const { wert } = ergebnis
   const originalText = wert.originaltext ?? (modifikatorBrauchtOriginalText(wert.modifikator) ? bereinigt : undefined)
+  // Nicht gesetzte Felder fehlen ganz (statt `undefined`-Schlüssel) — Fassung aus dem Reiter
+  // Person (PR #165), die hier aufgegangen ist.
   return {
     kalender,
     modifikator: wert.modifikator,
     praezision: wert.praezision,
     wert1: wert.wert1,
-    wert2: wert.wert2,
-    original_text: originalText,
-    doppeljahr: wert.doppeljahr,
+    ...(wert.wert2 === undefined ? {} : { wert2: wert.wert2 }),
+    ...(originalText === undefined ? {} : { original_text: originalText }),
+    ...(wert.doppeljahr === undefined ? {} : { doppeljahr: wert.doppeljahr }),
   }
 }

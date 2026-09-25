@@ -15,7 +15,6 @@
 //   Datum mit Koaleszenzfeld (Autosave), Ort und Sicherheit als Einzelschritte ohne Koaleszenz
 //   (Auswahl wie Umschalter, V-130-4-autosave). Ein leeres Feld legt beim ersten Schreiben an (K).
 import { formatiere } from '../../../core/datum/formatierer'
-import { parse } from '../../../core/datum/parser'
 import type { Formatergebnis, Kalender } from '../../../core/datum/typen'
 import { LEBENSDATUM_ANGABEN, lebensdatumArt, type LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
@@ -228,29 +227,8 @@ export function aussageKalender(aussage: PersonDetailAussage): Kalender {
   return kalender.success ? kalender.data : 'gregorian'
 }
 
-/**
- * Freitext → Vertrags-Datumswert (`parse`, keine zweite Parselogik). `null` bei leerem oder nicht
- * auflösbarem Text — dann wird nichts geschrieben (das Datumsfeld zeigt „nicht auflösbar").
- * Der Vertrag verlangt ab `modifikator ≠ exakt` einen Originaltext (`datumswertSchema`, IMP-106);
- * `parse` liefert ihn nur für Sonderformen — sonst ist es der getippte Text selbst.
- */
-export function datumswertAusText(text: string, kalender: Kalender): VertragsDatumswert | null {
-  const bereinigt = text.trim()
-  if (bereinigt === '') return null
-  const ergebnis = parse(text)
-  if (!ergebnis.ok) return null
-  const wert = ergebnis.wert
-  const originaltext = wert.originaltext ?? (wert.modifikator === 'exakt' ? undefined : bereinigt)
-  return {
-    kalender,
-    modifikator: wert.modifikator,
-    praezision: wert.praezision,
-    wert1: wert.wert1,
-    ...(wert.wert2 === undefined ? {} : { wert2: wert.wert2 }),
-    ...(originaltext === undefined ? {} : { original_text: originaltext }),
-    ...(wert.doppeljahr === undefined ? {} : { doppeljahr: wert.doppeljahr }),
-  }
-}
+// Freitext → Vertrags-Datumswert: `datumswertAusText` (src/renderer/bausteine/datumsfeld-logik.ts),
+// die eine gemeinsame Regel für Reiter Person, Ereignisformular und Gesprächsdatum (U-130-9b).
 
 /** Neues Datum an einer Datums-Aussage. Die Datumsgruppe IST der Wert (D1): ein Altbestands-Wert
  * (`wertText '1900'`, Zahl) wird mit entfernt, sonst stünden zwei Wahrheiten nebeneinander. */
