@@ -1,7 +1,8 @@
 ## ADR-031 — Kernangaben und Vollständigkeitsgrad einer Person
 
 **Status:** entschieden (Eigentümer, 24.09.2026: Nenner E7, `80_Offene_Fragen.md` §31
-U-1.34-E7; Einzelregeln D1–D11 nach Autonomie des Eigentümers, 25.09.2026, U-1.34-D1…D11)
+U-1.34-E7; Einzelregeln D1–D11 nach Autonomie des Eigentümers, 25.09.2026, U-1.34-D1…D11;
+D1 und D9 geändert, D3 bestätigt durch den Eigentümer am 25.09.2026 — siehe Nachtrag unten)
 
 **Kontext:** Die Bearbeitungsansicht zeigt in der rechten Spalte „68 % der Kernangaben belegt"
 (Entwicklungsvorgaben Person bearbeiten & Medien §3.1: „Anteil Kernfakten (Name, Geschlecht,
@@ -75,3 +76,63 @@ Mutter getrennt, Platzhalter ausgenommen, abrunden.
   Feld (AP-1.7: Summe über alle Aussagen eines Prädikats) ab; eine belegte Nebenaussage ist ein
   Beleg für die Angabe, ein Widerspruch wird über die offenen Punkte gemeldet, nicht über die
   Vollständigkeit.
+
+### Nachtrag (Vorarbeiten AP-1.30, 25.09.2026): Name nach Vorhandensein, Ereignis-Rückfall für Geburt und Tod
+
+**Anlass:** Eigentümer-Entscheidungen vom 25.09.2026 (`80_Offene_Fragen.md` §31 U-1.34-D1/D3/D9,
+Einzelheiten §32): **D1 geändert** — der Name zählt als Kernangabe, sobald er vorhanden ist (wie
+das Geschlecht), alle anderen weiter nur mit Beleg; **D3 bleibt** — als „belegt" angezeigt wird
+der Name nur bei einem Beleg an der Hauptform; **D9 geändert** — fehlt die Aussage, ist ein
+Geburts- bzw. Todesereignis Rückfall für Datum und Ort, auch ohne Beleg (bewusste Ausnahme zu D1).
+Kernangaben, Sterbeort und offene Punkte nutzen dafür dasselbe Prädikat.
+
+**Geänderte Zeilen der Tabelle (Entscheidung 2):**
+
+| Id | erfüllt, wenn (neu) |
+|---|---|
+| `name` | die Hauptform hat einen nicht-leeren Anzeigetext (dieselbe Textregel wie `anzeigenameFuer`); ein Beleg ist nicht nötig (§32 V-D1-name-vorhanden) |
+| `geburtsdatum`, `todesdatum` | **Aussage führt:** gibt es eine Aussage mit Wert, entscheidet allein sie (≥ 1 belegt ⇒ erfüllt). **Sonst Ereignis:** ein passendes Ereignis mit Datum (`datum_wert1` oder `datum_originaltext`), auch ohne Beleg |
+| `geburtsort`, `todesort` | **Aussage führt:** gibt es eine Aussage, die einen Ort trägt (`traegtOrt`), entscheidet allein sie (≥ 1 belegt ⇒ erfüllt). **Sonst Ereignis:** ein passendes Ereignis mit `ort_id`, auch ohne Beleg |
+
+„Passendes Ereignis" (§32 V-D9-rollen): Geburt = `typ = 'geburt'` mit der Person in Rolle
+`hauptperson` oder `kind`; Tod = `typ = 'tod'` mit der Person in Rolle `verstorbener` oder
+`hauptperson` (die Oberfläche legt jedes Ereignis mit der Profilperson als `hauptperson` an; das
+ersetzt U-1.34-C2a-rolle-hauptperson). Taufe und Beerdigung sind kein Ersatz. Datum und Ort werden
+**je Angabe getrennt** aufgelöst: das Datum kann aus einer Aussage, der Ort aus dem Ereignis kommen.
+
+**Eine Auflösung für alle Leser:** Die Regel „Aussage führt, sonst Ereignis" steht einmal im Kern
+(`src/core/person/lebensdaten.ts`) und speist `kernangabenAuswerten`, `sterbeortAufloesen` und
+damit die offene-Punkte-Regel `sterbeort_fehlt`. Es gilt: `todesort` ist erfüllt ⇔ ein Sterbeort
+ist aufgelöst UND (er stammt aus dem Ereignis ODER eine `todesort`-Aussage mit Ort ist belegt).
+
+**Aufschlüsselung (D3, Vorgaben §4.1):** Das Ergebnis trägt zusätzlich
+`aufschluesselung: {id, zustand}[]` in der Reihenfolge der anwendbaren Angaben, `zustand` ∈
+- `belegt` — erfüllt und belegt (Aussage mit Beleg; Name mit Beleg an der Hauptform; Eltern-Kante
+  mit Beleg; Ereignis-Rückfall, dessen Existenz-Aussage einen Beleg mit `feld` NULL oder dem
+  passenden Feld `datum`/`ort` trägt),
+- `vorhanden` — erfüllt ohne Beleg (Geschlecht; Name ohne Beleg an der Hauptform; Ereignis-Rückfall
+  ohne Beleg),
+- `unbelegt` — eine Angabe liegt vor, zählt aber nicht (Aussage ohne Beleg; besetzter Elternplatz
+  mit unbelegter Kante),
+- `fehlt` — nichts erfasst.
+
+`fehlend` sind genau die Ids mit `unbelegt` oder `fehlt`, in derselben Reihenfolge;
+`erfuellt` = Anzahl `belegt` + `vorhanden`. Nenner, Formel und Platzhalter-Regel bleiben.
+
+**Konsequenzen:**
+- Importierte Personen erreichen `name` (U-1.34-D-import-name-unbelegt erledigt); ein Ereignis aus
+  der Oberfläche zählt für Datum und Ort (U-1.34-D-ereignis-ohne-aussage erledigt).
+- Nicht monoton beim Hinzufügen gilt jetzt auch für Datum und Geburtsort: eine neue unbelegte
+  Aussage verdrängt ein Ereignis und senkt den Grad. Die Aufschlüsselung macht das sichtbar
+  (`unbelegt`), der Text dazu entsteht in AP-1.30.
+- „68 % der Kernangaben belegt" stimmt noch weniger wörtlich (U-1.34-D-design-text): Geschlecht,
+  Name und Ereignis-Rückfälle zählen ohne Beleg. Der Text wird in AP-1.30 angepasst.
+- Die Grunddaten-Anzeige zeigt weiter nur Aussagen; ein Datum nur am Ereignis erscheint dort nicht,
+  obwohl es zählt. Das aufgelöste Feld (Datum/Ort mit Herkunft, wie `sterbeort`) baut AP-1.30 über
+  dieselbe Kernfunktion (§32 V-D9-anzeige).
+
+**Verworfen:** „Fehlt eine *belegte* Aussage, springt das Ereignis ein" (monoton, aber weicht von
+der Sterbeort-Auswahl ab, bei der die Aussage führt — dann zeigte das Profil einen anderen Ort, als
+der Grad zählt); Taufe/Beerdigung als Ersatz für Geburt/Tod (Taufdatum ist nicht Geburtsdatum); ein
+einzelnes Flag `name_belegt` statt der Aufschlüsselung (deckte nur den Namen ab, die Oberfläche
+müsste die übrigen Zustände nachrechnen).

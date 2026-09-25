@@ -15,7 +15,7 @@ gefährlicher als Code, der fehlt.** Alles unten macht Korrektheit **maschinell 
 
 | Frage | Dokument |
 |---|---|
-| Warum ist die Technik so gewählt? | `docs/adr/` (ADR-001 bis ADR-025) |
+| Warum ist die Technik so gewählt? | `docs/adr/` (ADR-001 bis ADR-031) |
 | Wie ist die Architektur geschnitten? | `docs/architektur.md` |
 | Wie sieht das Datenmodell aus? | `docs/datenmodell.md` |
 | Was soll gebaut werden, mit welcher ID? | `docs/anforderungen.md` |
