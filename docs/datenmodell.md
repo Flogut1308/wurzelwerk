@@ -207,6 +207,8 @@ und `aussage.{unsicherheit,gueltig_von,gueltig_bis}` sind mit derselben Migratio
 **Feldbezug und Textanker eines Belegs (Migration `0007_kennung_textanker.sql`, AP-1.34, B-01).**
 `aussage_zitat` trägt seit 0007 drei weitere Spalten:
 
+**Lese-Indizes (Migration `0008_indizes.sql`, Vorarbeiten AP-1.30).** `idx_aussage_subjekt_praedikat` auf `aussage(subjekt_typ, subjekt_id, praedikat)` (Aussagen je Subjekt und Prädikat in `person.detail`) und `idx_medium_zuordnung_subjekt` auf `medium_zuordnung(subjekt_typ, subjekt_id)` (Titelbild einer Person). Rein additiv, keine Spalte, kein Trigger.
+
 - `feld TEXT` — NULL = der Beleg gilt für die ganze Aussage; sonst das belegte **Attribut des
   Subjekts** der Aussage. Bewusst **ohne** DB-CHECK, die Wertliste ist ein Zod-Enum im Code (E3,
   `src/shared/schemata/aussage-zitat.ts`, AP-1.34 PR-C1b, §31 U-1.34-F1 — *bestätigt (Nutzer

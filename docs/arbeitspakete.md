@@ -1403,7 +1403,7 @@ verändern, Vergleich muss rot werden; zurücknehmen.
 > **Kettenschnitt (23.09.2026, Review):** Kette 3a = 1.29 → [1.33, 1.34 einzeln] → 1.30 → 1.32,
 > Checkpoint 3 · Kette 3b = [1.31a einzeln] → 1.31b → 1.31c → 1.31d → 1.19, Checkpoint 4 ·
 > Kette 4 = 1.18 → 1.23 → 1.24 → 1.21 → 1.22. Die drei Migrationen (0006 Namen, 0007 Querschnitt,
-> 0008 Medien) laufen einzeln über `/ap`. Maßgeblich ist `.claude/commands/kette-ui.md`.
+> 0009 Medien) laufen einzeln über `/ap`. Maßgeblich ist `.claude/commands/kette-ui.md`.
 
 ## AP-1.29 — Fehlende Schreibwege und Bildlücken (Vorpaket)
 
@@ -1519,12 +1519,14 @@ Beziehung); **„aus dem Baum" ist Phase 2**, „aus Gespräch" kommt mit AP-1.2
 
 ---
 
-## AP-1.31a — Medien: Kern und Ablage (Migration 0008)
+## AP-1.31a — Medien: Kern und Ablage (Migration 0009)
+
+> Nachtrag 25.09.2026 (Vorarbeiten AP-1.30, PR 6): Migration 0008 ist die Index-Migration (`0008_indizes.sql`); die Medienmigration dieses Pakets wird **0009**.
 
 **Auftrag** — Artboards 2c/3a–3c, Vorgaben §2.7 und §5.8. **Ersetzt den Zuschnitt von AP-1.20.**
 Der Entwurf verlangt deutlich mehr als „Medien zuordnen" — hier entsteht nur das Fundament.
 
-**Migration 0008 — fünf neue Tabellen, Spaltenerweiterungen und eine CHECK-Erweiterung**
+**Migration 0009 — fünf neue Tabellen, Spaltenerweiterungen und eine CHECK-Erweiterung**
 | Was | Warum |
 |---|---|
 | **`herkunft`** (`bezeichnung`, `art`: privat/archiv/gespraech/sonstiges, `standort_original`, `rechte`: familie/archiv/gemeinfrei, `archiv_signatur`, Farbton) | „Genau eine je Medium, trägt Eigentümer, Rechte und Standort — die erbt jedes Medium darin." Deckt sich **nicht** mit `quelle`: eine Quelle ist ein Werk, ein Konvolut ist ein Fundzusammenhang. |
@@ -1539,7 +1541,7 @@ Der Entwurf verlangt deutlich mehr als „Medien zuordnen" — hier entsteht nur
 Gastzugang aus Phase 4 voraus — als §14-Abweichung vermerkt), `media.folder_id` (die Vorgaben
 sagen selbst: bis zur Entscheidung nicht bauen, nur nicht verbauen).
 
-**Nutzerentscheidung 23.09.2026 — Ablage umstellen, mit Umzug:** Dateiname = SHA-256 + Endung (ersetzt die Vorentscheidung `medien/<uuid7>.<endung>` aus Phase 1). 0008 benennt bestehende Dateien im Projektordner **einmalig** um und schreibt `medium.pfad` nach; die Medienkopie des Imports (`src/main/import/medienkopie.ts`) wird im selben Paket umgestellt — danach gibt es genau ein Ablageschema. Der Umzug ist **absturzsicher** (erst kopieren/umbenennen, dann DB, Wiederanlauf erkennt halbfertige Umzüge) und mit Schnappschuss davor. Zwei Medien mit gleichem Hash sind eine Datei.
+**Nutzerentscheidung 23.09.2026 — Ablage umstellen, mit Umzug:** Dateiname = SHA-256 + Endung (ersetzt die Vorentscheidung `medien/<uuid7>.<endung>` aus Phase 1). 0009 benennt bestehende Dateien im Projektordner **einmalig** um und schreibt `medium.pfad` nach; die Medienkopie des Imports (`src/main/import/medienkopie.ts`) wird im selben Paket umgestellt — danach gibt es genau ein Ablageschema. Der Umzug ist **absturzsicher** (erst kopieren/umbenennen, dann DB, Wiederanlauf erkennt halbfertige Umzüge) und mit Schnappschuss davor. Zwei Medien mit gleichem Hash sind eine Datei.
 
 **Abnahme** — Datei **inhaltsadressiert** über SHA-256 im Projektordner, Original unverändert, nie
 verschoben, nie von außen verlinkt; Vorschauen asynchron; große Dateien nie ganz in den Speicher;
