@@ -5,7 +5,8 @@
 // (Unterstrich-Präfix, kein eigener Kanal): lädt für eine Menge von Personen alle Namensformen samt
 // Bestandteilen in ZWEI Anweisungen und ruft je Person die Kernfunktion.
 //
-// Ohne Wunschsprache (§32 V-4-wunschsprache): die Kette beginnt bei der Umschrift, sonst Hauptform.
+// Ohne Wunschsprache (§32 V-4-wunschsprache): die Kette beginnt bei der Umschrift der Hauptform (mit
+// Anzeigetext, §32 V-4-umschrift), sonst Hauptform.
 // Eine Person ohne jede Namensform bekommt '' — wie die Projektion. Einen eigenen Text „ohne Namen"
 // zeigt der Renderer heute nicht (nur Platzhalterpersonen werden ersetzt); Folgepunkt für AP-1.30
 // (docs/80 §32 V-4-ohne-namen, hueter #131).

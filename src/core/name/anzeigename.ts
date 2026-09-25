@@ -81,8 +81,12 @@ export function anzeigenameFuer(formen: readonly AnzeigeForm[], wunschSprache?: 
 
   // Eigentümer 25.09.2026 (docs/80 §32 V-4-umschrift-nebenform/-leer): nur eine Umschrift DER
   // Hauptform mit Anzeigetext verdrängt den Hauptnamen — nicht die Umschrift einer Nebenform, nicht
-  // eine leere Umschrift. Hauptform ist die Form, die sonst Stufe 3 wählt (§32 V-4b-hauptform).
-  const umschrift = formen.filter((form) => form.umschriftVon === hauptname.formId && hatAnzeigetext(form)).sort(vergleiche)[0]
+  // eine leere Umschrift. Hauptform ist die Form, die sonst Stufe 3 wählt (§32 V-4b-hauptform); ein
+  // Selbstverweis (umschrift_von = eigene id, vom Schema nicht verhindert) macht sie nicht zu ihrer
+  // eigenen Umschrift.
+  const umschrift = formen
+    .filter((form) => form.formId !== hauptname.formId && form.umschriftVon === hauptname.formId && hatAnzeigetext(form))
+    .sort(vergleiche)[0]
   if (umschrift !== undefined) {
     return { text: anzeigetextVon(umschrift), quelle: 'umschrift', formId: umschrift.formId }
   }
