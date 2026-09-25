@@ -11,12 +11,11 @@
 //    `verstorbener` oder `hauptperson`) — hier kommt nur `{id, ortId}` an. Unter mehreren gewinnt
 //    das mit Ort und kleinster `id`.
 // 3. Sonst `null`.
-// Welche Quelle führt, entscheidet `fuehrendeQuelle` (./lebensdaten.ts) — dieselbe Regel wie bei
-// den Kernangaben (Nachtrag ADR-031, 25.09.2026).
+// Seit AP-1.30 PR 1 ein dünner Aufruf von `lebensdatumAufloesen('todesort', …)` (./lebensdaten.ts) —
+// dieselbe Regel und dieselbe Auswahl wie `abfrage:person.detail.lebensdaten`, keine zweite Auflösung.
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingaben.
-import { fuehrendeQuelle } from './lebensdaten'
-import { traegtOrt } from './ort-wert'
+import { LEBENSDATUM_HERKUNFT, lebensdatumAufloesen, type LebensdatumHerkunft } from './lebensdaten'
 
 export interface SterbeortAussage {
   readonly id: string
@@ -30,10 +29,11 @@ export interface SterbeortTodEreignis {
   readonly ortId: string | null
 }
 
-/** Einzige Quelle der Herkunftswerte; `src/shared/schemata/person-detail.ts` baut sein Zod-Enum daraus. */
-export const STERBEORT_HERKUNFT = ['aussage', 'ereignis'] as const
+/** Einzige Quelle der Herkunftswerte ist `LEBENSDATUM_HERKUNFT` (./lebensdaten.ts); der Name bleibt
+ * für `src/shared/schemata/person-detail.ts` (`SterbeortHerkunftEnum`). */
+export const STERBEORT_HERKUNFT = LEBENSDATUM_HERKUNFT
 
-export type SterbeortHerkunft = (typeof STERBEORT_HERKUNFT)[number]
+export type SterbeortHerkunft = LebensdatumHerkunft
 
 export interface Sterbeort {
   readonly herkunft: SterbeortHerkunft
@@ -41,24 +41,22 @@ export interface Sterbeort {
   readonly aussageId: string | null
 }
 
-/** Kleinere `id` zuerst (Zeichenkettenvergleich, UUID v7 sortiert zeitlich). */
-function nachId<T extends { readonly id: string }>(a: T, b: T): number {
-  if (a.id < b.id) return -1
-  if (a.id > b.id) return 1
-  return 0
-}
-
 export function sterbeortAufloesen(
   aussagen: readonly SterbeortAussage[],
   todEreignisse: readonly SterbeortTodEreignis[],
 ): Sterbeort | null {
-  const fuehrung = fuehrendeQuelle(aussagen, traegtOrt, todEreignisse, (e) => e.ortId !== null)
-  if (fuehrung === null) return null
-  if (fuehrung.herkunft === 'aussage') {
-    const mitWert = [...fuehrung.kandidaten].sort(nachId)
-    const gewaehlt = mitWert.find((a) => a.istBevorzugt) ?? mitWert[0]
-    return gewaehlt === undefined ? null : { herkunft: 'aussage', ortId: gewaehlt.wertRefId, aussageId: gewaehlt.id }
+  // Zahl- und Datumsspalten tragen an `todesort` nie einen Ort (`traegtOrt`); das Ereignisdatum spielt
+  // für den Ort keine Rolle — darum hier `null`, ohne die Auswahl zu verändern.
+  const ergebnis = lebensdatumAufloesen(
+    'todesort',
+    aussagen.map((aussage) => ({ ...aussage, wertZahl: null, datumWert1: null })),
+    todEreignisse.map((ereignis) => ({ ...ereignis, datumWert1: null, datumOriginaltext: null })),
+  )
+  if (ergebnis === null) return null
+  if (ergebnis.herkunft === 'aussage') {
+    const aussage = aussagen.find((kandidat) => kandidat.id === ergebnis.aussageId)
+    return { herkunft: 'aussage', ortId: aussage?.wertRefId ?? null, aussageId: ergebnis.aussageId }
   }
-  const ereignis = [...fuehrung.kandidaten].sort(nachId)[0]
-  return ereignis === undefined ? null : { herkunft: 'ereignis', ortId: ereignis.ortId, aussageId: null }
+  const ereignis = todEreignisse.find((kandidat) => kandidat.id === ergebnis.ereignisId)
+  return { herkunft: 'ereignis', ortId: ereignis?.ortId ?? null, aussageId: null }
 }
