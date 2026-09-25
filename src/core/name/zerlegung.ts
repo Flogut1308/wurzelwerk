@@ -173,3 +173,35 @@ export function rekonstruiereFlach(teile: readonly GeladenerTeil[]): Rekonstruie
     vatersname: verkette(teile, 'vatersname'),
   }
 }
+
+function leerraumNormiert(text: string): string {
+  return tokens(text).join(' ')
+}
+
+/**
+ * AP-1.30 PR 2a: Ist `originalText` die automatische Montage (`montiereOriginalText`) der gespeicherten
+ * Bestandteile — oder eine wortgetreu erfasste Schreibung („Joh. Georg Müller alias Miller")?
+ *
+ * Nur eine AUTOMATISCH montierte Zeichenkette darf bei geänderten Bestandteilen neu montiert werden;
+ * eine wortgetreue Schreibung ist Quelle und bleibt. `flach` sind die aus den gespeicherten Teilen
+ * rekonstruierten Felder (`rekonstruiereFlach`). Zwei Montagen gelten als automatisch:
+ *  1. die Montage der rekonstruierten Felder;
+ *  2. dieselbe ohne den letzten Vornamen, wenn genau dieser der Rufname ist — die Zerlegung hängt einen
+ *     `rufname_text`, der kein vorhandener Vorname war, als markierten Vornamen AN, die Montage beim
+ *     Schreiben kannte ihn aber nicht (`zerlegeName` Regel 3).
+ * Verglichen wird mit normiertem Leerraum: die Rekonstruktion verbindet Vornamen mit genau einem
+ * Leerzeichen, die Montage übernahm die Eingabe roh. Ein reiner Leerraum-Unterschied gilt darum nicht
+ * als wortgetreue Schreibung. `null` ist nie wortgetreu (es gibt nichts zu erhalten).
+ */
+export function istMontierterOriginalText(originalText: string | null, flach: FlacherName): boolean {
+  if (originalText === null) return true
+  const kandidaten = [montiereOriginalText(flach)]
+  const vornamen = tokens(flach.vornamen)
+  const rufnameIndex = flach.rufnameIndex ?? -1
+  if (vornamen.length > 0 && rufnameIndex === vornamen.length - 1) {
+    const ohneRufname = vornamen.slice(0, -1).join(' ')
+    kandidaten.push(montiereOriginalText({ ...flach, vornamen: ohneRufname === '' ? null : ohneRufname }))
+  }
+  const normiert = leerraumNormiert(originalText)
+  return kandidaten.some((kandidat) => kandidat !== null && leerraumNormiert(kandidat) === normiert)
+}
