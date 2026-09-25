@@ -8,6 +8,7 @@ import { KalenderEnum, DatumModifikatorEnum, DatumPraezisionEnum } from '../../s
 import type { QuelleDetailAus, QuelleDetailEin, QuelleDetailKopf, QuelleDetailZitat } from '../../shared/schemata/quelle-detail'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { datensatzExistiert } from '../repositories/basis'
+import { anzeigenamenLaden } from './_anzeigenamen'
 
 interface KopfZeile {
   readonly id: string
@@ -23,7 +24,6 @@ interface KopfZeile {
   readonly signatur: string | null
   readonly notiz: string | null
   readonly informant_person_id: string | null
-  readonly informant_anzeigename: string | null
   readonly gespraechsdatum_kalender: string | null
   readonly gespraechsdatum_modifikator: string | null
   readonly gespraechsdatum_praezision: string | null
@@ -46,7 +46,6 @@ function kopfLaden(db: Database.Database, quelleId: string): KopfZeile | undefin
     >(`SELECT q.id AS id, q.typ AS typ, q.titel AS titel, q.autor AS autor, q.verlag AS verlag, q.jahr AS jahr,
               q.art AS art, q.informationsart AS informationsart, q.archiv_id AS archiv_id, a.name AS archiv_name,
               q.signatur AS signatur, q.notiz AS notiz, q.informant_person_id AS informant_person_id,
-              pf.anzeigename AS informant_anzeigename,
               q.gespraechsdatum_kalender AS gespraechsdatum_kalender, q.gespraechsdatum_modifikator AS gespraechsdatum_modifikator,
               q.gespraechsdatum_praezision AS gespraechsdatum_praezision, q.gespraechsdatum_wert1 AS gespraechsdatum_wert1,
               q.gespraechsdatum_wert2 AS gespraechsdatum_wert2, q.gespraechsdatum_originaltext AS gespraechsdatum_originaltext,
@@ -55,7 +54,6 @@ function kopfLaden(db: Database.Database, quelleId: string): KopfZeile | undefin
               q.form AS form, q.unmittelbarkeit AS unmittelbarkeit, q.audio_medium_id AS audio_medium_id
        FROM quelle q
        LEFT JOIN archiv a ON a.id = q.archiv_id
-       LEFT JOIN person_flach pf ON pf.person_id = q.informant_person_id
        WHERE q.id = @quelleId`,
     )
     .get({ quelleId })
@@ -127,6 +125,13 @@ function zitateLaden(db: Database.Database, quelleId: string): readonly QuelleDe
 }
 
 /** `abfrage:quelle.detail` (docs/arbeitspakete.md AP-1.17 PR-A2). */
+/** Sichtbarer Name des Informanten aus dem Kern (Vorarbeiten AP-1.30, PR 4b). `null` ohne Informant
+ * oder wenn die Person nicht (mehr) existiert — wie vorher der LEFT JOIN auf `person_flach`. */
+function informantAnzeigename(db: Database.Database, personId: string | null): string | null {
+  if (personId === null || !datensatzExistiert(db, 'person', personId)) return null
+  return anzeigenamenLaden(db, [personId]).get(personId) ?? ''
+}
+
 export function quelleDetail(db: Database.Database, ein: QuelleDetailEin): QuelleDetailAus {
   if (!datensatzExistiert(db, 'quelle', ein.quelleId)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_QUELLE')
@@ -152,7 +157,7 @@ export function quelleDetail(db: Database.Database, ein: QuelleDetailEin): Quell
     signatur: kopfZeile.signatur,
     notiz: kopfZeile.notiz,
     informant_person_id: kopfZeile.informant_person_id,
-    informant_anzeigename: kopfZeile.informant_anzeigename,
+    informant_anzeigename: informantAnzeigename(db, kopfZeile.informant_person_id),
     gespraechsdatum_kalender: kopfZeile.gespraechsdatum_kalender === null ? null : KalenderEnum.parse(kopfZeile.gespraechsdatum_kalender),
     gespraechsdatum_modifikator:
       kopfZeile.gespraechsdatum_modifikator === null ? null : DatumModifikatorEnum.parse(kopfZeile.gespraechsdatum_modifikator),

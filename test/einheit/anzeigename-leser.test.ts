@@ -17,6 +17,8 @@ import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { personListe } from '../../src/main/abfragen/person-liste'
 import { suche } from '../../src/main/abfragen/suche'
+import { pruefhinweise } from '../../src/main/abfragen/pruefhinweise'
+import { quelleDetail } from '../../src/main/abfragen/quelle-detail'
 import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
 type Db = ReturnType<typeof oeffnen>
@@ -95,6 +97,29 @@ describe('Anzeigename aus dem Kern für alle Leser (Vorarbeiten AP-1.30, PR 4a)'
       const p = person(db)
       expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('')
       expect(personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)?.anzeigename).toBe('')
+    })
+  })
+})
+
+// Vorarbeiten AP-1.30, PR 4b: die übrigen Leser (Prüfhinweise, Informant einer Quelle).
+describe('Anzeigename aus dem Kern — Prüfhinweise und Informant (Vorarbeiten AP-1.30, PR 4b)', () => {
+  it('N6: ein Prüfhinweis nennt die Person mit dem Kern-Anzeigenamen', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'geburtsdatum', wertText: '1900', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1900' }, konfidenz: 3 })
+      fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'todesdatum', wertText: '1850', datum: { modifikator: 'exakt', praezision: 'jahr', wert1: '1850' }, konfidenz: 3 })
+      const eintrag = pruefhinweise(db).eintraege.find((e) => e.personId === p && e.code === 'tod_vor_geburt')
+      expect(eintrag?.anzeigename).toBe(VOLL)
+    })
+  })
+
+  it('N7: der Informant einer mündlichen Quelle erscheint mit dem Kern-Anzeigenamen, ohne Informant null', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      const { id: mitInformant } = fuehreAus(db, 'quelle.anlegen', { typ: 'muendlich', informantPersonId: p, form: 'gespraech', unmittelbarkeit: 'selbst_erlebt' })
+      expect(quelleDetail(db, { quelleId: mitInformant }).kopf.informant_anzeigename).toBe(VOLL)
+      const { id: ohne } = fuehreAus(db, 'quelle.anlegen', { typ: 'kirchenbuch', titel: 'KB' })
+      expect(quelleDetail(db, { quelleId: ohne }).kopf.informant_anzeigename).toBeNull()
     })
   })
 })
