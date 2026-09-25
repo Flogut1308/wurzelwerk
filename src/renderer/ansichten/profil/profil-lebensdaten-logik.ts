@@ -1,4 +1,4 @@
-// AP-1.30 PR 1 (V-D9-anzeige, docs/80 §32): Zeilenbildung der Grunddaten in der Profil-Lesesicht
+// AP-1.30 PR 1 (V-D9-anzeige, docs/80 §32 V-D9-anzeige, Entscheidungen §33 V-130-1-*): Zeilenbildung der Grunddaten in der Profil-Lesesicht
 // (`GrunddatenAbschnitt`, profil-ansicht.tsx). Rein, ohne React/DOM/i18n — die Ansicht übersetzt.
 //
 // WOHER ein Lebensdatum kommt, entscheidet allein der Kern (`lebensdatumAufloesen`,
