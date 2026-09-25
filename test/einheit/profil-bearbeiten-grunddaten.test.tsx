@@ -122,7 +122,14 @@ describe('GrunddatenBearbeitenAbschnitt (AP-1.14a, S-20 Kernfelder)', () => {
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
   })
 
-  // CLAUDE.md §5 „additive Tests": AP-1.14b baut Lebensdaten (Konfidenz+Beleg) NACH, dieser
-  // Platzhalter macht die bewusst offene Lücke sichtbar statt sie stillschweigend auszulassen.
-  it.todo('Lebensdaten (Geburts-/Todesdatum mit Konfidenz+Beleg) — AP-1.14b, s. docs/80_Offene_Fragen.md §26')
+  // Die Lebensdaten (Geburt/Tod mit Sicherheit und Belegen), hier früher als `it.todo` vermerkt, baut
+  // AP-1.30 PR 9b als Gruppen des Reiters „Person" — geprüft in `reiter-person.test.tsx` und
+  // `reiter-person-logik.test.ts`.
+
+  it('Lebensstatus-Platz (AP-1.30 PR 9b): der übergebene Inhalt steht nach dem Geschlecht', () => {
+    const markup = renderToStaticMarkup(<GrunddatenBearbeitenAbschnitt personId="person-1" kopf={kopf()} lebensstatus={<span data-lebensstatus="ja" />} />)
+    expect(markup.indexOf('Geschlecht')).toBeGreaterThanOrEqual(0)
+    expect(markup.indexOf('data-lebensstatus')).toBeGreaterThan(markup.indexOf('Geschlecht'))
+    expect(markup.indexOf('data-lebensstatus')).toBeLessThan(markup.indexOf('Platzhalterperson'))
+  })
 })

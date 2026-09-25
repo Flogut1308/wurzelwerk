@@ -1,0 +1,101 @@
+/*
+ * `ReiterPerson` — AP-1.30 PR 9b, Artboard 1a (Gruppen „Eckdaten", „Geburt", „Tod") und die
+ * Feldzustände aus dem Entwurf („Widerspruch": Rahmen und Fläche Fehler, Text darunter;
+ * „Gesperrt": Fläche gesperrt). Nur Tokens (beide Themen über `tokens.css`).
+ *
+ * Abweichung (CLAUDE.md §14, Design-Review): der Entwurf zeigt EINE Sicherheit je Gruppe; Datum und
+ * Ort sind aber getrennte Aussagen mit je eigener Sicherheit (Datenmodell) — darum steht die
+ * Sicherheit neben JEDEM Wert. Die gesperrte Wertschrift ist `--wz-text-sekundaer` statt
+ * `--wz-text-gesperrt` (Kontrast WCAG AA, wie V-130-1-sicherheit).
+ */
+
+.wz-reiter-person {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-reiter-person__gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding-top: var(--wz-abstand-24);
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-reiter-person__gruppe-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-person__angabe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-reiter-person__angabe-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-reiter-person__wert {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.wz-reiter-person__wert--datum {
+  flex: 0 1 280px;
+}
+
+.wz-reiter-person__sicherheit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-reiter-person__sicherheit-zeile {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-reiter-person__aktionen,
+.wz-reiter-person__hinweis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+/* Feldzustand „Gesperrt" (aus dem Ereignis): nur lesbar, fokussierbar. */
+.wz-reiter-person__wert--gesperrt .wz-eingabekoerper {
+  background: var(--wz-flaeche-gesperrt);
+  border-color: var(--wz-rahmen-fein);
+  color: var(--wz-text-sekundaer);
+}
+
+/* Feldzustand „Widerspruch": gespeichert wird trotzdem (Vorgaben §1), der Text darunter nennt ihn. */
+.wz-reiter-person__angabe--widerspruch .wz-eingabekoerper,
+.wz-reiter-person__angabe--widerspruch .wz-auswahlfeld {
+  border-color: var(--wz-status-fehler-basis);
+  background: var(--wz-status-fehler-flaeche);
+}
+
+.wz-reiter-person__warnungen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-reiter-person__warnung {
+  font: var(--wz-schrift-hilfe);
+  color: var(--wz-status-fehler-text);
+}

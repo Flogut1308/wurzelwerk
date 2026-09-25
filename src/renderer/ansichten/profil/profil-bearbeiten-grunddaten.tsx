@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { GeschlechtEnum, PlatzhalterGrundEnum } from '../../../shared/schemata/person'
 import type { PersonDetailKopf } from '../../../shared/schemata/person-detail'
@@ -19,6 +20,9 @@ import './profil-bearbeiten-grunddaten.css'
 export interface GrunddatenBearbeitenAbschnittProps {
   readonly personId: string
   readonly kopf: PersonDetailKopf
+  /** AP-1.30 PR 9b: Lebensstatus (Reiter „Person", `reiter-person.tsx`) — steht nach dem Geschlecht,
+   * wie im Entwurf (Gruppe „Eckdaten": Geschlecht, Lebensstatus). */
+  readonly lebensstatus?: ReactNode
 }
 
 /**
@@ -32,11 +36,10 @@ export interface GrunddatenBearbeitenAbschnittProps {
  * die Notiz ist in den Reiter „Notizen" gezogen (`NotizBearbeitenAbschnitt`,
  * `profil-bearbeiten-notiz.tsx`).
  *
- * **Lebensdaten (Geburts-/Todesdatum mit Konfidenz+Beleg) sind NICHT Teil dieses Abschnitts** —
- * offene Datenmodellfrage zwischen `aussage.anlegen` und `ereignis.anlegen`
- * (`docs/80_Offene_Fragen.md` §26, AP-1.14a-Auftrag). Nachgezogen in AP-1.14b.
+ * Geburt und Tod (Datum, Ort, Sicherheit, Belege) stehen seit AP-1.30 PR 9b als eigene Gruppen im
+ * Reiter „Person" (`ReiterPerson`, `reiter-person.tsx`), nicht in diesem Abschnitt.
  */
-export function GrunddatenBearbeitenAbschnitt({ personId, kopf }: GrunddatenBearbeitenAbschnittProps) {
+export function GrunddatenBearbeitenAbschnitt({ personId, kopf, lebensstatus }: GrunddatenBearbeitenAbschnittProps) {
   const { t } = useTranslation('profil')
   const feldSetzen = usePersonFeldSetzen()
 
@@ -62,6 +65,8 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf }: GrunddatenBear
         />
       </Formularfeld>
 
+      {lebensstatus}
+
       {/* Wie `Umschalter`+`Text` in `filterleiste.tsx`: KEIN `<label>`-Wrapper — `Kontrollkaestchen`
           trägt seinen eigenen `aria-label`, der sichtbare Text daneben ist eine reine Verdopplung
           für sehende Nutzer, kein zweiter Screenreader-Name. */}
@@ -85,9 +90,6 @@ export function GrunddatenBearbeitenAbschnitt({ personId, kopf }: GrunddatenBear
           />
         </Formularfeld>
       ) : null}
-
-      {/* Lebensdaten: test.todo in test/einheit/profil-bearbeiten-grunddaten.test.tsx — offene
-          Datenmodellfrage, s. Funktionskommentar oben. */}
     </section>
   )
 }
