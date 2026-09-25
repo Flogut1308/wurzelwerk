@@ -34,3 +34,11 @@ describe('ereignis:-Kanäle als geschlossener Vertrag (AP-0.20)', () => {
     expect(true).toBe(true)
   })
 })
+
+// AP-1.30 PR 7c (docs/80 §33 V-130-7-tasten): der Hauptprozess meldet beobachtete Kontexttasten
+// (Tasten 1…8 im Editor) über genau diesen Kanal — additiv nach demselben Muster.
+describe('ereignis:kontexttaste (AP-1.30 PR 7c)', () => {
+  it('EREIGNIS_KANAELE enthält ereignis:kontexttaste', () => {
+    expect(EREIGNIS_KANAELE).toContain('ereignis:kontexttaste')
+  })
+})

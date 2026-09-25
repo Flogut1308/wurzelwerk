@@ -116,10 +116,22 @@ export const ALLE_KANAELE: readonly string[] = kanaele
  * Der EXPORT bleibt `readonly string[]`: der Preload prüft rohe, ungeprüfte Strings dagegen
  * (Abnahme, nicht ändern). `ereignis:speicherStatus` folgt später (§7.5).
  */
-const ereignisKanaele: readonly EreignisKanal[] = [
+const ereignisKanaele = [
   'ereignis:datenGeaendert',
   'ereignis:journalStatus',
   'ereignis:projektGeschlossen',
   'ereignis:zustandsbibliothekOeffnen',
-]
+  'ereignis:kontexttaste',
+] as const satisfies readonly EreignisKanal[]
+
+/**
+ * Compile-Zeit-Vollständigkeitsbeweis für die `ereignis:`-Weißliste (AP-1.30 PR 7c), analog zu
+ * `FehlendeKanaele` oben: ein in `EreignisVertrag` deklarierter Kanal, der hier fehlt, würde vom
+ * Preload still verworfen (`abonnieren` gibt dann nur eine leere Abmeldung zurück) — jetzt ist das
+ * ein Typfehler in `pnpm typen`.
+ */
+type FehlendeEreignisKanaele = Exclude<EreignisKanal, (typeof ereignisKanaele)[number]>
+const _ereignisKanaeleVollstaendig: [FehlendeEreignisKanaele] extends [never] ? true : false = true
+void _ereignisKanaeleVollstaendig
+
 export const EREIGNIS_KANAELE: readonly string[] = ereignisKanaele

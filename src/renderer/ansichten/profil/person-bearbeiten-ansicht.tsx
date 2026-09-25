@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kennungAnzeige } from '../../../core/person/kennung'
 import { REITER, type ReiterId } from '../../../core/person/reiter'
 import { reiterZaehler } from '../../../core/person/reiter-zaehler'
+import type { KontexttasteNutzlast } from '../../../shared/ipc/vertrag'
 import { reiterZaehlerEingabeAus, type PersonDetailAus, type PersonDetailKopf } from '../../../shared/schemata/person-detail'
 import { usePersonDetail } from '../../brücke/abfrage-hooks'
+import { useKontexttasteAbo } from '../../brücke/befehl-hooks'
+import { SchreibBeobachterKontext } from '../../brücke/schreib-beobachter'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { personennameIstErsatz, personennameText } from '../../bausteine/personenname-anzeige'
 import { Reiterleiste, reiterElementId, reiterInhaltId, type ReiterleisteReiter } from '../../bausteine/reiterleiste'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { SchaltflaecheSymbol } from '../../bausteine/schaltflaeche-symbol'
+import { Speicherstatus } from '../../bausteine/speicherstatus'
 import { Text } from '../../bausteine/text'
+import { useEditorSpeicherstatus, type EditorSpeicherstatus } from './editor-speicherstatus'
 import { tabImContainerHalten } from './fokusfang'
+import { darfKontexttasteWirken } from './kontexttaste-logik'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
@@ -72,6 +78,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   const abfrage = usePersonDetail({ personId })
   const [aktiv, setAktiv] = useState<ReiterId>('person')
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const speicherstatus = useEditorSpeicherstatus()
 
   useEffect(() => {
     const knoten = containerRef.current
@@ -82,6 +89,23 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
     // späteres Neuladen der Daten (z. B. nach `ereignis:datenGeaendert`) darf ihn nicht aus einem
     // Feld reißen, in dem gerade getippt wird.
   }, [])
+
+  // Tasten 1…8 (AP-1.30 PR 7c, V-130-7-tasten): der Hauptprozess meldet die Ziffer, ohne sie zu
+  // blockieren; hier wirkt sie nur außerhalb von Eingabeelementen und ohne offene Schublade. Der
+  // Fokus folgt auf den gewählten Reiter (wie bei Pfeiltasten in der `Reiterleiste`) — auch, weil ein
+  // fokussierter Knopf im alten Inhalt beim Wechsel aushängt und der Fokus sonst verloren ginge.
+  const kontexttaste = useCallback((taste: KontexttasteNutzlast) => {
+    const knoten = containerRef.current
+    const reiter = REITER[taste.reiterIndex]
+    if (knoten === null || reiter === undefined) return
+    if (!darfKontexttasteWirken(knoten, document)) return
+    const reiterElement = knoten.querySelector<HTMLElement>(`#${reiterElementId(ID_PRAEFIX, reiterDomId(reiter))}`)
+    // Ohne Reiterleiste (Laden, Fehler) gibt es nichts zu wählen.
+    if (reiterElement === null) return
+    setAktiv(reiter)
+    reiterElement.focus()
+  }, [])
+  useKontexttasteAbo(kontexttaste)
 
   function tastendruck(ereignis: KeyboardEvent<HTMLDivElement>) {
     if (ereignis.key === 'Escape') {
@@ -95,86 +119,88 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   const name = abfrage.isSuccess ? personennameText(abfrage.data.kopf, tAllgemein) : null
 
   return (
-    <div
-      ref={containerRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('bearbeiten_ansicht_titel')}
-      tabIndex={-1}
-      className="wz-person-bearbeiten"
-      onKeyDown={tastendruck}
-    >
-      <header className="wz-person-bearbeiten__appleiste">
-        <nav aria-label={t('brotkrume_beschriftung')}>
-          <ol className="wz-person-bearbeiten__brotkrume">
-            <li className="wz-person-bearbeiten__brotkrume-eintrag">
-              <Text rolle="titel-klein" als="span">
-                {t('brotkrume_app')}
-              </Text>
-            </li>
-            <li className="wz-person-bearbeiten__brotkrume-eintrag">
-              <Text rolle="koerper-klein" farbe="sekundaer" als="span">
-                {t('brotkrume_personen')}
-              </Text>
-            </li>
-            {name === null ? null : (
-              <li className="wz-person-bearbeiten__brotkrume-eintrag" aria-current="page">
-                <Text rolle="koerper-klein" als="span">
-                  {name}
+    <SchreibBeobachterKontext.Provider value={speicherstatus.beobachter}>
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('bearbeiten_ansicht_titel')}
+        tabIndex={-1}
+        className="wz-person-bearbeiten"
+        onKeyDown={tastendruck}
+      >
+        <header className="wz-person-bearbeiten__appleiste">
+          <nav aria-label={t('brotkrume_beschriftung')}>
+            <ol className="wz-person-bearbeiten__brotkrume">
+              <li className="wz-person-bearbeiten__brotkrume-eintrag">
+                <Text rolle="titel-klein" als="span">
+                  {t('brotkrume_app')}
                 </Text>
               </li>
-            )}
-          </ol>
-        </nav>
-      </header>
+              <li className="wz-person-bearbeiten__brotkrume-eintrag">
+                <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                  {t('brotkrume_personen')}
+                </Text>
+              </li>
+              {name === null ? null : (
+                <li className="wz-person-bearbeiten__brotkrume-eintrag" aria-current="page">
+                  <Text rolle="koerper-klein" als="span">
+                    {name}
+                  </Text>
+                </li>
+              )}
+            </ol>
+          </nav>
+        </header>
 
-      {abfrage.isPending ? (
-        <div className="wz-person-bearbeiten__koerper">
-          <ProfilLaedt />
-        </div>
-      ) : null}
-      {abfrage.isError && abfrage.error !== null ? (
-        <div className="wz-person-bearbeiten__koerper">
-          <ProfilFehler code={abfrage.error.code} />
-        </div>
-      ) : null}
-      {abfrage.isSuccess ? (
-        <>
-          <PersonenKopf kopf={abfrage.data.kopf} aufSchliessen={aufSchliessen} />
-          <Reiterleiste
-            idPraefix={ID_PRAEFIX}
-            beschriftung={t('reiterleiste_beschriftung')}
-            reiter={reiterleisteReiter(abfrage.data, (reiter) => t(reiterSchluessel(reiter)))}
-            aktiv={reiterDomId(aktiv)}
-            aufWechsel={(domId) => {
-              const reiter = reiterAusDomId(domId)
-              if (reiter !== undefined) setAktiv(reiter)
-            }}
-          />
+        {abfrage.isPending ? (
           <div className="wz-person-bearbeiten__koerper">
-            <div
-              key={aktiv}
-              role="tabpanel"
-              id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
-              aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
-              tabIndex={0}
-              className="wz-person-bearbeiten__inhalt"
-            >
-              <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} />
-            </div>
+            <ProfilLaedt />
           </div>
-        </>
-      ) : null}
+        ) : null}
+        {abfrage.isError && abfrage.error !== null ? (
+          <div className="wz-person-bearbeiten__koerper">
+            <ProfilFehler code={abfrage.error.code} />
+          </div>
+        ) : null}
+        {abfrage.isSuccess ? (
+          <>
+            <PersonenKopf kopf={abfrage.data.kopf} speicherstatus={speicherstatus} aufSchliessen={aufSchliessen} />
+            <Reiterleiste
+              idPraefix={ID_PRAEFIX}
+              beschriftung={t('reiterleiste_beschriftung')}
+              reiter={reiterleisteReiter(abfrage.data, (reiter) => t(reiterSchluessel(reiter)))}
+              aktiv={reiterDomId(aktiv)}
+              aufWechsel={(domId) => {
+                const reiter = reiterAusDomId(domId)
+                if (reiter !== undefined) setAktiv(reiter)
+              }}
+            />
+            <div className="wz-person-bearbeiten__koerper">
+              <div
+                key={aktiv}
+                role="tabpanel"
+                id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
+                aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
+                tabIndex={0}
+                className="wz-person-bearbeiten__inhalt"
+              >
+                <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} />
+              </div>
+            </div>
+          </>
+        ) : null}
 
-      <footer className="wz-person-bearbeiten__fussleiste">
-        <Text rolle="technisch" farbe="tertiaer" als="span">
-          {t('bearbeitungsstatus_hinweis')}
-        </Text>
-        <Schaltflaeche variante="primaer" aufKlick={aufFertig}>
-          {t('fertig')}
-        </Schaltflaeche>
-      </footer>
-    </div>
+        <footer className="wz-person-bearbeiten__fussleiste">
+          <Text rolle="technisch" farbe="tertiaer" als="span">
+            {t('bearbeitungsstatus_hinweis')}
+          </Text>
+          <Schaltflaeche variante="primaer" aufKlick={aufFertig}>
+            {t('fertig')}
+          </Schaltflaeche>
+        </footer>
+      </div>
+    </SchreibBeobachterKontext.Provider>
   )
 }
 
@@ -192,9 +218,15 @@ function reiterleisteReiter(daten: PersonDetailAus, beschriftung: (reiter: Reite
   })
 }
 
-/** Fester Personenkopf (Artboard 1a): Anzeigename über `personennameText`, Kennung, Schließen.
- * Lebensspanne, Status, Kurzbeschreibung und Speicherstatus kommen mit ihren eigenen PRs. */
-function PersonenKopf({ kopf, aufSchliessen }: { readonly kopf: PersonDetailKopf; readonly aufSchliessen: () => void }) {
+interface PersonenKopfProps {
+  readonly kopf: PersonDetailKopf
+  readonly speicherstatus: EditorSpeicherstatus
+  readonly aufSchliessen: () => void
+}
+
+/** Fester Personenkopf (Artboard 1a): Anzeigename über `personennameText`, Kennung, Speicherstatus,
+ * Schließen. Lebensspanne, Status und Kurzbeschreibung kommen mit ihren eigenen PRs. */
+function PersonenKopf({ kopf, speicherstatus, aufSchliessen }: PersonenKopfProps) {
   const { t } = useTranslation('profil')
   const { t: tAllgemein } = useTranslation('allgemein')
   return (
@@ -207,7 +239,29 @@ function PersonenKopf({ kopf, aufSchliessen }: { readonly kopf: PersonDetailKopf
           {kennungAnzeige(kopf.kennung)}
         </Text>
       </div>
+      <KopfSpeicherstatus status={speicherstatus} />
       <SchaltflaecheSymbol name="x" variante="unauffaellig" beschriftung={t('schliessen')} aufKlick={aufSchliessen} />
+    </div>
+  )
+}
+
+/**
+ * Speicherstatus im Kopf (AP-1.30 PR 7c, V-130-7-speicherfehler): erst ab dem ersten Schreibvorgang
+ * dieses Editors (vorher kein Ruhezustand, V-130-6-bausteine); danach gespeichert / speichert /
+ * Fehler mit „erneut versuchen". Der Fehler bleibt, bis dasselbe Feld erfolgreich geschrieben ist.
+ */
+function KopfSpeicherstatus({ status }: { readonly status: EditorSpeicherstatus }) {
+  const anzeige = status.anzeige
+  if (anzeige.zustand === 'ruhe') return null
+  return (
+    <div className="wz-person-bearbeiten__kopf-speicherstatus">
+      {anzeige.zustand === 'gespeichert' ? (
+        <Speicherstatus zustand="gespeichert" gespeichertUm={anzeige.gespeichertUm} jetzt={status.jetzt} />
+      ) : anzeige.zustand === 'speichert' ? (
+        <Speicherstatus zustand="speichert" />
+      ) : (
+        <Speicherstatus zustand="fehler" aufErneutVersuchen={status.erneutVersuchen} />
+      )}
     </div>
   )
 }

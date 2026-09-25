@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { kontexttastenBeobachten } from '../menue/kontexttasten-beobachter'
 import { geometrieLesen, geometrieSchreiben } from './geometrie-speicher'
 
 export function hauptfensterErzeugen(): BrowserWindow {
@@ -18,6 +19,9 @@ export function hauptfensterErzeugen(): BrowserWindow {
       nodeIntegration: false,
     },
   })
+
+  // Tasten 1…8 im Editor (AP-1.30 PR 7c): beobachten, nie blockieren (`tastenkuerzel.ts`).
+  kontexttastenBeobachten(hauptfenster.webContents)
 
   hauptfenster.once('ready-to-show', () => {
     hauptfenster.show()
