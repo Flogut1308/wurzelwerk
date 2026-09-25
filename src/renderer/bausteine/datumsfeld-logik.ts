@@ -4,7 +4,8 @@
 // Renderer. Der Aufrufer (`datumsfeld.tsx`) übersetzt die zurückgegebenen Schlüssel mit `t(...)`.
 import { formatiere } from '../../core/datum/formatierer'
 import { parse } from '../../core/datum/parser'
-import type { ParseGrund, Praezision } from '../../core/datum/typen'
+import type { Kalender, ParseGrund, Praezision } from '../../core/datum/typen'
+import { modifikatorBrauchtOriginalText, type Datumswert as VertragsDatumswert } from '../../shared/schemata/import-v1'
 
 /** i18n-Schlüssel je `ParseGrund` (Namensraum `felder`, src/shared/i18n/de/felder.json). */
 function grundSchluessel(grund: ParseGrund): string {
@@ -79,5 +80,36 @@ export function datumsfeldInterpretation(text: string): DatumsfeldInterpretation
     schluessel: formatergebnis.schluessel,
     werte: formatergebnis.werte,
     genauigkeitSchluessel: genauigkeitSchluessel(ergebnis.wert.praezision),
+  }
+}
+
+/** Die EINE Stelle, an der der Renderer aus einer Freitext-Datumseingabe einen Vertrags-`Datumswert`
+ * (`src/shared/schemata/import-v1.ts`) baut — genutzt vom Ereignisformular
+ * (`ereignisDatumwertAusEntwurf`) und vom Gesprächsdatum (`gespraechsdatumAusEntwurf`).
+ * `undefined` bei leerem/nicht auflösbarem Text.
+ *
+ * AP-1.30 Bugfix U-130-9b: `parse()` setzt `originaltext` nur für Doppeljahr/eingebettetes Jahr,
+ * NICHT für „um/etwa/vor/nach 1890" oder „zwischen 1750 und 1760". Der Vertrag verlangt
+ * `original_text`, sobald `modifikator ≠ exakt` (IMP-106) — sonst lehnt `befehl:ereignis.anlegen`
+ * das Datum ab. Darum hier: fehlt `originaltext` und verlangt der Modifikator ihn, wird der getippte
+ * (getrimmte) Text übernommen. Exakte Daten bleiben ohne `original_text`, damit ihre Anzeige
+ * weiter formatiert statt wörtlich erscheint (`formatiere()` bevorzugt `originaltext`).
+ * `kalender` markiert das Ergebnis nur als „in diesem Kalender gemeint" — `parse()` löst
+ * ausschließlich gregorianische Schreibweisen auf, die Ziffern werden nicht umgerechnet. */
+export function datumswertAusText(text: string, kalender: Kalender): VertragsDatumswert | undefined {
+  const bereinigt = text.trim()
+  if (bereinigt === '') return undefined
+  const ergebnis = parse(bereinigt)
+  if (!ergebnis.ok) return undefined
+  const { wert } = ergebnis
+  const originalText = wert.originaltext ?? (modifikatorBrauchtOriginalText(wert.modifikator) ? bereinigt : undefined)
+  return {
+    kalender,
+    modifikator: wert.modifikator,
+    praezision: wert.praezision,
+    wert1: wert.wert1,
+    wert2: wert.wert2,
+    original_text: originalText,
+    doppeljahr: wert.doppeljahr,
   }
 }
