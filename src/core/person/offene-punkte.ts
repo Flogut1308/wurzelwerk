@@ -197,6 +197,13 @@ export const OFFENE_PUNKTE_REGELN: readonly OffenePunkteRegel[] = [
   },
 ]
 
+/** Ist die Regel in der Tabelle aktiv? Der Aufrufer fragt so, ob er eine teure Eingabe überhaupt
+ * laden muss (hueter-H3: Titelbild nur für aktives `kein_portraet`) — die Aktivität steht damit
+ * nur in der Regeltabelle, nicht ein zweites Mal im Aufrufer. */
+export function regelAktiv(id: OffenePunkteRegelId, regeln: readonly OffenePunkteRegel[] = OFFENE_PUNKTE_REGELN): boolean {
+  return regeln.some((regel) => regel.id === id && regel.aktiv)
+}
+
 /** Wertet die AKTIVEN Regeln in Tabellenreihenfolge aus; Platzhalterperson → keine Punkte (O4). */
 export function offenePunkteAuswerten(eingabe: OffenePunkteEingabe, regeln: readonly OffenePunkteRegel[] = OFFENE_PUNKTE_REGELN): readonly OffenerPunkt[] {
   if (eingabe.istPlatzhalter) return []

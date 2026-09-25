@@ -238,7 +238,7 @@ export interface PersonDetailWarnung {
 /** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5, §31 U-1.34-C2-O2…O5): Enums aus den
  * Kern-Konstanten (`src/core/person/offene-punkte.ts`, `reiter.ts`) — eine Quelle der Werte. */
 export const OffenePunkteRegelIdEnum = z.enum(OFFENE_PUNKTE_REGEL_IDS)
-export const ReiterEnum = z.enum(REITER)
+export const EditorReiterEnum = z.enum(REITER)
 export const EditorFeldEnum = z.enum(EDITOR_FELDER)
 export const OffenerPunktSchluesselEnum = z.enum(OFFENE_PUNKTE_SCHLUESSEL)
 
@@ -247,7 +247,7 @@ export const OffenerPunktSchluesselEnum = z.enum(OFFENE_PUNKTE_SCHLUESSEL)
  * `kind_ohne_partnerschaft` das Kind), sonst `null`. Kein Text — der Renderer übersetzt den Schlüssel. */
 export interface PersonDetailOffenerPunkt {
   readonly regel_id: z.infer<typeof OffenePunkteRegelIdEnum>
-  readonly reiter: z.infer<typeof ReiterEnum>
+  readonly reiter: z.infer<typeof EditorReiterEnum>
   readonly feld: z.infer<typeof EditorFeldEnum>
   readonly meldungsschluessel: z.infer<typeof OffenerPunktSchluesselEnum>
   readonly bezug_id: string | null

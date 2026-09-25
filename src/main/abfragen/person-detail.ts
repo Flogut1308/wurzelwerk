@@ -24,7 +24,7 @@ import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
 import { NamePartArtEnum, NameTypEnum, SchriftEnum } from '../../shared/schemata/name'
 import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
-import { offenePunkteAuswerten, type OffenePunkteKind } from '../../core/person/offene-punkte'
+import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { sterbeortAufloesen } from '../../core/person/sterbeort'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
 import { feldwarnungenFuer } from '../../core/plausibilitaet/feldwarnungen'
@@ -680,9 +680,10 @@ function kinderElternLaden(db: Database.Database, personId: string): readonly Ki
     .all({ personId })
 }
 
-/** Vorläufige Porträt-Eingabe (§31 U-1.34-E8): ein Medium als Titelbild der Person. Die Regel
- * `kein_portraet` ist bis AP-1.31b inaktiv; die Abfrage steht, damit das Einschalten nur die
- * Regeltabelle ändert. */
+/** Vorläufige Porträt-Eingabe (§31 U-1.34-E8): ein Medium als Titelbild der Person. Läuft nur, wenn
+ * `kein_portraet` in der Regeltabelle aktiv ist (bis AP-1.31b nicht, hueter-H3) — das Einschalten
+ * ändert dann nur die Tabelle. Kein Index auf `medium_zuordnung(subjekt_typ, subjekt_id)`
+ * (§31 U-1.34-C2c-titelbild-index). */
 function hatTitelbild(db: Database.Database, personId: string): boolean {
   const zeile = db
     .prepare<
@@ -710,14 +711,19 @@ function offenePunkteBauen(
 ): readonly PersonDetailOffenerPunkt[] {
   if (kopfZeile.ist_platzhalter === 1) return []
 
-  const kinderIstPlatzhalter = new Map(beziehungen.kinder.map((zeile) => [zeile.person_id, zeile.ist_platzhalter === 1]))
   const elternJeKind = new Map<string, string[]>()
   for (const zeile of kinderElternLaden(db, kopfZeile.person_id)) {
     const liste = elternJeKind.get(zeile.kind_id) ?? []
     liste.push(zeile.elternteil_id)
     elternJeKind.set(zeile.kind_id, liste)
   }
-  const kinder: OffenePunkteKind[] = [...elternJeKind].map(([id, elternIds]) => ({ id, istPlatzhalter: kinderIstPlatzhalter.get(id) ?? false, elternIds }))
+  // Eine Quelle für „welche Kinder“ (hueter-H5): die Beziehungsliste; die JOIN-Karte liefert nur die
+  // Eltern-IDs dazu. Doppelte Kanten zu demselben Kind fängt `kindOhnePartnerschaft` ab.
+  const kinder: OffenePunkteKind[] = beziehungen.kinder.map((zeile) => ({
+    id: zeile.person_id,
+    istPlatzhalter: zeile.ist_platzhalter === 1,
+    elternIds: elternJeKind.get(zeile.person_id) ?? [kopfZeile.person_id],
+  }))
 
   const punkte = offenePunkteAuswerten({
     personId: kopfZeile.person_id,
@@ -725,7 +731,8 @@ function offenePunkteBauen(
     lebendStatus: kopfZeile.lebend_status === null ? null : LebendStatusEnum.parse(kopfZeile.lebend_status),
     hatSterbeort: sterbeort !== null,
     eltern: beziehungen.eltern.map((zeile) => ({ id: zeile.person_id, geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht) })),
-    hatPortraet: hatTitelbild(db, kopfZeile.person_id),
+    // Inaktive Regel: `true` löst sicher nichts aus, die Abfrage entfällt.
+    hatPortraet: regelAktiv('kein_portraet') ? hatTitelbild(db, kopfZeile.person_id) : true,
     kinder,
     partnerIds: beziehungen.partner.map((zeile) => zeile.person_id),
     widerspruchPraedikate: grunddaten.filter((feld) => feld.hat_widerspruch).map((feld) => feld.praedikat),

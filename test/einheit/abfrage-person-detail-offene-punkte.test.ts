@@ -174,6 +174,21 @@ describe('person.detail — offene Punkte (AP-1.34 PR-C2c)', () => {
     })
   })
 
+  it('O8: bei inaktiver Regel kein_portraet fragt person.detail medium_zuordnung gar nicht ab (hueter-H3)', () => {
+    mitDb((db) => {
+      const p = vollstaendig(db)
+      const prepare = vi.spyOn(db, 'prepare')
+      try {
+        expect(punkte(db, p)).toEqual([])
+        expect(prepare).toHaveBeenCalled()
+        const sql = prepare.mock.calls.map((aufruf) => String(aufruf[0]))
+        expect(sql.some((text) => text.includes('medium_zuordnung'))).toBe(false)
+      } finally {
+        prepare.mockRestore()
+      }
+    })
+  })
+
   it('O6: Platzhalterperson bekommt keine offenen Punkte', () => {
     mitDb((db) => {
       const p = person(db, { platzhalter: true, lebendStatus: 'verstorben' })

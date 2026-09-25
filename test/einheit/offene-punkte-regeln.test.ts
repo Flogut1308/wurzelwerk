@@ -6,6 +6,7 @@ import {
   OFFENE_PUNKTE_REGELN,
   OFFENE_PUNKTE_REGEL_IDS,
   offenePunkteAuswerten,
+  regelAktiv,
   type OffenePunkteEingabe,
   type OffenerPunkt,
 } from '../../src/core/person/offene-punkte'
@@ -122,6 +123,17 @@ describe('Regelwerk offene Punkte (AP-1.34 PR-C2c)', () => {
 
   it('R5: kein_portraet bleibt auch mit fehlendem Porträt stumm (aktiv:false bis AP-1.31b)', () => {
     expect(regelIds(offenePunkteAuswerten(eingabe({ hatPortraet: false, lebendStatus: 'verstorben' })))).toEqual(['sterbeort_fehlt'])
+  })
+
+  it('R5b: kein_portraet als aktive Regelkopie — ohne Titelbild ein Punkt, mit keiner (hueter-H3)', () => {
+    const aktiv = OFFENE_PUNKTE_REGELN.map((r) => (r.id === 'kein_portraet' ? { ...r, aktiv: true } : r))
+    expect(regelAktiv('kein_portraet')).toBe(false)
+    expect(regelAktiv('kein_portraet', aktiv)).toBe(true)
+    expect(regelAktiv('sterbeort_fehlt')).toBe(true)
+    expect(offenePunkteAuswerten(eingabe({ hatPortraet: false }), aktiv)).toEqual([
+      { regelId: 'kein_portraet', reiter: 'belege_medien', feld: 'portraet', meldungsschluessel: 'offener_punkt_kein_portraet', bezugId: null },
+    ])
+    expect(offenePunkteAuswerten(eingabe({ hatPortraet: true }), aktiv)).toEqual([])
   })
 
   it('R6: Platzhalterperson bekommt keine offenen Punkte', () => {
