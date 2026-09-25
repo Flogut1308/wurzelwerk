@@ -534,7 +534,7 @@ transaktion(
                           CHECK (status IN ('angewendet','zurueckgenommen','verworfen')),
   rueckgaengig_moeglich   INTEGER NOT NULL DEFAULT 1,
   snapshot_pfad           TEXT,               -- bei art='import' oberhalb des Schwellwerts
-  koaleszenz_schluessel   TEXT                -- z. B. 'person:<id>:notiz'
+  koaleszenz_schluessel   TEXT                -- 'Befehl:Subjekt:Feld', z. B. 'person.feldSetzen:<id>:notiz' (AP-1.30)
 ) STRICT
 ```
 
