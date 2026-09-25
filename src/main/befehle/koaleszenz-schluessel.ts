@@ -51,9 +51,16 @@ function schluesselBeiEinemFeld<F extends string>(
   return geaendert.every((f) => zulaessig.includes(f)) ? `${befehl}:${subjektId}:${feld}` : null
 }
 
-/** `person.feldSetzen` ändert je Aufruf genau eine Spalte — der Schlüssel folgt direkt aus der Nutzlast. */
-export function personFeldSetzenSchluessel(_tx: Tx, ein: PersonFeldSetzenEin): string {
-  return `person.feldSetzen:${ein.id}:${ein.feld}`
+/** Die Felder von `person.feldSetzen`, die der Autosave schreibt (Freitext mit Debounce). Umschalter und
+ * Auswahlfelder (`privat`, `ist_platzhalter`, `geschlecht`, `lebend_status`, `platzhalter_grund`,
+ * `gesperrt_bis`) sind seltene Einzelaktionen und bleiben je ein eigener Undo-Schritt (AP-0.15,
+ * hueter #156 H3) — zweimal Umschalten in 2 s ergäbe sonst einen wirkungslosen Undo-Schritt. */
+export const PERSON_AUTOSAVE_FELDER: readonly PersonFeldSetzenEin['feld'][] = ['notiz']
+
+/** `person.feldSetzen` ändert je Aufruf genau eine Spalte — der Schlüssel folgt direkt aus der Nutzlast,
+ * aber nur für die Autosave-Felder. */
+export function personFeldSetzenSchluessel(_tx: Tx, ein: PersonFeldSetzenEin): string | null {
+  return PERSON_AUTOSAVE_FELDER.includes(ein.feld) ? `person.feldSetzen:${ein.id}:${ein.feld}` : null
 }
 
 /** `rufnameIndex`/`rufnameText` sind zwei Sichten auf dasselbe `ist_rufname` eines Vornamens —

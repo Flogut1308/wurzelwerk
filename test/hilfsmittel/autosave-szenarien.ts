@@ -46,6 +46,10 @@ export interface AutosaveSzenario {
   readonly zweiSpaltenMoeglich: boolean
   /** `false`, wo der Vertrag kein optionales `feld` hat (`person.feldSetzen`: `feld` ist Pflicht). */
   readonly ohneFeldMoeglich: boolean
+  /** Schritte, die fünf Aufrufe am „anderen Feld“ ergeben: 1, wenn es selbst ein Autosave-Feld ist
+   * (koalesziert), 5 bei `person.feldSetzen` — dort ist das andere Feld ein Umschalter ohne Schlüssel
+   * (AP-0.15, hueter #156 H3). */
+  readonly schritteAnderesFeld: number
   readonly aufbauen: (db: Tx) => AutosaveLauf
 }
 
@@ -70,6 +74,7 @@ const personFeldSetzen: AutosaveSzenario = {
   befehl: 'person.feldSetzen',
   zweiSpaltenMoeglich: false,
   ohneFeldMoeglich: false,
+  schritteAnderesFeld: 5,
   aufbauen: (db) => {
     const a = neuePerson(db)
     const b = neuePerson(db)
@@ -130,6 +135,7 @@ const nameAendern: AutosaveSzenario = {
   befehl: 'name.aendern',
   zweiSpaltenMoeglich: true,
   ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
   aufbauen: (db) => {
     const p = neuePerson(db)
     const a = nameAnlegenMitRufname(db, p, 'geburtsname')
@@ -160,6 +166,7 @@ const ereignisAendern: AutosaveSzenario = {
   befehl: 'ereignis.aendern',
   zweiSpaltenMoeglich: true,
   ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
   aufbauen: (db) => {
     const p = neuePerson(db)
     const anlegen = (): string =>
@@ -205,6 +212,7 @@ const partnerschaftAendern: AutosaveSzenario = {
   befehl: 'partnerschaft.aendern',
   zweiSpaltenMoeglich: true,
   ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
   aufbauen: (db) => {
     const x = neuePerson(db)
     const y = neuePerson(db)
@@ -259,6 +267,7 @@ const elternschaftAendern: AutosaveSzenario = {
   befehl: 'elternschaft.aendern',
   zweiSpaltenMoeglich: true,
   ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
   aufbauen: (db) => {
     const elternteil = neuePerson(db)
     const kind1 = neuePerson(db)
@@ -304,6 +313,7 @@ const aussageAendern: AutosaveSzenario = {
   befehl: 'aussage.aendern',
   zweiSpaltenMoeglich: true,
   ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
   aufbauen: (db) => {
     const p = neuePerson(db)
     const anlegen = (): string => fuehreAus(db, 'aussage.anlegen', { subjektTyp: 'person', subjektId: p, praedikat: 'beruf', wertText: 'Bauer', konfidenz: 3 }).id

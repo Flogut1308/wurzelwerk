@@ -10,8 +10,11 @@
 export const AUTOSAVE_DEBOUNCE_MS = 400
 
 /**
- * Die Befehle, die der Autosave des Personen-Editors schreibt (AP-1.30) — jeder trägt einen
- * Koaleszenzschlüssel `Befehl:Subjekt:Feld`. `person.feldSetzen` ändert je Aufruf genau eine Spalte;
+ * Die Befehle, die der Autosave des Personen-Editors schreibt oder schreiben wird (AP-1.30) — jeder
+ * trägt einen Koaleszenzschlüssel `Befehl:Subjekt:Feld`. Stand PR 4: aus dem Renderer schreiben
+ * `person.feldSetzen` (nur `notiz`) und `name.aendern` per Debounce/Blur; `ereignis`/`partnerschaft`/
+ * `elternschaft`/`aussage.aendern` bekommen ihre Aufrufer mit den Reitern (hueter #156 H4). Die Schlüssel
+ * gelten schon jetzt, damit kein späterer Reiter ohne sie schreibt. `person.feldSetzen` ändert je Aufruf genau eine Spalte;
  * die übrigen ersetzen eine ganze Zeile und bekommen den Schlüssel nur mit gesetztem Vertragsfeld
  * `feld` und nur, wenn sich tatsächlich nur dieses Feld ändert.
  */

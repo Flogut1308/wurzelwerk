@@ -124,7 +124,8 @@ describe('Autosave-Koaleszenz über den Befehlsbus (AP-1.30 PR 4)', () => {
           warte(5000)
           const schritteVorher = schritte(db)
           zehnAufrufe(lauf, (i) => (i <= 5 ? 'feld' : 'anderesFeld'))
-          expect(schritte(db) - schritteVorher).toBe(2)
+          // Die fünf Aufrufe am ersten Feld bleiben EIN Schritt und fließen nie ins andere Feld ein.
+          expect(schritte(db) - schritteVorher).toBe(1 + szenario.schritteAnderesFeld)
         } finally {
           db.close()
         }
@@ -196,4 +197,37 @@ describe('Autosave-Koaleszenz über den Befehlsbus (AP-1.30 PR 4)', () => {
       })
     })
   }
+})
+
+// hueter #156 H3 (AP-0.15): Umschalter und Auswahlfelder von person.feldSetzen sind seltene
+// Einzelaktionen — kein Autosave, kein Schlüssel. Zweimal `privat` umschalten binnen 2 s bleiben zwei
+// Undo-Schritte (sonst entstünde ein wirkungsloser Schritt), `notiz` fasst dagegen zusammen.
+describe('person.feldSetzen: nur Autosave-Felder koaleszieren (AP-0.15, hueter #156)', () => {
+  it('privat zweimal in 500 ms umgeschaltet → zwei Undo-Schritte', () => {
+    const db = neueTestDatenbank()
+    try {
+      const id = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const vorher = schritte(db)
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'privat', wert: 1 })
+      warte(500)
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'privat', wert: 0 })
+      expect(schritte(db)).toBe(vorher + 2)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('geschlecht zweimal in 500 ms geändert → zwei Undo-Schritte', () => {
+    const db = neueTestDatenbank()
+    try {
+      const id = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const vorher = schritte(db)
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'geschlecht', wert: 'M' })
+      warte(500)
+      fuehreAus(db, 'person.feldSetzen', { id, feld: 'geschlecht', wert: 'F' })
+      expect(schritte(db)).toBe(vorher + 2)
+    } finally {
+      db.close()
+    }
+  })
 })
