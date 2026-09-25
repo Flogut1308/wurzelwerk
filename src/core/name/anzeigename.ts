@@ -25,13 +25,14 @@ export interface AnzeigenameErgebnis {
   readonly formId: string
 }
 
-/** Baut den flachen Anzeigetext einer Form: Titel Vornamen Präfix Nachname Zusatz (Leerzeichen-
- * getrennt), oder `original_text`, falls keine Bestandteile vorliegen. Exportiert, weil auch die
+/** Baut den flachen Anzeigetext einer Form: Titel Vornamen Vatersname Präfix Nachname Zusatz
+ * (Leerzeichen-getrennt; Vatersname zwischen Vornamen und Nachname, „Iwan Petrowitsch Iwanow",
+ * Eigentümer 25.09.2026), oder `original_text`, falls keine Bestandteile vorliegen. Exportiert, weil auch die
  * Kernangabe `name` („vorhanden" = die Hauptform hat Anzeigetext, Nachtrag ADR-031) genau diese
  * Textregel braucht — keine zweite. */
 export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText'>): string {
   const flach = rekonstruiereFlach(form.teile)
-  const segmente = [flach.titelVor, flach.vornamen, flach.praefix, flach.nachname, flach.zusatzNach].filter(
+  const segmente = [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach].filter(
     (segment): segment is string => segment !== null && segment.trim() !== '',
   )
   const zusammengesetzt = segmente.join(' ').trim()
