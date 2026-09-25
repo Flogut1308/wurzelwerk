@@ -12,6 +12,8 @@
 //   - innerhalb jeder Stufe gewinnt die bevorzugte Form, sofern sie zu den Kandidaten gehört.
 //   - das Ergebnis hängt nicht von der Reihenfolge der Eingabe ab (Liste, Karte, Suche und Export
 //     laden Formen in unterschiedlicher Reihenfolge).
+// Bis PR 3 der Vorarbeiten AP-1.30 Teil 2 ist der Formen-Generator vorübergehend eingeengt (Kommentar
+// an `formenArbitrary`, docs/80 §32 V-4b-einengung).
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { anzeigenameFuer, type AnzeigeForm } from '../../src/core/name/anzeigename'
@@ -44,22 +46,46 @@ const formRohArbitrary: fc.Arbitrary<FormRoh> = fc.record({
   teile: fc.array(teilArbitrary, { maxLength: 4 }),
 })
 
+function formIdFuer(index: number): string {
+  return `form-${String(index).padStart(2, '0')}`
+}
+
 /** 0..6 Formen mit eindeutigen `formId`s und HÖCHSTENS einer bevorzugten (Index `bevorzugtRoh`
- * modulo Länge, oder keine). */
+ * modulo Länge, oder keine).
+ *
+ * VORÜBERGEHENDE EINENGUNG des Eingaberaums (Vorarbeiten AP-1.30 Teil 2, PR 1; wird in PR 3
+ * aufgehoben; docs/80 §32 V-4b-einengung). Die Eigentümer-Entscheidung vom 25.09.2026 (§32
+ * V-4-umschrift-nebenform/-leer) ändert die Umschrift-Stufe: sie greift künftig nur für eine
+ * Umschrift DER HAUPTFORM mit Anzeigetext. Damit Produktivcode (PR 2) und Maßstab nie in derselben
+ * Iteration wandern (ADR-025), erzeugt der Generator bis PR 3 nur Fälle, in denen alte und neue
+ * Regel dasselbe liefern:
+ *   - Hauptform ist die Form, die Stufe 3 wählt (die bevorzugte, sonst `form-00`); sie selbst
+ *     bekommt nie `umschriftVon`;
+ *   - jede Umschrift-Form zeigt auf die Hauptform (keine Umschrift einer Nebenform);
+ *   - jede Umschrift-Form hat Anzeigetext: `originalText` enthält per Konstruktion ein
+ *     Nicht-Leerzeichen, und der Text fällt ohne Bestandteile auf `originalText` zurück (Text-Vertrag,
+ *     eigene Property unten) — ohne die Produktfunktion `hatAnzeigetext` im Maßstab.
+ * Keine Zusicherung ist geändert; nur die Eingaben sind enger. */
 const formenArbitrary: fc.Arbitrary<readonly AnzeigeForm[]> = fc
   .record({
     roh: fc.array(formRohArbitrary, { maxLength: 6 }),
     bevorzugtRoh: fc.option(fc.nat(), { nil: null }),
   })
-  .map(({ roh, bevorzugtRoh }) =>
-    roh.map(
-      (form, index): AnzeigeForm => ({
+  .map(({ roh, bevorzugtRoh }) => {
+    const bevorzugtIndex = bevorzugtRoh === null || roh.length === 0 ? null : bevorzugtRoh % roh.length
+    const hauptformIndex = bevorzugtIndex ?? 0
+    return roh.map((form, index): AnzeigeForm => {
+      const istUmschrift = form.umschriftVon !== null && index !== hauptformIndex
+      const originalText = istUmschrift && (form.originalText === null || form.originalText.trim() === '') ? 'U' : form.originalText
+      return {
         ...form,
-        formId: `form-${String(index).padStart(2, '0')}`,
-        istBevorzugt: bevorzugtRoh !== null && bevorzugtRoh % roh.length === index,
-      }),
-    ),
-  )
+        umschriftVon: istUmschrift ? formIdFuer(hauptformIndex) : null,
+        originalText,
+        formId: formIdFuer(index),
+        istBevorzugt: bevorzugtIndex === index,
+      }
+    })
+  })
 
 const wunschArbitrary: fc.Arbitrary<string | undefined> = fc.option(fc.constantFrom(...SPRACHEN), { nil: undefined })
 
