@@ -10,7 +10,6 @@ import {
   aussageDatumAnzeige,
   aussageKalender,
   datumAenderung,
-  datumswertAusText,
   lebendStatusAuswahl,
   lebendStatusOptionen,
   lebensdatumFeld,
@@ -24,6 +23,7 @@ import {
   warnungenZuordnen,
 } from '../../src/renderer/ansichten/profil/reiter-person-logik'
 import { aussageAendernEinAus } from '../../src/renderer/ansichten/profil/profil-aussage-logik'
+import { datumswertAusText } from '../../src/renderer/bausteine/datumsfeld-logik'
 import { aussageAendernEinSchema, aussageAnlegenEinSchema } from '../../src/shared/schemata/befehle'
 import type {
   PersonDetailAussage,
@@ -217,10 +217,10 @@ describe('Datum (D10: Freitext mit Deutung)', () => {
     expect(aussageKalender(aussage({ datum: null }))).toBe('gregorian')
   })
 
-  it('Freitext → Vertrags-Datumswert; nicht auflösbar oder leer → null (nichts wird geschrieben)', () => {
+  it('Freitext → Vertrags-Datumswert; nicht auflösbar oder leer → undefined (nichts wird geschrieben)', () => {
     expect(datumswertAusText('1902', 'gregorian')).toEqual({ kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: '1902' })
-    expect(datumswertAusText('190', 'gregorian')).toBeNull()
-    expect(datumswertAusText('  ', 'gregorian')).toBeNull()
+    expect(datumswertAusText('190', 'gregorian')).toBeUndefined()
+    expect(datumswertAusText('  ', 'gregorian')).toBeUndefined()
   })
 
   it('unscharfes Datum trägt den getippten Text als Originaltext (der Vertrag verlangt ihn ab „etwa")', () => {
@@ -231,7 +231,7 @@ describe('Datum (D10: Freitext mit Deutung)', () => {
 
   it('Datumsänderung: genau ein Feld → Koaleszenzfeld „datum", kein datumBeibehalten', () => {
     const datum = datumswertAusText('1902', 'gregorian')
-    if (datum === null) throw new Error('Datum erwartet')
+    if (datum === undefined) throw new Error('Datum erwartet')
     const ein = aussageAendernEinAus(aussage(), datumAenderung(aussage(), datum))
     expect(ein).toMatchObject({ id: 'a-1', datum, konfidenz: 3, feld: 'datum' })
     expect(ein).not.toHaveProperty('datumBeibehalten')
@@ -241,7 +241,7 @@ describe('Datum (D10: Freitext mit Deutung)', () => {
   it('Altbestand mit wertText + Datum: der Text wird mit entfernt (eine Wahrheit, D1)', () => {
     const alt = aussage({ wert_text: '1900' })
     const datum = datumswertAusText('1902', 'gregorian')
-    if (datum === null) throw new Error('Datum erwartet')
+    if (datum === undefined) throw new Error('Datum erwartet')
     const ein = aussageAendernEinAus(alt, datumAenderung(alt, datum))
     expect(ein?.wertText).toBeUndefined()
     expect(ein?.datum).toEqual(datum)
@@ -283,7 +283,7 @@ describe('Sicherheit und Anlegen (K)', () => {
 
   it('Anlegen einer Personen-Aussage mit Vorgabe-Sicherheit; das Schema nimmt Datum allein an', () => {
     const datum = datumswertAusText('1901', 'gregorian')
-    if (datum === null) throw new Error('Datum erwartet')
+    if (datum === undefined) throw new Error('Datum erwartet')
     const ein = aussageAnlegenEinFuer('p-1', 'geburtsdatum', { datum }, KONFIDENZ_VORGABE)
     expect(ein).toEqual({ subjektTyp: 'person', subjektId: 'p-1', praedikat: 'geburtsdatum', datum, konfidenz: KONFIDENZ_VORGABE })
     expect(aussageAnlegenEinSchema.safeParse(ein).success).toBe(true)
@@ -291,10 +291,10 @@ describe('Sicherheit und Anlegen (K)', () => {
 
   it('die eben angelegte Aussage dient als Lesestand für Folgeänderungen, bevor das Lesemodell nachlädt', () => {
     const datum = datumswertAusText('1901', 'gregorian')
-    if (datum === null) throw new Error('Datum erwartet')
+    if (datum === undefined) throw new Error('Datum erwartet')
     const angelegt = aussageAusAngelegt('a-neu', aussageAnlegenEinFuer('p-1', 'geburtsdatum', { datum }, 2))
     const zweites = datumswertAusText('1902', 'gregorian')
-    if (zweites === null) throw new Error('Datum erwartet')
+    if (zweites === undefined) throw new Error('Datum erwartet')
     expect(aussageAendernEinAus(angelegt, datumAenderung(angelegt, zweites))).toMatchObject({ id: 'a-neu', datum: zweites, konfidenz: 2, feld: 'datum' })
   })
 

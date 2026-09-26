@@ -55,6 +55,14 @@ export interface Datumswert {
 }
 
 const MODIFIKATOREN_MIT_ORIGINALTEXT_PFLICHT = ['etwa', 'vor', 'nach', 'zwischen', 'von_bis', 'geschaetzt', 'berechnet']
+
+/** `true`, wenn der Vertrag für diesen Modifikator `original_text` verlangt (§2.4, IMP-106).
+ * Exportiert (AP-1.30, U-130-9b), damit Datumswert-Erzeuger außerhalb dieses Schemas
+ * (`datumswertAusText`, src/renderer/bausteine/datumsfeld-logik.ts) dieselbe Liste nutzen statt
+ * einer zweiten, drift-anfälligen Fassung. */
+export function modifikatorBrauchtOriginalText(modifikator: z.infer<typeof DatumModifikatorEnum>): boolean {
+  return MODIFIKATOREN_MIT_ORIGINALTEXT_PFLICHT.includes(modifikator)
+}
 const MODIFIKATOREN_ZEITRAUM = ['zwischen', 'von_bis']
 
 const datumswertBasis = z.strictObject({
@@ -76,7 +84,7 @@ const datumswertBasis = z.strictObject({
 // `partnerschaft.anlegen`/`aendern`, `aussage.anlegen`) — ein Duplikat der drei `allOf`-Regeln
 // hätte dort drift-anfällig eine zweite, potenziell abweichende Fassung erzeugt.
 export const datumswertSchema: z.ZodType<Datumswert> = datumswertBasis.superRefine((wert, ctx) => {
-  const brauchtOriginalText = MODIFIKATOREN_MIT_ORIGINALTEXT_PFLICHT.includes(wert.modifikator)
+  const brauchtOriginalText = modifikatorBrauchtOriginalText(wert.modifikator)
   if (brauchtOriginalText && wert.original_text === undefined) {
     ctx.addIssue({
       code: 'custom',

@@ -10,6 +10,7 @@ import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, 
 import { Auswahlfeld } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Datumsfeld } from '../../bausteine/datumsfeld'
+import { datumswertAusText } from '../../bausteine/datumsfeld-logik'
 import { Eingabekoerper } from '../../bausteine/eingabekoerper'
 import { konfidenzStufe } from '../../bausteine/feld-konfidenz'
 import { Formularfeld } from '../../bausteine/formularfeld'
@@ -37,7 +38,6 @@ import {
   aussageKalender,
   datumAenderung,
   datumsgruppeAnzeige,
-  datumswertAusText,
   lebendStatusAuswahl,
   lebendStatusOptionen,
   lebendStatusSchluessel,
@@ -387,7 +387,7 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
 
   function datumSchreiben(text: string, mitKalender: Kalender): void {
     const datum = datumswertAusText(text, mitKalender)
-    if (datum === null) return
+    if (datum === undefined) return
     schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, datum), anlegen: { datum }, koaleszenz: true })
   }
 

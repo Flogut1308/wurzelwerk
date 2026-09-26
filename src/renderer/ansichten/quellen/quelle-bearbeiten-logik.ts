@@ -26,6 +26,7 @@ import type {
 import type { Datumswert as VertragsDatumswert } from '../../../shared/schemata/import-v1'
 import { InformationsartEnum, QuelleArtEnum, QuelleFormEnum, QuelleTypEnum, UnmittelbarkeitEnum } from '../../../shared/schemata/quelle'
 import type { QuelleDetailKopf, QuelleDetailZitat } from '../../../shared/schemata/quelle-detail'
+import { datumswertAusText } from '../../bausteine/datumsfeld-logik'
 import type { KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
 
 function textOderUndefined(wert: string): string | undefined {
@@ -41,20 +42,10 @@ export function datumTextIstGueltig(text: string): boolean {
 
 /** Baut den Vertrags-`Datumswert` aus roher Texteingabe (Muster `ereignisDatumwertAusEntwurf`,
  * `profil-bearbeiten-logik.ts`) — hier für `quelle.gespraechsdatum` (§2.15). `undefined` bei
- * leerem/nicht auflösbarem Text. */
+ * leerem/nicht auflösbarem Text. Gebaut von der gemeinsamen `datumswertAusText`
+ * (`datumsfeld-logik.ts`, inkl. `original_text`-Regel, U-130-9b). */
 export function gespraechsdatumAusEntwurf(text: string, kalender: Kalender): VertragsDatumswert | undefined {
-  if (text.trim() === '') return undefined
-  const ergebnis = parse(text)
-  if (!ergebnis.ok) return undefined
-  return {
-    kalender,
-    modifikator: ergebnis.wert.modifikator,
-    praezision: ergebnis.wert.praezision,
-    wert1: ergebnis.wert.wert1,
-    wert2: ergebnis.wert.wert2,
-    original_text: ergebnis.wert.originaltext,
-    doppeljahr: ergebnis.wert.doppeljahr,
-  }
+  return datumswertAusText(text, kalender)
 }
 
 // -----------------------------------------------------------------------------------------------

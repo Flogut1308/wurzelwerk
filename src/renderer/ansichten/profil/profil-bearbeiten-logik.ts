@@ -19,6 +19,7 @@ import type { NameTypEnum, SchriftEnum, UmschriftNormEnum } from '../../../share
 import type { GeschlechtEnum, PlatzhalterGrundEnum } from '../../../shared/schemata/person'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
 import type { SucheEin } from '../../../shared/schemata/person-liste'
+import { datumswertAusText } from '../../bausteine/datumsfeld-logik'
 import type { KontrollkaestchenZustand } from '../../bausteine/kontrollkaestchen'
 import type { KonfidenzStufe } from '../../bausteine/konfidenz-punkt'
 
@@ -320,20 +321,10 @@ export function ereignisEntwurfDatumIstGueltig(text: string): boolean {
  * `kalender` kommt von der Kalenderwahl der Komponente selbst — `parse()` löst ausschließlich
  * gregorianische Schreibweisen auf (s. Kopfkommentar `datumsfeld-logik.ts`), die Kalenderwahl der
  * Komponente markiert das Ergebnis darum nur als "in diesem Kalender gemeint", ohne die Ziffern
- * selbst neu zu berechnen — dieselbe Grenze, die `Datumsfeld` bereits mitbringt. */
+ * selbst neu zu berechnen — dieselbe Grenze, die `Datumsfeld` bereits mitbringt. Gebaut von der
+ * gemeinsamen `datumswertAusText` (`datumsfeld-logik.ts`, inkl. `original_text`-Regel, U-130-9b). */
 export function ereignisDatumwertAusEntwurf(text: string, kalender: Kalender): VertragsDatumswert | undefined {
-  if (text.trim() === '') return undefined
-  const ergebnis = parse(text)
-  if (!ergebnis.ok) return undefined
-  return {
-    kalender,
-    modifikator: ergebnis.wert.modifikator,
-    praezision: ergebnis.wert.praezision,
-    wert1: ergebnis.wert.wert1,
-    wert2: ergebnis.wert.wert2,
-    original_text: ergebnis.wert.originaltext,
-    doppeljahr: ergebnis.wert.doppeljahr,
-  }
+  return datumswertAusText(text, kalender)
 }
 
 /** JDN (`sortVon`) des Ereignis-Datumstexts, für `abfrage:ort.suche`s `jdn`-Parameter (AP-1.16

@@ -20,6 +20,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 
 test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
+  test.describe.configure({ mode: 'serial' })
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
   if (einstiegFehlt && process.env['CI'] !== undefined) {
     throw new Error(
@@ -177,5 +178,33 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
     const hauptProfilErneut = fenster.getByRole('dialog', { name: 'Profil', exact: true })
     await expect(hauptProfilErneut).toBeVisible()
     await expect(hauptProfilErneut.getByText('Taufe', { exact: true })).toBeVisible()
+  })
+
+  // AP-1.30 Bugfix U-130-9b-ereignis-ungefaehr: ein ungefähres Datum („um 1890", modifikator
+  // `etwa`) muss durch den Vertrag kommen (`original_text` ist dort Pflicht, IMP-106). Baut auf
+  // dem vorigen Test auf (gleiches Projekt, Profil der Hauptperson ist offen) — darum `serial`.
+  test('Ereignis mit „um 1890" anlegen', async () => {
+    test.setTimeout(60_000)
+    const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+    await expect(profil.getByRole('heading', { name: 'Anna Haupt', level: 1 })).toBeVisible()
+
+    await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor.getByRole('button', { name: 'Fertig', exact: true })).toBeVisible()
+    await editor.getByRole('tab', { name: /^Leben/ }).click()
+
+    const ereignisFelder = editor.locator('.wz-profil-bearbeiten-ereignisse__felder')
+    await ereignisFelder.locator('select').first().selectOption('konfirmation')
+    await ereignisFelder.locator('.wz-datumsfeld input').fill('um 1890')
+    await editor.getByRole('radio', { name: 'Konfidenz: gesichert', exact: true }).click()
+
+    const absenden = editor.getByRole('button', { name: 'Ereignis anlegen', exact: true })
+    await expect(absenden).toBeEnabled()
+    await absenden.click()
+
+    // Vor dem Fix lehnte `befehl:ereignis.anlegen` das Datum ab — es entstand keine Zeile.
+    const zeile = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Konfirmation' })
+    await expect(zeile).toBeVisible()
+    await expect(zeile.getByText('1890', { exact: true })).toBeVisible()
   })
 })
