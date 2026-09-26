@@ -59,9 +59,7 @@ function zwischenstaende(wort: string): readonly string[] {
 }
 
 describe('Namen-Reiter: Rufname über Autosave-Zwischenstände (A-02, AP-1.30)', () => {
-  // Rot bis zum Fix (eiserne Regel CLAUDE.md §5): `it.fails` hält `pnpm pruefe` grün, der Fix-Commit
-  // stellt auf `it` um.
-  it.fails('langsam getippter Rufname „Friedrich" hängt keine Zwischenstände als Vornamen an', () => {
+  it('langsam getippter Rufname „Friedrich" hängt keine Zwischenstände als Vornamen an', () => {
     const db = neueTestDatenbank()
     try {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
@@ -78,7 +76,7 @@ describe('Namen-Reiter: Rufname über Autosave-Zwischenstände (A-02, AP-1.30)',
     }
   })
 
-  it.fails('Vornamen langsam umschreiben hängt den bisherigen Rufnamen nicht als zusätzlichen Vornamen an', () => {
+  it('Vornamen langsam umschreiben hängt den bisherigen Rufnamen nicht als zusätzlichen Vornamen an', () => {
     const db = neueTestDatenbank()
     try {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id

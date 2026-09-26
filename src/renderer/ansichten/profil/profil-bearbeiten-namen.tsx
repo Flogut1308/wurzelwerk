@@ -14,9 +14,12 @@ import {
   auswahlWertZuSchrift,
   nameAendernEinAusEintrag,
   geaendertesNamensFeld,
+  mitRufnameAusAuswahl,
   nameAnlegenEinAusEintrag,
   namenEintragAusPersonDetailName,
   namenEintragHatInhalt,
+  rufnameAuswahlVornamen,
+  rufnameAuswahlWert,
   schriftZuAuswahlWert,
   type NamenEintragWerte,
   type SchriftAuswahlWert,
@@ -72,6 +75,14 @@ function nameTypOptionen(t: (schluessel: string) => string): readonly Auswahlfel
 
 function schriftOptionen(t: (schluessel: string) => string): readonly AuswahlfeldOption<SchriftAuswahlWert>[] {
   return [{ wert: '', beschriftung: t('schrift_unbestimmt') }, ...SchriftEnum.options.map((schrift) => ({ wert: schrift, beschriftung: t(schriftSchluessel(schrift)) }))]
+}
+
+/** A-02, AP-1.30 (Fix Rufname-Anhängen): der Rufname einer BESTEHENDEN Zeile wird aus ihren Vornamen
+ * gewählt (docs/20_Domaenenwissen.md §24: Markierung einer Position in der Vornamenkette), nicht
+ * getippt — ein getippter Rufname ging mit jedem Autosave-Zwischenstand als zusätzlicher Vorname in
+ * die Datenbank (`rufnameTextFuerAenderung`, `profil-bearbeiten-logik.ts`). */
+function rufnameOptionen(t: (schluessel: string) => string, eintrag: NamenEintragWerte): readonly AuswahlfeldOption<string>[] {
+  return [{ wert: '', beschriftung: t('name_rufname_unbestimmt') }, ...rufnameAuswahlVornamen(eintrag).map(({ wert, vorname }) => ({ wert, beschriftung: vorname }))]
 }
 
 interface NamenFelderProps {
@@ -131,7 +142,11 @@ function NamenFelder({ name }: NamenFelderProps) {
         <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_rufname_beschriftung')}>
-        <Textfeld wert={eintrag.rufname} aufAenderung={(wert) => setEintrag({ ...eintrag, rufname: wert })} aufVerlassen={sofortSchreiben} />
+        <Auswahlfeld
+          wert={rufnameAuswahlWert(eintrag)}
+          optionen={rufnameOptionen(t, eintrag)}
+          aufAenderung={(wert) => sofortAendern(mitRufnameAusAuswahl(eintrag, wert))}
+        />
       </Formularfeld>
       <Formularfeld beschriftung={t('name_praefix_beschriftung')}>
         <Textfeld wert={eintrag.praefix} aufAenderung={(wert) => setEintrag({ ...eintrag, praefix: wert })} aufVerlassen={sofortSchreiben} />
