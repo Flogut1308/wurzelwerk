@@ -42,7 +42,19 @@ const DetailSchema = z.object({
   ),
 })
 
+/** Modifikator und Originaltext der Datumsgruppe (U-130-9b-unlesbar). */
+const EtwaSchema = z.object({
+  grunddaten: z.array(
+    z.object({
+      praedikat: z.string(),
+      aussagen: z.array(z.object({ datum: z.object({ modifikator: z.string().nullable(), originaltext: z.string().nullable() }).nullable() })),
+    }),
+  ),
+})
+
 test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
+  // Der Fall „unlesbares Datum" setzt den offenen Editor aus dem ersten Fall fort.
+  test.describe.configure({ mode: 'serial' })
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
   if (einstiegFehlt && process.env['CI'] !== undefined) {
     throw new Error(
@@ -87,6 +99,8 @@ test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
     expect(ergebnis.ok).toBe(true)
   }
 
+  let personIdGemerkt: string | null = null
+
   test('Geburtsdatum: ≤ 1 s gespeichert, Undo stellt zurück; zehn Anschläge < 2 s = ein Undo-Schritt; leeres Feld = zwei Schritte (K)', async () => {
     test.setTimeout(90_000)
     await dialogLiefert(elternordner)
@@ -97,6 +111,7 @@ test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
     const anlegen = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, lebend_status: 'verstorben' }))
     if (!anlegen.ok) throw new Error('person.anlegen fehlgeschlagen')
     const personId = z.object({ id: z.string() }).parse(anlegen.daten).id
+    personIdGemerkt = personId
     const geburt = await fenster.evaluate(
       async (id) =>
         window.wurzelwerk.aufrufen('befehl:aussage.anlegen', {
@@ -177,5 +192,42 @@ test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
     await expect(tod).toHaveValue('')
     // Das Geburtsdatum blieb von den beiden Undo-Schritten unberührt.
     expect(await gespeicherteDaten(personId, 'geburtsdatum')).toEqual(['1901'])
+  })
+
+  /**
+   * AP-1.30 U-130-9b-unlesbar (docs/80 §33 V-130-unlesbar, Entscheidung B): ein nicht auflösbares
+   * Datum geht nicht still verloren — Status „Nicht gespeichert — Datum nicht lesbar", „Fertig" fragt
+   * nach, „Zurück zum Feld" behält die Eingabe, „Als ‚etwa 1788‘ …" speichert vertragsgültig mit dem
+   * getippten Text als Originaltext und schließt den Editor.
+   */
+  test('unlesbares Datum: Status, Nachfrage bei „Fertig", als „etwa 1788" mit Originaltext speichern', async () => {
+    const personId = personIdGemerkt
+    if (personId === null) throw new Error('Der vorige Fall hat keine Person angelegt.')
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    const datum = editor.locator('#person-bearbeiten-feld-geburtsdatum')
+    await expect(datum).toHaveValue('1901')
+
+    await datum.fill('31.02.1788')
+    await expect(editor.getByRole('status')).toHaveText('Nicht gespeichert — Datum nicht lesbar')
+
+    const fertig = editor.getByRole('button', { name: 'Fertig', exact: true })
+    await fertig.click()
+    const nachfrage = fenster.getByRole('alertdialog')
+    await expect(nachfrage).toBeVisible()
+    await expect(editor).toBeVisible()
+    await nachfrage.getByRole('button', { name: 'Zurück zum Feld', exact: true }).click()
+    await expect(nachfrage).toHaveCount(0)
+    await expect(datum).toBeFocused()
+    await expect(datum).toHaveValue('31.02.1788')
+    expect(await gespeicherteDaten(personId, 'geburtsdatum')).toEqual(['1901'])
+
+    await fertig.click()
+    await nachfrage.getByRole('button', { name: 'Als ‚etwa 1788‘ mit Originaltext speichern', exact: true }).click()
+    await expect(editor).toHaveCount(0)
+    await expect.poll(() => gespeicherteDaten(personId, 'geburtsdatum')).toEqual(['1788'])
+    const ergebnis = await fenster.evaluate(async (id) => window.wurzelwerk.aufrufen('abfrage:person.detail', { personId: id }), personId)
+    if (!ergebnis.ok) throw new Error('abfrage:person.detail fehlgeschlagen')
+    const gruppe = EtwaSchema.parse(ergebnis.daten).grunddaten.find((feld) => feld.praedikat === 'geburtsdatum')?.aussagen[0]?.datum
+    expect(gruppe).toEqual({ modifikator: 'etwa', originaltext: '31.02.1788' })
   })
 })
