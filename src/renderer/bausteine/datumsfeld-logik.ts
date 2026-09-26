@@ -5,7 +5,7 @@
 import { formatiere } from '../../core/datum/formatierer'
 import { erkennbaresJahr } from '../../core/datum/jahr-erkennung'
 import { parse } from '../../core/datum/parser'
-import type { Kalender, ParseGrund, Praezision } from '../../core/datum/typen'
+import type { Datumswert, Kalender, ParseGrund, Praezision } from '../../core/datum/typen'
 import { modifikatorBrauchtOriginalText, type Datumswert as VertragsDatumswert } from '../../shared/schemata/import-v1'
 
 /** i18n-Schlüssel je `ParseGrund` (Namensraum `felder`, src/shared/i18n/de/felder.json). */
@@ -71,7 +71,13 @@ export function datumsfeldInterpretation(text: string): DatumsfeldInterpretation
     return { art: 'nicht_aufloesbar', grundSchluessel: grundSchluessel(ergebnis.grund) }
   }
 
-  const formatergebnis = formatiere(ergebnis.wert)
+  return datumsfeldInterpretationAusWert(ergebnis.wert)
+}
+
+/** Deutungszeile zu einem bereits aufgelösten Wert — dieselbe Regel wie für `parse(text)` (genutzt
+ * für gespeicherte Werte, U-130-9b-unlesbar). */
+export function datumsfeldInterpretationAusWert(wert: Datumswert): DatumsfeldInterpretation {
+  const formatergebnis = formatiere(wert)
   if (formatergebnis.schluessel === 'datum:originaltext') {
     return { art: 'originaltext', schluessel: formatergebnis.schluessel, werte: formatergebnis.werte }
   }
@@ -80,7 +86,7 @@ export function datumsfeldInterpretation(text: string): DatumsfeldInterpretation
     art: 'formatiert',
     schluessel: formatergebnis.schluessel,
     werte: formatergebnis.werte,
-    genauigkeitSchluessel: genauigkeitSchluessel(ergebnis.wert.praezision),
+    genauigkeitSchluessel: genauigkeitSchluessel(wert.praezision),
   }
 }
 

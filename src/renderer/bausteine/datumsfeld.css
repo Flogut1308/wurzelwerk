@@ -18,6 +18,10 @@
   white-space: nowrap;
 }
 
+.wz-datumsfeld__aktion {
+  align-self: flex-start;
+}
+
 .wz-datumsfeld__kalenderKnopf {
   display: inline-flex;
   align-items: center;
