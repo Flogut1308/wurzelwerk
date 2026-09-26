@@ -3,6 +3,7 @@
 // AUSSCHLIESSLICH `parse()`/`formatiere()` aus src/core/datum auf — keine zweite Parselogik im
 // Renderer. Der Aufrufer (`datumsfeld.tsx`) übersetzt die zurückgegebenen Schlüssel mit `t(...)`.
 import { formatiere } from '../../core/datum/formatierer'
+import { erkennbaresJahr } from '../../core/datum/jahr-erkennung'
 import { parse } from '../../core/datum/parser'
 import type { Kalender, ParseGrund, Praezision } from '../../core/datum/typen'
 import { modifikatorBrauchtOriginalText, type Datumswert as VertragsDatumswert } from '../../shared/schemata/import-v1'
@@ -115,4 +116,20 @@ export function datumswertAusText(text: string, kalender: Kalender): VertragsDat
     ...(originalText === undefined ? {} : { original_text: originalText }),
     ...(wert.doppeljahr === undefined ? {} : { doppeljahr: wert.doppeljahr }),
   }
+}
+
+/**
+ * AP-1.30 U-130-9b-unlesbar (docs/80 §33 V-130-unlesbar, dritter Weg): „als ‚etwa JJJJ‘ mit
+ * Originaltext speichern" für einen Text, den `datumswertAusText` nicht auflösen kann. Das Jahr
+ * erkennt `erkennbaresJahr` (src/core/datum); der getippte (getrimmte) Text bleibt als
+ * `original_text` erhalten — Pflicht bei `modifikator 'etwa'` (IMP-106), und der Quellen-Wortlaut
+ * geht nicht verloren. `undefined` ohne erkennbares Jahr. Ob der Text auflösbar ist, prüft der
+ * Aufrufer (für einen auflösbaren Text gilt `datumswertAusText`).
+ */
+export function etwaDatumswertAusText(text: string, kalender: Kalender): VertragsDatumswert | undefined {
+  const bereinigt = text.trim()
+  if (bereinigt === '') return undefined
+  const jahr = erkennbaresJahr(bereinigt)
+  if (jahr === undefined) return undefined
+  return { kalender, modifikator: 'etwa', praezision: 'jahr', wert1: `${jahr}`, original_text: bereinigt }
 }
