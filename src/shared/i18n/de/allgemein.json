@@ -39,5 +39,6 @@
   "speicherstatus_zeit_stunden_other": "vor {{count}} Stunden",
   "speicherstatus_speichert": "Speichert …",
   "speicherstatus_fehler": "Nicht gespeichert —",
-  "speicherstatus_erneut_versuchen": "erneut versuchen"
+  "speicherstatus_erneut_versuchen": "erneut versuchen",
+  "speicherstatus_unlesbar": "Nicht gespeichert — Datum nicht lesbar"
 }
