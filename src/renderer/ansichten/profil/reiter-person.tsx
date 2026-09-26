@@ -10,7 +10,7 @@ import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, 
 import { Auswahlfeld } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Datumsfeld } from '../../bausteine/datumsfeld'
-import { datumswertAusText } from '../../bausteine/datumsfeld-logik'
+import { datumsfeldInterpretation, datumswertAusText, etwaDatumswertAusText } from '../../bausteine/datumsfeld-logik'
 import { Eingabekoerper } from '../../bausteine/eingabekoerper'
 import { konfidenzStufe } from '../../bausteine/feld-konfidenz'
 import { Formularfeld } from '../../bausteine/formularfeld'
@@ -27,6 +27,7 @@ import { BelegListe } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
 import { aussageAendernEinAus, type AussageAenderung } from './profil-aussage-logik'
 import { useEntwurfMitVerzoegertemCommit } from './profil-bearbeiten-debounce'
+import { useUnlesbarMelden } from './unlesbare-eingaben'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import type { EreignisWert } from './profil-lebensdaten-logik'
 import { praedikatSchluessel } from './profil-schluessel'
@@ -38,6 +39,7 @@ import {
   aussageKalender,
   datumAenderung,
   datumsgruppeAnzeige,
+  gespeicherteDeutung,
   lebendStatusAuswahl,
   lebendStatusOptionen,
   lebendStatusSchluessel,
@@ -375,7 +377,11 @@ function angabeKlasse(warnungen: readonly BestandHinweisCode[]): string {
 
 /** Datum als Freitext mit Deutung („Verstanden als …", D10), Autosave mit Koaleszenzfeld „datum".
  * Leer oder nicht auflösbar wird nichts geschrieben; ein geleertes Feld zeigt beim Verlassen wieder
- * den gespeicherten Wert (Löschen einer Angabe gibt es hier nicht — keine stille Datenlöschung). */
+ * den gespeicherten Wert (Löschen einer Angabe gibt es hier nicht — keine stille Datenlöschung).
+ *
+ * U-130-9b-unlesbar (docs/80 §33 V-130-unlesbar, Entscheidung B): ein unlesbarer, ungespeicherter
+ * Text meldet sich beim Editor (Speicherstatus, Nachfrage beim Verlassen); ist ein Jahr erkennbar,
+ * steht unter dem Feld „Als ‚etwa JJJJ‘ mit Originaltext speichern" (Einzelschritt, ohne Koaleszenz). */
 function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, aufBelegeOeffnen }: BearbeitbareAngabeProps) {
   const { t } = useTranslation('profil')
   const { t: tDatum } = useTranslation('datum')
@@ -393,6 +399,30 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
 
   const [entwurf, setEntwurf, sofortSchreiben] = useEntwurfMitVerzoegertemCommit(gespeichert, (text) => datumSchreiben(text, kalender))
   const beschriftung = angabeBeschriftung(angabe, t)
+  const feldId = editorFeldId(idPraefix, angabe)
+
+  // Zuletzt als „etwa" gesendeter Text: bis das Lesemodell nachlädt, gilt er nicht mehr als unlesbar.
+  const [etwaGesendet, setEtwaGesendet] = useState<string | null>(null)
+  const unlesbar = entwurf.trim() !== '' && entwurf !== gespeichert && entwurf !== etwaGesendet && datumswertAusText(entwurf, kalender) === undefined
+  const etwaDatum = unlesbar ? etwaDatumswertAusText(entwurf, kalender) : undefined
+  const etwaJahr = etwaDatum?.wert1 === undefined ? null : Number(etwaDatum.wert1)
+
+  function alsEtwaSpeichern(): void {
+    if (etwaDatum === undefined) return
+    schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, etwaDatum), anlegen: { datum: etwaDatum }, koaleszenz: false })
+    setEtwaGesendet(entwurf)
+  }
+
+  useUnlesbarMelden(
+    unlesbar
+      ? { feldId, beschriftung, text: entwurf.trim(), jahr: etwaJahr, verwerfen: () => setEntwurf(gespeichert), alsEtwaSpeichern }
+      : null,
+  )
+
+  // Ein gespeicherter Wert, dessen Wortlaut sich nicht lesen lässt (als „etwa" mit Originaltext
+  // gespeichert), zeigt seine gespeicherte Deutung statt „nicht auflösbar".
+  const deutung =
+    aussage !== null && entwurf === gespeichert && datumsfeldInterpretation(entwurf).art === 'nicht_aufloesbar' ? gespeicherteDeutung(aussage) : undefined
 
   return (
     <div className={angabeKlasse(warnungen)}>
@@ -400,7 +430,7 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
         <div className="wz-reiter-person__wert wz-reiter-person__wert--datum">
           <Formularfeld beschriftung={t('lebensdatum_datum_beschriftung')} {...optionalerFehler(fehlerText(schreiber.fehler, t, tFehler))}>
             <Datumsfeld
-              id={editorFeldId(idPraefix, angabe)}
+              id={feldId}
               ariaLabel={beschriftung}
               text={entwurf}
               aufAenderung={setEntwurf}
@@ -416,6 +446,16 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
               kalenderErweitert={kalenderErweitert}
               aufKalenderErweitertAenderung={setKalenderErweitert}
               {...feldHinweis(warnungen)}
+              {...(deutung === undefined ? {} : { deutung })}
+              {...(etwaJahr === null
+                ? {}
+                : {
+                    aktionBeiNichtAufloesbar: (
+                      <Schaltflaeche variante="unauffaellig" aufKlick={alsEtwaSpeichern}>
+                        {t('unlesbar_als_etwa_speichern', { jahr: etwaJahr })}
+                      </Schaltflaeche>
+                    ),
+                  })}
             />
           </Formularfeld>
         </div>

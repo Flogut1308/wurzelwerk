@@ -15,7 +15,7 @@
 //   Datum mit Koaleszenzfeld (Autosave), Ort und Sicherheit als Einzelschritte ohne Koaleszenz
 //   (Auswahl wie Umschalter, V-130-4-autosave). Ein leeres Feld legt beim ersten Schreiben an (K).
 import { formatiere } from '../../../core/datum/formatierer'
-import type { Formatergebnis, Kalender } from '../../../core/datum/typen'
+import type { Datumswert, Formatergebnis, Kalender } from '../../../core/datum/typen'
 import { LEBENSDATUM_ANGABEN, lebensdatumArt, type LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
 import type { AussageAendernEin, AussageAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
@@ -29,6 +29,7 @@ import type {
   PersonDetailLebensdatum,
   PersonDetailWarnung,
 } from '../../../shared/schemata/person-detail'
+import { datumsfeldInterpretationAusWert, type DatumsfeldInterpretation } from '../../bausteine/datumsfeld-logik'
 import type { AussageAenderung } from './profil-aussage-logik'
 import { ereignisWert, herkunftSchluesselFuer, type EreignisWert, type HerkunftSchluessel } from './profil-lebensdaten-logik'
 
@@ -217,6 +218,30 @@ export function datumsgruppeAnzeige(gruppe: PersonDetailAussageDatum): DatumAnze
 }
 
 /** Anzeige einer Datums-Aussage: die Datumsgruppe; ohne sie (Altbestand „nur Text") der Wert selbst. */
+/**
+ * AP-1.30 U-130-9b-unlesbar: Deutungszeile für den GESPEICHERTEN Wert einer Datums-Aussage — ohne
+ * den Originaltext, damit ein als „etwa 1788" gespeicherter unlesbarer Wortlaut („31.02.1788") im
+ * Feld nicht als „nicht auflösbar" erscheint. `undefined`, wenn die Gruppe kein lesbares Datum ist.
+ */
+export function gespeicherteDeutung(aussage: PersonDetailAussage): DatumsfeldInterpretation | undefined {
+  const gruppe = aussage.datum
+  if (gruppe === null) return undefined
+  const kalender = KalenderEnum.safeParse(gruppe.kalender)
+  const modifikator = DatumModifikatorEnum.safeParse(gruppe.modifikator)
+  const praezision = DatumPraezisionEnum.safeParse(gruppe.praezision)
+  if (!kalender.success || !modifikator.success || !praezision.success || gruppe.wert1 === null || gruppe.sort_von === null || gruppe.sort_bis === null) return undefined
+  const wert: Datumswert = {
+    kalender: kalender.data,
+    modifikator: modifikator.data,
+    praezision: praezision.data,
+    wert1: gruppe.wert1,
+    sortVon: gruppe.sort_von,
+    sortBis: gruppe.sort_bis,
+    ...(gruppe.wert2 === null ? {} : { wert2: gruppe.wert2 }),
+  }
+  return datumsfeldInterpretationAusWert(wert)
+}
+
 export function aussageDatumAnzeige(aussage: PersonDetailAussage): DatumAnzeige {
   if (aussage.datum !== null) return datumsgruppeAnzeige(aussage.datum)
   return aussage.wert === null ? { art: 'leer' } : { art: 'text', text: aussage.wert }
