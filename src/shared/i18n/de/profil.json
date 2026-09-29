@@ -198,6 +198,7 @@
   "tod_gruppe_grund_vermutet_verstorben": "erscheint, weil der Lebensstatus „vermutet verstorben“ ist",
   "tod_gruppe_grund_nicht_erfasst": "eingeklappt, weil der Lebensstatus nicht erfasst ist",
   "tod_gruppe_grund_von_hand": "eingeblendet, obwohl der Lebensstatus nicht „verstorben“ ist",
+  "tod_gruppe_grund_ungespeichert": "bleibt eingeblendet, weil das Todesdatum noch nicht gespeichert ist",
   "tod_gruppe_einblenden": "Tod-Angaben einblenden",
   "tod_gruppe_ausblenden": "Tod-Angaben ausblenden",
   "lebensdatum_datum_beschriftung": "Datum",

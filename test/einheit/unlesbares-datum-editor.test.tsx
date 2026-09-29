@@ -583,7 +583,7 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     vi.useRealTimers()
   })
 
-  it.fails.each(['21.02.1788', '31.03.1788', '31.02.17888'])('N1: Korrektur zu „%s" (lesbar) im Fokus — Gruppe bleibt, nichts wird geschrieben, Fokus bleibt', (lesbar) => {
+  it.each(['21.02.1788', '31.03.1788', '31.02.17888'])('N1: Korrektur zu „%s" (lesbar) im Fokus — Gruppe bleibt, nichts wird geschrieben, Fokus bleibt', (lesbar) => {
     unlesbarUndLebend()
     fokussiertTippen(TOD, lesbar)
     expect(feld(TOD)?.value).toBe(lesbar)
@@ -591,7 +591,7 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     expect(aufrufeVon('useAussageAnlegen')).toHaveLength(0)
   })
 
-  it.fails('N1: Leeren im Fokus hält die Gruppe; erst das Verlassen blendet aus, ohne zu schreiben', () => {
+  it('N1: Leeren im Fokus hält die Gruppe; erst das Verlassen blendet aus, ohne zu schreiben', () => {
     unlesbarUndLebend()
     fokussiertTippen(TOD, '')
     expect(feld(TOD)).not.toBeNull()
@@ -600,7 +600,7 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     expect(aufrufe).toHaveLength(0)
   })
 
-  it.fails('N1: eine lesbare Korrektur wird beim Verlassen geschrieben, danach blendet die Gruppe aus', () => {
+  it('N1: eine lesbare Korrektur wird beim Verlassen geschrieben, danach blendet die Gruppe aus', () => {
     unlesbarUndLebend()
     fokussiertTippen(TOD, '28.02.1788')
     verlassen(TOD)
@@ -610,7 +610,7 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     expect(feld(TOD)).toBeNull()
   })
 
-  it.fails('N2: die gehaltene Gruppe nennt ihren eigenen Grund (ungespeicherter Text)', () => {
+  it('N2: die gehaltene Gruppe nennt ihren eigenen Grund (ungespeicherter Text)', () => {
     unlesbarUndLebend()
     expect(todGruppe()?.textContent).toContain('noch nicht gespeichert')
   })

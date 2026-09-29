@@ -74,6 +74,7 @@ export const TOD_GRUPPE_GRUND_SCHLUESSEL = [
   'tod_gruppe_grund_vermutet_verstorben',
   'tod_gruppe_grund_nicht_erfasst',
   'tod_gruppe_grund_von_hand',
+  'tod_gruppe_grund_ungespeichert',
 ] as const
 
 /** Beschriftung neben „Tod", warum die Gruppe zu sehen bzw. eingeklappt ist (Entwurf: „erscheint,

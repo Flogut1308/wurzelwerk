@@ -33,7 +33,7 @@ export interface UnlesbareEingabenMelder {
 }
 
 /** Vom Editor: führt `aktion` aus oder öffnet die Nachfrage für die gemeldeten `feldIds`. */
-export type Nachfragen = (feldIds: readonly string[], aktion: () => void) => void
+export type Nachfragen = UnlesbareEingabenMelder['nachfragen']
 
 export const UnlesbareEingabenKontext = createContext<UnlesbareEingabenMelder | null>(null)
 

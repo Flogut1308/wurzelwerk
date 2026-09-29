@@ -89,16 +89,20 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
   const [geoeffnetBei, setGeoeffnetBei] = useState<LebendStatusAuswahl | null>(null)
   const [belegFeld, setBelegFeld] = useState<PersonDetailGrunddatenFeld | null>(null)
   const nachfrager = useContext(UnlesbareEingabenKontext)
-  // hueter #167 H1: hält das Todesdatum einen unlesbaren, ungespeicherten Text, bleibt die Tod-Gruppe
-  // offen — auch wenn der Lebensstatus (auch per Undo) auf „lebend"/„nicht erfasst" wechselt. Sonst
-  // hinge das Feld still aus und der Text wäre verloren. Ausblenden von Hand fragt nach.
-  const [todesdatumUnlesbar, setTodesdatumUnlesbar] = useState(false)
-  const aufUnlesbar = useCallback((angabeId: LebensdatumAngabe, unlesbar: boolean) => {
-    if (angabeId === 'todesdatum') setTodesdatumUnlesbar(unlesbar)
+  // hueter #167 H1 / Nachreview N1: hält das Todesdatum einen unlesbaren, ungespeicherten Text, bleibt
+  // die Tod-Gruppe offen — auch wenn der Lebensstatus (auch per Undo) auf „lebend"/„nicht erfasst"
+  // wechselt; sonst hinge das Feld still aus. Gehalten wird, bis das Feld verlassen ist (nicht nur,
+  // solange der Text unlesbar ist): sonst schnappte die Gruppe beim Korrigieren mitten im Tippen zu,
+  // und der Aushänge-Flush schriebe einen halben Wert. Ausblenden von Hand fragt nach.
+  const [todesdatumHaelt, setTodesdatumHaelt] = useState(false)
+  const aufOffenHalten = useCallback((angabeId: LebensdatumAngabe, halten: boolean) => {
+    if (angabeId === 'todesdatum') setTodesdatumHaelt(halten)
   }, [])
-  const todZustand = todesdatumUnlesbar ? 'offen' : todGruppeZustand(status, geoeffnetBei)
+  const regulaerZustand = todGruppeZustand(status, geoeffnetBei)
+  const todZustand = todesdatumHaelt ? 'offen' : regulaerZustand
   const warnungen = warnungenZuordnen(daten.warnungen, todZustand === 'offen')
-  const todGrund = todGruppeGrundSchluessel(status, todZustand)
+  // N2: eine nur wegen des ungespeicherten Texts offene Gruppe nennt diesen Grund.
+  const todGrund = todesdatumHaelt && regulaerZustand !== 'offen' ? 'tod_gruppe_grund_ungespeichert' : todGruppeGrundSchluessel(status, todZustand)
 
   function angabe(angabeId: LebensdatumAngabe) {
     return (
@@ -109,7 +113,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
         idPraefix={idPraefix}
         aufSprung={aufSprung}
         aufBelegeOeffnen={setBelegFeld}
-        aufUnlesbar={aufUnlesbar}
+        aufOffenHalten={aufOffenHalten}
       />
     )
   }
@@ -346,14 +350,15 @@ interface LebensdatumAngabeFeldProps {
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
   readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
-  /** Meldet, ob das Datumsfeld einen unlesbaren, ungespeicherten Text hält (hueter #167 H1). */
-  readonly aufUnlesbar: (angabe: LebensdatumAngabe, unlesbar: boolean) => void
+  /** Meldet, ob das Datumsfeld seine Gruppe offen halten muss: es hält einen unlesbaren,
+   * ungespeicherten Text oder wird seitdem noch bearbeitet (hueter #167 H1, Nachreview N1). */
+  readonly aufOffenHalten: (angabe: LebensdatumAngabe, halten: boolean) => void
 }
 
 /** Ein Lebensdatum: gesperrter Ereigniswert oder bearbeitbares Datum/Ort. Leer und Aussage teilen
  * dieselbe Komponente (kein Neueinhängen beim ersten Anlegen — sonst schriebe der Unmount-Flush
  * des Debounce einen ausstehenden Entwurf ein zweites Mal als Anlage). */
-function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufUnlesbar }: LebensdatumAngabeFeldProps) {
+function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufOffenHalten }: LebensdatumAngabeFeldProps) {
   if (zustand.art === 'ereignis') {
     return <GesperrterWert personId={personId} zustand={zustand} warnungen={warnungen} idPraefix={idPraefix} aufSprung={aufSprung} />
   }
@@ -371,7 +376,7 @@ function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSpr
       warnungen={warnungen}
       idPraefix={idPraefix}
       aufBelegeOeffnen={aufBelegeOeffnen}
-      aufUnlesbar={aufUnlesbar}
+      aufOffenHalten={aufOffenHalten}
     />
   )
 }
@@ -416,8 +421,8 @@ function DatumAngabe({
   warnungen,
   idPraefix,
   aufBelegeOeffnen,
-  aufUnlesbar,
-}: BearbeitbareAngabeProps & { readonly aufUnlesbar: (angabe: LebensdatumAngabe, unlesbar: boolean) => void }) {
+  aufOffenHalten,
+}: BearbeitbareAngabeProps & { readonly aufOffenHalten: (angabe: LebensdatumAngabe, halten: boolean) => void }) {
   const { t } = useTranslation('profil')
   const { t: tDatum } = useTranslation('datum')
   const { t: tFehler } = useTranslation('fehler')
@@ -440,22 +445,34 @@ function DatumAngabe({
   const [etwaGesendet, setEtwaGesendet] = useState<string | null>(null)
   const unlesbar = entwurf.trim() !== '' && entwurf !== gespeichert && entwurf !== etwaGesendet && datumswertAusText(entwurf, kalender) === undefined
   const etwaDatum = unlesbar ? etwaDatumswertAusText(entwurf, kalender) : undefined
+  // War der Text seit dem letzten Verlassen einmal unlesbar, hält das Feld seine Gruppe bis zum
+  // nächsten Verlassen offen (Nachreview #167 N1); Verwerfen und „etwa“-Speichern lösen es sofort.
+  // Zustandsanpassung während des Renderns wie `useEntwurfMitVerzoegertemCommit`, kein Effekt.
+  const [warUnlesbar, setWarUnlesbar] = useState(false)
+  if (unlesbar && !warUnlesbar) setWarUnlesbar(true)
+  const offenHalten = unlesbar || warUnlesbar
   const etwaJahr = etwaDatum?.wert1 === undefined ? null : Number(etwaDatum.wert1)
+
+  function verwerfen(): void {
+    setEntwurf(gespeichert)
+    setWarUnlesbar(false)
+  }
 
   function alsEtwaSpeichern(): void {
     if (etwaDatum === undefined) return
     schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, etwaDatum), anlegen: { datum: etwaDatum }, koaleszenz: false })
     setEtwaGesendet(entwurf)
+    setWarUnlesbar(false)
   }
 
   useEffect(() => {
-    aufUnlesbar(angabe, unlesbar)
-    return () => aufUnlesbar(angabe, false)
-  }, [aufUnlesbar, angabe, unlesbar])
+    aufOffenHalten(angabe, offenHalten)
+    return () => aufOffenHalten(angabe, false)
+  }, [aufOffenHalten, angabe, offenHalten])
 
   useUnlesbarMelden(
     unlesbar
-      ? { feldId, beschriftung, text: entwurf.trim(), jahr: etwaJahr, verwerfen: () => setEntwurf(gespeichert), alsEtwaSpeichern }
+      ? { feldId, beschriftung, text: entwurf.trim(), jahr: etwaJahr, verwerfen, alsEtwaSpeichern }
       : null,
   )
 
@@ -477,6 +494,7 @@ function DatumAngabe({
               aufVerlassen={() => {
                 sofortSchreiben()
                 if (entwurf.trim() === '') setEntwurf(gespeichert)
+                setWarUnlesbar(false)
               }}
               kalender={kalender}
               aufKalenderAenderung={(neu) => {
