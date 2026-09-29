@@ -18,6 +18,13 @@ export const DATUMS_PRAEDIKATE = ['geburtsdatum', 'todesdatum'] as const
 
 export type DatumsPraedikat = (typeof DATUMS_PRAEDIKATE)[number]
 
+/** AP-1.30 PR 9c (docs/80 §33 V-130-9-entscheidungen D2, V-130-9c E5): die Kurzbeschreibung einer
+ * Person ist eine Aussage mit diesem Prädikat und einem Textwert (`wertText`) — keine eigene Spalte,
+ * keine Migration. Hier neben den Datumsprädikaten, damit kein Aufrufer den Namen neu schreibt. */
+export const KURZBESCHREIBUNG_PRAEDIKAT = 'kurzbeschreibung'
+
+export type KurzbeschreibungPraedikat = typeof KURZBESCHREIBUNG_PRAEDIKAT
+
 export function istDatumsPraedikat(praedikat: string): boolean {
   return DATUMS_PRAEDIKATE.some((datumsPraedikat) => datumsPraedikat === praedikat)
 }

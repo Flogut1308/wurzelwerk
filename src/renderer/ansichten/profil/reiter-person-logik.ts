@@ -14,11 +14,15 @@
 // - Befehle: Änderungen über `aussageAendernEinAus` (profil-aussage-logik.ts, verlustfreie Rundreise);
 //   Datum mit Koaleszenzfeld (Autosave), Ort und Sicherheit als Einzelschritte ohne Koaleszenz
 //   (Auswahl wie Umschalter, V-130-4-autosave). Ein leeres Feld legt beim ersten Schreiben an (K).
+// - PR 9c (docs/80 §33 V-130-9c): Hauptname = die bevorzugte Namensform (E4), geschrieben über die
+//   flache Namensbrücke (`profil-bearbeiten-logik.ts`); Kurzbeschreibung = Aussage-Prädikat
+//   `kurzbeschreibung` (E5), die vorrangige wird bearbeitet (E9).
 import { formatiere } from '../../../core/datum/formatierer'
 import type { Datumswert, Formatergebnis, Kalender } from '../../../core/datum/typen'
+import { KURZBESCHREIBUNG_PRAEDIKAT, type KurzbeschreibungPraedikat } from '../../../core/person/datums-wert'
 import { LEBENSDATUM_ANGABEN, lebensdatumArt, type LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
-import type { AussageAendernEin, AussageAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
+import type { AussageAendernEin, AussageAnlegenEin, NameAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'
 import { DatumModifikatorEnum, DatumPraezisionEnum, KalenderEnum } from '../../../shared/schemata/gemeinsam'
 import type { Datumswert as VertragsDatumswert } from '../../../shared/schemata/import-v1'
 import type {
@@ -27,10 +31,12 @@ import type {
   PersonDetailGrunddatenFeld,
   PersonDetailKopf,
   PersonDetailLebensdatum,
+  PersonDetailName,
   PersonDetailWarnung,
 } from '../../../shared/schemata/person-detail'
 import { datumsfeldInterpretationAusWert, type DatumsfeldInterpretation } from '../../bausteine/datumsfeld-logik'
 import type { AussageAenderung } from './profil-aussage-logik'
+import { nameAnlegenEinAusEintrag, rufnameAuswahlWert, type NamenEintragWerte } from './profil-bearbeiten-logik'
 import { ereignisWert, herkunftSchluesselFuer, type EreignisWert, type HerkunftSchluessel } from './profil-lebensdaten-logik'
 
 // ── Lebensstatus ──────────────────────────────────────────────────────────────────────────────
@@ -129,7 +135,8 @@ export type LebensdatumFeld =
       readonly wert: EreignisWert
     }
 
-/** Bevorzugte, sonst erste Aussage (Ladereihenfolge `ORDER BY praedikat, id`). */
+/** Bevorzugte, sonst erste Aussage (Ladereihenfolge `ORDER BY praedikat, id`). Auch die Regel für
+ * mehrere Kurzbeschreibungen (Altbestand, PR 9c E9): bearbeitet wird die vorrangige. */
 function vorrangigeAussage(feld: PersonDetailGrunddatenFeld): PersonDetailAussage | undefined {
   return feld.aussagen.find((aussage) => aussage.ist_bevorzugt) ?? feld.aussagen[0]
 }
@@ -284,6 +291,67 @@ export function ortAenderung(aussage: PersonDetailAussage, ortId: string): Aussa
   }
 }
 
+// ── Hauptname (PR 9c, docs/80 §33 V-130-9c) ────────────────────────────────────────────────────
+
+/**
+ * Welche Namensform die Gruppe „Hauptname" bearbeitet (E4): die mit `ist_bevorzugt`, nie einfach
+ * `namen[0]`. `weitere` = die übrigen Formen (Link „n weitere Namensformen · Reiter Namen", E6).
+ * - `ohne_namen`: die Person hat keine Form — das erste nicht-leere Tippen legt sie an (E2); der
+ *   Befehl macht die erste Form einer Person zum Hauptnamen (`name-anlegen.ts`).
+ * - `ohne_hauptname`: Formen, aber keine bevorzugte (verletzt „genau ein Hauptname", Altbestand):
+ *   NICHT anlegen (das ergäbe eine weitere Form) und keine andere Form raten — nur der Weg in den
+ *   Reiter „Namen".
+ */
+export type HauptnameZustand =
+  | { readonly art: 'hauptname'; readonly name: PersonDetailName; readonly weitere: number }
+  | { readonly art: 'ohne_namen'; readonly weitere: 0 }
+  | { readonly art: 'ohne_hauptname'; readonly weitere: number }
+
+export function hauptnameZustand(namen: readonly PersonDetailName[]): HauptnameZustand {
+  if (namen.length === 0) return { art: 'ohne_namen', weitere: 0 }
+  const hauptname = namen.find((name) => name.ist_bevorzugt)
+  return hauptname === undefined ? { art: 'ohne_hauptname', weitere: namen.length } : { art: 'hauptname', name: hauptname, weitere: namen.length - 1 }
+}
+
+/** E2: Sind alle SICHTBAREN Namensteile (Vorname(n), Nachname) leer, wird nicht geschrieben — beim
+ * Verlassen zeigt die Gruppe wieder den gespeicherten Namen (kein stilles Leeren des Hauptnamens).
+ * Der Rufname zählt nicht: er markiert nur einen der Vornamen. */
+export function hauptnameHatSichtbarenInhalt(eintrag: NamenEintragWerte): boolean {
+  return eintrag.vornamen.trim() !== '' || eintrag.nachname.trim() !== ''
+}
+
+/** `name.anlegen` für den ersten Hauptnamen (E2). Ein Rufname geht nur mit, wenn er einen der
+ * Vornamen markiert — sonst hinge `zerlegeName` ihn als weiteren Vornamen an (E1, dieselbe Regel wie
+ * `rufnameFuerAenderung` beim Ändern, V-130-fix-rufname-anhaengen). */
+export function hauptnameAnlegenEin(personId: string, eintrag: NamenEintragWerte): NameAnlegenEin {
+  const rufname = rufnameAuswahlWert(eintrag) === '' ? '' : eintrag.rufname
+  return nameAnlegenEinAusEintrag(personId, { ...eintrag, rufname, rufnameIndex: rufname === '' ? null : eintrag.rufnameIndex })
+}
+
+// ── Kurzbeschreibung (PR 9c, E5/E9) ────────────────────────────────────────────────────────────
+
+/** Die zu bearbeitende Kurzbeschreibung: die vorrangige Aussage des Prädikats (E9, mehrere nur im
+ * Altbestand), sonst `null` (dann legt das erste Tippen an). */
+export function kurzbeschreibungAussage(grunddaten: readonly PersonDetailGrunddatenFeld[]): PersonDetailAussage | null {
+  const feld = grunddaten.find((kandidat) => kandidat.praedikat === KURZBESCHREIBUNG_PRAEDIKAT)
+  return feld === undefined ? null : (vorrangigeAussage(feld) ?? null)
+}
+
+/** Text im Feld: der Textwert; ein Altbestands-Wert ohne Text (Zahl, Verweis) in seiner Anzeige. */
+export function kurzbeschreibungText(aussage: PersonDetailAussage | null): string {
+  if (aussage === null) return ''
+  return aussage.wert_text ?? aussage.wert ?? ''
+}
+
+/** Neuer Text. Genau ein Wert (AP-1.12): ein Altbestands-Wert als Zahl oder Verweis weicht dem Text. */
+export function kurzbeschreibungAenderung(aussage: PersonDetailAussage, text: string): AussageAenderung {
+  return {
+    wertText: text,
+    ...(aussage.wert_zahl === null ? {} : { wertZahl: null }),
+    ...(aussage.wert_ref_id === null ? {} : { wertRefId: null }),
+  }
+}
+
 // ── Befehle ────────────────────────────────────────────────────────────────────────────────────
 
 /** Einzelschritt ohne Koaleszenz (Sicherheit, Ortswahl, „Datum entfernen"): ohne `feld` fasst der Bus
@@ -303,7 +371,12 @@ export const KONFIDENZ_VORGABE = 2
 
 export type AnlegeWert = { readonly datum: VertragsDatumswert } | { readonly wertRefId: string } | { readonly wertText: string }
 
-export function aussageAnlegenEinFuer(personId: string, praedikat: LebensdatumAngabe, wert: AnlegeWert, konfidenz: number): AussageAnlegenEin {
+/** Die Prädikate, die der Reiter „Person" als eigene Aussage anlegt und ändert: die vier Lebensdaten
+ * und (PR 9c, E5) die Kurzbeschreibung. Ein geschlossener Typ statt `string` — kein Tippfehler legt
+ * still ein neues Prädikat an. */
+export type ReiterPersonPraedikat = LebensdatumAngabe | KurzbeschreibungPraedikat
+
+export function aussageAnlegenEinFuer(personId: string, praedikat: ReiterPersonPraedikat, wert: AnlegeWert, konfidenz: number): AussageAnlegenEin {
   return { subjektTyp: 'person', subjektId: personId, praedikat, ...wert, konfidenz }
 }
 

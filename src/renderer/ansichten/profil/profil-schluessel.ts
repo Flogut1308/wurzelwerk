@@ -207,6 +207,8 @@ export const PRAEDIKAT_SCHLUESSEL: Readonly<Record<string, string>> = {
   auswanderung: 'praedikat_auswanderung',
   vermoegen: 'praedikat_vermoegen',
   mitgliedschaft: 'praedikat_mitgliedschaft',
+  // AP-1.30 PR 9c (E5): `KURZBESCHREIBUNG_PRAEDIKAT` (src/core/person/datums-wert.ts).
+  kurzbeschreibung: 'praedikat_kurzbeschreibung',
 }
 
 /** `undefined` für ein unbekanntes/benutzerdefiniertes Prädikat — der Aufrufer zeigt dann das
