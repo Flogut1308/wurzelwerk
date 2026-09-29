@@ -26,16 +26,18 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
 interface Steuerung<T> {
   entwurf: T | undefined
   setEntwurf: (wert: T) => void
+  sofortSchreiben: () => void
 }
 
 function neueSteuerung<T>(): Steuerung<T> {
-  return { entwurf: undefined, setEntwurf: () => {} }
+  return { entwurf: undefined, setEntwurf: () => {}, sofortSchreiben: () => {} }
 }
 
 function Harness<T>({ wert, aufCommit, steuerung }: { readonly wert: T; readonly aufCommit: (wert: T) => void; readonly steuerung: Steuerung<T> }) {
-  const [entwurf, setEntwurf] = useEntwurfMitVerzoegertemCommit(wert, aufCommit)
+  const [entwurf, setEntwurf, sofortSchreiben] = useEntwurfMitVerzoegertemCommit(wert, aufCommit)
   steuerung.entwurf = entwurf
   steuerung.setEntwurf = setEntwurf
+  steuerung.sofortSchreiben = sofortSchreiben
   return null
 }
 
@@ -158,5 +160,68 @@ describe('Autosave: Nachladen nach dem eigenen Schreiben (U-130-fix-ablauf07-nac
     expect(s.entwurf).toBe('Start')
     warte(AUTOSAVE_DEBOUNCE_MS * 2)
     expect(aufCommit).toHaveBeenCalledTimes(1)
+  })
+
+  // hueter-Review PR #173, Mutation M6 (ohne `setBekannt(wert)` im Übernahme-Zweig): `bekannt` bliebe
+  // auf W0 stehen, das Undo auf W0 sähe aus wie das Echo des eigenen Schreibens und würde verschluckt.
+  it('fremde Änderung wird zum bekannten Stand: ein späteres Undo auf den Ausgangswert wird übernommen', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung<string>()
+    zeige('W0', aufCommit, s)
+    zeige('X', aufCommit, s) // fremd (anderes Fenster/Redo), übernommen
+    expect(s.entwurf).toBe('X')
+    tippe(s, 'Xf') // noch nicht geschrieben
+    zeige('W0', aufCommit, s) // Undo liefert den Ausgangswert
+    expect(s.entwurf).toBe('W0')
+    warte(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(aufCommit).not.toHaveBeenCalled()
+  })
+
+  // hueter-Review PR #173, Mutation M4 (ohne `setBekannt(ausstehend.entwurf)` in `sofortSchreiben`):
+  // das Echo des Blur-Commits sähe fremd aus und überschriebe den Anschlag im nächsten Feld.
+  it('Blur-Pfad (Namenszeile): nach dem Blur-Commit im nächsten Feld weitergetippt, Echo überschreibt nicht', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung<Zeile>()
+    zeige<Zeile>({ vornamen: 'Anna', nachname: 'Muster' }, aufCommit, s)
+    tippe<Zeile>(s, { vornamen: 'Annax', nachname: 'Muster' })
+    act(() => {
+      s.sofortSchreiben() // Blur auf „Vornamen"
+    })
+    expect(aufCommit).toHaveBeenCalledTimes(1)
+    expect(aufCommit).toHaveBeenLastCalledWith({ vornamen: 'Annax', nachname: 'Muster' })
+    tippe<Zeile>(s, { vornamen: 'Annax', nachname: 'Musterx' }) // sofort im Nachnamen weiter
+    zeige<Zeile>({ vornamen: 'Annax', nachname: 'Muster' }, aufCommit, s) // Echo des Blur-Commits
+    expect(s.entwurf).toEqual({ vornamen: 'Annax', nachname: 'Musterx' })
+    warte(AUTOSAVE_DEBOUNCE_MS)
+    expect(aufCommit).toHaveBeenCalledTimes(2)
+    expect(aufCommit).toHaveBeenLastCalledWith({ vornamen: 'Annax', nachname: 'Musterx' })
+  })
+
+  // Mutation M7 (`strukturGleich` ohne Schlüsselanzahl-Vergleich): ein Wert mit weniger Schlüsseln
+  // gälte als gleich und würde als Echo verworfen.
+  it('fremder Wert mit weniger Schlüsseln ist kein Echo und wird übernommen', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung<Readonly<Record<string, string>>>()
+    zeige<Readonly<Record<string, string>>>({ a: '1', b: '2' }, aufCommit, s)
+    tippe<Readonly<Record<string, string>>>(s, { a: '1', b: '2x' })
+    const fremd: Readonly<Record<string, string>> = { a: '1' }
+    zeige(fremd, aufCommit, s)
+    expect(s.entwurf).toBe(fremd)
+    warte(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(aufCommit).not.toHaveBeenCalled()
+  })
+
+  // Mutation M8 (`strukturGleich` ohne Array-Prüfung): `[]` und `{}` hätten beide null Schlüssel.
+  it('ein leeres Objekt ist kein Echo eines leeren Arrays', () => {
+    type Form = readonly string[] | Readonly<Record<string, string>>
+    const aufCommit = vi.fn()
+    const s = neueSteuerung<Form>()
+    zeige<Form>([], aufCommit, s)
+    tippe<Form>(s, ['x'])
+    const fremd: Form = {}
+    zeige(fremd, aufCommit, s)
+    expect(s.entwurf).toBe(fremd)
+    warte(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(aufCommit).not.toHaveBeenCalled()
   })
 })
