@@ -87,6 +87,9 @@ export class KoaleszenzTakt {
     const vorige = this.vorige
     if (vorige !== null) {
       // Vorbedingung der Koaleszenz — derselbe Vergleich wie `versucheZusammenfassen()`.
+      // Review #171 H1: der Zeitpunkt muss weiterwandern (gleitendes Fenster) — sonst läse der Takt
+      // einen veralteten Verlauf, und Abstand 0 + gleiche ID wären fälschlich grün.
+      expect(jetzt.zeitpunkt, 'Zeitpunkt wandert je Schreiben weiter (App-Uhr)').toBeGreaterThan(vorige.zeitpunkt)
       expect(jetzt.zeitpunkt - vorige.zeitpunkt, 'Abstand zweier Schreibvorgänge (App-Uhr)').toBeLessThan(KOALESZENZ_FENSTER_MS)
       expect(jetzt.id, 'im Fenster zusammengefasst (dieselbe Transaktion)').toBe(vorige.id)
     }
