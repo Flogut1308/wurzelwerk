@@ -81,6 +81,14 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
     expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
   })
 
+  // Nachreview H-C: zerlegeName speichert den angehängten Rufnamen roh — „Hans  Peter“ mit doppeltem
+  // Leerraum ist speicherbar und darf seine Markierung nicht verlieren.
+  it('mehrwortiger Rufname mit doppeltem Leerraum behält seine Markierung', () => {
+    const eintrag = { ...KARL_FRIEDRICH, vornamen: 'Karl Hans  Peter', rufname: 'Hans  Peter', rufnameIndex: 1 }
+    expect(rufnameAuswahlWert(eintrag)).toBe('1')
+    expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
+  })
+
   it('bestehende Zeile: Rufname ist eine Auswahl aus den Vornamen, der markierte ist gewählt', () => {
     const name: PersonDetailName = {
       id: 'name-1',

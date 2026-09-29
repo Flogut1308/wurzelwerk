@@ -80,7 +80,7 @@ function schriftOptionen(t: (schluessel: string) => string): readonly Auswahlfel
 /** A-02, AP-1.30 (Fix Rufname-Anhängen): der Rufname einer BESTEHENDEN Zeile wird aus ihren Vornamen
  * gewählt (docs/20_Domaenenwissen.md §24: Markierung einer Position in der Vornamenkette), nicht
  * getippt — ein getippter Rufname ging mit jedem Autosave-Zwischenstand als zusätzlicher Vorname in
- * die Datenbank (`rufnameTextFuerAenderung`, `profil-bearbeiten-logik.ts`). */
+ * die Datenbank (`rufnameFuerAenderung`, `profil-bearbeiten-logik.ts`). */
 function rufnameOptionen(t: (schluessel: string) => string, eintrag: NamenEintragWerte): readonly AuswahlfeldOption<string>[] {
   return [{ wert: '', beschriftung: t('name_rufname_unbestimmt') }, ...rufnameAuswahlVornamen(eintrag).map(({ wert, vorname }) => ({ wert, beschriftung: vorname }))]
 }
