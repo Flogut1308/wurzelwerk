@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../core/datum/typen'
 import { Auswahlfeld, type AuswahlfeldOption } from './auswahlfeld'
-import { datumsfeldInterpretation } from './datumsfeld-logik'
+import { datumsfeldInterpretation, type DatumsfeldInterpretation } from './datumsfeld-logik'
 import { Eingabekoerper } from './eingabekoerper'
 import { Symbol } from './symbol'
 import { Text } from './text'
@@ -49,6 +49,14 @@ export interface DatumsfeldProps {
    * dem folgenden zugeordnet wird (Design-Review E6) — und beschreibt das Eingabefeld per
    * `aria-describedby`. */
   readonly hinweis?: ReactNode
+  /** AP-1.30 U-130-9b-unlesbar: Aktion direkt unter der Deutungszeile, nur solange der Text nicht
+   * auflösbar ist (z. B. „Als ‚etwa 1788‘ mit Originaltext speichern"). Außerhalb der
+   * `aria-live`-Region, damit ein Knopf nicht mit angesagt wird. */
+  readonly aktionBeiNichtAufloesbar?: ReactNode
+  /** AP-1.30 U-130-9b-unlesbar: Deutung, die der Aufrufer besser kennt als `parse(text)` — z. B. ein
+   * gespeichertes „etwa 1788", das mit seinem unlesbaren Originaltext im Feld steht. Ohne Angabe
+   * deutet das Feld den Text selbst (Regelfall). */
+  readonly deutung?: DatumsfeldInterpretation
 }
 
 /**
@@ -74,13 +82,15 @@ export function Datumsfeld({
   ariaLabel,
   aufVerlassen,
   hinweis,
+  aktionBeiNichtAufloesbar,
+  deutung,
 }: DatumsfeldProps) {
   const { t } = useTranslation('felder')
   const erzeugteId = useId()
   const hinweisId = `${id ?? erzeugteId}-hinweis`
   const hatHinweis = hinweis !== undefined && hinweis !== null
   const { t: tDatum } = useTranslation('datum')
-  const interpretation = datumsfeldInterpretation(text)
+  const interpretation = deutung ?? datumsfeldInterpretation(text)
 
   const kalenderOptionen: readonly AuswahlfeldOption<Kalender>[] = KALENDER_REIHENFOLGE.map((eintrag) => ({
     wert: eintrag,
@@ -131,6 +141,9 @@ export function Datumsfeld({
           </Text>
         ) : null}
       </div>
+      {interpretation.art === 'nicht_aufloesbar' && aktionBeiNichtAufloesbar !== undefined ? (
+        <div className="wz-datumsfeld__aktion">{aktionBeiNichtAufloesbar}</div>
+      ) : null}
       <button
         type="button"
         className="wz-datumsfeld__kalenderKnopf"

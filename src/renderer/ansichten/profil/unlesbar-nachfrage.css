@@ -1,0 +1,35 @@
+/*
+ * Nachfrage „Datum nicht lesbar" (AP-1.30 U-130-9b-unlesbar). Eine durchsichtige Ebene über dem
+ * Editor fängt Klicks ab (modal); die Karte steht mittig mit den Modal-Tokens. Es gibt keinen
+ * Abdunkelungs-Token — darum keine Abdunkelung (CLAUDE.md §14, Design-Review). `position: fixed`
+ * wie `seitenschublade.css` (kein Portal; kein Elternteil setzt `transform`).
+ */
+
+.wz-unlesbar-nachfrage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--wz-abstand-24);
+  background: transparent;
+  z-index: 300;
+}
+
+.wz-unlesbar-nachfrage__karte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+  width: min(480px, 100%);
+  padding: var(--wz-abstand-24);
+  border: 1px solid var(--wz-rahmen-standard);
+  border-radius: var(--wz-radius-modal);
+  background: var(--wz-flaeche-ueberlagert);
+  box-shadow: var(--wz-schatten-modal);
+}
+
+.wz-unlesbar-nachfrage__aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-12);
+}

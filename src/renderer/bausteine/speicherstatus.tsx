@@ -3,8 +3,8 @@ import { relativeSpeicherzeit } from './speicherstatus-logik'
 import './speicherstatus.css'
 
 /**
- * Drei Zustände, bewusst ohne Ruhezustand: vor dem ersten Schreiben rendert der Aufrufer den
- * Baustein gar nicht (Entwicklungsvorgaben §1 nennt genau diese drei Texte).
+ * Drei Zustände aus den Entwicklungsvorgaben §1 und seit U-130-9b-unlesbar ein vierter („unlesbar"),
+ * bewusst ohne Ruhezustand: vor dem ersten Schreiben rendert der Aufrufer den Baustein gar nicht.
  */
 export type SpeicherstatusProps =
   | {
@@ -16,6 +16,9 @@ export type SpeicherstatusProps =
     }
   | { readonly zustand: 'speichert' }
   | { readonly zustand: 'fehler'; readonly aufErneutVersuchen: () => void }
+  /** AP-1.30 U-130-9b-unlesbar: ein Feld hält einen nicht auflösbaren, darum ungespeicherten Datumstext.
+   * Fehlerdarstellung ohne Aktion — das Beheben geschieht am Feld bzw. in der Nachfrage beim Verlassen. */
+  | { readonly zustand: 'unlesbar' }
 
 /**
  * `Speicherstatus` — Kopf von „Person bearbeiten" (docs/design/Entwicklungsvorgaben Person
@@ -47,12 +50,14 @@ export function Speicherstatus(props: SpeicherstatusProps) {
   }
 
   return (
-    <span className={`wz-speicherstatus wz-speicherstatus--${props.zustand}`} role="status" aria-live="polite">
+    <span className={`wz-speicherstatus wz-speicherstatus--${props.zustand === 'unlesbar' ? 'fehler' : props.zustand}`} role="status" aria-live="polite">
       <span className="wz-speicherstatus__punkt" aria-hidden="true" />
       {props.zustand === 'gespeichert' ? (
         <span>{gespeichertText(props.gespeichertUm, props.jetzt)}</span>
       ) : props.zustand === 'speichert' ? (
         <span>{t('speicherstatus_speichert')}</span>
+      ) : props.zustand === 'unlesbar' ? (
+        <span>{t('speicherstatus_unlesbar')}</span>
       ) : (
         <>
           <span>{t('speicherstatus_fehler')}</span>

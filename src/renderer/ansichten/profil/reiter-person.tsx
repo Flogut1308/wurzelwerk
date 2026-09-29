@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../../core/datum/typen'
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
@@ -10,7 +10,7 @@ import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, 
 import { Auswahlfeld } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Datumsfeld } from '../../bausteine/datumsfeld'
-import { datumswertAusText } from '../../bausteine/datumsfeld-logik'
+import { datumsfeldInterpretation, datumswertAusText, etwaDatumswertAusText } from '../../bausteine/datumsfeld-logik'
 import { Eingabekoerper } from '../../bausteine/eingabekoerper'
 import { konfidenzStufe } from '../../bausteine/feld-konfidenz'
 import { Formularfeld } from '../../bausteine/formularfeld'
@@ -27,6 +27,7 @@ import { BelegListe } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
 import { aussageAendernEinAus, type AussageAenderung } from './profil-aussage-logik'
 import { useEntwurfMitVerzoegertemCommit } from './profil-bearbeiten-debounce'
+import { UnlesbareEingabenKontext, useUnlesbarMelden } from './unlesbare-eingaben'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import type { EreignisWert } from './profil-lebensdaten-logik'
 import { praedikatSchluessel } from './profil-schluessel'
@@ -38,6 +39,7 @@ import {
   aussageKalender,
   datumAenderung,
   datumsgruppeAnzeige,
+  gespeicherteDeutung,
   lebendStatusAuswahl,
   lebendStatusOptionen,
   lebendStatusSchluessel,
@@ -86,9 +88,21 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
   const status = daten.kopf.lebend_status
   const [geoeffnetBei, setGeoeffnetBei] = useState<LebendStatusAuswahl | null>(null)
   const [belegFeld, setBelegFeld] = useState<PersonDetailGrunddatenFeld | null>(null)
-  const todZustand = todGruppeZustand(status, geoeffnetBei)
+  const nachfrager = useContext(UnlesbareEingabenKontext)
+  // hueter #167 H1 / Nachreview N1: hält das Todesdatum einen unlesbaren, ungespeicherten Text, bleibt
+  // die Tod-Gruppe offen — auch wenn der Lebensstatus (auch per Undo) auf „lebend"/„nicht erfasst"
+  // wechselt; sonst hinge das Feld still aus. Gehalten wird, bis das Feld verlassen ist (nicht nur,
+  // solange der Text unlesbar ist): sonst schnappte die Gruppe beim Korrigieren mitten im Tippen zu,
+  // und der Aushänge-Flush schriebe einen halben Wert. Ausblenden von Hand fragt nach.
+  const [todesdatumHaelt, setTodesdatumHaelt] = useState(false)
+  const aufOffenHalten = useCallback((angabeId: LebensdatumAngabe, halten: boolean) => {
+    if (angabeId === 'todesdatum') setTodesdatumHaelt(halten)
+  }, [])
+  const regulaerZustand = todGruppeZustand(status, geoeffnetBei)
+  const todZustand = todesdatumHaelt ? 'offen' : regulaerZustand
   const warnungen = warnungenZuordnen(daten.warnungen, todZustand === 'offen')
-  const todGrund = todGruppeGrundSchluessel(status, todZustand)
+  // N2: eine nur wegen des ungespeicherten Texts offene Gruppe nennt diesen Grund.
+  const todGrund = todesdatumHaelt && regulaerZustand !== 'offen' ? 'tod_gruppe_grund_ungespeichert' : todGruppeGrundSchluessel(status, todZustand)
 
   function angabe(angabeId: LebensdatumAngabe) {
     return (
@@ -99,8 +113,15 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
         idPraefix={idPraefix}
         aufSprung={aufSprung}
         aufBelegeOeffnen={setBelegFeld}
+        aufOffenHalten={aufOffenHalten}
       />
     )
+  }
+
+  function todAusblenden(): void {
+    const ausblenden = () => setGeoeffnetBei(null)
+    if (nachfrager === null) ausblenden()
+    else nachfrager.nachfragen([editorFeldId(idPraefix, 'todesdatum')], ausblenden)
   }
 
   return (
@@ -152,7 +173,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
               {angabe('todesort')}
               {status === 'verstorben' || status === 'vermutet_verstorben' ? null : (
                 <div>
-                  <Schaltflaeche variante="unauffaellig" aufKlick={() => setGeoeffnetBei(null)}>
+                  <Schaltflaeche variante="unauffaellig" aufKlick={todAusblenden}>
                     {t('tod_gruppe_ausblenden')}
                   </Schaltflaeche>
                 </div>
@@ -329,12 +350,15 @@ interface LebensdatumAngabeFeldProps {
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
   readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
+  /** Meldet, ob das Datumsfeld seine Gruppe offen halten muss: es hält einen unlesbaren,
+   * ungespeicherten Text oder wird seitdem noch bearbeitet (hueter #167 H1, Nachreview N1). */
+  readonly aufOffenHalten: (angabe: LebensdatumAngabe, halten: boolean) => void
 }
 
 /** Ein Lebensdatum: gesperrter Ereigniswert oder bearbeitbares Datum/Ort. Leer und Aussage teilen
  * dieselbe Komponente (kein Neueinhängen beim ersten Anlegen — sonst schriebe der Unmount-Flush
  * des Debounce einen ausstehenden Entwurf ein zweites Mal als Anlage). */
-function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen }: LebensdatumAngabeFeldProps) {
+function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufOffenHalten }: LebensdatumAngabeFeldProps) {
   if (zustand.art === 'ereignis') {
     return <GesperrterWert personId={personId} zustand={zustand} warnungen={warnungen} idPraefix={idPraefix} aufSprung={aufSprung} />
   }
@@ -344,7 +368,16 @@ function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSpr
   return angabe === 'geburtsort' || angabe === 'todesort' ? (
     <OrtAngabe personId={personId} angabe={angabe} aussage={aussage} feld={feld} warnungen={warnungen} idPraefix={idPraefix} aufBelegeOeffnen={aufBelegeOeffnen} />
   ) : (
-    <DatumAngabe personId={personId} angabe={angabe} aussage={aussage} feld={feld} warnungen={warnungen} idPraefix={idPraefix} aufBelegeOeffnen={aufBelegeOeffnen} />
+    <DatumAngabe
+      personId={personId}
+      angabe={angabe}
+      aussage={aussage}
+      feld={feld}
+      warnungen={warnungen}
+      idPraefix={idPraefix}
+      aufBelegeOeffnen={aufBelegeOeffnen}
+      aufOffenHalten={aufOffenHalten}
+    />
   )
 }
 
@@ -375,8 +408,21 @@ function angabeKlasse(warnungen: readonly BestandHinweisCode[]): string {
 
 /** Datum als Freitext mit Deutung („Verstanden als …", D10), Autosave mit Koaleszenzfeld „datum".
  * Leer oder nicht auflösbar wird nichts geschrieben; ein geleertes Feld zeigt beim Verlassen wieder
- * den gespeicherten Wert (Löschen einer Angabe gibt es hier nicht — keine stille Datenlöschung). */
-function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, aufBelegeOeffnen }: BearbeitbareAngabeProps) {
+ * den gespeicherten Wert (Löschen einer Angabe gibt es hier nicht — keine stille Datenlöschung).
+ *
+ * U-130-9b-unlesbar (docs/80 §33 V-130-unlesbar, Entscheidung B): ein unlesbarer, ungespeicherter
+ * Text meldet sich beim Editor (Speicherstatus, Nachfrage beim Verlassen); ist ein Jahr erkennbar,
+ * steht unter dem Feld „Als ‚etwa JJJJ‘ mit Originaltext speichern" (Einzelschritt, ohne Koaleszenz). */
+function DatumAngabe({
+  personId,
+  angabe,
+  aussage,
+  feld,
+  warnungen,
+  idPraefix,
+  aufBelegeOeffnen,
+  aufOffenHalten,
+}: BearbeitbareAngabeProps & { readonly aufOffenHalten: (angabe: LebensdatumAngabe, halten: boolean) => void }) {
   const { t } = useTranslation('profil')
   const { t: tDatum } = useTranslation('datum')
   const { t: tFehler } = useTranslation('fehler')
@@ -393,6 +439,46 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
 
   const [entwurf, setEntwurf, sofortSchreiben] = useEntwurfMitVerzoegertemCommit(gespeichert, (text) => datumSchreiben(text, kalender))
   const beschriftung = angabeBeschriftung(angabe, t)
+  const feldId = editorFeldId(idPraefix, angabe)
+
+  // Zuletzt als „etwa" gesendeter Text: bis das Lesemodell nachlädt, gilt er nicht mehr als unlesbar.
+  const [etwaGesendet, setEtwaGesendet] = useState<string | null>(null)
+  const istUnlesbar = (text: string) => text.trim() !== '' && text !== gespeichert && text !== etwaGesendet && datumswertAusText(text, kalender) === undefined
+  const unlesbar = istUnlesbar(entwurf)
+  const etwaDatum = unlesbar ? etwaDatumswertAusText(entwurf, kalender) : undefined
+  // Nachreview #167 N1: war der Text während dieser Bearbeitung (Fokus) einmal unlesbar, hält das
+  // Feld seine Gruppe bis zum Verlassen offen — sonst schnappte sie beim Korrigieren mitten im Tippen
+  // zu. Gesetzt nur beim Tippen, gelöscht beim Verlassen: kein Zustand, der beim Rendern entsteht und
+  // nach einem Wert von außen (Undo, Nachladen) verwaist stehen bliebe.
+  const [haeltImFokus, setHaeltImFokus] = useState(false)
+  const offenHalten = unlesbar || haeltImFokus
+  const etwaJahr = etwaDatum?.wert1 === undefined ? null : Number(etwaDatum.wert1)
+
+  function verwerfen(): void {
+    setEntwurf(gespeichert)
+  }
+
+  function alsEtwaSpeichern(): void {
+    if (etwaDatum === undefined) return
+    schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, etwaDatum), anlegen: { datum: etwaDatum }, koaleszenz: false })
+    setEtwaGesendet(entwurf)
+  }
+
+  useEffect(() => {
+    aufOffenHalten(angabe, offenHalten)
+    return () => aufOffenHalten(angabe, false)
+  }, [aufOffenHalten, angabe, offenHalten])
+
+  useUnlesbarMelden(
+    unlesbar
+      ? { feldId, beschriftung, text: entwurf.trim(), jahr: etwaJahr, verwerfen, alsEtwaSpeichern }
+      : null,
+  )
+
+  // Ein gespeicherter Wert, dessen Wortlaut sich nicht lesen lässt (als „etwa" mit Originaltext
+  // gespeichert), zeigt seine gespeicherte Deutung statt „nicht auflösbar".
+  const deutung =
+    aussage !== null && entwurf === gespeichert && datumsfeldInterpretation(entwurf).art === 'nicht_aufloesbar' ? gespeicherteDeutung(aussage) : undefined
 
   return (
     <div className={angabeKlasse(warnungen)}>
@@ -400,13 +486,17 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
         <div className="wz-reiter-person__wert wz-reiter-person__wert--datum">
           <Formularfeld beschriftung={t('lebensdatum_datum_beschriftung')} {...optionalerFehler(fehlerText(schreiber.fehler, t, tFehler))}>
             <Datumsfeld
-              id={editorFeldId(idPraefix, angabe)}
+              id={feldId}
               ariaLabel={beschriftung}
               text={entwurf}
-              aufAenderung={setEntwurf}
+              aufAenderung={(neu) => {
+                if (unlesbar || istUnlesbar(neu)) setHaeltImFokus(true)
+                setEntwurf(neu)
+              }}
               aufVerlassen={() => {
                 sofortSchreiben()
                 if (entwurf.trim() === '') setEntwurf(gespeichert)
+                setHaeltImFokus(false)
               }}
               kalender={kalender}
               aufKalenderAenderung={(neu) => {
@@ -416,6 +506,16 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
               kalenderErweitert={kalenderErweitert}
               aufKalenderErweitertAenderung={setKalenderErweitert}
               {...feldHinweis(warnungen)}
+              {...(deutung === undefined ? {} : { deutung })}
+              {...(etwaJahr === null
+                ? {}
+                : {
+                    aktionBeiNichtAufloesbar: (
+                      <Schaltflaeche variante="unauffaellig" aufKlick={alsEtwaSpeichern}>
+                        {t('unlesbar_als_etwa_speichern', { jahr: etwaJahr })}
+                      </Schaltflaeche>
+                    ),
+                  })}
             />
           </Formularfeld>
         </div>

@@ -27,6 +27,8 @@ import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
 import { ReiterPerson } from './reiter-person'
+import { UnlesbarNachfrage } from './unlesbar-nachfrage'
+import { UnlesbareEingabenKontext, useUnlesbareEingaben, type UnlesbareEingabe } from './unlesbare-eingaben'
 import { ProfilFehler, ProfilLaedt } from './profil-zustaende'
 import './profil-ansicht.css'
 import './person-bearbeiten-ansicht.css'
@@ -41,6 +43,21 @@ export interface PersonBearbeitenAnsichtProps {
 
 /** Präfix der Element-IDs von Reitern und Inhaltsbereich (`Reiterleiste`). */
 const ID_PRAEFIX = 'person-bearbeiten'
+
+/** Was der Nutzer tun wollte, als die Nachfrage „Datum nicht lesbar" kam (U-130-9b-unlesbar). */
+type Verlassen =
+  | { readonly art: 'fertig' }
+  | { readonly art: 'schliessen' }
+  | { readonly art: 'reiter'; readonly reiter: ReiterId }
+  | { readonly art: 'sprung'; readonly reiter: ReiterId; readonly feld: EditorFeld }
+  /** Aktion im Reiter, die nur die Felder `feldIds` aushängt (hueter #167 H1, Tod-Gruppe ausblenden). */
+  | { readonly art: 'aktion'; readonly aktion: () => void; readonly feldIds: readonly string[] }
+
+/** Offene Nachfrage: die angefragte Aktion und die in dieser Nachfrage schon behandelten Felder. */
+interface OffeneNachfrage {
+  readonly verlassen: Verlassen
+  readonly erledigt: readonly string[]
+}
 
 /** `Reiterleiste` erwartet DOM-taugliche Kennungen aus Buchstaben, Ziffern und `-`; die Reiter-IDs
  * des Kerns tragen `_` (`belege_medien`). Umkehrbar, weil keine Kern-ID ein `-` enthält. */
@@ -83,6 +100,8 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   const [aktiv, setAktiv] = useState<ReiterId>('person')
   const containerRef = useRef<HTMLDivElement | null>(null)
   const speicherstatus = useEditorSpeicherstatus()
+  const unlesbare = useUnlesbareEingaben((feldIds, aktion) => verlassenMitNachfrage({ art: 'aktion', aktion, feldIds }))
+  const [nachfrage, setNachfrage] = useState<OffeneNachfrage | null>(null)
   /** Letzter Sprung aus der rechten Spalte (neues Objekt je Klick, auch auf denselben Punkt). */
   const [sprung, setSprung] = useState<{ readonly reiter: ReiterId; readonly feld: EditorFeld } | null>(null)
 
@@ -97,10 +116,61 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
     ziel?.focus()
   }, [sprung])
 
-  const zuOffenemPunkt = useCallback((reiter: ReiterId, feld: EditorFeld) => {
+  /** Reiter wählen und den Fokus auf ihn setzen (wie Pfeiltasten in der `Reiterleiste`): ein
+   * fokussierter Knopf im alten Inhalt hängt beim Wechsel aus, der Fokus ginge sonst verloren. */
+  const reiterWaehlen = useCallback((reiter: ReiterId) => {
     setAktiv(reiter)
-    setSprung({ reiter, feld })
+    containerRef.current?.querySelector<HTMLElement>(`#${reiterElementId(ID_PRAEFIX, reiterDomId(reiter))}`)?.focus()
   }, [])
+
+  function ausfuehren(verlassen: Verlassen): void {
+    switch (verlassen.art) {
+      case 'fertig':
+        aufFertig()
+        return
+      case 'schliessen':
+        aufSchliessen()
+        return
+      case 'reiter':
+        reiterWaehlen(verlassen.reiter)
+        return
+      case 'sprung':
+        setAktiv(verlassen.reiter)
+        setSprung({ reiter: verlassen.reiter, feld: verlassen.feld })
+        return
+      case 'aktion':
+        verlassen.aktion()
+        return
+    }
+  }
+
+  /** Die Felder, die `verlassen` aushängt und die noch nicht behandelt sind. */
+  function betroffen(verlassen: Verlassen, erledigt: readonly string[]): readonly UnlesbareEingabe[] {
+    return unlesbare.eingaben.filter(
+      (eingabe) => !erledigt.includes(eingabe.feldId) && (verlassen.art !== 'aktion' || verlassen.feldIds.includes(eingabe.feldId)),
+    )
+  }
+
+  /**
+   * U-130-9b-unlesbar (Entscheidung B): hält ein Feld einen unlesbaren, ungespeicherten Datumstext,
+   * wird vor dem Verlassen nachgefragt — sonst sofort ausgeführt. Ein Sprung innerhalb des Reiters
+   * Person hängt kein Feld aus, darum ohne Nachfrage; Aktionen im Reiter, die Felder aushängen
+   * (Tod-Gruppe ausblenden), kommen als `art: 'aktion'` mit ihren Feldern (hueter #167 H1). `erledigt`: in dieser
+   * Nachfrage schon verworfene/gespeicherte Felder (ihre Abmeldung folgt erst mit dem nächsten Rendern).
+   */
+  function verlassenMitNachfrage(verlassen: Verlassen, erledigt: readonly string[] = []): void {
+    const bleibt = (verlassen.art === 'reiter' || verlassen.art === 'sprung') && verlassen.reiter === aktiv
+    if (bleibt || betroffen(verlassen, erledigt).length === 0) {
+      setNachfrage(null)
+      ausfuehren(verlassen)
+      return
+    }
+    setNachfrage({ verlassen, erledigt })
+  }
+
+  const offeneEingabe = nachfrage === null ? undefined : betroffen(nachfrage.verlassen, nachfrage.erledigt)[0]
+
+  const zuOffenemPunkt = (reiter: ReiterId, feld: EditorFeld) => verlassenMitNachfrage({ art: 'sprung', reiter, feld })
 
   useEffect(() => {
     const knoten = containerRef.current
@@ -116,6 +186,11 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   // blockieren; hier wirkt sie nur außerhalb von Eingabeelementen und ohne offene Schublade. Der
   // Fokus folgt auf den gewählten Reiter (wie bei Pfeiltasten in der `Reiterleiste`) — auch, weil ein
   // fokussierter Knopf im alten Inhalt beim Wechsel aushängt und der Fokus sonst verloren ginge.
+  // Über einen Ref: das Abo bleibt stabil, die Nachfrage sieht trotzdem den aktuellen Stand.
+  const verlassenRef = useRef(verlassenMitNachfrage)
+  useEffect(() => {
+    verlassenRef.current = verlassenMitNachfrage
+  })
   const kontexttaste = useCallback((taste: KontexttasteNutzlast) => {
     const knoten = containerRef.current
     const reiter = REITER[taste.reiterIndex]
@@ -124,15 +199,14 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
     const reiterElement = knoten.querySelector<HTMLElement>(`#${reiterElementId(ID_PRAEFIX, reiterDomId(reiter))}`)
     // Ohne Reiterleiste (Laden, Fehler) gibt es nichts zu wählen.
     if (reiterElement === null) return
-    setAktiv(reiter)
-    reiterElement.focus()
+    verlassenRef.current({ art: 'reiter', reiter })
   }, [])
   useKontexttasteAbo(kontexttaste)
 
   function tastendruck(ereignis: KeyboardEvent<HTMLDivElement>) {
     if (ereignis.key === 'Escape') {
       ereignis.stopPropagation()
-      aufFertig()
+      verlassenMitNachfrage({ art: 'fertig' })
       return
     }
     tabImContainerHalten(ereignis, containerRef.current)
@@ -142,89 +216,115 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
 
   return (
     <SchreibBeobachterKontext.Provider value={speicherstatus.beobachter}>
-      <div
-        ref={containerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('bearbeiten_ansicht_titel')}
-        tabIndex={-1}
-        className="wz-person-bearbeiten"
-        onKeyDown={tastendruck}
-      >
-        <header className="wz-person-bearbeiten__appleiste">
-          <nav aria-label={t('brotkrume_beschriftung')}>
-            <ol className="wz-person-bearbeiten__brotkrume">
-              <li className="wz-person-bearbeiten__brotkrume-eintrag">
-                <Text rolle="titel-klein" als="span">
-                  {t('brotkrume_app')}
-                </Text>
-              </li>
-              <li className="wz-person-bearbeiten__brotkrume-eintrag">
-                <Text rolle="koerper-klein" farbe="sekundaer" als="span">
-                  {t('brotkrume_personen')}
-                </Text>
-              </li>
-              {name === null ? null : (
-                <li className="wz-person-bearbeiten__brotkrume-eintrag" aria-current="page">
-                  <Text rolle="koerper-klein" als="span">
-                    {name}
+      <UnlesbareEingabenKontext.Provider value={unlesbare.melder}>
+        <div
+          ref={containerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('bearbeiten_ansicht_titel')}
+          tabIndex={-1}
+          className="wz-person-bearbeiten"
+          onKeyDown={tastendruck}
+        >
+          <header className="wz-person-bearbeiten__appleiste">
+            <nav aria-label={t('brotkrume_beschriftung')}>
+              <ol className="wz-person-bearbeiten__brotkrume">
+                <li className="wz-person-bearbeiten__brotkrume-eintrag">
+                  <Text rolle="titel-klein" als="span">
+                    {t('brotkrume_app')}
                   </Text>
                 </li>
-              )}
-            </ol>
-          </nav>
-        </header>
+                <li className="wz-person-bearbeiten__brotkrume-eintrag">
+                  <Text rolle="koerper-klein" farbe="sekundaer" als="span">
+                    {t('brotkrume_personen')}
+                  </Text>
+                </li>
+                {name === null ? null : (
+                  <li className="wz-person-bearbeiten__brotkrume-eintrag" aria-current="page">
+                    <Text rolle="koerper-klein" als="span">
+                      {name}
+                    </Text>
+                  </li>
+                )}
+              </ol>
+            </nav>
+          </header>
 
-        {abfrage.isPending ? (
-          <div className="wz-person-bearbeiten__koerper">
-            <ProfilLaedt />
-          </div>
-        ) : null}
-        {abfrage.isError && abfrage.error !== null ? (
-          <div className="wz-person-bearbeiten__koerper">
-            <ProfilFehler code={abfrage.error.code} />
-          </div>
-        ) : null}
-        {abfrage.isSuccess ? (
-          <>
-            <PersonenKopf kopf={abfrage.data.kopf} speicherstatus={speicherstatus} aufSchliessen={aufSchliessen} />
-            <Reiterleiste
-              idPraefix={ID_PRAEFIX}
-              beschriftung={t('reiterleiste_beschriftung')}
-              reiter={reiterleisteReiter(abfrage.data, (reiter) => t(reiterSchluessel(reiter)))}
-              aktiv={reiterDomId(aktiv)}
-              aufWechsel={(domId) => {
-                const reiter = reiterAusDomId(domId)
-                if (reiter !== undefined) setAktiv(reiter)
+          {abfrage.isPending ? (
+            <div className="wz-person-bearbeiten__koerper">
+              <ProfilLaedt />
+            </div>
+          ) : null}
+          {abfrage.isError && abfrage.error !== null ? (
+            <div className="wz-person-bearbeiten__koerper">
+              <ProfilFehler code={abfrage.error.code} />
+            </div>
+          ) : null}
+          {abfrage.isSuccess ? (
+            <>
+              <PersonenKopf
+                kopf={abfrage.data.kopf}
+                speicherstatus={speicherstatus}
+                unlesbar={unlesbare.eingaben.length > 0}
+                aufSchliessen={() => verlassenMitNachfrage({ art: 'schliessen' })}
+              />
+              <Reiterleiste
+                idPraefix={ID_PRAEFIX}
+                beschriftung={t('reiterleiste_beschriftung')}
+                reiter={reiterleisteReiter(abfrage.data, (reiter) => t(reiterSchluessel(reiter)))}
+                aktiv={reiterDomId(aktiv)}
+                aufWechsel={(domId) => {
+                  const reiter = reiterAusDomId(domId)
+                  if (reiter !== undefined) verlassenMitNachfrage({ art: 'reiter', reiter })
+                }}
+              />
+              <div className="wz-person-bearbeiten__koerper-reihe">
+                <div className="wz-person-bearbeiten__koerper">
+                  <div
+                    key={aktiv}
+                    role="tabpanel"
+                    id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
+                    aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
+                    tabIndex={0}
+                    className="wz-person-bearbeiten__inhalt"
+                  >
+                    <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
+                  </div>
+                </div>
+                <EditorRechteSpalte personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
+              </div>
+            </>
+          ) : null}
+
+          <footer className="wz-person-bearbeiten__fussleiste">
+            <Text rolle="technisch" farbe="tertiaer" als="span">
+              {t('bearbeitungsstatus_hinweis')}
+            </Text>
+            <Schaltflaeche variante="primaer" aufKlick={() => verlassenMitNachfrage({ art: 'fertig' })}>
+              {t('fertig')}
+            </Schaltflaeche>
+          </footer>
+
+          {nachfrage === null || offeneEingabe === undefined ? null : (
+            <UnlesbarNachfrage
+              key={offeneEingabe.feldId}
+              eingabe={offeneEingabe}
+              aufZurueck={() => {
+                setNachfrage(null)
+                document.getElementById(offeneEingabe.feldId)?.focus()
+              }}
+              aufVerwerfen={() => {
+                offeneEingabe.verwerfen()
+                verlassenMitNachfrage(nachfrage.verlassen, [...nachfrage.erledigt, offeneEingabe.feldId])
+              }}
+              aufAlsEtwa={() => {
+                offeneEingabe.alsEtwaSpeichern()
+                verlassenMitNachfrage(nachfrage.verlassen, [...nachfrage.erledigt, offeneEingabe.feldId])
               }}
             />
-            <div className="wz-person-bearbeiten__koerper-reihe">
-              <div className="wz-person-bearbeiten__koerper">
-                <div
-                  key={aktiv}
-                  role="tabpanel"
-                  id={reiterInhaltId(ID_PRAEFIX, reiterDomId(aktiv))}
-                  aria-labelledby={reiterElementId(ID_PRAEFIX, reiterDomId(aktiv))}
-                  tabIndex={0}
-                  className="wz-person-bearbeiten__inhalt"
-                >
-                  <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
-                </div>
-              </div>
-              <EditorRechteSpalte personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
-            </div>
-          </>
-        ) : null}
-
-        <footer className="wz-person-bearbeiten__fussleiste">
-          <Text rolle="technisch" farbe="tertiaer" als="span">
-            {t('bearbeitungsstatus_hinweis')}
-          </Text>
-          <Schaltflaeche variante="primaer" aufKlick={aufFertig}>
-            {t('fertig')}
-          </Schaltflaeche>
-        </footer>
-      </div>
+          )}
+        </div>
+      </UnlesbareEingabenKontext.Provider>
     </SchreibBeobachterKontext.Provider>
   )
 }
@@ -246,12 +346,14 @@ function reiterleisteReiter(daten: PersonDetailAus, beschriftung: (reiter: Reite
 interface PersonenKopfProps {
   readonly kopf: PersonDetailKopf
   readonly speicherstatus: EditorSpeicherstatus
+  /** Ein Feld hält einen nicht auflösbaren, ungespeicherten Datumstext (U-130-9b-unlesbar). */
+  readonly unlesbar: boolean
   readonly aufSchliessen: () => void
 }
 
 /** Fester Personenkopf (Artboard 1a): Anzeigename über `personennameText`, Kennung, Speicherstatus,
  * Schließen. Lebensspanne, Status und Kurzbeschreibung kommen mit ihren eigenen PRs. */
-function PersonenKopf({ kopf, speicherstatus, aufSchliessen }: PersonenKopfProps) {
+function PersonenKopf({ kopf, speicherstatus, unlesbar, aufSchliessen }: PersonenKopfProps) {
   const { t } = useTranslation('profil')
   const { t: tAllgemein } = useTranslation('allgemein')
   return (
@@ -264,7 +366,7 @@ function PersonenKopf({ kopf, speicherstatus, aufSchliessen }: PersonenKopfProps
           {kennungAnzeige(kopf.kennung)}
         </Text>
       </div>
-      <KopfSpeicherstatus status={speicherstatus} />
+      <KopfSpeicherstatus status={speicherstatus} unlesbar={unlesbar} />
       <SchaltflaecheSymbol name="x" variante="unauffaellig" beschriftung={t('schliessen')} aufKlick={aufSchliessen} />
     </div>
   )
@@ -274,13 +376,20 @@ function PersonenKopf({ kopf, speicherstatus, aufSchliessen }: PersonenKopfProps
  * Speicherstatus im Kopf (AP-1.30 PR 7c, V-130-7-speicherfehler): erst ab dem ersten Schreibvorgang
  * dieses Editors (vorher kein Ruhezustand, V-130-6-bausteine); danach gespeichert / speichert /
  * Fehler mit „erneut versuchen". Der Fehler bleibt, bis dasselbe Feld erfolgreich geschrieben ist.
+ *
+ * U-130-9b-unlesbar: hält ein Feld einen unlesbaren, ungespeicherten Datumstext, steht „Nicht
+ * gespeichert — Datum nicht lesbar" — auch vor dem ersten Schreiben. Ein Schreibfehler geht vor
+ * (er trägt die Aktion „erneut versuchen"); beides ist „nicht gespeichert".
  */
-function KopfSpeicherstatus({ status }: { readonly status: EditorSpeicherstatus }) {
+function KopfSpeicherstatus({ status, unlesbar }: { readonly status: EditorSpeicherstatus; readonly unlesbar: boolean }) {
   const anzeige = status.anzeige
-  if (anzeige.zustand === 'ruhe') return null
+  const zeigeUnlesbar = unlesbar && anzeige.zustand !== 'fehler'
+  if (anzeige.zustand === 'ruhe' && !zeigeUnlesbar) return null
   return (
     <div className="wz-person-bearbeiten__kopf-speicherstatus">
-      {anzeige.zustand === 'gespeichert' ? (
+      {zeigeUnlesbar ? (
+        <Speicherstatus zustand="unlesbar" />
+      ) : anzeige.zustand === 'gespeichert' ? (
         <Speicherstatus zustand="gespeichert" gespeichertUm={anzeige.gespeichertUm} jetzt={status.jetzt} />
       ) : anzeige.zustand === 'speichert' ? (
         <Speicherstatus zustand="speichert" />

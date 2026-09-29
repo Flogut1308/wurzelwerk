@@ -126,6 +126,11 @@
 
   "bearbeiten": "Bearbeiten",
   "fertig": "Fertig",
+  "unlesbar_nachfrage_titel": "Datum nicht lesbar",
+  "unlesbar_nachfrage_text": "„{{text}}“ im Feld {{feld}} lässt sich nicht als Datum lesen und ist nicht gespeichert.",
+  "unlesbar_zurueck_zum_feld": "Zurück zum Feld",
+  "unlesbar_verwerfen": "Eingabe verwerfen",
+  "unlesbar_als_etwa_speichern": "Als ‚etwa {{jahr}}‘ mit Originaltext speichern",
   "bearbeitungsstatus_hinweis": "Änderungen werden sofort gespeichert.",
 
   "bearbeiten_ansicht_titel": "Person bearbeiten",
@@ -194,6 +199,7 @@
   "tod_gruppe_grund_vermutet_verstorben": "erscheint, weil der Lebensstatus „vermutet verstorben“ ist",
   "tod_gruppe_grund_nicht_erfasst": "eingeklappt, weil der Lebensstatus nicht erfasst ist",
   "tod_gruppe_grund_von_hand": "eingeblendet, obwohl der Lebensstatus nicht „verstorben“ ist",
+  "tod_gruppe_grund_ungespeichert": "bleibt eingeblendet, weil das Todesdatum noch nicht gespeichert ist",
   "tod_gruppe_einblenden": "Tod-Angaben einblenden",
   "tod_gruppe_ausblenden": "Tod-Angaben ausblenden",
   "lebensdatum_datum_beschriftung": "Datum",
