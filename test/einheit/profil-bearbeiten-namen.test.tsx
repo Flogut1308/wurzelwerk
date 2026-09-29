@@ -38,6 +38,7 @@ import type { PersonDetailName } from '../../src/shared/schemata/person-detail'
 function name(ueberschreibung: Partial<PersonDetailName> = {}): PersonDetailName {
   return {
     id: 'name-1',
+    ist_bevorzugt: true,
     typ: 'geburtsname',
     schrift: null,
     vornamen: 'August',

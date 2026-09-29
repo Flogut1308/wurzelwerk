@@ -288,7 +288,13 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
                     tabIndex={0}
                     className="wz-person-bearbeiten__inhalt"
                   >
-                    <ReiterInhalt reiter={aktiv} personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
+                    <ReiterInhalt
+                      reiter={aktiv}
+                      personId={personId}
+                      daten={abfrage.data}
+                      aufSprung={zuOffenemPunkt}
+                      aufReiterWechsel={(reiter) => verlassenMitNachfrage({ art: 'reiter', reiter })}
+                    />
                   </div>
                 </div>
                 <EditorRechteSpalte personId={personId} daten={abfrage.data} aufSprung={zuOffenemPunkt} />
@@ -406,12 +412,14 @@ interface ReiterInhaltProps {
   readonly daten: PersonDetailAus
   /** Sprung in einen Reiter und auf ein Feld (dieselbe Mechanik wie die rechte Spalte). */
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
+  /** Reiterwechsel aus einem Reiter heraus (PR 9c: Verweis in den Reiter „Namen"), wie die Reiterleiste. */
+  readonly aufReiterWechsel: (reiter: ReiterId) => void
 }
 
-function ReiterInhalt({ reiter, personId, daten, aufSprung }: ReiterInhaltProps) {
+function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: ReiterInhaltProps) {
   switch (reiter) {
     case 'person':
-      return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} />
+      return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} aufReiterWechsel={aufReiterWechsel} />
     case 'namen':
       return <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
     case 'leben':

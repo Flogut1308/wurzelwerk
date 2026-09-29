@@ -171,6 +171,8 @@ function namenLaden(db: Database.Database, personId: string): Namen {
     const typ = form.rolle ?? (form.umschrift_von !== null ? 'transliteriert' : 'sonstiges')
     return {
       id: form.id,
+      // AP-1.30 PR 9c (E4): nur gelesen — der Reiter „Person" erkennt daran den Hauptnamen.
+      ist_bevorzugt: form.ist_bevorzugt === 1,
       typ: NameTypEnum.parse(typ),
       schrift: form.schrift === null ? null : SchriftEnum.parse(form.schrift),
       vornamen: flach.vornamen,

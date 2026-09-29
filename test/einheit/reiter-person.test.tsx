@@ -219,7 +219,7 @@ describe('ReiterPerson (AP-1.30 PR 9b)', () => {
   })
 
   function zeigen(daten: PersonDetailAus): void {
-    act(() => root.render(<ReiterPerson personId="p-1" daten={daten} idPraefix={PRAEFIX} aufSprung={aufSprung} />))
+    act(() => root.render(<ReiterPerson personId="p-1" daten={daten} idPraefix={PRAEFIX} aufSprung={aufSprung} aufReiterWechsel={() => undefined} />))
   }
 
   it('Gruppen Eckdaten, Geburt, Tod; Felder tragen editorFeldId; Werte formatiert', () => {
@@ -230,8 +230,8 @@ describe('ReiterPerson (AP-1.30 PR 9b)', () => {
     expect(eingabe(`${PRAEFIX}-feld-geburtsdatum`).value).toBe('1901')
     expect(eingabe(`${PRAEFIX}-feld-todesdatum`).value).toBe('1970')
     expect(document.getElementById(`${PRAEFIX}-feld-geburtsort`)).not.toBeNull()
-    // Hauptname/Rufname/Kurzbeschreibung kommen erst mit PR 9c.
-    expect(gruppe(container, 'Hauptname')).toBeNull()
+    // PR 9c: die Gruppe „Hauptname" steht davor (Einzelheiten in `reiter-person-hauptname.test.tsx`).
+    expect(gruppe(container, 'Hauptname')).not.toBeNull()
   })
 
   it('Sicherheit steht neben dem Wert, Belegzähler zeigt die Belege des Felds', () => {

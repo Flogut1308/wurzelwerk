@@ -99,3 +99,35 @@
   font: var(--wz-schrift-hilfe);
   color: var(--wz-status-fehler-text);
 }
+
+/*
+ * PR 9c — Gruppe „Hauptname" (Artboard 1a, docs/80 §33 V-130-9c): steht als erste Gruppe ohne
+ * Trennlinie darüber; Vorname(n) | Nachname und Rufname | Kurzbeschreibung je in einer Zeile, der
+ * Verweis in den Reiter „Namen" rechts im Gruppenkopf. Abweichungen (§14, [Design-Review]): kein
+ * Geburtsname (Scope, E6), Rufname als Auswahl statt Textfeld (E1).
+ */
+.wz-reiter-person__gruppe--erste {
+  padding-top: 0;
+  border-top: none;
+}
+
+.wz-reiter-person__gruppe-verweis {
+  margin-left: auto;
+}
+
+.wz-reiter-person__hauptname {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-person__hauptname-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-reiter-person__wert--rufname {
+  flex: 0 1 240px;
+}

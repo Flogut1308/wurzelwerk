@@ -207,6 +207,8 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
       expect(ergebnis.namen).toEqual([
         {
           id: expect.any(String),
+          // AP-1.30 PR 9c (E4): die einzige Form ist der Hauptname.
+          ist_bevorzugt: true,
           typ: 'geburtsname',
           schrift: null,
           vornamen: 'August',
