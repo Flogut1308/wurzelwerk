@@ -512,3 +512,145 @@ describe('Unlesbares Datum: Tod-Gruppe, Sprung und Fokus (hueter #167)', () => {
     expect(document.activeElement).toBe(letzter)
   })
 })
+
+// Nachreview #167: N1 — die nur wegen eines unlesbaren Todesdatums offene Tod-Gruppe darf nicht
+// mitten im Tippen zuschnappen (sonst schreibt der Aushänge-Flush des Debounce einen halben Wert);
+// N2 — sie nennt ihren Grund; N3 — Zusicherungen für überlebende Mutanten (Feldfilter,
+// Geburtsdatum hält nichts offen, eine Nachfrage-Instanz je Feld).
+describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167)', () => {
+  const TOD = 'person-bearbeiten-feld-todesdatum'
+  let container: HTMLDivElement
+  let root: Root
+  const aufFertig = vi.fn()
+  const aufSchliessen = vi.fn()
+
+  function mitStatus(lebendStatus: PersonDetailAus['kopf']['lebend_status']): PersonDetailAus {
+    const daten = detail(true)
+    return { ...daten, kopf: { ...daten.kopf, lebend_status: lebendStatus } }
+  }
+
+  function zeigen(daten: PersonDetailAus): void {
+    personDetail.aktuell = daten
+    act(() => root.render(<PersonBearbeitenAnsicht personId="p-1" aufFertig={aufFertig} aufSchliessen={aufSchliessen} />))
+  }
+
+  function feld(id: string): HTMLInputElement | null {
+    const knoten = document.getElementById(id)
+    return knoten instanceof HTMLInputElement ? knoten : null
+  }
+
+  function fokussiertTippen(id: string, text: string): void {
+    const ziel = feld(id)
+    if (ziel === null) throw new Error(`Eingabe fehlt: ${id}`)
+    if (document.activeElement !== ziel) act(() => ziel.focus())
+    act(() => eintippen(ziel, text))
+  }
+
+  function verlassen(id: string): void {
+    const ziel = feld(id)
+    if (ziel === null) throw new Error(`Eingabe fehlt: ${id}`)
+    act(() => ziel.blur())
+  }
+
+  function todGruppe(): HTMLElement | null {
+    const titel = Array.from(document.querySelectorAll('h2')).find((kandidat) => kandidat.textContent === 'Tod')
+    return titel?.closest('section') ?? null
+  }
+
+  /** Status verstorben, unlesbares Todesdatum (im Fokus), dann Status „lebend" (nachgeladen). */
+  function unlesbarUndLebend(): void {
+    zeigen(mitStatus('verstorben'))
+    fokussiertTippen(TOD, '31.02.1788')
+    zeigen(mitStatus('lebend'))
+    expect(feld(TOD)?.value).toBe('31.02.1788')
+  }
+
+  beforeEach(() => {
+    // Falsche Zeit ohne Vorlauf: kein Debounce-Commit läuft zwischendurch — geprüft wird allein das
+    // Aushängen (dessen Flush schreibt sofort).
+    vi.useFakeTimers()
+    aufrufe.length = 0
+    aufFertig.mockClear()
+    aufSchliessen.mockClear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    vi.useRealTimers()
+  })
+
+  it.fails.each(['21.02.1788', '31.03.1788', '31.02.17888'])('N1: Korrektur zu „%s" (lesbar) im Fokus — Gruppe bleibt, nichts wird geschrieben, Fokus bleibt', (lesbar) => {
+    unlesbarUndLebend()
+    fokussiertTippen(TOD, lesbar)
+    expect(feld(TOD)?.value).toBe(lesbar)
+    expect(document.activeElement).toBe(feld(TOD))
+    expect(aufrufeVon('useAussageAnlegen')).toHaveLength(0)
+  })
+
+  it.fails('N1: Leeren im Fokus hält die Gruppe; erst das Verlassen blendet aus, ohne zu schreiben', () => {
+    unlesbarUndLebend()
+    fokussiertTippen(TOD, '')
+    expect(feld(TOD)).not.toBeNull()
+    verlassen(TOD)
+    expect(feld(TOD)).toBeNull()
+    expect(aufrufe).toHaveLength(0)
+  })
+
+  it.fails('N1: eine lesbare Korrektur wird beim Verlassen geschrieben, danach blendet die Gruppe aus', () => {
+    unlesbarUndLebend()
+    fokussiertTippen(TOD, '28.02.1788')
+    verlassen(TOD)
+    expect(aufrufeVon('useAussageAnlegen')).toEqual([
+      { subjektTyp: 'person', subjektId: 'p-1', praedikat: 'todesdatum', datum: { kalender: 'gregorian', modifikator: 'exakt', praezision: 'tag', wert1: '1788-02-28' }, konfidenz: 2 },
+    ])
+    expect(feld(TOD)).toBeNull()
+  })
+
+  it.fails('N2: die gehaltene Gruppe nennt ihren eigenen Grund (ungespeicherter Text)', () => {
+    unlesbarUndLebend()
+    expect(todGruppe()?.textContent).toContain('noch nicht gespeichert')
+  })
+
+  it('N3/M3: „Tod-Angaben ausblenden" fragt nicht nach einem unlesbaren Geburtsdatum', () => {
+    zeigen(mitStatus(null))
+    const gruppe = todGruppe()
+    if (gruppe === null) throw new Error('Tod-Gruppe fehlt')
+    act(() => knopf(gruppe, 'Tod-Angaben einblenden').click())
+    fokussiertTippen(FELD, '31.02.1788')
+    verlassen(FELD)
+    const offen = todGruppe()
+    if (offen === null) throw new Error('Tod-Gruppe fehlt')
+    act(() => knopf(offen, 'Tod-Angaben ausblenden').click())
+    expect(nachfrage()).toBeNull()
+    expect(feld(TOD)).toBeNull()
+  })
+
+  it('N3/M6: ein unlesbares Geburtsdatum hält die Tod-Gruppe nicht offen', () => {
+    zeigen(mitStatus('lebend'))
+    fokussiertTippen(FELD, '31.02.1788')
+    verlassen(FELD)
+    expect(todGruppe()).toBeNull()
+  })
+
+  it('N3/M7: je Feld eine neue Nachfrage — der Fokus steht wieder auf „Zurück zum Feld"', () => {
+    zeigen(mitStatus('verstorben'))
+    fokussiertTippen(FELD, '31.02.1788')
+    verlassen(FELD)
+    fokussiertTippen(TOD, '31.04.1789')
+    verlassen(TOD)
+    act(() => knopf(document, 'Fertig').click())
+    const erste = nachfrage()
+    if (erste === null) throw new Error('Nachfrage fehlt')
+    expect(erste.textContent).toContain('Geburtsdatum')
+    act(() => knopf(erste, 'Eingabe verwerfen').click())
+    const zweite = nachfrage()
+    if (zweite === null) throw new Error('zweite Nachfrage fehlt')
+    expect(zweite.textContent).toContain('Todesdatum')
+    expect(document.activeElement?.textContent).toBe('Zurück zum Feld')
+    expect(aufFertig).not.toHaveBeenCalled()
+  })
+})
