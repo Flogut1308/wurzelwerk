@@ -116,14 +116,85 @@ export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEi
   }
 }
 
-/** Der mitgetragene `rufnameIndex` gilt nur, solange er auf einen Vornamen zeigt, der dem (evtl.
- * geänderten) Rufnamen gleicht — sonst gewönne der alte Index in `zerlegeName` gegen einen neu
- * eingetippten Rufnamen bzw. markierte nach geänderten Vornamen den falschen. Er bleibt nötig, wo der
- * Text allein mehrdeutig ist (zwei gleiche Vornamen, „Johann Georg Johann"). */
-function gueltigerRufnameIndex(eintrag: NamenEintragWerte): number | undefined {
-  if (eintrag.rufnameIndex === null) return undefined
-  const vornamen = eintrag.vornamen.trim().split(/\s+/u)
-  return vornamen[eintrag.rufnameIndex] === eintrag.rufname.trim() ? eintrag.rufnameIndex : undefined
+function vornamenTokens(vornamen: string): readonly string[] {
+  return vornamen
+    .trim()
+    .split(/\s+/u)
+    .filter((token) => token !== '')
+}
+
+/** Die Vornamen-Kette als wählbare Einheiten. Review H1: ein Rufname, der beim Anlegen/Import kein
+ * Vorname war, steht als EIN Bestandteil hinter den Vornamen (`zerlegeName` Regel 3, Migration 0006
+ * (c)) — auch mehrwortig („Hans Peter"). Die flache Sicht verbindet ihn mit Leerzeichen („Karl Hans
+ * Peter", Index 1). Nur dieser Bestandteil kann Leerraum enthalten (alle übrigen Vornamen zerlegt die
+ * Zerlegung an Leerzeichen); endet die Kette auf die Wörter eines mehrwortigen Rufnamens, bilden sie
+ * darum EINE Einheit. `rufnameAngehaengt` meldet genau diesen Fall. */
+function vornamenEinheiten(eintrag: NamenEintragWerte): { readonly einheiten: readonly string[]; readonly rufnameAngehaengt: boolean } {
+  const tokens = vornamenTokens(eintrag.vornamen)
+  const rufnameWoerter = vornamenTokens(eintrag.rufname)
+  const vorne = tokens.length - rufnameWoerter.length
+  const angehaengt = rufnameWoerter.length > 1 && vorne >= 0 && rufnameWoerter.every((wort, i) => tokens[vorne + i] === wort)
+  return angehaengt ? { einheiten: [...tokens.slice(0, vorne), rufnameWoerter.join(' ')], rufnameAngehaengt: true } : { einheiten: tokens, rufnameAngehaengt: false }
+}
+
+/** Die Position des Vornamens, den der Rufname markiert — `undefined`, wenn der Rufname keinem
+ * Vornamen gleicht. Vorrang wie `zerlegeName`: der mitgetragene `rufnameIndex`, solange er auf einen
+ * Vornamen zeigt, der dem (evtl. geänderten) Rufnamen gleicht (sonst gewönne der alte Index gegen einen
+ * neu gewählten Rufnamen bzw. markierte nach geänderten Vornamen den falschen; nötig, wo der Text allein
+ * mehrdeutig ist, „Johann Georg Johann"), sonst der erste gleichlautende Vorname. */
+function rufnamePosition(eintrag: NamenEintragWerte): number | undefined {
+  const text = vornamenTokens(eintrag.rufname).join(' ')
+  if (text === '') return undefined
+  const { einheiten } = vornamenEinheiten(eintrag)
+  if (eintrag.rufnameIndex !== null && einheiten[eintrag.rufnameIndex] === text) return eintrag.rufnameIndex
+  const position = einheiten.indexOf(text)
+  return position >= 0 ? position : undefined
+}
+
+/** A-02, AP-1.30 (Fix Rufname-Anhängen): Beim Bearbeiten einer bestehenden Zeile MARKIERT der Rufname
+ * nur einen vorhandenen Vornamen (docs/20_Domaenenwissen.md §24). Ein Rufname, der keinem Vornamen
+ * gleicht, geht NICHT als `rufnameText` hinaus — `zerlegeName` hängte ihn sonst als zusätzlichen
+ * Vornamen an, und der Autosave schreibt Zwischenstände: jeder bliebe als Vorname stehen („Karl
+ * Friedrich F Fr Fri", bzw. nach umgeschriebenen Vornamen der alte Rufname hinten dran). Das Anhängen
+ * bleibt dem einmaligen Anlegen/Import vorbehalten (`nameAnlegenEinAusEintrag`, `zerlegeName`) — mit
+ * EINER Ausnahme: ein bereits angehängter mehrwortiger Rufname (`vornamenEinheiten`) geht so hinaus,
+ * wie er entstand (Vornamen ohne ihn + `rufnameText`), damit `zerlegeName` ihn wieder als EINEN
+ * markierten Bestandteil anlegt, statt ihn in Wörter zu zerlegen und die Markierung zu verlieren. */
+function rufnameFuerAenderung(eintrag: NamenEintragWerte): {
+  readonly vornamen: string | undefined
+  readonly rufnameText: string | undefined
+  readonly rufnameIndex: number | undefined
+} {
+  const vornamen = textOderUndefined(eintrag.vornamen)
+  const position = rufnamePosition(eintrag)
+  if (position === undefined) return { vornamen, rufnameText: undefined, rufnameIndex: undefined }
+  const { einheiten, rufnameAngehaengt } = vornamenEinheiten(eintrag)
+  const rufnameText = einheiten[position]
+  if (rufnameAngehaengt && position === einheiten.length - 1) {
+    const davor = einheiten.slice(0, -1).join(' ')
+    return { vornamen: davor === '' ? undefined : davor, rufnameText, rufnameIndex: undefined }
+  }
+  return { vornamen, rufnameText, rufnameIndex: position }
+}
+
+/** Auswahlwert des Rufname-Felds einer bestehenden Zeile: die Vornamen-Position als Zeichenkette,
+ * `''` = kein Rufname angegeben. */
+export function rufnameAuswahlWert(eintrag: NamenEintragWerte): string {
+  const position = rufnamePosition(eintrag)
+  return position === undefined ? '' : String(position)
+}
+
+/** Die wählbaren Rufnamen einer bestehenden Zeile: je Vorname (in Reihenfolge) seine Position. */
+export function rufnameAuswahlVornamen(eintrag: NamenEintragWerte): readonly { readonly wert: string; readonly vorname: string }[] {
+  return vornamenEinheiten(eintrag).einheiten.map((vorname, position) => ({ wert: String(position), vorname }))
+}
+
+/** Übernimmt eine Rufname-Auswahl (`rufnameAuswahlWert`) in den Eintrag: Position und Text zugleich,
+ * damit auch bei gleichlautenden Vornamen („Johann Georg Johann") genau der gewählte markiert wird. */
+export function mitRufnameAusAuswahl(eintrag: NamenEintragWerte, wert: string): NamenEintragWerte {
+  const position = Number(wert)
+  const vorname = wert === '' ? undefined : vornamenEinheiten(eintrag).einheiten[position]
+  return vorname === undefined ? { ...eintrag, rufname: '', rufnameIndex: null } : { ...eintrag, rufname: vorname, rufnameIndex: position }
 }
 
 /** `''` → `undefined` (Befehlsnutzlast kennt optionale Felder, keinen leeren String, s.
@@ -181,13 +252,11 @@ export function nameAendernEinAusEintrag(id: string, eintrag: NamenEintragWerte,
     id,
     typ: eintrag.typ,
     schrift: eintrag.schrift ?? undefined,
-    vornamen: textOderUndefined(eintrag.vornamen),
+    ...rufnameFuerAenderung(eintrag),
     nachname: textOderUndefined(eintrag.nachname),
     praefix: textOderUndefined(eintrag.praefix),
     titelVor: textOderUndefined(eintrag.titelVor),
     zusatzNach: textOderUndefined(eintrag.zusatzNach),
-    rufnameText: textOderUndefined(eintrag.rufname),
-    rufnameIndex: gueltigerRufnameIndex(eintrag),
     vatersname: textOderUndefined(eintrag.vatersname),
     umschriftVon: eintrag.umschriftVon ?? undefined,
     umschriftNorm: eintrag.umschriftNorm ?? undefined,
