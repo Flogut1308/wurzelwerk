@@ -4,13 +4,14 @@ import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { z } from 'zod'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
+import { KoaleszenzTakt, POLL_INTERVALL_MS, SCHREIB_FRIST_MS } from './koaleszenz-takt'
 
 /**
  * AP-1.30 (PR 4), Stichprobe zur Abnahme „Kein Speichern-Knopf … Koaleszenz = ein Undo-Schritt"
- * über die echte Oberfläche: Notiz im Profil-Bearbeiten. Zehn Tastenanschläge, zwischen denen mindestens
- * `AUTOSAVE_DEBOUNCE_MS + RAND_MS` liegen — jeder Anschlag wird also EINZELN geschrieben (die
- * Zusicherung wartet nach jedem Anschlag, bis genau dieser Stand gespeichert ist), der Abstand
- * zweier Schreibvorgänge bleibt unter dem 2-s-Fenster. Danach nimmt EIN Undo alle zehn zurück.
+ * über die echte Oberfläche: Notiz im Profil-Bearbeiten. Zehn Tastenanschläge, jeder EINZELN
+ * geschrieben (die Zusicherung wartet nach jedem Anschlag, bis genau dieser Stand gespeichert ist),
+ * der Abstand zweier Schreibvorgänge bleibt unter dem 2-s-Fenster. Danach nimmt EIN Undo alle zehn
+ * zurück. Takt, Fristen und die Vorbedingung an der App-Uhr: `./koaleszenz-takt.ts`.
  * Die Last trägt `test/einheit/koaleszenz-autosave.test.ts` (feste Uhr, je Autosave-Befehl); hier
  * nur der Beleg, dass Renderer-Frist und Bus zusammenpassen.
  *
@@ -19,25 +20,6 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
  * ist derselbe Weg, den das Menü nimmt.
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
-
-/** Wartezeit nach jedem bestätigten Schreiben, bevor der nächste Anschlag folgt. */
-const RAND_MS = 250
-
-/** Koaleszenz-Fenster des Bus (`src/main/journal/koaleszenz.ts`, 55_Architektur.md §4.8). */
-const KOALESZENZ_FENSTER_MS = 2000
-
-/**
- * Frist je Anschlag bis zum bestätigten Schreiben. Früher `AUTOSAVE_DEBOUNCE_MS + RAND_MS` (650 ms):
- * das ließ nach der 400-ms-Debounce nur 250 ms für IPC, Commit und die Kontroll-Abfrage — auf dem
- * CI-Runner lag der Anschlag-bis-gespeichert-Weg in grünen Läufen schon bei ~550 ms, ein einzelner
- * Ausreißer machte den Test rot (PR #161, Lauf 36190246461: „Start" statt „Starta" nach 650 ms).
- * Die Zusicherung hängt nicht an dieser Frist: jeder Anschlag wird weiterhin einzeln bestätigt, und
- * ob zehn Schreibvorgänge EIN Undo-Schritt sind, entscheidet das Undo am Ende. Die Frist ist so
- * bemessen, dass zwei Schreibvorgänge auch im ungünstigsten Fall (Frist ausgeschöpft + RAND_MS)
- * noch im Koaleszenz-Fenster liegen; zusätzlich wird der beobachtete Abstand geprüft, damit ein zu
- * langsamer Lauf als verletzte Vorbedingung scheitert statt als rätselhaftes Undo-Ergebnis.
- */
-const SCHREIB_FRIST_MS = KOALESZENZ_FENSTER_MS - AUTOSAVE_DEBOUNCE_MS - RAND_MS
 
 test.describe('Ablauf 07 — Autosave-Koaleszenz (Notiz)', () => {
   const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
@@ -105,18 +87,15 @@ test.describe('Ablauf 07 — Autosave-Koaleszenz (Notiz)', () => {
 
     expect(SCHREIB_FRIST_MS).toBeGreaterThan(AUTOSAVE_DEBOUNCE_MS)
     let erwartet = 'Start'
-    let zuletztGeschrieben: number | null = null
+    const takt = new KoaleszenzTakt(fenster, personId)
     for (let i = 0; i < 10; i += 1) {
       const zeichen = String.fromCharCode(97 + i)
       erwartet += zeichen
       await notiz.press(zeichen)
       // Jeder Anschlag wird für sich geschrieben (sonst prüfte der Test keine Koaleszenz).
-      await expect.poll(() => gespeicherteNotiz(personId), { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toBe(erwartet)
-      const jetzt = Date.now()
-      // Vorbedingung der Koaleszenz: der Abstand zweier Schreibvorgänge liegt im Fenster.
-      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
-      zuletztGeschrieben = jetzt
-      await fenster.waitForTimeout(RAND_MS)
+      await expect.poll(() => gespeicherteNotiz(personId), { timeout: SCHREIB_FRIST_MS, intervals: [POLL_INTERVALL_MS] }).toBe(erwartet)
+      // Vorbedingung der Koaleszenz (Abstand im Fenster, App-Uhr) und: zusammengefasst.
+      await takt.geschrieben()
     }
     await expect(notiz).toHaveValue('Startabcdefghij')
 
