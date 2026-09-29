@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEntwurfMitVerzoegertemCommit } from '../../src/renderer/ansichten/profil/profil-bearbeiten-debounce'
 import { useDatenGeaendertAbo } from '../../src/renderer/brücke/befehl-hooks'
-import { NachladenKontext, nachladenMelderErzeugen, wartetAufRuecknahme, type NachladenMelder } from '../../src/renderer/brücke/nachladen-stand'
+import { NACHLADEN_ZEITGRENZE_MS, NachladenKontext, nachladenMelderErzeugen, wartetAufRuecknahme, type NachladenMelder } from '../../src/renderer/brücke/nachladen-stand'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
 
 // s. `profil-bearbeiten-debounce.test.tsx`: React-eigener act-Schalter, nur im Testprozess.
@@ -128,6 +128,54 @@ describe('Autosave schreibt nach einer Rücknahme wieder (hueter PR #174 H1/H2)'
     zeige('Start', aufCommit, s)
     ereignis('journal.redo')
     await nachladenAbwarten()
+    expect(wartetAufRuecknahme(melder.lesen())).toBe(false)
+    act(() => {
+      s.setEntwurf('Startx')
+    })
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS)
+    })
+    expect(aufCommit).toHaveBeenCalledTimes(1)
+  })
+
+  // H2: wirft `invalidateQueries` synchron, darf der Hook nicht für immer warten (sonst schriebe der
+  // Autosave nur noch beim Aus-Hängen — unsichtbar). Der Fehler selbst bleibt sichtbar (wird
+  // weitergeworfen), der Wartezustand endet.
+  it.fails('wirft die Invalidierung synchron, endet der Wartezustand und der Autosave schreibt wieder', async () => {
+    vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(() => {
+      throw new Error('kaputt')
+    })
+    const aufCommit = vi.fn()
+    const s: Steuerung = { entwurf: undefined, setEntwurf: () => {} }
+    zeige('Start', aufCommit, s)
+    expect(() => {
+      ereignis('journal.undo')
+    }).toThrow('kaputt')
+    await nachladenAbwarten()
+    expect(wartetAufRuecknahme(melder.lesen())).toBe(false)
+    act(() => {
+      s.setEntwurf('Startx')
+    })
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS)
+    })
+    expect(aufCommit).toHaveBeenCalledTimes(1)
+  })
+
+  // H2: hängt das Nachladen (die Abfrage antwortet nie), hebt eine Zeitgrenze den Wartezustand auf.
+  it.fails('hängt die Invalidierung, endet der Wartezustand nach der Zeitgrenze', async () => {
+    vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(new Promise<void>(() => {}))
+    const aufCommit = vi.fn()
+    const s: Steuerung = { entwurf: undefined, setEntwurf: () => {} }
+    zeige('Start', aufCommit, s)
+    ereignis('journal.undo')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NACHLADEN_ZEITGRENZE_MS - 1)
+    })
+    expect(wartetAufRuecknahme(melder.lesen())).toBe(true)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
     expect(wartetAufRuecknahme(melder.lesen())).toBe(false)
     act(() => {
       s.setEntwurf('Startx')

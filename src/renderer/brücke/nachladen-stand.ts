@@ -50,6 +50,16 @@ export interface NachladenMelder extends NachladenQuelle {
   readonly invalidierungBegonnen: (ruecknahme: boolean) => () => void
 }
 
+/**
+ * Spätestens nach dieser Frist gilt eine Invalidierung als abgeschlossen, auch wenn ihr Versprechen
+ * noch aussteht (hueter PR #174 H2). Ohne Grenze legte eine hängende Abfrage den Autosave nach einem
+ * Undo für den Rest der Sitzung still (er schriebe nur noch beim Aus-Hängen). Ein normales Nachladen
+ * dauert Millisekunden; 5 s liegt weit darüber. Der Preis bei Ablauf: der Hook vergleicht gegen einen
+ * womöglich noch alten Cache-Stand; kommt das Nachladen danach doch, wird es als neuer `wert` wie
+ * jede andere Änderung verarbeitet.
+ */
+export const NACHLADEN_ZEITGRENZE_MS = 5_000
+
 const RUHEND: NachladenStand = { fremdNr: 0, geladenNr: 0 }
 
 const RUHENDE_QUELLE: NachladenQuelle = {
