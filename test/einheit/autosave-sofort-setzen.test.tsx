@@ -115,7 +115,7 @@ describe('Autosave: sofortSetzen (U-130-nachladen-sofortaendern)', () => {
 
   // hueter PR #175 H1: im Wartezweig wurde `ausstehendRef` erst im Effekt nach dem Rendern gesetzt —
   // hängt die Ansicht im selben Zug aus, schrieb der Unmount-Flush den älteren Tipp-Entwurf.
-  it.fails('Aushängen im selben Zug während einer Rücknahme: der Unmount-Flush schreibt die Auswahl, nicht den älteren Entwurf', () => {
+  it('Aushängen im selben Zug während einer Rücknahme: der Unmount-Flush schreibt die Auswahl, nicht den älteren Entwurf', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('A', aufCommit, s)
@@ -131,7 +131,7 @@ describe('Autosave: sofortSetzen (U-130-nachladen-sofortaendern)', () => {
     root = createRoot(container)
   })
 
-  it.fails('Aushängen im selben Zug während einer Rücknahme ohne Tipp-Entwurf: die Auswahl geht nicht verloren', () => {
+  it('Aushängen im selben Zug während einer Rücknahme ohne Tipp-Entwurf: die Auswahl geht nicht verloren', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('A', aufCommit, s)

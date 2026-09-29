@@ -200,7 +200,12 @@ export function useEntwurfMitVerzoegertemCommit<T>(
     (naechster: T): void => {
       setEntwurf(naechster)
       // Während eine Rücknahme nachlädt, bleibt auch die Auswahl ausstehend (wie `sofortSchreiben`).
-      if (wartetAufRuecknahme(nachladen.lesen())) return
+      // Sofort als ausstehend merken, nicht erst im Effekt: hängt die Ansicht im selben Zug aus,
+      // schriebe der Unmount-Flush sonst den älteren Entwurf oder nichts (hueter PR #175 H1).
+      if (wartetAufRuecknahme(nachladen.lesen())) {
+        ausstehendRef.current = { entwurf: naechster }
+        return
+      }
       ausstehendRef.current = null
       setBekannt(naechster)
       aufCommitRef.current(naechster)
