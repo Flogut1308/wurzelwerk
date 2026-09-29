@@ -56,8 +56,11 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
 
 vi.mock('../../src/renderer/brücke/abfrage-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
-  return Object.fromEntries(Object.keys(original).map((name) => [name, () => ({ data: undefined, isPending: false, isSuccess: false, isError: false })]))
+  return Object.fromEntries(Object.keys(original).map((name) => [name, () => ({ data: abfrageDaten.get(name), isPending: false, isSuccess: false, isError: false })]))
 })
+
+/** Antworten der Abfrage-Hooks je Hook-Name (Archiv- und Personensuche der Quellen-Stammfelder). */
+const abfrageDaten = new Map<string, unknown>()
 
 import { OrteBearbeitenInhalt } from '../../src/renderer/ansichten/orte/ort-bearbeiten'
 import { NamenBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-namen'
@@ -391,5 +394,124 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
       warte(AUTOSAVE_DEBOUNCE_MS * 3)
       expect(aufrufeVon('useZitatAendern')).toHaveLength(1)
     })
+  })
+
+  // hueter PR #175 H2: je Sofort-Auswahl der Stammfelder ein eigener Fall. Mutanten, die hier rot
+  // werden müssen: Rückfall auf `setEntwurf` + `quelleAendern.mutate` (zwei Schreibvorgänge, Echo
+  // verdrängt den Anschlag) und reines `setEntwurf` (kein sofortiges Schreiben).
+  describe('Quellen-Stammfelder: jede Sofort-Auswahl einzeln', () => {
+    const kopf = (): Element => bereich('[aria-labelledby="wz-quelle-bearbeiten-kopf-titel"]')
+    const zeigeQuelle = (k: QuelleDetailKopf): void => zeigen(<QuelleBearbeitenInhalt quelleId="quelle-1" daten={quelleDetail(k)} />)
+
+    function optionIn(wurzel: Element, beschriftung: string, text: string): HTMLElement {
+      const label = Array.from(wurzel.querySelectorAll('label.wz-formularfeld')).find((kandidat) => kandidat.querySelector('.wz-formularfeld__kopf')?.textContent === beschriftung)
+      const option = Array.from(label?.querySelectorAll('[role="option"]') ?? []).find((kandidat) => kandidat.textContent?.startsWith(text) === true)
+      if (!(option instanceof HTMLElement)) throw new Error(`Option fehlt: ${beschriftung} / ${text}`)
+      return option
+    }
+
+    function mausWahl(option: HTMLElement): void {
+      option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    }
+
+    const MUENDLICH = { typ: 'muendlich', informant_person_id: null, informant_anzeigename: 'Anna' } as const
+
+    const faelle: readonly {
+      readonly name: string
+      readonly vorher: QuelleDetailKopf
+      readonly waehlen: () => void
+      readonly erwartet: Readonly<Record<string, unknown>>
+      readonly echo: QuelleDetailKopf
+    }[] = [
+      {
+        name: 'Archiv (archivAusgewaehlt)',
+        vorher: quelleKopf({ archiv_name: 'Staats' }),
+        waehlen: () => mausWahl(optionIn(kopf(), 'Archiv', 'Staatsarchiv')),
+        erwartet: { archivId: 'a-1' },
+        echo: quelleKopf({ archiv_id: 'a-1', archiv_name: 'Staatsarchiv' }),
+      },
+      {
+        name: 'Informant (informantAusgewaehlt)',
+        vorher: quelleKopf(MUENDLICH),
+        waehlen: () => mausWahl(optionIn(kopf(), 'Informant', 'Anna Muster')),
+        erwartet: { informantPersonId: 'p-9' },
+        echo: quelleKopf({ ...MUENDLICH, informant_person_id: 'p-9', informant_anzeigename: 'Anna Muster' }),
+      },
+      {
+        name: 'Art',
+        vorher: quelleKopf(),
+        waehlen: () => waehlen(feldIn(kopf(), 'Art'), 'derivat'),
+        erwartet: { art: 'derivat' },
+        echo: quelleKopf({ art: 'derivat' }),
+      },
+      {
+        name: 'Informationsart',
+        vorher: quelleKopf(),
+        waehlen: () => waehlen(feldIn(kopf(), 'Informationsart'), 'sekundaer'),
+        erwartet: { informationsart: 'sekundaer' },
+        echo: quelleKopf({ informationsart: 'sekundaer' }),
+      },
+      {
+        name: 'Form',
+        vorher: quelleKopf(MUENDLICH),
+        waehlen: () => waehlen(feldIn(kopf(), 'Form'), 'brief'),
+        erwartet: { form: 'brief' },
+        echo: quelleKopf({ ...MUENDLICH, form: 'brief' }),
+      },
+      {
+        name: 'Unmittelbarkeit',
+        vorher: quelleKopf(MUENDLICH),
+        waehlen: () => waehlen(feldIn(kopf(), 'Unmittelbarkeit'), 'vom_hoerensagen'),
+        erwartet: { unmittelbarkeit: 'vom_hoerensagen' },
+        echo: quelleKopf({ ...MUENDLICH, unmittelbarkeit: 'vom_hoerensagen' }),
+      },
+    ]
+
+    beforeEach(() => {
+      abfrageDaten.clear()
+      abfrageDaten.set('useArchivSuche', { treffer: [{ id: 'a-1', name: 'Staatsarchiv' }] })
+      abfrageDaten.set('useSuche', {
+        treffer: [
+          {
+            person_id: 'p-9',
+            anzeigename: 'Anna Muster',
+            geburt_jahr: null,
+            tod_jahr: null,
+            geburt_ort_name: null,
+            konfidenz_min: null,
+            hat_widerspruch: false,
+            ist_platzhalter: false,
+            beruf: null,
+            belegzahl: 0,
+            kinderzahl: 0,
+            geburt_datum: null,
+            tod_datum: null,
+            quelle: 'volltext',
+          },
+        ],
+        gesamt: 1,
+      })
+    })
+
+    for (const fall of faelle) {
+      it(`${fall.name}: schreibt sofort genau einmal, auch ohne Echo in der Frist`, () => {
+        zeigeQuelle(fall.vorher)
+        act(() => fall.waehlen())
+        expect(aufrufeVon('useQuelleAendern')).toEqual([expect.objectContaining(fall.erwartet)])
+        warte(AUTOSAVE_DEBOUNCE_MS * 3)
+        expect(aufrufeVon('useQuelleAendern')).toHaveLength(1)
+      })
+
+      it(`${fall.name}: Echo der Auswahl wird verworfen, der Anschlag danach bleibt und wird geschrieben`, () => {
+        zeigeQuelle(fall.vorher)
+        act(() => fall.waehlen())
+        act(() => eintippen(feldIn(kopf(), 'Titel'), 'Taufbuchx'))
+        zeigeQuelle(fall.echo)
+        expect(wert(feldIn(kopf(), 'Titel'))).toBe('Taufbuchx')
+        warte(AUTOSAVE_DEBOUNCE_MS)
+        expect(aufrufeVon('useQuelleAendern')).toHaveLength(2)
+        expect(aufrufeVon('useQuelleAendern')[1]).toEqual(expect.objectContaining({ ...fall.erwartet, titel: 'Taufbuchx' }))
+      })
+    }
   })
 })
