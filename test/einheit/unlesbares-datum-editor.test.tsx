@@ -701,4 +701,46 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     expect(aufrufeVon('useAussageAnlegen')).toHaveLength(1)
     expect(feld(TOD)).toBeNull()
   })
+
+  /** Status „lebend" mit einem Todesdatum „1790" von außen (Undo, Nachladen). */
+  function lebendMitTod1790(): PersonDetailAus {
+    const basis = mitStatus('lebend')
+    const tod: PersonDetailAussage = { ...geburt(), aussage_id: 't-1', wert: '1790', datum: datumGruppe('1790') }
+    return {
+      ...basis,
+      grunddaten: [...basis.grunddaten, { praedikat: 'todesdatum', wert: '1790', konfidenz: 3, belegzahl: 0, hat_widerspruch: false, hatKonkurrierende: false, aussagen: [tod] }],
+      lebensdaten: basis.lebensdaten.map((eintrag) => (eintrag.angabe === 'todesdatum' ? { ...eintrag, herkunft: 'aussage', aussage_id: 't-1' } : eintrag)),
+    }
+  }
+
+  it('Nachreview #167 H-A: erneut fokussiert, die erste Änderung macht den Text lesbar — Gruppe hält bis zum Verlassen, dann genau ein Schreiben', () => {
+    // Das Halten muss auch greifen, wenn der Text VOR der Änderung unlesbar war (nicht nur danach).
+    unlesbarUndLebend()
+    verlassen(TOD)
+    expect(feld(TOD)?.value).toBe('31.02.1788')
+    fokussiertTippen(TOD, '21.02.1788')
+    fokussiertTippen(TOD, '28.02.1788')
+    expect(feld(TOD)?.value).toBe('28.02.1788')
+    expect(document.activeElement).toBe(feld(TOD))
+    expect(aufrufeVon('useAussageAnlegen')).toHaveLength(0)
+    verlassen(TOD)
+    expect(aufrufeVon('useAussageAnlegen')).toEqual([
+      { subjektTyp: 'person', subjektId: 'p-1', praedikat: 'todesdatum', datum: { kalender: 'gregorian', modifikator: 'exakt', praezision: 'tag', wert1: '1788-02-28' }, konfidenz: 2 },
+    ])
+    expect(feld(TOD)).toBeNull()
+  })
+
+  it('Nachreview #167 H-B: Undo im Fokus — lesbar → unlesbar getippt, dann „1790" von außen: übernommen, beim Verlassen blendet die Gruppe aus, ohne Schreiben und Nachfrage', () => {
+    // Das Halten muss auch greifen, wenn erst die Änderung den Text unlesbar macht (nicht nur davor).
+    zeigen(mitStatus('verstorben'))
+    fokussiertTippen(TOD, '1789')
+    fokussiertTippen(TOD, '31.02.1788')
+    zeigen(lebendMitTod1790())
+    expect(feld(TOD)?.value).toBe('1790')
+    expect(document.activeElement).toBe(feld(TOD))
+    verlassen(TOD)
+    expect(feld(TOD)).toBeNull()
+    expect(nachfrage()).toBeNull()
+    expect(aufrufe).toHaveLength(0)
+  })
 })
