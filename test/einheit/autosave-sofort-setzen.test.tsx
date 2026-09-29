@@ -96,6 +96,23 @@ describe('Autosave: sofortSetzen (U-130-nachladen-sofortaendern)', () => {
     expect(aufCommit.mock.calls).toEqual([['Axy']])
   })
 
+  // Mutationsprobe (ohne `ausstehendRef.current = null` in `sofortSetzen`): hängt die Ansicht im
+  // selben Zug aus (Auswahl, dann sofort „Schließen"), schriebe der Unmount-Flush den älteren
+  // Tipp-Entwurf NACH der Auswahl zurück.
+  it('Aushängen direkt nach sofortSetzen schreibt keinen älteren Tipp-Entwurf hinterher', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung()
+    zeige('A', aufCommit, s)
+    act(() => s.setEntwurf('Ax'))
+    act(() => {
+      s.sofortSetzen('Axy')
+      root.unmount()
+    })
+    expect(aufCommit.mock.calls).toEqual([['Axy']])
+    // afterEach hängt erneut aus — eine frische Wurzel, damit das nicht scheitert.
+    root = createRoot(container)
+  })
+
   it('das Echo des Sofort-Schreibens überschreibt einen danach getippten Entwurf nicht', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
