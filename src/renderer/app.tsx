@@ -30,8 +30,8 @@ const queryClient = new QueryClient({
 
 /**
  * Nachladen-Stand für die Autosave-Felder (U-130-nachladen-undo-vor-echo, `brücke/nachladen-stand.ts`),
- * ein Stand je Fenster wie der Query-Client. Geplant wird über `notifyManager.schedule` von TanStack,
- * damit das Nachziehen NACH den Beobachter-Benachrichtigungen des Abrufs ankommt.
+ * ein Stand je Fenster wie der Query-Client. Geplant wird über `notifyManager.schedule` von TanStack
+ * (Absicht und Grenze dieser Reihenfolge: Kopfkommentar von `nachladen-stand.ts`).
  */
 const nachladenMelder = nachladenMelderErzeugen(notifyManager.schedule)
 

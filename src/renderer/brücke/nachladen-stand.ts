@@ -14,8 +14,10 @@
 // — TanStack bricht beim erneuten Invalidieren den laufenden Abruf ab, dessen Versprechen löst sich
 // dann vorzeitig). `fremdNr !== geladenNr` heißt: eine Rücknahme ist bekannt, ihr Stand aber noch
 // nicht im Cache. Das Nachziehen läuft über `planen` (im Renderer `notifyManager.schedule` von
-// TanStack), damit es NACH den Beobachter-Benachrichtigungen des Abrufs ankommt, die TanStack
-// selbst über denselben Planer verschickt: wer die neue `geladenNr` sieht, sieht auch die neuen Daten.
+// TanStack, über den TanStack auch seine Beobachter benachrichtigt) — in der Absicht, dass es nach
+// diesen Benachrichtigungen ankommt. Diese Reihenfolge ist NICHT durch einen Test belegt. Sie ist
+// auch nicht tragend: kommen die neuen Daten erst nach der `geladenNr` beim Hook an, verarbeitet er
+// sie als gewöhnlichen neuen `wert` (Übernahme bzw. Echo-Regel), wie jede andere Änderung.
 //
 // Nur Rücknahmen, nicht jedes Ereignis: nach dem EIGENEN Schreiben kann das Nachladen einen Stand
 // liefern, der älter ist als ein inzwischen gesendeter zweiter Entwurf (docs/80 S3). Ein Vergleich
