@@ -113,6 +113,39 @@ describe('Autosave: sofortSetzen (U-130-nachladen-sofortaendern)', () => {
     root = createRoot(container)
   })
 
+  // hueter PR #175 H1: im Wartezweig wurde `ausstehendRef` erst im Effekt nach dem Rendern gesetzt —
+  // hängt die Ansicht im selben Zug aus, schrieb der Unmount-Flush den älteren Tipp-Entwurf.
+  it.fails('Aushängen im selben Zug während einer Rücknahme: der Unmount-Flush schreibt die Auswahl, nicht den älteren Entwurf', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung()
+    zeige('A', aufCommit, s)
+    act(() => s.setEntwurf('Ax'))
+    act(() => {
+      melder.invalidierungBegonnen(true)
+    })
+    act(() => {
+      s.sofortSetzen('Axy')
+      root.unmount()
+    })
+    expect(aufCommit.mock.calls).toEqual([['Axy']])
+    root = createRoot(container)
+  })
+
+  it.fails('Aushängen im selben Zug während einer Rücknahme ohne Tipp-Entwurf: die Auswahl geht nicht verloren', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung()
+    zeige('A', aufCommit, s)
+    act(() => {
+      melder.invalidierungBegonnen(true)
+    })
+    act(() => {
+      s.sofortSetzen('B')
+      root.unmount()
+    })
+    expect(aufCommit.mock.calls).toEqual([['B']])
+    root = createRoot(container)
+  })
+
   it('das Echo des Sofort-Schreibens überschreibt einen danach getippten Entwurf nicht', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
