@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { z } from 'zod'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
+import { KOALESZENZ_FENSTER_MS, KoaleszenzTakt, POLL_INTERVALL_MS, SCHREIB_FRIST_MS } from './koaleszenz-takt'
 
 /**
  * AP-1.30 PR 9b (Reiter „Person"), langsames Gate über die echte Oberfläche:
@@ -21,14 +22,12 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 
-/** Wartezeit nach jedem bestätigten Schreiben, bevor der nächste Anschlag folgt (wie ablauf-07). */
+/**
+ * Reserve über das Koaleszenz-Fenster hinaus, wenn ein Schritt BEWUSST nicht mit dem vorigen
+ * verschmelzen soll (`KOALESZENZ_FENSTER_MS + RAND_MS` warten). Der Takt der Anschlagfolgen selbst
+ * steht in `./koaleszenz-takt.ts`.
+ */
 const RAND_MS = 250
-
-/** Koaleszenz-Fenster des Bus (`src/main/journal/koaleszenz.ts`). */
-const KOALESZENZ_FENSTER_MS = 2000
-
-/** Frist je Anschlag bis zum bestätigten Schreiben — Herleitung in ablauf-07 (`SCHREIB_FRIST_MS`). */
-const SCHREIB_FRIST_MS = KOALESZENZ_FENSTER_MS - AUTOSAVE_DEBOUNCE_MS - RAND_MS
 
 /** Abnahme 1a: „Feldänderung erscheint nach ≤ 1 s als ‚Gespeichert'". */
 const GESPEICHERT_FRIST_MS = 1000
@@ -156,17 +155,14 @@ test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
     //    die letzte Ziffer des Jahres (markiert per Umschalt+Links), so bleibt jeder Stand ein Datum.
     expect(SCHREIB_FRIST_MS).toBeGreaterThan(AUTOSAVE_DEBOUNCE_MS)
     const ziffern = ['2', '3', '4', '5', '6', '7', '8', '9', '0', '2']
-    let zuletztGeschrieben: number | null = null
+    const takt = new KoaleszenzTakt(fenster, personId)
     await datum.click()
     for (const ziffer of ziffern) {
       await datum.press('End')
       await datum.press('Shift+ArrowLeft')
       await datum.press(ziffer)
-      await expect.poll(() => gespeicherteDaten(personId, 'geburtsdatum'), { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toEqual([`190${ziffer}`])
-      const jetzt = Date.now()
-      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
-      zuletztGeschrieben = jetzt
-      await fenster.waitForTimeout(RAND_MS)
+      await expect.poll(() => gespeicherteDaten(personId, 'geburtsdatum'), { timeout: SCHREIB_FRIST_MS, intervals: [POLL_INTERVALL_MS] }).toEqual([`190${ziffer}`])
+      await takt.geschrieben()
     }
     await expect(datum).toHaveValue('1902')
     await undo()
@@ -343,17 +339,14 @@ test.describe('Ablauf 10 — Reiter Person: Hauptname und Kurzbeschreibung', () 
 
     // 2) Zehn einzeln geschriebene Anschläge (Abstand < 2 s) = ein Undo-Schritt.
     const buchstaben = ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
-    let zuletztGeschrieben: number | null = null
+    const takt = new KoaleszenzTakt(fenster, personId)
     await feld.click()
     for (const buchstabe of buchstaben) {
       await feld.press('End')
       await feld.press('Shift+ArrowLeft')
       await feld.press(buchstabe)
-      await expect.poll(vornamen, { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toBe(`Kar${buchstabe}`)
-      const jetzt = Date.now()
-      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
-      zuletztGeschrieben = jetzt
-      await fenster.waitForTimeout(RAND_MS)
+      await expect.poll(vornamen, { timeout: SCHREIB_FRIST_MS, intervals: [POLL_INTERVALL_MS] }).toBe(`Kar${buchstabe}`)
+      await takt.geschrieben()
     }
     await expect(feld).toHaveValue('Kark')
     await undo()
@@ -389,16 +382,13 @@ test.describe('Ablauf 10 — Reiter Person: Hauptname und Kurzbeschreibung', () 
     await fenster.waitForTimeout(RAND_MS)
 
     // … jede Folgeänderung ändert DIESE Aussage; drei Anschläge in < 2 s fassen sich zusammen.
-    let zuletztGeschrieben: number | null = null
+    const takt = new KoaleszenzTakt(fenster, personId)
     let erwartet = 'Schmied'
     for (const taste of ['Space', 'i', 'n']) {
       await feld.press(taste)
       erwartet += taste === 'Space' ? ' ' : taste
-      await expect.poll(kurzbeschreibungen, { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toEqual([erwartet])
-      const jetzt = Date.now()
-      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
-      zuletztGeschrieben = jetzt
-      await fenster.waitForTimeout(RAND_MS)
+      await expect.poll(kurzbeschreibungen, { timeout: SCHREIB_FRIST_MS, intervals: [POLL_INTERVALL_MS] }).toEqual([erwartet])
+      await takt.geschrieben()
     }
     await expect(feld).toHaveValue('Schmied in')
 
