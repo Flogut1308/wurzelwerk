@@ -217,7 +217,6 @@ export function datumsgruppeAnzeige(gruppe: PersonDetailAussageDatum): DatumAnze
   return roh === null ? { art: 'leer' } : { art: 'text', text: roh }
 }
 
-/** Anzeige einer Datums-Aussage: die Datumsgruppe; ohne sie (Altbestand „nur Text") der Wert selbst. */
 /**
  * AP-1.30 U-130-9b-unlesbar: Deutungszeile für den GESPEICHERTEN Wert einer Datums-Aussage — ohne
  * den Originaltext, damit ein als „etwa 1788" gespeicherter unlesbarer Wortlaut („31.02.1788") im
@@ -242,6 +241,7 @@ export function gespeicherteDeutung(aussage: PersonDetailAussage): DatumsfeldInt
   return datumsfeldInterpretationAusWert(wert)
 }
 
+/** Anzeige einer Datums-Aussage: die Datumsgruppe; ohne sie (Altbestand „nur Text") der Wert selbst. */
 export function aussageDatumAnzeige(aussage: PersonDetailAussage): DatumAnzeige {
   if (aussage.datum !== null) return datumsgruppeAnzeige(aussage.datum)
   return aussage.wert === null ? { art: 'leer' } : { art: 'text', text: aussage.wert }

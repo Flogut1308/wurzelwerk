@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../../core/datum/typen'
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
@@ -27,7 +27,7 @@ import { BelegListe } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
 import { aussageAendernEinAus, type AussageAenderung } from './profil-aussage-logik'
 import { useEntwurfMitVerzoegertemCommit } from './profil-bearbeiten-debounce'
-import { useUnlesbarMelden } from './unlesbare-eingaben'
+import { UnlesbareEingabenKontext, useUnlesbarMelden } from './unlesbare-eingaben'
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import type { EreignisWert } from './profil-lebensdaten-logik'
 import { praedikatSchluessel } from './profil-schluessel'
@@ -88,7 +88,15 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
   const status = daten.kopf.lebend_status
   const [geoeffnetBei, setGeoeffnetBei] = useState<LebendStatusAuswahl | null>(null)
   const [belegFeld, setBelegFeld] = useState<PersonDetailGrunddatenFeld | null>(null)
-  const todZustand = todGruppeZustand(status, geoeffnetBei)
+  const nachfrager = useContext(UnlesbareEingabenKontext)
+  // hueter #167 H1: hält das Todesdatum einen unlesbaren, ungespeicherten Text, bleibt die Tod-Gruppe
+  // offen — auch wenn der Lebensstatus (auch per Undo) auf „lebend"/„nicht erfasst" wechselt. Sonst
+  // hinge das Feld still aus und der Text wäre verloren. Ausblenden von Hand fragt nach.
+  const [todesdatumUnlesbar, setTodesdatumUnlesbar] = useState(false)
+  const aufUnlesbar = useCallback((angabeId: LebensdatumAngabe, unlesbar: boolean) => {
+    if (angabeId === 'todesdatum') setTodesdatumUnlesbar(unlesbar)
+  }, [])
+  const todZustand = todesdatumUnlesbar ? 'offen' : todGruppeZustand(status, geoeffnetBei)
   const warnungen = warnungenZuordnen(daten.warnungen, todZustand === 'offen')
   const todGrund = todGruppeGrundSchluessel(status, todZustand)
 
@@ -101,8 +109,15 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
         idPraefix={idPraefix}
         aufSprung={aufSprung}
         aufBelegeOeffnen={setBelegFeld}
+        aufUnlesbar={aufUnlesbar}
       />
     )
+  }
+
+  function todAusblenden(): void {
+    const ausblenden = () => setGeoeffnetBei(null)
+    if (nachfrager === null) ausblenden()
+    else nachfrager.nachfragen([editorFeldId(idPraefix, 'todesdatum')], ausblenden)
   }
 
   return (
@@ -154,7 +169,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
               {angabe('todesort')}
               {status === 'verstorben' || status === 'vermutet_verstorben' ? null : (
                 <div>
-                  <Schaltflaeche variante="unauffaellig" aufKlick={() => setGeoeffnetBei(null)}>
+                  <Schaltflaeche variante="unauffaellig" aufKlick={todAusblenden}>
                     {t('tod_gruppe_ausblenden')}
                   </Schaltflaeche>
                 </div>
@@ -331,12 +346,14 @@ interface LebensdatumAngabeFeldProps {
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
   readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
+  /** Meldet, ob das Datumsfeld einen unlesbaren, ungespeicherten Text hält (hueter #167 H1). */
+  readonly aufUnlesbar: (angabe: LebensdatumAngabe, unlesbar: boolean) => void
 }
 
 /** Ein Lebensdatum: gesperrter Ereigniswert oder bearbeitbares Datum/Ort. Leer und Aussage teilen
  * dieselbe Komponente (kein Neueinhängen beim ersten Anlegen — sonst schriebe der Unmount-Flush
  * des Debounce einen ausstehenden Entwurf ein zweites Mal als Anlage). */
-function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen }: LebensdatumAngabeFeldProps) {
+function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufUnlesbar }: LebensdatumAngabeFeldProps) {
   if (zustand.art === 'ereignis') {
     return <GesperrterWert personId={personId} zustand={zustand} warnungen={warnungen} idPraefix={idPraefix} aufSprung={aufSprung} />
   }
@@ -346,7 +363,16 @@ function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSpr
   return angabe === 'geburtsort' || angabe === 'todesort' ? (
     <OrtAngabe personId={personId} angabe={angabe} aussage={aussage} feld={feld} warnungen={warnungen} idPraefix={idPraefix} aufBelegeOeffnen={aufBelegeOeffnen} />
   ) : (
-    <DatumAngabe personId={personId} angabe={angabe} aussage={aussage} feld={feld} warnungen={warnungen} idPraefix={idPraefix} aufBelegeOeffnen={aufBelegeOeffnen} />
+    <DatumAngabe
+      personId={personId}
+      angabe={angabe}
+      aussage={aussage}
+      feld={feld}
+      warnungen={warnungen}
+      idPraefix={idPraefix}
+      aufBelegeOeffnen={aufBelegeOeffnen}
+      aufUnlesbar={aufUnlesbar}
+    />
   )
 }
 
@@ -382,7 +408,16 @@ function angabeKlasse(warnungen: readonly BestandHinweisCode[]): string {
  * U-130-9b-unlesbar (docs/80 §33 V-130-unlesbar, Entscheidung B): ein unlesbarer, ungespeicherter
  * Text meldet sich beim Editor (Speicherstatus, Nachfrage beim Verlassen); ist ein Jahr erkennbar,
  * steht unter dem Feld „Als ‚etwa JJJJ‘ mit Originaltext speichern" (Einzelschritt, ohne Koaleszenz). */
-function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, aufBelegeOeffnen }: BearbeitbareAngabeProps) {
+function DatumAngabe({
+  personId,
+  angabe,
+  aussage,
+  feld,
+  warnungen,
+  idPraefix,
+  aufBelegeOeffnen,
+  aufUnlesbar,
+}: BearbeitbareAngabeProps & { readonly aufUnlesbar: (angabe: LebensdatumAngabe, unlesbar: boolean) => void }) {
   const { t } = useTranslation('profil')
   const { t: tDatum } = useTranslation('datum')
   const { t: tFehler } = useTranslation('fehler')
@@ -412,6 +447,11 @@ function DatumAngabe({ personId, angabe, aussage, feld, warnungen, idPraefix, au
     schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, etwaDatum), anlegen: { datum: etwaDatum }, koaleszenz: false })
     setEtwaGesendet(entwurf)
   }
+
+  useEffect(() => {
+    aufUnlesbar(angabe, unlesbar)
+    return () => aufUnlesbar(angabe, false)
+  }, [aufUnlesbar, angabe, unlesbar])
 
   useUnlesbarMelden(
     unlesbar

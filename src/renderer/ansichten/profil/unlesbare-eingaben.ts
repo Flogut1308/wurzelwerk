@@ -24,12 +24,21 @@ export interface UnlesbareEingabe {
 export interface UnlesbareEingabenMelder {
   /** `null` = das Feld hält keinen unlesbaren Text (mehr). */
   readonly melden: (feldId: string, eingabe: UnlesbareEingabe | null) => void
+  /**
+   * Eine Aktion im Reiter, die die Felder `feldIds` aushängt (z. B. „Tod-Angaben ausblenden", hueter
+   * #167 H1): hält eines davon einen unlesbaren Text, fragt der Editor zuerst nach (dieselbe
+   * Nachfrage wie beim Verlassen), sonst läuft `aktion` sofort.
+   */
+  readonly nachfragen: (feldIds: readonly string[], aktion: () => void) => void
 }
+
+/** Vom Editor: führt `aktion` aus oder öffnet die Nachfrage für die gemeldeten `feldIds`. */
+export type Nachfragen = (feldIds: readonly string[], aktion: () => void) => void
 
 export const UnlesbareEingabenKontext = createContext<UnlesbareEingabenMelder | null>(null)
 
 /** Editorseite: die gemeldeten Felder in Meldereihenfolge und der Melder für den Kontext. */
-export function useUnlesbareEingaben(): { readonly melder: UnlesbareEingabenMelder; readonly eingaben: readonly UnlesbareEingabe[] } {
+export function useUnlesbareEingaben(nachfragen: Nachfragen): { readonly melder: UnlesbareEingabenMelder; readonly eingaben: readonly UnlesbareEingabe[] } {
   const [eingaben, setEingaben] = useState<readonly UnlesbareEingabe[]>([])
   const melden = useCallback((feldId: string, eingabe: UnlesbareEingabe | null) => {
     setEingaben((bisher) => {
@@ -40,7 +49,16 @@ export function useUnlesbareEingaben(): { readonly melder: UnlesbareEingabenMeld
       return bisher.map((eintrag) => (eintrag.feldId === feldId ? eingabe : eintrag))
     })
   }, [])
-  const melder = useMemo<UnlesbareEingabenMelder>(() => ({ melden }), [melden])
+  // Über einen Ref: der Melder bleibt stabil (sonst meldeten sich alle Felder bei jedem Rendern neu),
+  // aufgerufen wird trotzdem die neueste Fassung des Editors.
+  const nachfragenRef = useRef(nachfragen)
+  useEffect(() => {
+    nachfragenRef.current = nachfragen
+  })
+  const melder = useMemo<UnlesbareEingabenMelder>(
+    () => ({ melden, nachfragen: (feldIds, aktion) => nachfragenRef.current(feldIds, aktion) }),
+    [melden],
+  )
   return { melder, eingaben }
 }
 

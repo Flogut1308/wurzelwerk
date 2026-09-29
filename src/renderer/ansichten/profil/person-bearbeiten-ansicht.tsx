@@ -28,7 +28,7 @@ import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
 import { ReiterPerson } from './reiter-person'
 import { UnlesbarNachfrage } from './unlesbar-nachfrage'
-import { UnlesbareEingabenKontext, useUnlesbareEingaben } from './unlesbare-eingaben'
+import { UnlesbareEingabenKontext, useUnlesbareEingaben, type UnlesbareEingabe } from './unlesbare-eingaben'
 import { ProfilFehler, ProfilLaedt } from './profil-zustaende'
 import './profil-ansicht.css'
 import './person-bearbeiten-ansicht.css'
@@ -50,6 +50,8 @@ type Verlassen =
   | { readonly art: 'schliessen' }
   | { readonly art: 'reiter'; readonly reiter: ReiterId }
   | { readonly art: 'sprung'; readonly reiter: ReiterId; readonly feld: EditorFeld }
+  /** Aktion im Reiter, die nur die Felder `feldIds` aushängt (hueter #167 H1, Tod-Gruppe ausblenden). */
+  | { readonly art: 'aktion'; readonly aktion: () => void; readonly feldIds: readonly string[] }
 
 /** Offene Nachfrage: die angefragte Aktion und die in dieser Nachfrage schon behandelten Felder. */
 interface OffeneNachfrage {
@@ -98,7 +100,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
   const [aktiv, setAktiv] = useState<ReiterId>('person')
   const containerRef = useRef<HTMLDivElement | null>(null)
   const speicherstatus = useEditorSpeicherstatus()
-  const unlesbare = useUnlesbareEingaben()
+  const unlesbare = useUnlesbareEingaben((feldIds, aktion) => verlassenMitNachfrage({ art: 'aktion', aktion, feldIds }))
   const [nachfrage, setNachfrage] = useState<OffeneNachfrage | null>(null)
   /** Letzter Sprung aus der rechten Spalte (neues Objekt je Klick, auch auf denselben Punkt). */
   const [sprung, setSprung] = useState<{ readonly reiter: ReiterId; readonly feld: EditorFeld } | null>(null)
@@ -136,19 +138,29 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
         setAktiv(verlassen.reiter)
         setSprung({ reiter: verlassen.reiter, feld: verlassen.feld })
         return
+      case 'aktion':
+        verlassen.aktion()
+        return
     }
+  }
+
+  /** Die Felder, die `verlassen` aushängt und die noch nicht behandelt sind. */
+  function betroffen(verlassen: Verlassen, erledigt: readonly string[]): readonly UnlesbareEingabe[] {
+    return unlesbare.eingaben.filter(
+      (eingabe) => !erledigt.includes(eingabe.feldId) && (verlassen.art !== 'aktion' || verlassen.feldIds.includes(eingabe.feldId)),
+    )
   }
 
   /**
    * U-130-9b-unlesbar (Entscheidung B): hält ein Feld einen unlesbaren, ungespeicherten Datumstext,
-   * wird vor dem Verlassen nachgefragt — sonst sofort ausgeführt. Ein Wechsel innerhalb des Reiters
-   * Person hängt das Feld nicht aus und verliert nichts, darum ohne Nachfrage. `erledigt`: in dieser
+   * wird vor dem Verlassen nachgefragt — sonst sofort ausgeführt. Ein Sprung innerhalb des Reiters
+   * Person hängt kein Feld aus, darum ohne Nachfrage; Aktionen im Reiter, die Felder aushängen
+   * (Tod-Gruppe ausblenden), kommen als `art: 'aktion'` mit ihren Feldern (hueter #167 H1). `erledigt`: in dieser
    * Nachfrage schon verworfene/gespeicherte Felder (ihre Abmeldung folgt erst mit dem nächsten Rendern).
    */
   function verlassenMitNachfrage(verlassen: Verlassen, erledigt: readonly string[] = []): void {
     const bleibt = (verlassen.art === 'reiter' || verlassen.art === 'sprung') && verlassen.reiter === aktiv
-    const offen = unlesbare.eingaben.filter((eingabe) => !erledigt.includes(eingabe.feldId))
-    if (bleibt || offen.length === 0) {
+    if (bleibt || betroffen(verlassen, erledigt).length === 0) {
       setNachfrage(null)
       ausfuehren(verlassen)
       return
@@ -156,7 +168,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
     setNachfrage({ verlassen, erledigt })
   }
 
-  const offeneEingabe = nachfrage === null ? undefined : unlesbare.eingaben.find((eingabe) => !nachfrage.erledigt.includes(eingabe.feldId))
+  const offeneEingabe = nachfrage === null ? undefined : betroffen(nachfrage.verlassen, nachfrage.erledigt)[0]
 
   const zuOffenemPunkt = (reiter: ReiterId, feld: EditorFeld) => verlassenMitNachfrage({ art: 'sprung', reiter, feld })
 
@@ -295,6 +307,7 @@ export function PersonBearbeitenAnsicht({ personId, aufFertig, aufSchliessen }: 
 
           {nachfrage === null || offeneEingabe === undefined ? null : (
             <UnlesbarNachfrage
+              key={offeneEingabe.feldId}
               eingabe={offeneEingabe}
               aufZurueck={() => {
                 setNachfrage(null)

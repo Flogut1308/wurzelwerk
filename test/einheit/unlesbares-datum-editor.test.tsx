@@ -450,7 +450,7 @@ describe('Unlesbares Datum: Tod-Gruppe, Sprung und Fokus (hueter #167)', () => {
     vi.useRealTimers()
   })
 
-  it.fails('H1: „Tod-Angaben ausblenden" mit unlesbarem Todesdatum fragt nach, statt das Feld still auszuhängen', () => {
+  it('H1: „Tod-Angaben ausblenden" mit unlesbarem Todesdatum fragt nach, statt das Feld still auszuhängen', () => {
     zeigen(mitKopf(detail(true), null))
     act(() => knopf(todGruppe(), 'Tod-Angaben einblenden').click())
     tippen(TOD, '31.02.1788')
@@ -464,7 +464,7 @@ describe('Unlesbares Datum: Tod-Gruppe, Sprung und Fokus (hueter #167)', () => {
     expect(aufrufe).toHaveLength(0)
   })
 
-  it.fails('H1: Lebensstatus wechselt auf „lebend" — das unlesbare Todesdatum bleibt stehen und gemeldet', () => {
+  it('H1: Lebensstatus wechselt auf „lebend" — das unlesbare Todesdatum bleibt stehen und gemeldet', () => {
     zeigen(mitKopf(detail(true), 'verstorben'))
     tippen(TOD, '31.02.1788')
     zeigen(mitKopf(detail(true), 'lebend'))
