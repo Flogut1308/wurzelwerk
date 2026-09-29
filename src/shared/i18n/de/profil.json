@@ -194,6 +194,13 @@
   "lebend_status_vermutet_verstorben": "vermutet verstorben",
   "lebend_status_nicht_erfasst": "nicht erfasst",
 
+  "gruppe_hauptname": "Hauptname",
+  "hauptname_hinweis": "so erscheint die Person überall in der Oberfläche",
+  "hauptname_namensformen_verweis": "Namensformen · Reiter „Namen“",
+  "hauptname_weitere_formen_eine": "1 weitere Namensform · Reiter „Namen“",
+  "hauptname_weitere_formen_mehrere": "{{anzahl}} weitere Namensformen · Reiter „Namen“",
+  "hauptname_ohne_hauptname": "Keine Namensform ist als Hauptname markiert. Die Namensformen stehen im Reiter „Namen“.",
+  "hauptname_rufname_hinweis": "einer der Vornamen",
   "gruppe_geburt": "Geburt",
   "gruppe_tod": "Tod",
   "tod_gruppe_grund_verstorben": "erscheint, weil der Lebensstatus „verstorben“ ist",

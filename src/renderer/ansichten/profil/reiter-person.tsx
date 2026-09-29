@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../../core/datum/typen'
+import { KURZBESCHREIBUNG_PRAEDIKAT } from '../../../core/person/datums-wert'
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { EditorFeld } from '../../../core/person/offene-punkte'
 import type { ReiterId } from '../../../core/person/reiter'
@@ -20,8 +21,9 @@ import { ortsfeldNeuAnlegenEin } from '../../bausteine/ortsfeld-logik'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Text } from '../../bausteine/text'
+import { Textfeld } from '../../bausteine/textfeld'
 import { useOrtSuche } from '../../brücke/abfrage-hooks'
-import { useAussageAendern, useAussageAnlegen, useOrtAnlegen, usePersonFeldSetzen } from '../../brücke/befehl-hooks'
+import { useAussageAendern, useAussageAnlegen, useAussageLoeschen, useOrtAnlegen, usePersonFeldSetzen } from '../../brücke/befehl-hooks'
 import { pruefhinweisCodeSchluessel } from '../liste/pruefhinweis-schluessel'
 import { BelegListe } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
@@ -31,6 +33,7 @@ import { UnlesbareEingabenKontext, useUnlesbarMelden } from './unlesbare-eingabe
 import { GrunddatenBearbeitenAbschnitt } from './profil-bearbeiten-grunddaten'
 import type { EreignisWert } from './profil-lebensdaten-logik'
 import { praedikatSchluessel } from './profil-schluessel'
+import { HauptnameGruppe } from './reiter-person-hauptname'
 import {
   KONFIDENZ_VORGABE,
   aussageAnlegenEinFuer,
@@ -40,6 +43,9 @@ import {
   datumAenderung,
   datumsgruppeAnzeige,
   gespeicherteDeutung,
+  kurzbeschreibungAenderung,
+  kurzbeschreibungAussage,
+  kurzbeschreibungText,
   lebendStatusAuswahl,
   lebendStatusOptionen,
   lebendStatusSchluessel,
@@ -56,6 +62,7 @@ import {
   type DatumAnzeige,
   type LebendStatusAuswahl,
   type LebensdatumFeld,
+  type ReiterPersonPraedikat,
 } from './reiter-person-logik'
 import './reiter-person.css'
 
@@ -66,12 +73,15 @@ export interface ReiterPersonProps {
   readonly idPraefix: string
   /** Sprung in einen anderen Reiter (hier: „Ereignis bearbeiten" → Reiter „Leben"). */
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
+  /** Reiterwechsel ohne Zielfeld (PR 9c: „n weitere Namensformen · Reiter Namen"), mit derselben
+   * Nachfrage bei unlesbaren Eingaben wie die Reiterleiste. */
+  readonly aufReiterWechsel: (reiter: ReiterId) => void
 }
 
 /**
- * `ReiterPerson` (AP-1.30 PR 9b, Artboard 1a, Vorgaben §3.1): Gruppen „Eckdaten" (Geschlecht,
- * Lebensstatus, Platzhalter), „Geburt" und „Tod" (je Datum und Ort, jeweils mit Sicherheit und
- * Belegzähler daneben). Hauptname/Rufname/Kurzbeschreibung folgen mit PR 9c.
+ * `ReiterPerson` (AP-1.30 PR 9b, Artboard 1a, Vorgaben §3.1): Gruppen „Hauptname" (PR 9c: Vorname(n),
+ * Nachname, Rufname, Kurzbeschreibung), „Eckdaten" (Geschlecht, Lebensstatus, Platzhalter), „Geburt"
+ * und „Tod" (je Datum und Ort, jeweils mit Sicherheit und Belegzähler daneben).
  *
  * - Werte: die führende Aussage wird bearbeitet (Datum als Freitext mit Deutung, D10; Autosave
  *   400 ms/Blur mit Koaleszenzfeld); ein Wert aus einem Ereignis steht gesperrt und beschriftet da,
@@ -83,7 +93,7 @@ export interface ReiterPersonProps {
  *
  * Die reine Logik steht in `reiter-person-logik.ts`.
  */
-export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPersonProps) {
+export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterWechsel }: ReiterPersonProps) {
   const { t } = useTranslation('profil')
   const status = daten.kopf.lebend_status
   const [geoeffnetBei, setGeoeffnetBei] = useState<LebendStatusAuswahl | null>(null)
@@ -128,18 +138,28 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung }: ReiterPe
     <div className="wz-reiter-person">
       {warnungen.reiter.length > 0 ? <FeldWarnungen codes={warnungen.reiter} /> : null}
 
-      <GrunddatenBearbeitenAbschnitt
+      <HauptnameGruppe
         personId={personId}
-        kopf={daten.kopf}
-        lebensstatus={
-          <Lebensstatus
-            personId={personId}
-            status={status}
-            warnungen={warnungen.lebend_status}
-            aufTodEinblenden={() => setGeoeffnetBei(lebendStatusAuswahl(status))}
-          />
-        }
+        namen={daten.namen}
+        idPraefix={idPraefix}
+        aufNamenReiter={() => aufReiterWechsel('namen')}
+        kurzbeschreibung={<KurzbeschreibungAngabe personId={personId} aussage={kurzbeschreibungAussage(daten.grunddaten)} idPraefix={idPraefix} />}
       />
+
+      <div className="wz-reiter-person__gruppe">
+        <GrunddatenBearbeitenAbschnitt
+          personId={personId}
+          kopf={daten.kopf}
+          lebensstatus={
+            <Lebensstatus
+              personId={personId}
+              status={status}
+              warnungen={warnungen.lebend_status}
+              aufTodEinblenden={() => setGeoeffnetBei(lebendStatusAuswahl(status))}
+            />
+          }
+        />
+      </div>
 
       <section className="wz-reiter-person__gruppe" aria-labelledby="wz-reiter-person-geburt-titel">
         <Text rolle="titel-klein" als="h2" id="wz-reiter-person-geburt-titel">
@@ -282,43 +302,62 @@ interface SchreibAuftrag {
   readonly koaleszenz: boolean
 }
 
+/** Gemerkter Auftrag, solange ein Anlegen läuft: der letzte Schreibauftrag oder (PR 9c, E5) das Löschen. */
+type AusstehenderAuftrag = { readonly art: 'schreiben'; readonly auftrag: SchreibAuftrag } | { readonly art: 'loeschen' }
+
 /**
  * Schreibweg EINER Angabe (K, docs/80 §33 V-130-9-entscheidungen): gibt es eine Aussage, ändert
  * `aussage.aendern` sie; sonst legt `aussage.anlegen` sie an. Bis das Lesemodell die neue Aussage
  * liefert, dient ihr angelegter Stand als Ziel (`aussageAusAngelegt`) — eine Folgeänderung legt
  * keine zweite an. Läuft das Anlegen noch, wird nur der letzte Auftrag gemerkt und danach als
  * Änderung geschickt. Refs statt Zustand: die Rückrufe laufen nach dem Rendern (Timer, Promise).
+ *
+ * PR 9c (V-130-9c E5): verallgemeinert auf jedes Prädikat des Reiters (`ReiterPersonPraedikat`, dazu
+ * die Kurzbeschreibung) und um `loeschen` ergänzt — `aussage.loeschen` als Einzelschritt. Eine eben
+ * gelöschte Aussage ist kein Ziel mehr, bis das Lesemodell sie nicht mehr liefert (danach legt das
+ * nächste Tippen neu an; ein Undo, das sie zurückbringt, macht sie wieder zum Ziel).
  */
-function useAngabeSchreiben(personId: string, angabe: LebensdatumAngabe, aussage: PersonDetailAussage | null) {
+function useAngabeSchreiben(personId: string, praedikat: ReiterPersonPraedikat, aussage: PersonDetailAussage | null) {
   const anlegen = useAussageAnlegen()
   const aendern = useAussageAendern()
+  const loeschenBefehl = useAussageLoeschen()
   const aussageRef = useRef(aussage)
   const angelegtRef = useRef<PersonDetailAussage | null>(null)
+  const geloeschtIdRef = useRef<string | null>(null)
   const laeuftRef = useRef(false)
-  const ausstehendRef = useRef<SchreibAuftrag | null>(null)
+  const ausstehendRef = useRef<AusstehenderAuftrag | null>(null)
   const aendernRef = useRef(aendern.mutate)
   const anlegenRef = useRef(anlegen.mutateAsync)
+  const loeschenRef = useRef(loeschenBefehl.mutate)
   useEffect(() => {
     aussageRef.current = aussage
     aendernRef.current = aendern.mutate
     anlegenRef.current = anlegen.mutateAsync
+    loeschenRef.current = loeschenBefehl.mutate
     // Das Lesemodell ist maßgeblich, sobald es eine Aussage liefert.
     if (aussage !== null) angelegtRef.current = null
+    // Liefert es keine mehr, ist die Löschung angekommen.
+    if (aussage === null) geloeschtIdRef.current = null
   })
 
+  function ziel(): PersonDetailAussage | null {
+    const kandidat = aussageRef.current ?? angelegtRef.current
+    return kandidat === null || kandidat.aussage_id === geloeschtIdRef.current ? null : kandidat
+  }
+
   function schreiben(auftrag: SchreibAuftrag): void {
-    const ziel = aussageRef.current ?? angelegtRef.current
-    if (ziel !== null) {
-      const ein = aussageAendernEinAus(ziel, auftrag.aenderung(ziel))
+    const vorhanden = ziel()
+    if (vorhanden !== null) {
+      const ein = aussageAendernEinAus(vorhanden, auftrag.aenderung(vorhanden))
       if (ein !== null) aendernRef.current(auftrag.koaleszenz ? ein : ohneKoaleszenz(ein))
       return
     }
     if (auftrag.anlegen === null) return
     if (laeuftRef.current) {
-      ausstehendRef.current = auftrag
+      ausstehendRef.current = { art: 'schreiben', auftrag }
       return
     }
-    const ein = aussageAnlegenEinFuer(personId, angabe, auftrag.anlegen, KONFIDENZ_VORGABE)
+    const ein = aussageAnlegenEinFuer(personId, praedikat, auftrag.anlegen, KONFIDENZ_VORGABE)
     laeuftRef.current = true
     anlegenRef.current(ein).then(
       (ergebnis) => {
@@ -334,13 +373,27 @@ function useAngabeSchreiben(personId: string, angabe: LebensdatumAngabe, aussage
     )
   }
 
+  function loeschen(): void {
+    if (laeuftRef.current) {
+      ausstehendRef.current = { art: 'loeschen' }
+      return
+    }
+    const vorhanden = ziel()
+    if (vorhanden === null) return
+    geloeschtIdRef.current = vorhanden.aussage_id
+    angelegtRef.current = null
+    loeschenRef.current({ id: vorhanden.aussage_id })
+  }
+
   function nachholen(): void {
     const ausstehend = ausstehendRef.current
     ausstehendRef.current = null
-    if (ausstehend !== null) schreiben(ausstehend)
+    if (ausstehend === null) return
+    if (ausstehend.art === 'loeschen') loeschen()
+    else schreiben(ausstehend.auftrag)
   }
 
-  return { schreiben, fehler: aendern.error ?? anlegen.error ?? null }
+  return { schreiben, loeschen, fehler: aendern.error ?? anlegen.error ?? loeschenBefehl.error ?? null }
 }
 
 interface LebensdatumAngabeFeldProps {
@@ -521,6 +574,46 @@ function DatumAngabe({
         </div>
         <Sicherheit angabe={angabe} aussage={aussage} feld={feld} schreiber={schreiber} aufBelegeOeffnen={aufBelegeOeffnen} />
       </div>
+    </div>
+  )
+}
+
+interface KurzbeschreibungAngabeProps {
+  readonly personId: string
+  readonly aussage: PersonDetailAussage | null
+  readonly idPraefix: string
+}
+
+/**
+ * Kurzbeschreibung (PR 9c, docs/80 §33 V-130-9c E5/E9): Aussage-Prädikat `kurzbeschreibung` mit
+ * Textwert, Autosave mit Koaleszenzfeld `wertText`. Das erste Tippen in ein leeres Feld legt an
+ * (mit `KONFIDENZ_VORGABE`), Folgetippen ändert (K: zwei Undo-Schritte, dann koaleszierend). Leer
+ * verlassen löscht die Aussage (`aussage.loeschen`, Einzelschritt, rückgängig zu machen); leer
+ * getippt wird zwischendurch nichts geschrieben. Kein Sicherheits- und kein Belegwähler: eine eigene
+ * Zusammenfassung ist keine belegte Angabe (V-130-9-entscheidungen, Gegenposition D2).
+ */
+function KurzbeschreibungAngabe({ personId, aussage, idPraefix }: KurzbeschreibungAngabeProps) {
+  const { t } = useTranslation('profil')
+  const { t: tFehler } = useTranslation('fehler')
+  const schreiber = useAngabeSchreiben(personId, KURZBESCHREIBUNG_PRAEDIKAT, aussage)
+  const gespeichert = kurzbeschreibungText(aussage)
+  const [entwurf, setEntwurf, sofortSchreiben] = useEntwurfMitVerzoegertemCommit(gespeichert, (text) => {
+    if (text.trim() === '') return
+    schreiber.schreiben({ aenderung: (ziel) => kurzbeschreibungAenderung(ziel, text), anlegen: { wertText: text }, koaleszenz: true })
+  })
+
+  function verlassen(): void {
+    sofortSchreiben()
+    // Leer verlassen = entfernen — außer bei einer gespeicherten, schon leeren Altbestands-Aussage,
+    // die nur fokussiert wurde (kein stilles Löschen ohne Eingabe).
+    if (entwurf.trim() === '' && (gespeichert.trim() !== '' || aussage === null)) schreiber.loeschen()
+  }
+
+  return (
+    <div className="wz-reiter-person__angabe">
+      <Formularfeld beschriftung={angabeBeschriftung(KURZBESCHREIBUNG_PRAEDIKAT, t)} {...optionalerFehler(fehlerText(schreiber.fehler, t, tFehler))}>
+        <Textfeld id={`${idPraefix}-feld-kurzbeschreibung`} wert={entwurf} aufAenderung={setEntwurf} aufVerlassen={verlassen} />
+      </Formularfeld>
     </div>
   )
 }
