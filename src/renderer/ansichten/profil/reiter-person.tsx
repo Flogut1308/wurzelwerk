@@ -443,26 +443,25 @@ function DatumAngabe({
 
   // Zuletzt als „etwa" gesendeter Text: bis das Lesemodell nachlädt, gilt er nicht mehr als unlesbar.
   const [etwaGesendet, setEtwaGesendet] = useState<string | null>(null)
-  const unlesbar = entwurf.trim() !== '' && entwurf !== gespeichert && entwurf !== etwaGesendet && datumswertAusText(entwurf, kalender) === undefined
+  const istUnlesbar = (text: string) => text.trim() !== '' && text !== gespeichert && text !== etwaGesendet && datumswertAusText(text, kalender) === undefined
+  const unlesbar = istUnlesbar(entwurf)
   const etwaDatum = unlesbar ? etwaDatumswertAusText(entwurf, kalender) : undefined
-  // War der Text seit dem letzten Verlassen einmal unlesbar, hält das Feld seine Gruppe bis zum
-  // nächsten Verlassen offen (Nachreview #167 N1); Verwerfen und „etwa“-Speichern lösen es sofort.
-  // Zustandsanpassung während des Renderns wie `useEntwurfMitVerzoegertemCommit`, kein Effekt.
-  const [warUnlesbar, setWarUnlesbar] = useState(false)
-  if (unlesbar && !warUnlesbar) setWarUnlesbar(true)
-  const offenHalten = unlesbar || warUnlesbar
+  // Nachreview #167 N1: war der Text während dieser Bearbeitung (Fokus) einmal unlesbar, hält das
+  // Feld seine Gruppe bis zum Verlassen offen — sonst schnappte sie beim Korrigieren mitten im Tippen
+  // zu. Gesetzt nur beim Tippen, gelöscht beim Verlassen: kein Zustand, der beim Rendern entsteht und
+  // nach einem Wert von außen (Undo, Nachladen) verwaist stehen bliebe.
+  const [haeltImFokus, setHaeltImFokus] = useState(false)
+  const offenHalten = unlesbar || haeltImFokus
   const etwaJahr = etwaDatum?.wert1 === undefined ? null : Number(etwaDatum.wert1)
 
   function verwerfen(): void {
     setEntwurf(gespeichert)
-    setWarUnlesbar(false)
   }
 
   function alsEtwaSpeichern(): void {
     if (etwaDatum === undefined) return
     schreiber.schreiben({ aenderung: (ziel) => datumAenderung(ziel, etwaDatum), anlegen: { datum: etwaDatum }, koaleszenz: false })
     setEtwaGesendet(entwurf)
-    setWarUnlesbar(false)
   }
 
   useEffect(() => {
@@ -490,11 +489,14 @@ function DatumAngabe({
               id={feldId}
               ariaLabel={beschriftung}
               text={entwurf}
-              aufAenderung={setEntwurf}
+              aufAenderung={(neu) => {
+                if (unlesbar || istUnlesbar(neu)) setHaeltImFokus(true)
+                setEntwurf(neu)
+              }}
               aufVerlassen={() => {
                 sofortSchreiben()
                 if (entwurf.trim() === '') setEntwurf(gespeichert)
-                setWarUnlesbar(false)
+                setHaeltImFokus(false)
               }}
               kalender={kalender}
               aufKalenderAenderung={(neu) => {

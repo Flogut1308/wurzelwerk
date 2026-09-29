@@ -665,7 +665,7 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     expect(aufFertig).not.toHaveBeenCalled()
   })
 
-  it.fails('Nachreview #167: kein verwaistes Halten — ein von außen gesetzter Wert (Undo/Nachladen) nach dem Verlassen löst die Gruppe', () => {
+  it('Nachreview #167: kein verwaistes Halten — ein von außen gesetzter Wert (Undo/Nachladen) nach dem Verlassen löst die Gruppe', () => {
     zeigen(mitStatus(null))
     const gruppe = todGruppe()
     if (gruppe === null) throw new Error('Tod-Gruppe fehlt')
