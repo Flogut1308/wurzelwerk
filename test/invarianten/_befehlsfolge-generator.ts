@@ -44,6 +44,9 @@
 //   Seit AP-1.30 PR 9a-b (docs/80 §33 V-130-9-d1-datumswert) zusätzlich die Datumsprädikate
 //   (`geburtsdatum`/`todesdatum`) NUR mit `datum`, samt Ablehnungswegen — eigene, in die Folge
 //   eingeflochtene Aktion `datumswert` (`_befehlsfolge-datumswert.ts`, s. `befehlsfolgeArbitrary()`).
+//   Seit AP-1.30 PR 9c-b (docs/80 §33 V-130-9c-b) ebenso die Kurzbeschreibung (Prädikat
+//   `kurzbeschreibung`, Textwert): anlegen, koaleszierend ändern, löschen — eingeflochtene Aktion
+//   `kurzbeschreibung` (`_befehlsfolge-kurzbeschreibung.ts`).
 // - `elternschaft.anlegen`: die beiden Personen werden über `zweiVerschiedeneAusListe()`
 //   IMMER verschieden gewählt (keine Selbstkante) UND vorab mit der ECHTEN Produktivfunktion
 //   `wuerdeZyklusErzeugen()` (`src/core/graph/zyklus.ts`, dieselbe reine Funktion, die
@@ -289,6 +292,7 @@ import {
 } from './_befehlsfolge-beleg'
 
 import { datumswertAktionArbitrary, datumswertAusfuehren, type AktionDatumswert } from './_befehlsfolge-datumswert'
+import { kurzbeschreibungAktionArbitrary, kurzbeschreibungAusfuehren, type AktionKurzbeschreibung } from './_befehlsfolge-kurzbeschreibung'
 import {
   befehlBeobachtet,
   feldAusRoh,
@@ -820,6 +824,7 @@ export type Aktion =
   | AktionNegativbefundLoeschen
   | AktionSerie
   | AktionDatumswert
+  | AktionKurzbeschreibung
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -1505,23 +1510,43 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
  * Aktion dieselbe wie ohne die Einflechtung; nur Aktionen, die ein Ziel aus `zustand.aussagen` wählen,
  * sehen durch die zusätzlichen Datumsaussagen andere Ziele. Nur im Profil `bestand` (dort prüft
  * `undo-bitgleich` die Datumswert-Zweige); das Profil `beleg` bleibt Zug um Zug unverändert.
- * Seed, `numRuns` und die Länge der Hauptfolge bleiben unverändert. */
-export function befehlsfolgeArbitrary(optionen: { readonly profil: GeneratorProfil } = { profil: 'bestand' }): fc.Arbitrary<readonly Aktion[]> {
+ * Seed, `numRuns` und die Länge der Hauptfolge bleiben unverändert.
+ *
+ * AP-1.30 PR 9c-b (KURZBESCHREIBUNGS-EINFLECHTUNG, `_befehlsfolge-kurzbeschreibung.ts`): nach demselben
+ * Muster als DRITTES Tupelelement, eingeflochten NACH den Datumswert-Aktionen. Hauptfolge und
+ * Datumswert-Einschübe werden vorher gezogen und sind darum Zug um Zug dieselben wie ohne sie; die
+ * Einflechtung ändert nur Stellen, nie die relative Reihenfolge. Nachgewiesen (nicht nur behauptet) in
+ * `befehlsfolge-einflechtung.test.ts`: ohne die Kurzbeschreibungs-Aktionen ist die Folge genau die mit
+ * `mitKurzbeschreibung: false` (= die Fassung vor 9c-b). */
+export function befehlsfolgeArbitrary(
+  optionen: { readonly profil: GeneratorProfil; readonly mitKurzbeschreibung?: boolean } = { profil: 'bestand' },
+): fc.Arbitrary<readonly Aktion[]> {
   const hauptfolge = fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
   if (optionen.profil === 'beleg') {
     return hauptfolge
   }
   const einschuebe = fc.array(fc.tuple(fc.nat(), datumswertAktionArbitrary()), { minLength: DATUMSWERT_EINSCHUEBE_MIN, maxLength: DATUMSWERT_EINSCHUEBE_MAX })
-  return fc.tuple(hauptfolge, einschuebe).map(([folge, datums]) => einflechten(folge, datums))
+  if (optionen.mitKurzbeschreibung === false) {
+    return fc.tuple(hauptfolge, einschuebe).map(([folge, datums]) => einflechten(folge, datums))
+  }
+  const kurz = fc.array(fc.tuple(fc.nat(), kurzbeschreibungAktionArbitrary()), {
+    minLength: KURZBESCHREIBUNG_EINSCHUEBE_MIN,
+    maxLength: KURZBESCHREIBUNG_EINSCHUEBE_MAX,
+  })
+  return fc.tuple(hauptfolge, einschuebe, kurz).map(([folge, datums, kurzbeschreibungen]) => einflechten(einflechten(folge, datums), kurzbeschreibungen))
 }
 
 /** Anzahl eingeflochtener Datumswert-Aktionen je Folge (s. „DATUMSWERT-EINFLECHTUNG"). */
 const DATUMSWERT_EINSCHUEBE_MIN = 3
 const DATUMSWERT_EINSCHUEBE_MAX = 6
 
-/** Fügt jede Datumswert-Aktion nacheinander an Stelle `stelle % (Länge + 1)` der wachsenden Folge ein —
- * deterministisch, die relative Reihenfolge der Hauptfolge bleibt erhalten. */
-function einflechten(folge: readonly Aktion[], einschuebe: readonly (readonly [number, AktionDatumswert])[]): readonly Aktion[] {
+/** Anzahl eingeflochtener Kurzbeschreibungs-Aktionen je Folge (s. „KURZBESCHREIBUNGS-EINFLECHTUNG"). */
+const KURZBESCHREIBUNG_EINSCHUEBE_MIN = 2
+const KURZBESCHREIBUNG_EINSCHUEBE_MAX = 4
+
+/** Fügt jede eingeflochtene Aktion nacheinander an Stelle `stelle % (Länge + 1)` der wachsenden Folge ein —
+ * deterministisch, die relative Reihenfolge der bisherigen Folge bleibt erhalten. */
+function einflechten(folge: readonly Aktion[], einschuebe: readonly (readonly [number, Aktion])[]): readonly Aktion[] {
   const ergebnis: Aktion[] = [...folge]
   for (const [stelle, aktion] of einschuebe) {
     ergebnis.splice(stelle % (ergebnis.length + 1), 0, aktion)
@@ -2441,6 +2466,21 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       const angelegt = datumswertAusfuehren(db, zustand, aktion, zweige)
       if (angelegt !== undefined) {
         zustand.aussagen.push({ id: angelegt.id, subjektTyp: 'person', subjektId: angelegt.subjektId, istExistenz: false })
+      }
+      return
+    }
+
+    case 'kurzbeschreibung': {
+      // AP-1.30 PR 9c-b: s. `_befehlsfolge-kurzbeschreibung.ts`.
+      const wirkung = kurzbeschreibungAusfuehren(db, zustand, aktion, zweige)
+      if (wirkung.angelegt !== undefined) {
+        zustand.aussagen.push({ id: wirkung.angelegt.id, subjektTyp: 'person', subjektId: wirkung.angelegt.subjektId, istExistenz: false })
+      }
+      const geloescht = wirkung.geloescht
+      if (geloescht !== undefined) {
+        // Wie `aussageLoeschen` oben: `aussage_zitat` CASCADE.
+        zustand.aussagen = zustand.aussagen.filter((a) => a.id !== geloescht)
+        zustand.aussageZitatVerknuepfungen = zustand.aussageZitatVerknuepfungen.filter((v) => v.aussageId !== geloescht)
       }
       return
     }

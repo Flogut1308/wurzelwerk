@@ -134,6 +134,13 @@ export type Zweig =
   | 'ablehnung.datumswert.fremdBeibehalten'
   | 'ablehnung.datumswert.fremdOhneWert'
   | 'ablehnung.datumswert.anlegenOhneDatum'
+  /** AP-1.30 PR 9c-b (`_befehlsfolge-kurzbeschreibung.ts`), am Datenbankergebnis gemessen:
+   * Kurzbeschreibung angelegt; per `aussage.aendern` mit `feld: 'wertText'` mit der obersten
+   * Transaktion zusammengefasst bzw. als neuer Undo-Schritt; gelöscht. */
+  | 'kurzbeschreibung.anlegen'
+  | 'kurzbeschreibung.aendern.zusammengefasst'
+  | 'kurzbeschreibung.aendern.neuerSchritt'
+  | 'kurzbeschreibung.loeschen'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
