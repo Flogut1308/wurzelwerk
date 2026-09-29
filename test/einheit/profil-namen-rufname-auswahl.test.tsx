@@ -68,8 +68,8 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
   })
 
   // Review H1: ein mehrwortiger Rufname steht als EIN Bestandteil hinter den Vornamen (zerlegeName
-  // Regel 3, Migration 0006 (c)); die Auswahl bietet ihn als EINE Option an. Rot bis zum Fix.
-  it.fails('mehrwortiger Rufname am Ende der Vornamen ist eine Option und gewählt', () => {
+  // Regel 3, Migration 0006 (c)); die Auswahl bietet ihn als EINE Option an.
+  it('mehrwortiger Rufname am Ende der Vornamen ist eine Option und gewählt', () => {
     const eintrag = { ...KARL_FRIEDRICH, vornamen: 'Karl Hans Peter', rufname: 'Hans Peter', rufnameIndex: 1 }
     expect(rufnameAuswahlVornamen(eintrag)).toEqual([
       { wert: '0', vorname: 'Karl' },
