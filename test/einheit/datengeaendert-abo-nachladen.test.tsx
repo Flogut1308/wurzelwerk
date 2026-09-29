@@ -141,7 +141,7 @@ describe('Autosave schreibt nach einer Rücknahme wieder (hueter PR #174 H1/H2)'
   // H2: wirft `invalidateQueries` synchron, darf der Hook nicht für immer warten (sonst schriebe der
   // Autosave nur noch beim Aus-Hängen — unsichtbar). Der Fehler selbst bleibt sichtbar (wird
   // weitergeworfen), der Wartezustand endet.
-  it.fails('wirft die Invalidierung synchron, endet der Wartezustand und der Autosave schreibt wieder', async () => {
+  it('wirft die Invalidierung synchron, endet der Wartezustand und der Autosave schreibt wieder', async () => {
     vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(() => {
       throw new Error('kaputt')
     })
@@ -163,7 +163,7 @@ describe('Autosave schreibt nach einer Rücknahme wieder (hueter PR #174 H1/H2)'
   })
 
   // H2: hängt das Nachladen (die Abfrage antwortet nie), hebt eine Zeitgrenze den Wartezustand auf.
-  it.fails('hängt die Invalidierung, endet der Wartezustand nach der Zeitgrenze', async () => {
+  it('hängt die Invalidierung, endet der Wartezustand nach der Zeitgrenze', async () => {
     vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(new Promise<void>(() => {}))
     const aufCommit = vi.fn()
     const s: Steuerung = { entwurf: undefined, setEntwurf: () => {} }
@@ -174,7 +174,8 @@ describe('Autosave schreibt nach einer Rücknahme wieder (hueter PR #174 H1/H2)'
     })
     expect(wartetAufRuecknahme(melder.lesen())).toBe(true)
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(1) // Zeitgrenze erreicht
+      await vi.runOnlyPendingTimersAsync() // der Planer (setTimeout 0 wird im Tick zu 1 ms)
     })
     expect(wartetAufRuecknahme(melder.lesen())).toBe(false)
     act(() => {

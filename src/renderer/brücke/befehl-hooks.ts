@@ -33,7 +33,7 @@ import {
   schreibFeldNameAendern,
   schreibFeldPersonFeldSetzen,
 } from './schreib-beobachter'
-import { istRuecknahme, type NachladenMelder } from './nachladen-stand'
+import { NACHLADEN_ZEITGRENZE_MS, istRuecknahme, type NachladenMelder } from './nachladen-stand'
 
 /**
  * Entpackt ein `Ergebnis<T>` zu `T` oder wirft den enthaltenen `AppFehler` — TanStack Query fängt
@@ -315,8 +315,22 @@ export function useDatenGeaendertAbo(nachladen: NachladenMelder): void {
       // U-130-nachladen-undo-vor-echo: Rücknahmen und das Ende jeder Invalidierung melden, damit der
       // Autosave-Hook ein Undo auch dann erkennt, wenn der nachgeladene Wert gleich bleibt
       // (`nachladen-stand.ts`). `invalidateQueries` löst sich erst nach dem Neuladen der aktiven Abfragen.
+      // `fertig` kommt IMMER (hueter PR #174 H2): bei Erfolg, Fehlschlag, synchronem Wurf und
+      // spätestens nach `NACHLADEN_ZEITGRENZE_MS` — sonst bliebe der Autosave dauerhaft im
+      // Wartezustand. `fertig` ist idempotent; ein synchroner Wurf wird nach dem Aufräumen
+      // weitergeworfen (sichtbar wie vorher, nicht verschluckt).
       const fertig = nachladen.invalidierungBegonnen(istRuecknahme(ereignis.ursache))
-      void queryClient.invalidateQueries().then(fertig, fertig)
+      const zeitgrenze = setTimeout(fertig, NACHLADEN_ZEITGRENZE_MS)
+      const abschliessen = (): void => {
+        clearTimeout(zeitgrenze)
+        fertig()
+      }
+      try {
+        void queryClient.invalidateQueries().then(abschliessen, abschliessen)
+      } catch (fehler) {
+        abschliessen()
+        throw fehler
+      }
     })
   }, [queryClient, nachladen])
 }
