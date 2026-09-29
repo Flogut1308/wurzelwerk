@@ -52,6 +52,18 @@ function autosaveSchritt(db: Db, personId: string, nameId: string, aenderung: Pa
   fuehreAus(db, 'name.aendern', nameAendernEinAusEintrag(nameId, naechster, geaendertesNamensFeld(gelesen, naechster)))
 }
 
+function transaktionAnzahl(db: Db): number {
+  const zeile = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM transaktion').get()
+  if (zeile === undefined) throw new Error('transaktionAnzahl(): COUNT(*) lieferte keine Zeile.')
+  return zeile.anzahl
+}
+
+/** Die Maske schickt den gelesenen Stand UNVERÄNDERT zurück (kein Feld geändert). */
+function unveraendertSchreiben(db: Db, personId: string, nameId: string): void {
+  const gelesen = namenEintragAusPersonDetailName(gespeicherterName(db, personId, nameId))
+  fuehreAus(db, 'name.aendern', nameAendernEinAusEintrag(nameId, gelesen))
+}
+
 function findet(db: Db, text: string, personId: string): boolean {
   return suche(db, { text, grenze: 50, filter: FILTER_ALLE, sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100 }).treffer.some(
     (treffer) => treffer.person_id === personId,
@@ -107,6 +119,56 @@ describe('mehrwortiger angehängter Rufname: original_text folgt der Nachnamenä
   })
 })
 
+// hueter #169 H2: festgestellt, nicht entschieden (Folgepunkt U-130-rufname-noop, docs/80 §33). Die
+// Maske schickt einen angehängten mehrwortigen Rufnamen als „Vornamen ohne ihn + rufnameText" zurück
+// (profil-bearbeiten-logik.ts, Review H1 #168); der Rohvergleich `unveraendert()` (name-aendern.ts)
+// sieht darum `vornamen` „Karl" ≠ gespeichert „Karl Hans Peter" und schreibt — auch nach der ersten
+// Änderung, wenn `original_text` schon die Teile-Montage ist. Inhaltlich bleibt alles gleich; es
+// entsteht aber ein eigener Journal-/Undo-Schritt. Der `original_text`-Teil dieses Vergleichs
+// (`effektiverOriginalText`) entscheidet dabei nichts: ohne gleiche `vornamen` ist nie ein No-op.
+describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen (U-130-rufname-montage, hueter #169 H2)', () => {
+  it('festgestellt, nicht entschieden: auch nach der ersten Änderung ist ein inhaltsgleiches name.aendern KEIN No-op (Inhalt bleibt gleich)', () => {
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+      const vorher = gespeicherterName(db, personId, id)
+      expect(vorher.original_text).toBe('Karl Hans Peter Gutnow')
+      const anzahlVorher = transaktionAnzahl(db)
+
+      unveraendertSchreiben(db, personId, id)
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      expect(gespeicherterName(db, personId, id)).toEqual(vorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('festgestellt, nicht entschieden: bei noch unveränderter Anlege-Montage („Karl Gutnoff") ist ein inhaltsgleiches name.aendern KEIN No-op', () => {
+    // Das Anlegen montiert ohne den angehängten Rufnamen (im Prüfpfad festgeschrieben), das Ändern die
+    // Teile: der erste inhaltsgleiche Aufruf schreibt `original_text` neu — ein eigener Undo-Schritt.
+    // Entfällt mit Folgepunkt U-130-rufname-montage-anlegen.
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Gutnoff')
+      const anzahlVorher = transaktionAnzahl(db)
+
+      unveraendertSchreiben(db, personId, id)
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Hans Peter Gutnoff')
+    } finally {
+      db.close()
+    }
+  })
+})
+
 describe('Rundreise Montage ↔ Erkennung (Kern, U-130-rufname-montage)', () => {
   const MEHRWORTIG: readonly FlacherName[] = [
     { vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' },
@@ -153,5 +215,8 @@ describe('Rundreise Montage ↔ Erkennung (Kern, U-130-rufname-montage)', () => 
     // Nur der Rufname-Bestandteil darf weggelassen sein — nicht ein beliebiges Endstück der Vornamen.
     expect(istMontierterOriginalText('Karl Hans Gutnoff', gespeichert({ vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' }))).toBe(false)
     expect(istMontierterOriginalText('Karl Hans Gutnoff', gespeichert({ vornamen: 'Karl Hans Peter', nachname: 'Gutnoff' }))).toBe(false)
+    // hueter #169 H1: der letzte Vorname gleicht dem Rufnamen, markiert ist aber ein ANDERER (Index 0) —
+    // weggelassen werden darf nur der markierte Bestandteil.
+    expect(istMontierterOriginalText('Johann Georg Müller', gespeichert({ vornamen: 'Johann Georg Johann', rufnameIndex: 0, nachname: 'Müller' }))).toBe(false)
   })
 })
