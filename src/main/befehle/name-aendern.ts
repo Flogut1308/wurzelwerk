@@ -8,7 +8,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as nameRepo from '../repositories/name-repo'
 import type { NameZeile } from '../repositories/name-repo'
-import { montiereOriginalText, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
+import { montiereOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
 import { neueId } from '../id'
 
 /** Der `original_text`, den `nameRepo.aktualisieren()` effektiv schreiben würde (montiert, wenn der
@@ -17,7 +17,7 @@ import { neueId } from '../id'
 function effektiverOriginalText(ein: NameAendernEin): string | null {
   return (
     ein.originalText ??
-    montiereOriginalText({
+    montiereOriginalTextDerTeile({
       vornamen: ein.vornamen,
       rufnameIndex: ein.rufnameIndex,
       rufnameText: ein.rufnameText,
@@ -112,7 +112,7 @@ export function nameGeaenderteFelder(vorher: NameZeile, ein: NameAendernEin): re
   if (vorher.titel_vor !== wirkung.titelVor) felder.push('titelVor')
   if (vorher.zusatz_nach !== wirkung.zusatzNach) felder.push('zusatzNach')
   if (vorher.vatersname !== wirkung.vatersname) felder.push('vatersname')
-  const geschrieben = ein.originalText ?? montiereOriginalText(flachEin)
+  const geschrieben = ein.originalText ?? montiereOriginalTextDerTeile(flachEin)
   const folgtDenTeilen = ein.originalText === undefined && vorher.original_text === montiereOriginalText(flachAusZeile(vorher))
   if (vorher.original_text !== geschrieben && !folgtDenTeilen) felder.push('originalText')
   if (vorher.sprache !== (ein.sprache ?? null)) felder.push('sprache')

@@ -181,6 +181,23 @@ export function rekonstruiereFlach(teile: readonly GeladenerTeil[]): Rekonstruie
   }
 }
 
+/**
+ * U-130-rufname-montage: der montierte `original_text` beim ÄNDERN einer Form — die Montage der Teile,
+ * die `zerlegeName(flach)` schreibt, nicht die der rohen Eingabe. Unterschied nur bei einem angehängten
+ * Rufnamen (`zerlegeName` Regel 3): die Maske schickt einen solchen Rufnamen so zurück, wie er entstand
+ * (Vornamen ohne ihn + `rufnameText`, profil-bearbeiten-logik.ts), `montiereOriginalText` der Eingabe
+ * ließe ihn weg („Karl Gutnow" statt „Karl Hans Peter Gutnow") — und mit ihm den Rufnamen aus dem
+ * FTS-Text (`COALESCE(original_text, …)`). Ohne angehängten Rufnamen ist das Ergebnis gleich
+ * `montiereOriginalText(flach)` bis auf normierten Leerraum der Vornamen.
+ *
+ * Das Anlegen montiert weiter die Eingabe (`montiereOriginalText`): diese Montage ohne den angehängten
+ * Rufnamen ist im geschützten Prüfpfad festgeschrieben (test/invarianten/rundreise-vollstaendig-name);
+ * `istMontierterOriginalText` erkennt beide Fassungen als automatisch.
+ */
+export function montiereOriginalTextDerTeile(flach: FlacherName): string | null {
+  return montiereOriginalText(rekonstruiereFlach(zerlegeName(flach)))
+}
+
 function leerraumNormiert(text: string): string {
   return tokens(text).join(' ')
 }
@@ -193,9 +210,13 @@ function leerraumNormiert(text: string): string {
  * eine wortgetreue Schreibung ist Quelle und bleibt. `flach` sind die aus den gespeicherten Teilen
  * rekonstruierten Felder (`rekonstruiereFlach`). Zwei Montagen gelten als automatisch:
  *  1. die Montage der rekonstruierten Felder;
- *  2. dieselbe ohne den letzten Vornamen, wenn genau dieser der Rufname ist — die Zerlegung hängt einen
- *     `rufname_text`, der kein vorhandener Vorname war, als markierten Vornamen AN, die Montage beim
- *     Schreiben kannte ihn aber nicht (`zerlegeName` Regel 3).
+ *  2. dieselbe ohne den angehängten Rufname-Bestandteil am Ende der Vornamen — die Zerlegung hängt einen
+ *     `rufname_text`, der kein vorhandener Vorname war, als EINEN markierten Vornamen AN (auch
+ *     mehrwortig, „Hans Peter"), die Montage beim Anlegen kennt ihn aber nicht (`zerlegeName` Regel 3).
+ *     Weggelassen wird genau dieser Bestandteil (U-130-rufname-montage): seine Wörter bilden das Ende
+ *     der Vornamen-Kette UND der Rufname-Index (Position unter den Bestandteilen) ist die Zahl der
+ *     davorstehenden Wörter (alle übrigen Vornamen sind einwortig). Ein beliebiges Endstück der
+ *     Vornamen oder ein einzelnes Wort eines mehrwortigen Rufnamens wird nie weggelassen.
  * Verglichen wird mit normiertem Leerraum: die Rekonstruktion verbindet Vornamen mit genau einem
  * Leerzeichen, die Montage übernahm die Eingabe roh. Ein reiner Leerraum-Unterschied gilt darum nicht
  * als wortgetreue Schreibung. `null` ist nie wortgetreu (es gibt nichts zu erhalten).
@@ -204,9 +225,11 @@ export function istMontierterOriginalText(originalText: string | null, flach: Fl
   if (originalText === null) return true
   const kandidaten = [montiereOriginalText(flach)]
   const vornamen = tokens(flach.vornamen)
-  const rufnameIndex = flach.rufnameIndex ?? -1
-  if (vornamen.length > 0 && rufnameIndex === vornamen.length - 1) {
-    const ohneRufname = vornamen.slice(0, -1).join(' ')
+  const rufnameWoerter = tokens(flach.rufnameText)
+  const davor = vornamen.length - rufnameWoerter.length
+  const rufnameAmEnde = rufnameWoerter.length > 0 && davor >= 0 && rufnameWoerter.every((wort, i) => vornamen[davor + i] === wort)
+  if (rufnameAmEnde && flach.rufnameIndex === davor) {
+    const ohneRufname = vornamen.slice(0, davor).join(' ')
     kandidaten.push(montiereOriginalText({ ...flach, vornamen: ohneRufname === '' ? null : ohneRufname }))
   }
   const normiert = leerraumNormiert(originalText)

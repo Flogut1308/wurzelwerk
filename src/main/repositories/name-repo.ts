@@ -7,7 +7,7 @@
 // zerlegung.ts). SQL läuft über `name-form-repo`/`name-part-repo` (dort liegt das eigentliche SQL);
 // hier nur Orchestrierung + Rollen-/Bestandteil-Zuordnung. Kein `BEGIN`/`COMMIT` (armierte
 // Bus-Transaktion).
-import { montiereOriginalText, rekonstruiereFlach, zerlegeName, type FlacherName, type GeladenerTeil } from '../../core/name/zerlegung'
+import { montiereOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName, type GeladenerTeil } from '../../core/name/zerlegung'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from './basis'
 import * as nameFormRepo from './name-form-repo'
@@ -232,7 +232,8 @@ export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => s
     sortierIndex: null,
     gueltigVon: ein.gueltigVon,
     gueltigBis: ein.gueltigBis,
-    originalText: ein.originalText ?? montiereOriginalText(flach),
+    // U-130-rufname-montage: die Montage der neu geschriebenen Teile (inkl. angehängtem Rufnamen).
+    originalText: ein.originalText ?? montiereOriginalTextDerTeile(flach),
     geaendertAm: ein.geaendertAm,
   })
   namePartRepo.loescheFuerForm(tx, ein.id)
