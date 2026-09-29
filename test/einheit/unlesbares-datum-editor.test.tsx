@@ -393,3 +393,122 @@ describe('Unlesbares Datum im Reiter Person (U-130-9b-unlesbar)', () => {
     expect(aufFertig).toHaveBeenCalledTimes(1)
   })
 })
+
+// hueter #167 H1/H3: Wege, auf denen das Feld INNERHALB des Reiters Person aushängt (Tod-Gruppe
+// ausblenden, Lebensstatus auf „lebend"), und Zusicherungen zur Nachfrage selbst (Sprung aus der
+// rechten Spalte, Anfangsfokus, Tab-Fokusfalle).
+describe('Unlesbares Datum: Tod-Gruppe, Sprung und Fokus (hueter #167)', () => {
+  const TOD = 'person-bearbeiten-feld-todesdatum'
+  let container: HTMLDivElement
+  let root: Root
+  const aufFertig = vi.fn()
+  const aufSchliessen = vi.fn()
+
+  function mitKopf(daten: PersonDetailAus, lebendStatus: PersonDetailAus['kopf']['lebend_status']): PersonDetailAus {
+    return { ...daten, kopf: { ...daten.kopf, lebend_status: lebendStatus } }
+  }
+
+  function zeigen(daten: PersonDetailAus): void {
+    personDetail.aktuell = daten
+    act(() => root.render(<PersonBearbeitenAnsicht personId="p-1" aufFertig={aufFertig} aufSchliessen={aufSchliessen} />))
+  }
+
+  function feld(id: string): HTMLInputElement | null {
+    const knoten = document.getElementById(id)
+    return knoten instanceof HTMLInputElement ? knoten : null
+  }
+
+  function tippen(id: string, text: string): void {
+    const ziel = feld(id)
+    if (ziel === null) throw new Error(`Eingabe fehlt: ${id}`)
+    act(() => ziel.focus())
+    act(() => eintippen(ziel, text))
+    act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+    act(() => ziel.blur())
+  }
+
+  function todGruppe(): HTMLElement {
+    const titel = Array.from(document.querySelectorAll('h2')).find((kandidat) => kandidat.textContent === 'Tod')
+    const gruppe = titel?.closest('section')
+    if (gruppe === null || gruppe === undefined) throw new Error('Tod-Gruppe fehlt')
+    return gruppe
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    aufrufe.length = 0
+    aufFertig.mockClear()
+    aufSchliessen.mockClear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    vi.useRealTimers()
+  })
+
+  it.fails('H1: „Tod-Angaben ausblenden" mit unlesbarem Todesdatum fragt nach, statt das Feld still auszuhängen', () => {
+    zeigen(mitKopf(detail(true), null))
+    act(() => knopf(todGruppe(), 'Tod-Angaben einblenden').click())
+    tippen(TOD, '31.02.1788')
+    act(() => knopf(todGruppe(), 'Tod-Angaben ausblenden').click())
+    expect(nachfrage()).not.toBeNull()
+    expect(feld(TOD)?.value).toBe('31.02.1788')
+    const dialog = nachfrage()
+    if (dialog === null) throw new Error('Nachfrage fehlt')
+    act(() => knopf(dialog, 'Eingabe verwerfen').click())
+    expect(feld(TOD)).toBeNull()
+    expect(aufrufe).toHaveLength(0)
+  })
+
+  it.fails('H1: Lebensstatus wechselt auf „lebend" — das unlesbare Todesdatum bleibt stehen und gemeldet', () => {
+    zeigen(mitKopf(detail(true), 'verstorben'))
+    tippen(TOD, '31.02.1788')
+    zeigen(mitKopf(detail(true), 'lebend'))
+    expect(feld(TOD)?.value).toBe('31.02.1788')
+    expect(statusTexte()).toContain(STATUS_UNLESBAR)
+    act(() => knopf(document, 'Fertig').click())
+    expect(nachfrage()).not.toBeNull()
+    expect(aufFertig).not.toHaveBeenCalled()
+  })
+
+  it('H3a: Sprung aus der rechten Spalte in einen anderen Reiter fragt nach', () => {
+    zeigen({
+      ...mitKopf(detail(true), 'lebend'),
+      offene_punkte: [{ regel_id: 'kein_portraet', reiter: 'belege_medien', feld: 'portraet', meldungsschluessel: 'offener_punkt_kein_portraet', bezug_id: null }],
+    })
+    tippen(FELD, '31.02.1788')
+    const punkt = document.querySelector<HTMLButtonElement>('.wz-editor-rechte-spalte__punkt')
+    if (punkt === null) throw new Error('Offener Punkt fehlt')
+    act(() => punkt.click())
+    expect(nachfrage()).not.toBeNull()
+    expect(aktiverReiter()).toBe('Person')
+  })
+
+  it('H3d: beim Öffnen steht der Fokus auf „Zurück zum Feld"', () => {
+    zeigen(detail(true))
+    tippen(FELD, '31.02.1788')
+    act(() => knopf(document, 'Fertig').click())
+    expect(document.activeElement?.textContent).toBe('Zurück zum Feld')
+  })
+
+  it('H3c: Tab und Umschalt+Tab bleiben in der Nachfrage', () => {
+    zeigen(detail(true))
+    tippen(FELD, '31.02.1788')
+    act(() => knopf(document, 'Fertig').click())
+    const dialog = nachfrage()
+    if (dialog === null) throw new Error('Nachfrage fehlt')
+    const knoepfe = Array.from(dialog.querySelectorAll('button'))
+    const erster = knoepfe[0]
+    const letzter = knoepfe[knoepfe.length - 1]
+    if (erster === undefined || letzter === undefined) throw new Error('Knöpfe fehlen')
+    act(() => letzter.focus())
+    act(() => letzter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })))
+    expect(document.activeElement).toBe(erster)
+    act(() => erster.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })))
+    expect(document.activeElement).toBe(letzter)
+  })
+})
