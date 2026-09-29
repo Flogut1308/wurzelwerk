@@ -180,7 +180,7 @@ function HauptnameFelder({ personId, name, idPraefix, kurzbeschreibung }: Hauptn
   const wert = useMemo(() => (name === null ? NAMEN_EINTRAG_LEER : namenEintragAusPersonDetailName(name)), [name])
   const gelesen = useMemo(() => (name === null ? null : { id: name.id, gelesen: wert }), [name, wert])
   const schreiber = useHauptnameSchreiben(personId, gelesen)
-  const [eintrag, setEintrag, sofortSchreiben] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, schreiber.schreiben)
+  const [eintrag, setEintrag, sofortSchreiben, sofortSetzen] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, schreiber.schreiben)
 
   function verlassen(): void {
     sofortSchreiben()
@@ -218,12 +218,9 @@ function HauptnameFelder({ personId, name, idPraefix, kurzbeschreibung }: Hauptn
               id={hauptnameFeldId(idPraefix, 'rufname')}
               wert={rufnameAuswahlWert(eintrag)}
               optionen={rufnameOptionen(t, eintrag)}
-              aufAenderung={(auswahl) => {
-                // Eine Auswahl ist ein Einzelschritt ohne Tippgeschwindigkeit: sofort schreiben.
-                const naechster = mitRufnameAusAuswahl(eintrag, auswahl)
-                setEintrag(naechster)
-                schreiber.schreiben(naechster)
-              }}
+              // Eine Auswahl ist ein Einzelschritt ohne Tippgeschwindigkeit: sofort schreiben — über den
+              // Hook, damit er den Stand kennt (U-130-nachladen-sofortaendern).
+              aufAenderung={(auswahl) => sofortSetzen(mitRufnameAusAuswahl(eintrag, auswahl))}
             />
           </Formularfeld>
         </div>

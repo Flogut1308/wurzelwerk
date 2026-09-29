@@ -114,14 +114,11 @@ function NamenFelder({ name }: NamenFelderProps) {
   const wert = useMemo(() => namenEintragAusPersonDetailName(name), [name])
   // AP-1.30 PR 4: `feld` nennt das eine geänderte Feld gegenüber dem zuletzt gelesenen Stand (`wert`)
   // — nur dann fasst der Bus schnelle Folgeänderungen zu einem Undo-Schritt zusammen.
-  const [eintrag, setEintrag, sofortSchreiben] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, (naechster) =>
+  // Auswahlfelder schreiben über `sofortAendern` (= `sofortSetzen` des Hooks), nicht am Hook vorbei
+  // (U-130-nachladen-sofortaendern, Kopfkommentar `profil-bearbeiten-debounce.ts`).
+  const [eintrag, setEintrag, sofortSchreiben, sofortAendern] = useEntwurfMitVerzoegertemCommit<NamenEintragWerte>(wert, (naechster) =>
     nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster, geaendertesNamensFeld(wert, naechster))),
   )
-
-  function sofortAendern(naechster: NamenEintragWerte): void {
-    setEintrag(naechster)
-    nameAendern.mutate(nameAendernEinAusEintrag(name.id, naechster, geaendertesNamensFeld(wert, naechster)))
-  }
 
   return (
     <div className="wz-profil-bearbeiten-namen__felder">

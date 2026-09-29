@@ -144,14 +144,10 @@ function QuelleKopfAbschnitt({ quelleId, kopf }: { readonly quelleId: string; re
   const personAnlegen = usePersonAnlegen()
 
   const wert = useMemo(() => quelleKopfEntwurfAusDetail(kopf), [kopf])
-  const [entwurf, setEntwurf] = useEntwurfMitVerzoegertemCommit<QuelleKopfEntwurfWerte>(wert, (naechster) =>
+  // `sofortAendern` = `sofortSetzen` des Hooks (U-130-nachladen-sofortaendern).
+  const [entwurf, setEntwurf, , sofortAendern] = useEntwurfMitVerzoegertemCommit<QuelleKopfEntwurfWerte>(wert, (naechster) =>
     quelleAendern.mutate(quelleAendernEinAusEntwurf(quelleId, naechster)),
   )
-
-  function sofortAendern(naechster: QuelleKopfEntwurfWerte): void {
-    setEntwurf(naechster)
-    quelleAendern.mutate(quelleAendernEinAusEntwurf(quelleId, naechster))
-  }
 
   const [archivSuchtext, setArchivSuchtext] = useState(kopf.archiv_name ?? '')
   const [archivHervorgehobenerIndex, setArchivHervorgehobenerIndex] = useState<number | null>(null)
@@ -344,14 +340,10 @@ function ZitatFelder({ quelleId, zitat: zeile }: { readonly quelleId: string; re
   const zitatLoeschen = useZitatLoeschen()
 
   const wert = useMemo(() => zitatEntwurfAusZeile(zeile), [zeile])
-  const [entwurf, setEntwurf] = useEntwurfMitVerzoegertemCommit<ZitatEntwurfWerte>(wert, (naechster) =>
+  // `sofortAendern` = `sofortSetzen` des Hooks (U-130-nachladen-sofortaendern).
+  const [entwurf, setEntwurf, , sofortAendern] = useEntwurfMitVerzoegertemCommit<ZitatEntwurfWerte>(wert, (naechster) =>
     zitatAendern.mutate(zitatAendernEinAusEntwurf(zeile.id, quelleId, naechster)),
   )
-
-  function sofortAendern(naechster: ZitatEntwurfWerte): void {
-    setEntwurf(naechster)
-    zitatAendern.mutate(zitatAendernEinAusEntwurf(zeile.id, quelleId, naechster))
-  }
 
   return (
     <>
