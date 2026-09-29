@@ -92,6 +92,7 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
   it('bestehende Zeile: Rufname ist eine Auswahl aus den Vornamen, der markierte ist gewählt', () => {
     const name: PersonDetailName = {
       id: 'name-1',
+      ist_bevorzugt: true,
       typ: 'geburtsname',
       schrift: null,
       vornamen: 'Karl Friedrich',

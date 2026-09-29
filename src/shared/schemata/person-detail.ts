@@ -81,9 +81,15 @@ export interface PersonDetailKopf {
  * ignoriert, AP-1.33), auch wenn die Maske es nicht anzeigt; die Profil-Logik reicht es unverändert
  * zurück. `rufname_index` ist die Position des markierten Vornamens (Rekonstruktion), `original_text`
  * der gespeicherte Anzeigetext (automatisch montiert oder wortgetreu). Geprüft durch
- * `test/einheit/profil-name-rundreise.test.ts` über die Schlüssel von `nameAendernEinSchema`. */
+ * `test/einheit/profil-name-rundreise.test.ts` über die Schlüssel von `nameAendernEinSchema`.
+ *
+ * AP-1.30 PR 9c (docs/80 §33 V-130-9c, E4): `ist_bevorzugt` steht NUR lesend hier — der Reiter
+ * „Person" bearbeitet den Hauptnamen und erkennt ihn daran, nicht an der Position in der Liste.
+ * `name.aendern` nimmt es weiter nicht an (Wechsel über `befehl:hauptname.wechseln`). */
 export interface PersonDetailName {
   readonly id: string
+  /** `name_form.ist_bevorzugt` — genau eine Form je Person mit Namen (Invariante „genau ein Hauptname"). */
+  readonly ist_bevorzugt: boolean
   readonly typ: z.infer<typeof NameTypEnum>
   readonly schrift: z.infer<typeof SchriftEnum> | null
   readonly vornamen: string | null

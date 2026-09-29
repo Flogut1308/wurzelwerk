@@ -44,6 +44,7 @@ import type { PersonDetailName } from '../../src/shared/schemata/person-detail'
 function frischesNameObjekt(): PersonDetailName {
   return {
     id: 'name-1',
+    ist_bevorzugt: true,
     typ: 'geburtsname',
     schrift: null,
     vornamen: 'August',

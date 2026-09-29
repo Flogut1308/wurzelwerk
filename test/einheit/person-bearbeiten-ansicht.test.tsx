@@ -68,6 +68,8 @@ function kopf(ueberschreibung: Partial<PersonDetailKopf> = {}): PersonDetailKopf
 function name(id: string, vornamen: string): PersonDetailName {
   return {
     id,
+    // AP-1.30 PR 9c (E4): die erste Form ist der Hauptname.
+    ist_bevorzugt: id === 'n-1',
     typ: 'geburtsname',
     schrift: null,
     vornamen,
