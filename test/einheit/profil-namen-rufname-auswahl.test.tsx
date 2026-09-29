@@ -62,6 +62,25 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
     expect(nameAnlegenEinAusEintrag('person-1', fremd).rufnameText).toBe('Fritz')
   })
 
+  it('Review H3: der gesendete Rufname ist der getrimmte Vorname, nicht die rohe Eingabe', () => {
+    const eintrag = { ...KARL_FRIEDRICH, vornamen: ' Karl  Friedrich ', rufname: ' Friedrich ', rufnameIndex: null }
+    expect(nameAendernEinAusEintrag('name-1', eintrag).rufnameText).toBe('Friedrich')
+  })
+
+  // Review H1: ein mehrwortiger Rufname steht als EIN Bestandteil hinter den Vornamen (zerlegeName
+  // Regel 3, Migration 0006 (c)); die Auswahl bietet ihn als EINE Option an. Rot bis zum Fix.
+  it.fails('mehrwortiger Rufname am Ende der Vornamen ist eine Option und gewählt', () => {
+    const eintrag = { ...KARL_FRIEDRICH, vornamen: 'Karl Hans Peter', rufname: 'Hans Peter', rufnameIndex: 1 }
+    expect(rufnameAuswahlVornamen(eintrag)).toEqual([
+      { wert: '0', vorname: 'Karl' },
+      { wert: '1', vorname: 'Hans Peter' },
+    ])
+    expect(rufnameAuswahlWert(eintrag)).toBe('1')
+    expect(mitRufnameAusAuswahl({ ...eintrag, rufname: '', rufnameIndex: null }, '1')).toMatchObject({ rufname: 'Hans', rufnameIndex: 1 })
+    expect(mitRufnameAusAuswahl(eintrag, '1')).toMatchObject({ rufname: 'Hans Peter', rufnameIndex: 1 })
+    expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
+  })
+
   it('bestehende Zeile: Rufname ist eine Auswahl aus den Vornamen, der markierte ist gewählt', () => {
     const name: PersonDetailName = {
       id: 'name-1',

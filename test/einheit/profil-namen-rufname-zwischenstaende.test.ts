@@ -99,4 +99,40 @@ describe('Namen-Reiter: Rufname über Autosave-Zwischenstände (A-02, AP-1.30)',
       db.close()
     }
   })
+
+  // Review H1: ein Rufname, der beim Anlegen/Import/Migration 0006 KEIN Vorname war, steht als EIN
+  // `name_part` hinten an — auch mehrwortig („Hans Peter"). Die Rekonstruktion gibt ihn als
+  // `rufname_text` „Hans Peter" mit Index 1 zurück, die Vornamen-Kette als „Karl Hans Peter".
+  // Rot bis zum Fix: `it.fails` hält `pnpm pruefe` grün, der Fix-Commit stellt auf `it` um.
+  it.fails('mehrwortiger Rufname behält seine Markierung, wenn nur ein anderes Feld geändert wird', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      const vorher = gespeicherterName(db, personId, id)
+      expect([vorher.vornamen, vorher.rufname_text, vorher.rufname_index]).toEqual(['Karl Hans Peter', 'Hans Peter', 1])
+
+      autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+
+      const nachher = gespeicherterName(db, personId, id)
+      expect([nachher.vornamen, nachher.rufname_text, nachher.rufname_index, nachher.nachname]).toEqual(['Karl Hans Peter', 'Hans Peter', 1, 'Gutnow'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it.fails('mehrwortiger Rufname bleibt, wenn ein ANDERER Vorname umgeschrieben wird', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+
+      autosaveSchritt(db, personId, id, { vornamen: 'Carl Hans Peter' })
+
+      const nachher = gespeicherterName(db, personId, id)
+      expect([nachher.vornamen, nachher.rufname_text, nachher.rufname_index]).toEqual(['Carl Hans Peter', 'Hans Peter', 1])
+    } finally {
+      db.close()
+    }
+  })
 })
