@@ -93,12 +93,26 @@ import { NachladenKontext, wartetAufRuecknahme } from '../../brücke/nachladen-s
  * (`ausstehendRef` ist dann `null`) und schreibt nicht doppelt. Ohne ausstehenden Entwurf tut er
  * nichts. Der Blur beendet die Koaleszenz im Bus NICHT — die entscheidet allein das Zeitfenster
  * (`src/main/journal/koaleszenz.ts`).
+ *
+ * **Sofort schreibende Auswahl (U-130-nachladen-sofortaendern, docs/80 §33):** der vierte Rückgabewert
+ * `sofortSetzen(naechster)` gehört an Felder ohne Tippgeschwindigkeit (Auswahlfeld, Konfidenzwähler):
+ * er setzt den Entwurf, schreibt ihn sofort und zieht `bekannt` nach — wie Tippen plus
+ * `sofortSchreiben` in einem Schritt. Früher riefen die Aufrufer `setEntwurf` und ihren Befehl
+ * direkt auf, am Hook vorbei: `bekannt` blieb auf dem alten Stand, der Timer hielt den Entwurf für
+ * ungeschrieben und schrieb ihn nach der Frist ein zweites Mal, und ein Anschlag in einem Textfeld
+ * derselben Zeile vor dem Echo ging verloren (das Echo sah fremd aus;
+ * `test/einheit/autosave-auswahl-sofort.test.tsx`, `test/e2e/ablauf-14-auswahl-vor-echo.spec.ts`).
+ * Während eine Rücknahme nachlädt, schreibt auch `sofortSetzen` nicht; die Auswahl bleibt als
+ * ausstehender Entwurf stehen und folgt danach den Regeln oben. Gegenposition: die Auswahl könnte
+ * ihren eigenen Schreibweg behalten und der Hook nur `bekannt` von außen gesetzt bekommen — das ließe
+ * aber zwei Schreibwege nebeneinander stehen, und jeder neue Aufrufer müsste das Nachziehen wieder
+ * selbst wissen; genau das war der Fehler.
  */
 export function useEntwurfMitVerzoegertemCommit<T>(
   wert: T,
   aufCommit: (wert: T) => void,
   verzoegerungMs: number = AUTOSAVE_DEBOUNCE_MS,
-): readonly [T, (wert: T) => void, () => void] {
+): readonly [T, (wert: T) => void, () => void, (wert: T) => void] {
   const [entwurf, setEntwurf] = useState(wert)
   const [vorherigerWert, setVorherigerWert] = useState(wert)
   // Zuletzt vom Speicher bekannter Stand: übernommener `wert` oder gesendeter Entwurf (s. oben).
@@ -182,7 +196,19 @@ export function useEntwurfMitVerzoegertemCommit<T>(
     }
   }, [nachladen])
 
-  return [entwurf, setEntwurf, sofortSchreiben] as const
+  const sofortSetzen = useCallback(
+    (naechster: T): void => {
+      setEntwurf(naechster)
+      // Während eine Rücknahme nachlädt, bleibt auch die Auswahl ausstehend (wie `sofortSchreiben`).
+      if (wartetAufRuecknahme(nachladen.lesen())) return
+      ausstehendRef.current = null
+      setBekannt(naechster)
+      aufCommitRef.current(naechster)
+    },
+    [nachladen],
+  )
+
+  return [entwurf, setEntwurf, sofortSchreiben, sofortSetzen] as const
 }
 
 /**

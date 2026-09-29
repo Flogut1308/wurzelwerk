@@ -144,8 +144,7 @@ test.describe('Ablauf 14 — Auswahl, dann Tippen vor dem Nachladen', () => {
     await expect(textfeld).toHaveValue(`${vorher}${anschlag}`)
   }
 
-  // Rot bis zum Fix (U-130-nachladen-sofortaendern): Auswahl schreibt am Hook vorbei.
-  test.fail('Rufname (Reiter Person) und Namenstyp (Reiter Namen): EIN Schreiben je Auswahl, Anschlag danach bleibt erhalten', async () => {
+  test('Rufname (Reiter Person) und Namenstyp (Reiter Namen): EIN Schreiben je Auswahl, Anschlag danach bleibt erhalten', async () => {
     test.setTimeout(90_000)
     await app.evaluate(({ dialog }, gewaehlt) => {
       dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog

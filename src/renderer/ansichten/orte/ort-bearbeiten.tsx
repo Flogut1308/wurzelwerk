@@ -155,14 +155,10 @@ function OrtsnameFelder({ ortsname: zeile }: { readonly ortsname: OrtDetailName 
   const ortsnameLoeschen = useOrtsnameLoeschen()
 
   const wert = useMemo(() => ortsnameEntwurfAusZeile(zeile), [zeile])
-  const [eintrag, setEintrag] = useEntwurfMitVerzoegertemCommit<OrtsnameEntwurfWerte>(wert, (naechster) =>
+  // `sofortAendern` = `sofortSetzen` des Hooks (U-130-nachladen-sofortaendern).
+  const [eintrag, setEintrag, , sofortAendern] = useEntwurfMitVerzoegertemCommit<OrtsnameEntwurfWerte>(wert, (naechster) =>
     ortsnameAendern.mutate(ortsnameAendernEinAusEntwurf(zeile.id, naechster)),
   )
-
-  function sofortAendern(naechster: OrtsnameEntwurfWerte): void {
-    setEintrag(naechster)
-    ortsnameAendern.mutate(ortsnameAendernEinAusEntwurf(zeile.id, naechster))
-  }
 
   return (
     <div className="wz-ort-bearbeiten__felder">

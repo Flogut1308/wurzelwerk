@@ -278,7 +278,7 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
     const zeile = (): Element => bereich('.wz-profil-bearbeiten-namen__zeile')
     const zeigeNamen = (n: PersonDetailName): void => zeigen(<NamenBearbeitenAbschnitt personId="p-1" namen={[n]} />)
 
-    it.fails('Namenstyp wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
+    it('Namenstyp wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
       zeigeNamen(name())
       act(() => waehlen(feldIn(zeile(), 'Namenstyp'), 'ehename'))
       expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-1', typ: 'ehename', nachname: 'Gutnoff' })])
@@ -292,14 +292,14 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
       ])
     })
 
-    it.fails('Rufname wählen ohne Echo innerhalb der Frist: genau EIN name.aendern', () => {
+    it('Rufname wählen ohne Echo innerhalb der Frist: genau EIN name.aendern', () => {
       zeigeNamen(name())
       act(() => waehlen(feldIn(zeile(), 'Rufname'), '1'))
       warte(AUTOSAVE_DEBOUNCE_MS * 3)
       expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ rufnameText: 'Friedrich', rufnameIndex: 1 })])
     })
 
-    it.fails('Rufname wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
+    it('Rufname wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
       zeigeNamen(name())
       act(() => waehlen(feldIn(zeile(), 'Rufname'), '1'))
       act(() => eintippen(feldIn(zeile(), 'Nachname'), 'Gutnow'))
@@ -318,14 +318,14 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
       zeigen(<ReiterPerson personId="p-1" daten={personDetail([n])} idPraefix="pb" aufSprung={() => undefined} aufReiterWechsel={() => undefined} />)
     const element = (id: string): Element => bereich(`#${id}`)
 
-    it.fails('Rufname wählen ohne Echo innerhalb der Frist: genau EIN name.aendern', () => {
+    it('Rufname wählen ohne Echo innerhalb der Frist: genau EIN name.aendern', () => {
       zeigePerson(name())
       act(() => waehlen(element(RUFNAME), '0'))
       warte(AUTOSAVE_DEBOUNCE_MS * 3)
       expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-1', rufnameText: 'Karl', rufnameIndex: 0 })])
     })
 
-    it.fails('Rufname wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
+    it('Rufname wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
       zeigePerson(name())
       act(() => waehlen(element(RUFNAME), '0'))
       act(() => eintippen(element(NACHNAME), 'Gutnow'))
@@ -341,14 +341,14 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
     const zeile = (): Element => bereich('.wz-ort-bearbeiten__zeile')
     const zeigeOrt = (n: OrtDetailName): void => zeigen(<OrteBearbeitenInhalt ortId="o-1" daten={ortDetail([n])} />)
 
-    it.fails('„Bevorzugt" wählen ohne Echo innerhalb der Frist: genau EIN ortsname.aendern', () => {
+    it('„Bevorzugt" wählen ohne Echo innerhalb der Frist: genau EIN ortsname.aendern', () => {
       zeigeOrt(ortsname())
       act(() => waehlen(feldIn(zeile(), 'Bevorzugt'), 'ja'))
       warte(AUTOSAVE_DEBOUNCE_MS * 3)
       expect(aufrufeVon('useOrtsnameAendern')).toHaveLength(1)
     })
 
-    it.fails('„Bevorzugt" wählen, sofort im Namen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
+    it('„Bevorzugt" wählen, sofort im Namen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
       zeigeOrt(ortsname())
       act(() => waehlen(feldIn(zeile(), 'Bevorzugt'), 'ja'))
       act(() => eintippen(feldIn(zeile(), 'Name'), 'Marienwerderx'))
@@ -365,14 +365,14 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
     const zeigeQuelle = (k: QuelleDetailKopf, zitate: readonly QuelleDetailZitat[] = []): void =>
       zeigen(<QuelleBearbeitenInhalt quelleId="quelle-1" daten={quelleDetail(k, zitate)} />)
 
-    it.fails('Quellentyp wählen ohne Echo innerhalb der Frist: genau EIN quelle.aendern', () => {
+    it('Quellentyp wählen ohne Echo innerhalb der Frist: genau EIN quelle.aendern', () => {
       zeigeQuelle(quelleKopf())
       act(() => waehlen(feldIn(kopf(), 'Typ'), 'standesamt'))
       warte(AUTOSAVE_DEBOUNCE_MS * 3)
       expect(aufrufeVon('useQuelleAendern')).toHaveLength(1)
     })
 
-    it.fails('Quellentyp wählen, sofort im Titel tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
+    it('Quellentyp wählen, sofort im Titel tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
       zeigeQuelle(quelleKopf())
       act(() => waehlen(feldIn(kopf(), 'Typ'), 'standesamt'))
       act(() => eintippen(feldIn(kopf(), 'Titel'), 'Taufbuchx'))
@@ -383,7 +383,7 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
       expect(aufrufeVon('useQuelleAendern')[1]).toEqual(expect.objectContaining({ typ: 'standesamt', titel: 'Taufbuchx' }))
     })
 
-    it.fails('Zitat-Konfidenz wählen ohne Echo innerhalb der Frist: genau EIN zitat.aendern', () => {
+    it('Zitat-Konfidenz wählen ohne Echo innerhalb der Frist: genau EIN zitat.aendern', () => {
       zeigeQuelle(quelleKopf(), [zitat()])
       const stufe = document.querySelector('[role="radiogroup"][aria-label="Konfidenz"] [role="radio"]')
       if (!(stufe instanceof HTMLButtonElement)) throw new Error('Konfidenzstufe fehlt')
