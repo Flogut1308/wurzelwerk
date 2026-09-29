@@ -3,7 +3,8 @@
 // wird und welche Kurzbeschreibung bearbeitet wird. Rot zuerst (CLAUDE.md §5): vor PR 9c gibt es
 // diese Funktionen nicht.
 import { describe, expect, it } from 'vitest'
-import { KURZBESCHREIBUNG_PRAEDIKAT, aussageWertVerletzung, istDatumsPraedikat } from '../../src/core/person/datums-wert'
+import { aussageWertVerletzung, istDatumsPraedikat } from '../../src/core/person/datums-wert'
+import { KURZBESCHREIBUNG_PRAEDIKAT } from '../../src/core/person/praedikate'
 import type { PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailName } from '../../src/shared/schemata/person-detail'
 import {
   NAMEN_EINTRAG_LEER,

@@ -19,7 +19,7 @@
 //   `kurzbeschreibung` (E5), die vorrangige wird bearbeitet (E9).
 import { formatiere } from '../../../core/datum/formatierer'
 import type { Datumswert, Formatergebnis, Kalender } from '../../../core/datum/typen'
-import { KURZBESCHREIBUNG_PRAEDIKAT, type KurzbeschreibungPraedikat } from '../../../core/person/datums-wert'
+import { KURZBESCHREIBUNG_PRAEDIKAT, type KurzbeschreibungPraedikat } from '../../../core/person/praedikate'
 import { LEBENSDATUM_ANGABEN, lebensdatumArt, type LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
 import type { AussageAendernEin, AussageAnlegenEin, NameAnlegenEin, PersonFeldSetzenEin } from '../../../shared/schemata/befehle'

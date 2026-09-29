@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Kalender } from '../../../core/datum/typen'
-import { KURZBESCHREIBUNG_PRAEDIKAT } from '../../../core/person/datums-wert'
+import { KURZBESCHREIBUNG_PRAEDIKAT } from '../../../core/person/praedikate'
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { EditorFeld } from '../../../core/person/offene-punkte'
 import type { ReiterId } from '../../../core/person/reiter'
