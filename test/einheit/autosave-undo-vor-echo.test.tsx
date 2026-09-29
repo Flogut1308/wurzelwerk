@@ -100,7 +100,7 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     }
   }
 
-  it.fails('(a) ohne ausstehenden Entwurf: das Feld übernimmt den zurückgenommenen Stand, obwohl sich wert nicht ändert', () => {
+  it('(a) ohne ausstehenden Entwurf: das Feld übernimmt den zurückgenommenen Stand, obwohl sich wert nicht ändert', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('Start', aufCommit, s)
@@ -115,7 +115,7 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     expect(aufCommit).toHaveBeenCalledTimes(1)
   })
 
-  it.fails('(b) mit ausstehendem Entwurf: Undo gewinnt, der Timer schreibt den Entwurf nicht über das Undo', () => {
+  it('(b) mit ausstehendem Entwurf: Undo gewinnt, der Timer schreibt den Entwurf nicht über das Undo', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('Start', aufCommit, s)
@@ -129,7 +129,7 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     expect(aufCommit).toHaveBeenCalledTimes(1)
   })
 
-  it.fails('(b) bis das Nachladen nach dem Undo da ist, schreibt der Timer nicht', () => {
+  it('(b) bis das Nachladen nach dem Undo da ist, schreibt der Timer nicht', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('Start', aufCommit, s)
@@ -143,7 +143,7 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     expect(s.entwurf).toBe('Start')
   })
 
-  it.fails('(b) ein Undo, das zwischen Timer-Fälligkeit und Rendern ankommt, hält den Timer an', () => {
+  it('(b) ein Undo, das zwischen Timer-Fälligkeit und Rendern ankommt, hält den Timer an', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('Start', aufCommit, s)
@@ -158,7 +158,7 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     expect(aufCommit).toHaveBeenCalledTimes(1)
   })
 
-  it.fails('(b) Verlassen des Felds während des Nachladens schreibt nicht über das Undo', () => {
+  it('(b) Verlassen des Felds während des Nachladens schreibt nicht über das Undo', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung()
     zeige('Start', aufCommit, s)
@@ -173,6 +173,21 @@ describe('Autosave: Undo vor dem Echo des eigenen Schreibens (U-130-nachladen-un
     nachgeladen()
     expect(s.entwurf).toBe('Start')
     warte(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect(aufCommit).toHaveBeenCalledTimes(1)
+  })
+
+  // Ein bereits gesendeter Entwurf ist nicht mehr ausstehend: hängt der Editor aus, während das
+  // Undo nachlädt, darf der Unmount-Flush ihn nicht noch einmal über das Undo schreiben.
+  it('Aus-Hängen während des Nachladens schreibt den schon gesendeten Entwurf nicht erneut', () => {
+    const aufCommit = vi.fn()
+    const s = neueSteuerung()
+    zeige('Start', aufCommit, s)
+    tippe(s, 'Starta')
+    warte(AUTOSAVE_DEBOUNCE_MS)
+    undoBeginnt()
+    act(() => {
+      root.render(<NachladenKontext.Provider value={melder}>{null}</NachladenKontext.Provider>)
+    })
     expect(aufCommit).toHaveBeenCalledTimes(1)
   })
 

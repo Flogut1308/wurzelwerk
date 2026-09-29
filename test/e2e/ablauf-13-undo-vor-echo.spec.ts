@@ -139,7 +139,7 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
     return { personId, notiz }
   }
 
-  test.fail('(a) ohne ausstehenden Entwurf: das Feld zeigt nach dem Undo den gespeicherten Stand', async () => {
+  test('(a) ohne ausstehenden Entwurf: das Feld zeigt nach dem Undo den gespeicherten Stand', async () => {
     test.setTimeout(60_000)
     const { personId, notiz } = await vorbereiten()
     await notiz.press('a')
@@ -154,7 +154,7 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
     await expect(notiz).toHaveValue('Start')
   })
 
-  test.fail('(b) mit ausstehendem Entwurf: Undo gewinnt, der Entwurf wird nicht über das Undo geschrieben', async () => {
+  test('(b) mit ausstehendem Entwurf: Undo gewinnt, der Entwurf wird nicht über das Undo geschrieben', async () => {
     test.setTimeout(60_000)
     const { personId, notiz } = await vorbereiten()
     await notiz.press('a')
