@@ -70,6 +70,11 @@ const FELD = 'person-bearbeiten-feld-geburtsdatum'
 const STATUS_UNLESBAR = 'Nicht gespeichert — Datum nicht lesbar'
 const ETWA_1788 = 'Als ‚etwa 1788‘ mit Originaltext speichern'
 
+/** Exaktes Jahresdatum als gelesene Datumsgruppe. */
+function datumGruppe(jahr: string): NonNullable<PersonDetailAussage['datum']> {
+  return { kalender: 'gregorian', modifikator: 'exakt', praezision: 'jahr', wert1: jahr, wert2: null, originaltext: null, sort_von: 1, sort_bis: 2, zweitkalender: null, zweitwert: null, doppeljahr: null }
+}
+
 function geburt(): PersonDetailAussage {
   return {
     aussage_id: 'g-1',
@@ -646,11 +651,54 @@ describe('Unlesbares Datum: Halten der Tod-Gruppe und Feldbezug (Nachreview #167
     const erste = nachfrage()
     if (erste === null) throw new Error('Nachfrage fehlt')
     expect(erste.textContent).toContain('Geburtsdatum')
-    act(() => knopf(erste, 'Eingabe verwerfen').click())
+    // Fokus wie im Browser auf den geklickten Knopf — `.click()` in jsdom verschiebt ihn nicht, sonst
+    // bliebe er auch ohne neue Instanz auf „Zurück zum Feld" (Nachreview #167, Mutant M7).
+    const verwerfen = knopf(erste, 'Eingabe verwerfen')
+    act(() => {
+      verwerfen.focus()
+      verwerfen.click()
+    })
     const zweite = nachfrage()
     if (zweite === null) throw new Error('zweite Nachfrage fehlt')
     expect(zweite.textContent).toContain('Todesdatum')
     expect(document.activeElement?.textContent).toBe('Zurück zum Feld')
     expect(aufFertig).not.toHaveBeenCalled()
+  })
+
+  it.fails('Nachreview #167: kein verwaistes Halten — ein von außen gesetzter Wert (Undo/Nachladen) nach dem Verlassen löst die Gruppe', () => {
+    zeigen(mitStatus(null))
+    const gruppe = todGruppe()
+    if (gruppe === null) throw new Error('Tod-Gruppe fehlt')
+    act(() => knopf(gruppe, 'Tod-Angaben einblenden').click())
+    fokussiertTippen(TOD, '31.02.1788')
+    verlassen(TOD)
+    // Von außen: das Todesdatum ist jetzt „1790" (z. B. Undo eines früheren Schritts).
+    const basis = mitStatus(null)
+    const tod: PersonDetailAussage = { ...geburt(), aussage_id: 't-1', wert: '1790', datum: datumGruppe('1790') }
+    zeigen({
+      ...basis,
+      grunddaten: [...basis.grunddaten, { praedikat: 'todesdatum', wert: '1790', konfidenz: 3, belegzahl: 0, hat_widerspruch: false, hatKonkurrierende: false, aussagen: [tod] }],
+      lebensdaten: basis.lebensdaten.map((eintrag) => (eintrag.angabe === 'todesdatum' ? { ...eintrag, herkunft: 'aussage', aussage_id: 't-1' } : eintrag)),
+    })
+    expect(feld(TOD)?.value).toBe('1790')
+    expect(todGruppe()?.textContent).not.toContain('noch nicht gespeichert')
+    const offen = todGruppe()
+    if (offen === null) throw new Error('Tod-Gruppe fehlt')
+    act(() => knopf(offen, 'Tod-Angaben ausblenden').click())
+    expect(nachfrage()).toBeNull()
+    expect(feld(TOD)).toBeNull()
+  })
+
+  it('Nachreview #167: nach „etwa"-Speichern (Fokus auf dem Knopf) bei Status „lebend" blendet die Gruppe aus', () => {
+    unlesbarUndLebend()
+    const angabe = feld(TOD)?.closest('.wz-reiter-person__angabe')
+    if (angabe === null || angabe === undefined) throw new Error('Angabe fehlt')
+    const etwa = knopf(angabe, ETWA_1788)
+    act(() => {
+      etwa.focus()
+      etwa.click()
+    })
+    expect(aufrufeVon('useAussageAnlegen')).toHaveLength(1)
+    expect(feld(TOD)).toBeNull()
   })
 })
