@@ -23,9 +23,28 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../../shared/autosave'
  * die Unterscheidung "von außen" vs. "vom Nutzer geändert" braucht darum keinen tiefen Vergleich.
  *
  * Ein von außen geänderter `wert` (z. B. nach `ereignis:datenGeaendert`, etwa durch ein Undo)
- * ersetzt den Entwurf sofort — AP-1.14a kennt keine gleichzeitige Mehrbearbeitung
- * (`docs/architektur.md` §10), ein Wettlauf zwischen Server- und Tippzustand ist darum kein Fall,
- * den dieser Hook auflösen muss.
+ * ersetzt den Entwurf sofort — mit EINER Ausnahme (U-130-fix-ablauf07-nachladen, docs/80 §33):
+ * das Echo des eigenen Schreibens. Nach `aufCommit` lädt der Renderer den gespeicherten Stand
+ * asynchron nach; ein Anschlag, der in dieses Fenster fällt, ist NEUER als das Echo. Früher legte
+ * der Sync-Zweig das Echo darüber, der Timer fand danach `entwurf === wert` und schrieb nichts —
+ * der Anschlag war still verloren (`test/einheit/autosave-nachladen-entwurf.test.tsx`,
+ * `test/e2e/ablauf-12-nachladen-entwurf.spec.ts`). `bekannt` hält darum den Stand, den der Hook
+ * zuletzt vom Speicher kennt: den zuletzt übernommenen `wert` oder den zuletzt gesendeten Entwurf.
+ * Ein neuer `wert` wird übernommen, WENN kein ungesendeter Entwurf aussteht (`entwurf === bekannt`)
+ * ODER er sich inhaltlich von `bekannt` unterscheidet (fremde Änderung: Undo, anderes Fenster).
+ * Nur ein inhaltsgleiches Echo über einem ungesendeten Entwurf wird verworfen; der Entwurf wird
+ * danach regulär geschrieben. Der Inhaltsvergleich ist strukturell (`strukturGleich`), weil ein
+ * Objekt-`wert` beim Nachladen in neuer Referenz ankommt. Ein normalisiertes Echo (der Speicher gibt
+ * anders zurück, als gesendet wurde) gilt als fremd und wird übernommen — dort bleibt das alte
+ * Verhalten.
+ *
+ * **Undo, während ein ungesendeter Entwurf aussteht: Undo gewinnt** (der ungesendete Anschlag wird
+ * verworfen). Das Menü-Undo läuft im Hauptprozess und kennt den Entwurf nicht; behielte der Hook
+ * den Entwurf, schriebe der Timer ihn Sekundenbruchteile später zurück — das Undo wirkte scheinbar
+ * gar nicht und leerte obendrein den Redo-Stapel. Gegenposition: der ungesendete Anschlag ist
+ * ebenfalls Nutzereingabe und geht verloren. Das nehmen wir in Kauf: er liegt höchstens
+ * `verzoegerungMs` zurück, verschwindet sichtbar mit dem Undo (nicht still), und „Rückgängig nimmt
+ * das Tippen zurück" ist genau die Erwartung an Undo.
  *
  * Synchronisation OHNE Effekt: „Adjusting some state when a prop changes" (React-Dokumentation,
  * `react-hooks/set-state-in-effect`) — ein `useEffect`, der bei jeder `wert`-Änderung `setEntwurf`
@@ -65,6 +84,8 @@ export function useEntwurfMitVerzoegertemCommit<T>(
 ): readonly [T, (wert: T) => void, () => void] {
   const [entwurf, setEntwurf] = useState(wert)
   const [vorherigerWert, setVorherigerWert] = useState(wert)
+  // Zuletzt vom Speicher bekannter Stand: übernommener `wert` oder gesendeter Entwurf (s. oben).
+  const [bekannt, setBekannt] = useState(wert)
 
   const aufCommitRef = useRef(aufCommit)
   // Zuweisung NACH dem Rendern (Effekt statt Render-Körper) — ein Ref-Schreibzugriff während des
@@ -80,7 +101,11 @@ export function useEntwurfMitVerzoegertemCommit<T>(
 
   if (wert !== vorherigerWert) {
     setVorherigerWert(wert)
-    setEntwurf(wert)
+    const echoUeberUngesendetem = entwurf !== bekannt && strukturGleich(wert, bekannt)
+    if (!echoUeberUngesendetem) {
+      setEntwurf(wert)
+      setBekannt(wert)
+    }
   }
 
   useEffect(() => {
@@ -93,6 +118,7 @@ export function useEntwurfMitVerzoegertemCommit<T>(
       // Ein Blur-Commit (`sofortSchreiben`) kann den Entwurf bereits geschrieben haben.
       if (ausstehendRef.current === null) return
       ausstehendRef.current = null
+      setBekannt(entwurf)
       aufCommitRef.current(entwurf)
     }, verzoegerungMs)
     return () => clearTimeout(timer)
@@ -116,9 +142,24 @@ export function useEntwurfMitVerzoegertemCommit<T>(
     const ausstehend = ausstehendRef.current
     if (ausstehend !== null) {
       ausstehendRef.current = null
+      setBekannt(ausstehend.entwurf)
       aufCommitRef.current(ausstehend.entwurf)
     }
   }, [])
 
   return [entwurf, setEntwurf, sofortSchreiben] as const
+}
+
+/**
+ * Inhaltsgleichheit für Entwurfswerte (Primitive, Arrays, einfache Objekte — alle `…EntwurfWerte`
+ * sind solche Datensätze). Nur für die Echo-Erkennung oben; im Zweifel `false`, dann wird der
+ * nachgeladene Wert wie bisher übernommen.
+ */
+function strukturGleich(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const schluesselA = Object.keys(a)
+  if (schluesselA.length !== Object.keys(b).length) return false
+  return schluesselA.every((schluessel) => Object.hasOwn(b, schluessel) && strukturGleich(Reflect.get(a, schluessel), Reflect.get(b, schluessel)))
 }

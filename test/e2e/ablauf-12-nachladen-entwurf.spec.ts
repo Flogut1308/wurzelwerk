@@ -98,8 +98,7 @@ test.describe('Ablauf 12 — Anschlag während des Nachladens (Notiz)', () => {
     }, [TOR_SCHLUESSEL, art] as const)
   }
 
-  // Rot gegen den unveränderten Hook: gespeichert bleibt „Starta" (test.fail bis zum Fix).
-  test.fail('ein Anschlag zwischen Schreiben und Nachladen wird nicht überschrieben und gespeichert', async () => {
+  test('ein Anschlag zwischen Schreiben und Nachladen wird nicht überschrieben und gespeichert', async () => {
     test.setTimeout(60_000)
     await dialogLiefert(elternordner)
     await fenster.getByPlaceholder('Projektname').fill('Nachladentest')

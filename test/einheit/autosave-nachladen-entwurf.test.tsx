@@ -81,8 +81,7 @@ describe('Autosave: Nachladen nach dem eigenen Schreiben (U-130-fix-ablauf07-nac
     })
   }
 
-  // Rot gegen den unveränderten Hook: Entwurf „Starta" statt „Startab" (it.fails bis zum Fix).
-  it.fails('ein Anschlag zwischen Schreiben und Nachladen bleibt im Entwurf und wird geschrieben', () => {
+  it('ein Anschlag zwischen Schreiben und Nachladen bleibt im Entwurf und wird geschrieben', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung<string>()
     zeige('Start', aufCommit, s)
@@ -97,8 +96,7 @@ describe('Autosave: Nachladen nach dem eigenen Schreiben (U-130-fix-ablauf07-nac
     expect(aufCommit).toHaveBeenLastCalledWith('Startab')
   })
 
-  // Rot gegen den unveränderten Hook: nachname „Musterm" statt „Musterma" (it.fails bis zum Fix).
-  it.fails('Objekt-Entwurf (Namenszeile): inhaltsgleiches Echo in neuer Referenz überschreibt den neueren Entwurf nicht', () => {
+  it('Objekt-Entwurf (Namenszeile): inhaltsgleiches Echo in neuer Referenz überschreibt den neueren Entwurf nicht', () => {
     const aufCommit = vi.fn()
     const s = neueSteuerung<Zeile>()
     zeige<Zeile>({ vornamen: 'Anna', nachname: 'Muster' }, aufCommit, s)
