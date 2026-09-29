@@ -33,8 +33,10 @@ export const KOALESZENZ_FENSTER_MS = 2000
 /**
  * Nachlauf nach dem bestätigten Schreiben, bevor der nächste Anschlag folgt. Grund: nach
  * `ereignis:datenGeaendert` lädt der Renderer den gespeicherten Stand nach und übernimmt ihn in den
- * Entwurf (Sync-Zweig in `src/renderer/ansichten/profil/profil-bearbeiten-debounce.ts`); ein Anschlag
- * VOR diesem Nachladen würde vom nachgeladenen Stand überschrieben. Gemessen ging auch ganz ohne
+ * Entwurf (Sync-Zweig in `src/renderer/ansichten/profil/profil-bearbeiten-debounce.ts`). Früher
+ * überschrieb dieses Nachladen einen Anschlag, der davor fiel; seit U-130-fix-ablauf07-nachladen
+ * erkennt der Hook das Echo des eigenen Schreibens (`ablauf-12-nachladen-entwurf.spec.ts`), der
+ * Nachlauf ist darum nur noch Reserve. Gemessen ging auch ganz ohne
  * Nachlauf kein Anschlag verloren (lokal, auch bei 20-facher CPU-Drosselung des Renderers) — 50 ms
  * sind Reserve, kein Messwert.
  */
