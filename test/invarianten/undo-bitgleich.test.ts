@@ -219,6 +219,15 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['ablehnung.datumswert.fremdBeibehalten', 22],
   ['ablehnung.datumswert.fremdOhneWert', 19],
   ['ablehnung.datumswert.anlegenOhneDatum', 27],
+  // AP-1.30 PR 9c-b (Prüfpfad-Folge zu #170, docs/80 §33 V-130-9c-b), am Datenbankergebnis gemessen
+  // (`_befehlsfolge-kurzbeschreibung.ts`): Kurzbeschreibung angelegt (Branch-Wert 368, auch im
+  // Vorlauf), `aussage.aendern` mit `feld: 'wertText'` mit der obersten Transaktion zusammengefasst
+  // (121) bzw. als neuer Undo-Schritt (207), gelöscht (140 — der Löschweg, den `undo-bitgleich` damit
+  // Schritt für Schritt zurücknimmt) — Schwelle je die Hälfte.
+  ['kurzbeschreibung.anlegen', 184],
+  ['kurzbeschreibung.aendern.zusammengefasst', 60],
+  ['kurzbeschreibung.aendern.neuerSchritt', 103],
+  ['kurzbeschreibung.loeschen', 70],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
