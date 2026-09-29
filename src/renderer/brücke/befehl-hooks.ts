@@ -33,6 +33,7 @@ import {
   schreibFeldNameAendern,
   schreibFeldPersonFeldSetzen,
 } from './schreib-beobachter'
+import { NACHLADEN_ZEITGRENZE_MS, istRuecknahme, type NachladenMelder } from './nachladen-stand'
 
 /**
  * Entpackt ein `Ergebnis<T>` zu `T` oder wirft den enthaltenen `AppFehler` — TanStack Query fängt
@@ -300,19 +301,38 @@ export function useBeteiligungLoeschen(): UseMutationResult<null, AppFehler, Ein
 /**
  * Invalidiert pauschal den gesamten `@tanstack/react-query`-Cache nach jedem `ereignis:
  * datenGeaendert`-Push (D-EREIGNIS: die Nutzlast trägt kein `betroffen`-Feld, es gibt also nichts
- * Selektives nachzuführen). Kein Consumer vor AP-1.6, siehe Modul-Kommentar. `nutzlast` kommt als
+ * Selektives nachzuführen). Kein Consumer vor AP-1.6, siehe Modul-Kommentar. Meldet zusätzlich an
+ * `nachladen` (U-130-nachladen-undo-vor-echo), wann eine Rücknahme im Cache angekommen ist. `nutzlast` kommt als
  * `unknown` vom Preload — `datenGeaendertNutzlastSchema.parse(...)` prüft sie, bevor invalidiert
  * wird (AP-0.20: dieselbe Härtung wie bei `useJournalStatusAbo` unten, jetzt für jeden
  * `ereignis:`-Hook Regel statt Ausnahme).
  */
-export function useDatenGeaendertAbo(): void {
+export function useDatenGeaendertAbo(nachladen: NachladenMelder): void {
   const queryClient = useQueryClient()
   useEffect(() => {
     return window.wurzelwerk.abonnieren('ereignis:datenGeaendert', (nutzlast) => {
-      datenGeaendertNutzlastSchema.parse(nutzlast)
-      void queryClient.invalidateQueries()
+      const ereignis = datenGeaendertNutzlastSchema.parse(nutzlast)
+      // U-130-nachladen-undo-vor-echo: Rücknahmen und das Ende jeder Invalidierung melden, damit der
+      // Autosave-Hook ein Undo auch dann erkennt, wenn der nachgeladene Wert gleich bleibt
+      // (`nachladen-stand.ts`). `invalidateQueries` löst sich erst nach dem Neuladen der aktiven Abfragen.
+      // `fertig` kommt IMMER (hueter PR #174 H2): bei Erfolg, Fehlschlag, synchronem Wurf und
+      // spätestens nach `NACHLADEN_ZEITGRENZE_MS` — sonst bliebe der Autosave dauerhaft im
+      // Wartezustand. `fertig` ist idempotent; ein synchroner Wurf wird nach dem Aufräumen
+      // weitergeworfen (sichtbar wie vorher, nicht verschluckt).
+      const fertig = nachladen.invalidierungBegonnen(istRuecknahme(ereignis.ursache))
+      const zeitgrenze = setTimeout(fertig, NACHLADEN_ZEITGRENZE_MS)
+      const abschliessen = (): void => {
+        clearTimeout(zeitgrenze)
+        fertig()
+      }
+      try {
+        void queryClient.invalidateQueries().then(abschliessen, abschliessen)
+      } catch (fehler) {
+        abschliessen()
+        throw fehler
+      }
     })
-  }, [queryClient])
+  }, [queryClient, nachladen])
 }
 
 /**

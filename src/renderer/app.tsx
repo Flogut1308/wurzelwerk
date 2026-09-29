@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query'
 import type { ProjektInfo } from '../shared/ipc/vertrag'
 import { useDatenGeaendertAbo, useProjektGeschlossenAbo, useZustandsbibliothekOeffnenAbo } from './brücke/befehl-hooks'
+import { NachladenKontext, nachladenMelderErzeugen } from './brücke/nachladen-stand'
 import { ListenAnsicht } from './ansichten/liste/listen-ansicht'
 import { StartAnsicht } from './ansichten/start/start-ansicht'
 import { Zustandsbibliothek } from './ansichten/zustandsbibliothek/zustandsbibliothek'
@@ -28,6 +29,13 @@ const queryClient = new QueryClient({
 })
 
 /**
+ * Nachladen-Stand für die Autosave-Felder (U-130-nachladen-undo-vor-echo, `brücke/nachladen-stand.ts`),
+ * ein Stand je Fenster wie der Query-Client. Geplant wird über `notifyManager.schedule` von TanStack
+ * (Absicht und Grenze dieser Reihenfolge: Kopfkommentar von `nachladen-stand.ts`).
+ */
+const nachladenMelder = nachladenMelderErzeugen(notifyManager.schedule)
+
+/**
  * Der erste echte Consumer von `useDatenGeaendertAbo()` (bisher nur vorausschauend angelegt,
  * AP-0.9-Kommentar in `befehl-hooks.ts`). Sitzt innerhalb von `QueryClientProvider`, aber
  * außerhalb jeder einzelnen Ansicht, damit **jede** künftige `abfrage:*`-Abfrage im Baum von der
@@ -35,7 +43,7 @@ const queryClient = new QueryClient({
  * muss. Rendert nichts.
  */
 function DatenGeaendertBruecke(): null {
-  useDatenGeaendertAbo()
+  useDatenGeaendertAbo(nachladenMelder)
   return null
 }
 
@@ -71,15 +79,17 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <DatenGeaendertBruecke />
-      <Fehlergrenze>
-        {zustandsbibliothekOffen ? (
-          <Zustandsbibliothek aufSchliessen={() => setZustandsbibliothekOffen(false)} />
-        ) : projekt === null ? (
-          <StartAnsicht aufProjektGeoeffnet={setProjekt} />
-        ) : (
-          <ListenAnsicht projekt={projekt} aufProjektGeschlossen={() => setProjekt(null)} />
-        )}
-      </Fehlergrenze>
+      <NachladenKontext.Provider value={nachladenMelder}>
+        <Fehlergrenze>
+          {zustandsbibliothekOffen ? (
+            <Zustandsbibliothek aufSchliessen={() => setZustandsbibliothekOffen(false)} />
+          ) : projekt === null ? (
+            <StartAnsicht aufProjektGeoeffnet={setProjekt} />
+          ) : (
+            <ListenAnsicht projekt={projekt} aufProjektGeschlossen={() => setProjekt(null)} />
+          )}
+        </Fehlergrenze>
+      </NachladenKontext.Provider>
     </QueryClientProvider>
   )
 }

@@ -8,8 +8,9 @@
 // Mount-/Unmount-Lebensdauer, die kein `renderToStaticMarkup` liefert — dafür
 // `test/einheit/profil-bearbeiten-debounce.test.tsx` (jsdom nur in dieser einen Testdatei, s.
 // dortiger Kopfkommentar).
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../../shared/autosave'
+import { NachladenKontext, wartetAufRuecknahme } from '../../brücke/nachladen-stand'
 
 /**
  * Hält einen lokalen Entwurfswert (jeder Tastendruck/jede Feldänderung aktualisiert ihn sofort,
@@ -45,6 +46,22 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../../shared/autosave'
  * ebenfalls Nutzereingabe und geht verloren. Das nehmen wir in Kauf: er liegt höchstens
  * `verzoegerungMs` zurück, verschwindet sichtbar mit dem Undo (nicht still), und „Rückgängig nimmt
  * das Tippen zurück" ist genau die Erwartung an Undo.
+ *
+ * **Undo, bevor das Echo des eigenen Schreibens ankommt (U-130-nachladen-undo-vor-echo, docs/80 §33):**
+ * dann liefert der Speicher wieder den Stand von vor dem Schreiben — denselben, den der Cache noch
+ * hält; `wert` ändert sich nicht, und der Vergleich oben sähe nichts (Feld zeigt den geschriebenen
+ * Entwurf, gespeichert ist der alte Stand; ein ausstehender Entwurf überschriebe das Undo). Darum
+ * hört der Hook zusätzlich auf den Nachladen-Stand (`NachladenKontext`, `brücke/nachladen-stand.ts`):
+ * Solange eine Rücknahme (Undo/Redo) gemeldet, ihr Stand aber noch nicht im Cache ist, schreibt der
+ * Hook NICHT (weder Timer noch Verlassen des Felds; der Entwurf bleibt ausstehend). Ist der Cache
+ * danach frisch, wird `wert` gegen `bekannt` geprüft wie bei einem neuen `wert` — auch wenn er sich
+ * nicht geändert hat: weicht er vom zuletzt Gesendeten ab, war es eine Rücknahme DIESES Felds und
+ * sie wird übernommen (Undo gewinnt, wie oben); gleicht er ihm, nahm das Undo etwas anderes zurück,
+ * und der ausstehende Entwurf wird danach regulär geschrieben. Gegenposition: der Hook könnte beim
+ * Undo sofort auf den Cache zurückfallen, ohne auf das Nachladen zu warten — einfacher, aber er
+ * verwürfe dann auch Entwürfe, deren Feld das Undo gar nicht betraf. Nicht abgedeckt: der
+ * Unmount-Flush unten schreibt einen ausstehenden Entwurf auch während des Wartens (sonst ginge er
+ * beim Aus-Hängen still verloren).
  *
  * Synchronisation OHNE Effekt: „Adjusting some state when a prop changes" (React-Dokumentation,
  * `react-hooks/set-state-in-effect`) — ein `useEffect`, der bei jeder `wert`-Änderung `setEntwurf`
@@ -99,8 +116,20 @@ export function useEntwurfMitVerzoegertemCommit<T>(
   // Gelesen ausschließlich vom Unmount-Flush-Effekt unten, geschrieben vom Debounce-Effekt.
   const ausstehendRef = useRef<{ entwurf: T } | null>(null)
 
-  if (wert !== vorherigerWert) {
-    setVorherigerWert(wert)
+  // Rücknahmen (Undo/Redo) und ob ihr Stand schon im Cache ist (s. Kopfkommentar).
+  const nachladen = useContext(NachladenKontext)
+  // Dritter Parameter: `renderToStaticMarkup` (Einheitstests der Abschnitte) verlangt einen Server-Schnappschuss.
+  const stand = useSyncExternalStore(nachladen.abonnieren, nachladen.lesen, nachladen.lesen)
+  const wartet = wartetAufRuecknahme(stand)
+  const [verarbeitetNr, setVerarbeitetNr] = useState(stand.geladenNr)
+
+  const wertNeu = wert !== vorherigerWert
+  const nachRuecknahmeGeladen = !wartet && stand.geladenNr !== verarbeitetNr
+  if (wertNeu || nachRuecknahmeGeladen) {
+    if (wertNeu) setVorherigerWert(wert)
+    if (nachRuecknahmeGeladen) setVerarbeitetNr(stand.geladenNr)
+    // Verworfen wird nur ein Stand, der dem zuletzt Gesendeten gleicht, während ein ungesendeter
+    // Entwurf aussteht (das Echo des eigenen Schreibens); alles andere ist fremd und wird übernommen.
     const echoUeberUngesendetem = entwurf !== bekannt && strukturGleich(wert, bekannt)
     if (!echoUeberUngesendetem) {
       setEntwurf(wert)
@@ -109,20 +138,25 @@ export function useEntwurfMitVerzoegertemCommit<T>(
   }
 
   useEffect(() => {
-    if (entwurf === wert) {
+    // Ausstehend ist nur ein Entwurf, der weder dem geladenen noch dem zuletzt gesendeten Stand gleicht.
+    if (entwurf === wert || entwurf === bekannt) {
       ausstehendRef.current = null
       return
     }
     ausstehendRef.current = { entwurf }
+    if (wartet) return
     const timer = setTimeout(() => {
       // Ein Blur-Commit (`sofortSchreiben`) kann den Entwurf bereits geschrieben haben.
       if (ausstehendRef.current === null) return
+      // Eine Rücknahme kann gemeldet sein, bevor dieser Hook neu gerendert hat — dann nicht schreiben;
+      // der Effekt läuft nach dem Nachladen erneut (`wartet` wechselt).
+      if (wartetAufRuecknahme(nachladen.lesen())) return
       ausstehendRef.current = null
       setBekannt(entwurf)
       aufCommitRef.current(entwurf)
     }, verzoegerungMs)
     return () => clearTimeout(timer)
-  }, [entwurf, wert, verzoegerungMs])
+  }, [entwurf, wert, bekannt, verzoegerungMs, wartet, nachladen])
 
   useEffect(() => {
     return () => {
@@ -140,12 +174,13 @@ export function useEntwurfMitVerzoegertemCommit<T>(
 
   const sofortSchreiben = useCallback((): void => {
     const ausstehend = ausstehendRef.current
-    if (ausstehend !== null) {
+    // Während eine Rücknahme nachlädt, bleibt der Entwurf ausstehend (s. Kopfkommentar).
+    if (ausstehend !== null && !wartetAufRuecknahme(nachladen.lesen())) {
       ausstehendRef.current = null
       setBekannt(ausstehend.entwurf)
       aufCommitRef.current(ausstehend.entwurf)
     }
-  }, [])
+  }, [nachladen])
 
   return [entwurf, setEntwurf, sofortSchreiben] as const
 }
