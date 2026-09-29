@@ -101,14 +101,23 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
 
   /** Klickt den Menüpunkt „Rückgängig" (Tastenkürzel `CmdOrCtrl+Z`) im Hauptprozess. */
   async function menueUndo(): Promise<void> {
-    await app.evaluate(({ Menu }) => {
+    await menuepunktKlicken('CmdOrCtrl+Z')
+  }
+
+  /** Klickt den Menüpunkt „Wiederholen" (Tastenkürzel `Shift+CmdOrCtrl+Z`) im Hauptprozess. */
+  async function menueRedo(): Promise<void> {
+    await menuepunktKlicken('Shift+CmdOrCtrl+Z')
+  }
+
+  async function menuepunktKlicken(kuerzel: string): Promise<void> {
+    await app.evaluate(({ Menu }, gesucht) => {
       const menue = Menu.getApplicationMenu()
       if (menue === null) throw new Error('kein Anwendungsmenü')
-      const eintrag = menue.items.flatMap((oben) => oben.submenu?.items ?? []).find((unten) => unten.accelerator === 'CmdOrCtrl+Z')
-      if (eintrag === undefined) throw new Error('Menüpunkt Rückgängig fehlt')
-      if (!eintrag.enabled) throw new Error('Menüpunkt Rückgängig ist deaktiviert')
+      const eintrag = menue.items.flatMap((oben) => oben.submenu?.items ?? []).find((unten) => unten.accelerator === gesucht)
+      if (eintrag === undefined) throw new Error(`Menüpunkt ${gesucht} fehlt`)
+      if (!eintrag.enabled) throw new Error(`Menüpunkt ${gesucht} ist deaktiviert`)
       eintrag.click()
-    })
+    }, kuerzel)
   }
 
   /** Projekt, Person mit Notiz „Start", Editor offen, Cursor am Ende der Notiz, Tor eingebaut. */
@@ -169,5 +178,36 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
     await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 3)
     expect(await gespeicherteNotiz(personId)).toBe('Start')
     await expect(notiz).toHaveValue('Start')
+  })
+
+  // hueter PR #174 H1 (Lebendigkeit): der Wartezustand nach einer Rücknahme endet — nach Undo,
+  // zweitem Undo und Undo + sofortigem Redo wird ein neuer Anschlag wieder gespeichert.
+  test('nach Undo, zweitem Undo und Undo + Redo wird wieder geschrieben', async () => {
+    test.setTimeout(60_000)
+    const { personId, notiz } = await vorbereiten()
+    await notiz.press('a')
+    await expect.poll(() => torAufruf('anzahl'), { timeout: 5_000, intervals: [10] }).toBeGreaterThan(0)
+    await menueUndo() // vor dem Echo
+    await expect.poll(() => torAufruf('anzahl'), { timeout: 5_000, intervals: [10] }).toBeGreaterThan(1)
+    await torAufruf('freigeben')
+    await expect(notiz).toHaveValue('Start')
+
+    await notiz.press('x')
+    await expect.poll(() => gespeicherteNotiz(personId), { timeout: 5_000 }).toBe('Startx')
+    await expect(notiz).toHaveValue('Startx')
+
+    await menueUndo() // zweites Undo
+    await expect(notiz).toHaveValue('Start')
+    await expect.poll(() => gespeicherteNotiz(personId), { timeout: 5_000 }).toBe('Start')
+    await notiz.press('y')
+    await expect.poll(() => gespeicherteNotiz(personId), { timeout: 5_000 }).toBe('Starty')
+
+    await menueUndo()
+    await menueRedo() // sofort
+    await expect(notiz).toHaveValue('Starty')
+    await expect.poll(() => gespeicherteNotiz(personId), { timeout: 5_000 }).toBe('Starty')
+    await notiz.press('z')
+    await expect.poll(() => gespeicherteNotiz(personId), { timeout: 5_000 }).toBe('Startyz')
+    await expect(notiz).toHaveValue('Startyz')
   })
 })
