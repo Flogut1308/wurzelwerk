@@ -419,6 +419,63 @@ describe('ReiterPerson — Gruppe „Hauptname" (AP-1.30 PR 9c)', () => {
       expect(aufrufeVon('useAussageAendern')).toHaveLength(0)
     })
 
+    it('hueter #170 H1: gelesene Aussage leer verlassen, vor dem Nachladen neu tippen — kein aussage.aendern auf die gelöschte, sondern anlegen', () => {
+      vi.useFakeTimers()
+      zeigen(detail({ grunddaten: [kurzbeschreibungen(aussage('k-1'))] }))
+      const feld = eingabe(KURZ)
+      act(() => feld.focus())
+      act(() => eintippen(feld, ''))
+      act(() => feld.blur())
+      expect(aufrufeVon('useAussageLoeschen')).toEqual([{ id: 'k-1' }])
+      // Das Lesemodell liefert k-1 noch (Nachladen steht aus).
+      act(() => feld.focus())
+      act(() => eintippen(feld, 'Bauer'))
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+      expect(aufrufeVon('useAussageAendern')).toHaveLength(0)
+      expect(aufrufeVon('useAussageAnlegen')).toEqual([{ subjektTyp: 'person', subjektId: 'p-1', praedikat: 'kurzbeschreibung', wertText: 'Bauer', konfidenz: 2 }])
+    })
+
+    it('hueter #170 H2: leer verlassen, während das Anlegen noch läuft — nach dem Anlegen wird die angelegte Aussage gelöscht', async () => {
+      vi.useFakeTimers()
+      let anlegenAuf: (wert: { readonly id: string }) => void = () => undefined
+      antworten.set('useAussageAnlegen', () => new Promise((aufloesen) => (anlegenAuf = aufloesen)))
+      zeigen(detail())
+      const feld = eingabe(KURZ)
+      act(() => feld.focus())
+      act(() => eintippen(feld, 'Schmied'))
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+      expect(aufrufeVon('useAussageAnlegen')).toHaveLength(1)
+      act(() => eintippen(feld, ''))
+      act(() => feld.blur())
+      expect(aufrufeVon('useAussageLoeschen')).toHaveLength(0)
+      await act(async () => {
+        anlegenAuf({ id: 'k-neu' })
+        await Promise.resolve()
+      })
+      expect(aufrufeVon('useAussageLoeschen')).toEqual([{ id: 'k-neu' }])
+      expect(aufrufeVon('useAussageAendern')).toHaveLength(0)
+    })
+
+    // hueter #170 H3 (docs/80 §33 U-130-9c-undo-vor-nachladen): kommt ein Undo des Löschens, BEVOR das
+    // Lesemodell die Löschung gezeigt hat, bleibt die Aussage als gelöscht gesperrt — das nächste Tippen
+    // legt eine ZWEITE Kurzbeschreibung an statt die zurückgeholte zu ändern. `it.fails` hält die Lücke
+    // fest: wird sie behoben, wird dieser Test rot und ist in einen normalen Test umzuwandeln.
+    it.fails('H3 (offen): Undo vor dem Nachladen — Folgetippen ändert die zurückgeholte Aussage', () => {
+      vi.useFakeTimers()
+      zeigen(detail({ grunddaten: [kurzbeschreibungen(aussage('k-1'))] }))
+      const feld = eingabe(KURZ)
+      act(() => feld.focus())
+      act(() => eintippen(feld, ''))
+      act(() => feld.blur())
+      // Undo: der nächste gelesene Stand zeigt k-1 wieder (gleicher Inhalt, frisches Objekt).
+      zeigen(detail({ grunddaten: [kurzbeschreibungen(aussage('k-1'))] }))
+      act(() => feld.focus())
+      act(() => eintippen(feld, 'Bauer'))
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+      expect(aufrufeVon('useAussageAnlegen')).toHaveLength(0)
+      expect(aufrufeVon('useAussageAendern')).toEqual([expect.objectContaining({ id: 'k-1', wertText: 'Bauer' })])
+    })
+
     it('eine gespeicherte, leere Altbestands-Aussage wird durch bloßes Fokussieren nicht gelöscht', () => {
       zeigen(detail({ grunddaten: [kurzbeschreibungen(aussage('k-1', { wert: null, wert_text: null }))] }))
       const feld = eingabe(KURZ)
