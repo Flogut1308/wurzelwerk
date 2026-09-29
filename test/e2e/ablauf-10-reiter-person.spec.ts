@@ -231,3 +231,183 @@ test.describe('Ablauf 10 — Reiter Person: Autosave und Undo', () => {
     expect(gruppe).toEqual({ modifikator: 'etwa', originaltext: '31.02.1788' })
   })
 })
+
+/** Hauptname (bevorzugte Form) und Kurzbeschreibungen aus `abfrage:person.detail` (PR 9c). */
+const HauptnameSchema = z.object({
+  kopf: z.object({ anzeigename: z.string() }),
+  namen: z.array(z.object({ ist_bevorzugt: z.boolean(), vornamen: z.string().nullable(), nachname: z.string().nullable(), original_text: z.string().nullable() })),
+  grunddaten: z.array(z.object({ praedikat: z.string(), aussagen: z.array(z.object({ wert_text: z.string().nullable() })) })),
+})
+
+/**
+ * AP-1.30 PR 9c (Gruppe „Hauptname", docs/80 §33 V-130-9c), eigenes Projekt: Abnahme „Feldänderung
+ * ≤ 1 s gespeichert", „zehn Anschläge < 2 s = ein Undo-Schritt" und „Undo stellt zurück" am Vornamen
+ * des Hauptnamens (über die Namensbrücke, Koaleszenz je Vertragsfeld); E10 „tippen und sofort den
+ * Reiter wechseln"; K an der Kurzbeschreibung (leeres Feld: anlegen + ändern = zwei Undo-Schritte,
+ * danach koaleszierend). Der Hauptname trägt eine wortgetreue Schreibung (`original_text`), die jede
+ * Änderung übersteht; der Kopf zeigt trotzdem den geänderten Vornamen (E7).
+ */
+test.describe('Ablauf 10 — Reiter Person: Hauptname und Kurzbeschreibung', () => {
+  test.describe.configure({ mode: 'serial' })
+  const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
+  test.skip(einstiegFehlt, 'out/main/index.js fehlt — lokal `pnpm test:e2e` (baut selbst) oder vorher `pnpm build`.')
+
+  let app: Awaited<ReturnType<typeof electron.launch>>
+  let fenster: Awaited<ReturnType<typeof app.firstWindow>>
+  let elternordner: string
+  let personId = ''
+
+  test.beforeAll(async () => {
+    elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-reiter-person-hauptname-'))
+    app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG] })
+    fenster = await app.firstWindow()
+  })
+
+  test.afterAll(async () => {
+    await app.close()
+    rmSync(elternordner, { recursive: true, force: true })
+  })
+
+  async function detail(): Promise<z.infer<typeof HauptnameSchema>> {
+    const ergebnis = await fenster.evaluate(async (id) => window.wurzelwerk.aufrufen('abfrage:person.detail', { personId: id }), personId)
+    if (!ergebnis.ok) throw new Error('abfrage:person.detail fehlgeschlagen')
+    return HauptnameSchema.parse(ergebnis.daten)
+  }
+
+  async function hauptname(): Promise<{ readonly vornamen: string | null; readonly nachname: string | null; readonly original_text: string | null } | undefined> {
+    return (await detail()).namen.find((name) => name.ist_bevorzugt)
+  }
+
+  async function vornamen(): Promise<string | null | undefined> {
+    return (await hauptname())?.vornamen
+  }
+
+  async function kurzbeschreibungen(): Promise<readonly (string | null)[]> {
+    return (await detail()).grunddaten.filter((feld) => feld.praedikat === 'kurzbeschreibung').flatMap((feld) => feld.aussagen.map((aussage) => aussage.wert_text))
+  }
+
+  async function undo(): Promise<void> {
+    const ergebnis = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:journal.undo', null))
+    expect(ergebnis.ok).toBe(true)
+  }
+
+  const WORTGETREU = 'Carl Gutnoff (lt. Taufbuch)'
+
+  test('Vorname im Reiter Person: ≤ 1 s gespeichert, zehn Anschläge < 2 s = ein Undo-Schritt, Undo stellt zurück', async () => {
+    test.setTimeout(90_000)
+    await app.evaluate(({ dialog }, gewaehlt) => {
+      dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+    }, elternordner)
+    await fenster.getByPlaceholder('Projektname').fill('Reiter-Person-Hauptname')
+    await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
+    await expect(fenster.getByRole('table')).toBeVisible()
+
+    const anlegen = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, lebend_status: 'lebend' }))
+    if (!anlegen.ok) throw new Error('person.anlegen fehlgeschlagen')
+    personId = z.object({ id: z.string() }).parse(anlegen.daten).id
+    const name = await fenster.evaluate(
+      async ({ id, originalText }) => window.wurzelwerk.aufrufen('befehl:name.anlegen', { personId: id, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Gutnoff', originalText }),
+      { id: personId, originalText: WORTGETREU },
+    )
+    expect(name.ok).toBe(true)
+
+    const zeile = fenster.locator('.wz-datentabelle__koerper [role="row"]')
+    await expect(zeile).toHaveCount(1)
+    await zeile.click()
+    const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+    await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor.getByRole('tab', { name: /^Person/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(editor.getByRole('heading', { name: 'Hauptname', exact: true, level: 2 })).toBeVisible()
+
+    const feld = editor.locator('#person-bearbeiten-hauptname-vornamen')
+    await expect(feld).toHaveValue('Karl')
+
+    // 1) Eine Änderung ist nach ≤ 1 s gespeichert, Undo stellt zurück.
+    await feld.click()
+    await feld.press('End')
+    await feld.press('Shift+ArrowLeft')
+    const vorAnschlag = Date.now()
+    await feld.press('a')
+    await expect(editor.getByRole('status')).toHaveText('Gespeichert · gerade eben', { timeout: GESPEICHERT_FRIST_MS })
+    await expect.poll(vornamen, { timeout: GESPEICHERT_FRIST_MS, intervals: [25] }).toBe('Kara')
+    expect(Date.now() - vorAnschlag).toBeLessThanOrEqual(GESPEICHERT_FRIST_MS + 250)
+    // E7: der Kopf zeigt den geänderten Vornamen, die wortgetreue Schreibung bleibt gespeichert.
+    await expect(editor.getByRole('heading', { level: 1 })).toContainText('Kara Gutnoff')
+    expect((await hauptname())?.original_text).toBe(WORTGETREU)
+    await undo()
+    await expect.poll(vornamen).toBe('Karl')
+    await expect(feld).toHaveValue('Karl')
+
+    await fenster.waitForTimeout(KOALESZENZ_FENSTER_MS + RAND_MS)
+
+    // 2) Zehn einzeln geschriebene Anschläge (Abstand < 2 s) = ein Undo-Schritt.
+    const buchstaben = ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
+    let zuletztGeschrieben: number | null = null
+    await feld.click()
+    for (const buchstabe of buchstaben) {
+      await feld.press('End')
+      await feld.press('Shift+ArrowLeft')
+      await feld.press(buchstabe)
+      await expect.poll(vornamen, { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toBe(`Kar${buchstabe}`)
+      const jetzt = Date.now()
+      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
+      zuletztGeschrieben = jetzt
+      await fenster.waitForTimeout(RAND_MS)
+    }
+    await expect(feld).toHaveValue('Kark')
+    await undo()
+    await expect.poll(vornamen).toBe('Karl')
+    await expect(feld).toHaveValue('Karl')
+    const nachUndo = await hauptname()
+    expect(nachUndo?.original_text).toBe(WORTGETREU)
+    expect(nachUndo?.nachname).toBe('Gutnoff')
+  })
+
+  test('E10: tippen und sofort den Reiter wechseln — der Entwurf ist geschrieben', async () => {
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    const nachname = editor.locator('#person-bearbeiten-hauptname-nachname')
+    await expect(nachname).toHaveValue('Gutnoff')
+    await nachname.fill('Gutnow')
+    await editor.getByRole('tab', { name: /^Namen/ }).click()
+    await expect.poll(async () => (await hauptname())?.nachname, { timeout: GESPEICHERT_FRIST_MS }).toBe('Gutnow')
+    await editor.getByRole('tab', { name: /^Person/ }).click()
+    await expect(editor.locator('#person-bearbeiten-hauptname-nachname')).toHaveValue('Gutnow')
+  })
+
+  test('Kurzbeschreibung in leeres Feld: zwei Undo-Schritte, dann koaleszierend', async () => {
+    test.setTimeout(60_000)
+    await fenster.waitForTimeout(KOALESZENZ_FENSTER_MS + RAND_MS)
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    const feld = editor.locator('#person-bearbeiten-feld-kurzbeschreibung')
+    await expect(feld).toHaveValue('')
+
+    // Erstes Schreiben legt an …
+    await feld.click()
+    await feld.pressSequentially('Schmied')
+    await expect.poll(kurzbeschreibungen, { timeout: SCHREIB_FRIST_MS * 2 }).toEqual(['Schmied'])
+    await fenster.waitForTimeout(RAND_MS)
+
+    // … jede Folgeänderung ändert DIESE Aussage; drei Anschläge in < 2 s fassen sich zusammen.
+    let zuletztGeschrieben: number | null = null
+    let erwartet = 'Schmied'
+    for (const taste of ['Space', 'i', 'n']) {
+      await feld.press(taste)
+      erwartet += taste === 'Space' ? ' ' : taste
+      await expect.poll(kurzbeschreibungen, { timeout: SCHREIB_FRIST_MS, intervals: [50] }).toEqual([erwartet])
+      const jetzt = Date.now()
+      if (zuletztGeschrieben !== null) expect(jetzt - zuletztGeschrieben).toBeLessThan(KOALESZENZ_FENSTER_MS)
+      zuletztGeschrieben = jetzt
+      await fenster.waitForTimeout(RAND_MS)
+    }
+    await expect(feld).toHaveValue('Schmied in')
+
+    await undo()
+    await expect.poll(kurzbeschreibungen).toEqual(['Schmied'])
+    await undo()
+    await expect.poll(kurzbeschreibungen).toEqual([])
+    await expect(feld).toHaveValue('')
+    // Der Hauptname blieb von beiden Undo-Schritten unberührt.
+    expect((await hauptname())?.nachname).toBe('Gutnow')
+  })
+})
