@@ -139,6 +139,53 @@ describe('Entwurf aus der Form und leer', () => {
     }
   })
 
+  // PR 11c-1b, Nachreview #207 H1: der Handler vergleicht getrimmt (`teil.wert.trim() === vorher.wert`); ein
+  // angehängtes Leerzeichen ist darum keine Änderung — weder „korrigiert" (Norm bleibt) noch „geändert" (E9).
+  it('H1: ein angehängtes Leerzeichen ist keine Korrektur und keine Änderung', () => {
+    const basis = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'iso9', teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Gutnov')] }))
+    const entwurf = teilWertSetzen(basis, 'b', 'Gutnov ')
+    expect(entwurfGeaendert(basis, entwurf)).toBe(false)
+    expect(uebernehmenEin('p1', basis, entwurf).kopf).toEqual({})
+  })
+
+  // PR 11c-1b, H2 (entschieden): eine reine Rufname-Markierung korrigiert die Transliteration nicht.
+  // Review #208 H4: der Handler vergleicht `teil.wert.trim() === vorher.wert` mit dem UNGETRIMMTEN gespeicherten
+  // Wert. Ungetrimmter Altbestand (flache Brücke, „Gutnoff ") muss darum bereinigt werden können: gleich ist ein
+  // Teil nur bei gleichem Rohwert oder bei gleichem getrimmten Wert, wenn der ENTWURF Randleerraum trägt.
+  describe('H4: ungetrimmter Altbestand', () => {
+    const altbestand = basisVon(form('f', { teile: [teil('v', 'vorname', 'Karl'), teil('n', 'nachname', 'Gutnoff ')] }))
+
+    it('(a) unberührt: nicht geändert, keine Nachfrage', () => {
+      expect(entwurfGeaendert(altbestand, altbestand)).toBe(false)
+    })
+
+    it('(b) bereinigt: geändert, die Zielliste trägt den bereinigten Wert', () => {
+      const bereinigt = teilWertSetzen(altbestand, 'n', 'Gutnoff')
+      expect(entwurfGeaendert(altbestand, bereinigt)).toBe(true)
+      expect(uebernehmenEin('p1', altbestand, bereinigt).teile).toContainEqual({ id: 'n', art: 'nachname', wert: 'Gutnoff', istRufname: false })
+    })
+
+    it('(c) angehängtes Leerzeichen an einem getrimmten Wert: nicht geändert (H1 bleibt)', () => {
+      const basis = basisVon(KARL)
+      expect(entwurfGeaendert(basis, teilWertSetzen(basis, 'n1', 'Gutnoff '))).toBe(false)
+      expect(entwurfGeaendert(altbestand, teilWertSetzen(altbestand, 'n', 'Gutnoff  '))).toBe(false)
+    })
+
+    it('(b) bei einer automatischen Umschrift ist die Bereinigung eine Korrektur (Norm manuell)', () => {
+      const umschrift = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'iso9', teile: [teil('n', 'nachname', 'Gutnov ')] }))
+      expect(uebernehmenEin('p1', umschrift, teilWertSetzen(umschrift, 'n', 'Gutnov')).kopf).toEqual({ umschriftNorm: 'manuell' })
+    })
+  })
+
+  it('H2: nur den Rufnamen setzen lässt die Norm einer automatischen Umschrift stehen, ist aber eine Änderung', () => {
+    const basis = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'iso9', teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Gutnov')] }))
+    const entwurf = rufnameSetzen(basis, 'a')
+    expect(entwurfGeaendert(basis, entwurf)).toBe(true)
+    const ein = uebernehmenEin('p1', basis, entwurf)
+    expect(ein.kopf).toEqual({})
+    expect(ein.teile).toContainEqual({ id: 'a', art: 'vorname', wert: 'Karl', istRufname: true })
+  })
+
   it('keine Umschrift oder ohne Norm: umschriftNorm wird nie gesetzt', () => {
     const ohneNorm = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: null, teile: [teil('b', 'nachname', 'Guytnaty')] }))
     expect(uebernehmenEin('p1', ohneNorm, teilWertSetzen(ohneNorm, 'b', 'X')).kopf).toEqual({})
@@ -394,5 +441,42 @@ describe('Rundreise über die echte Datenbank', () => {
     expect(teileNachher.filter((eintrag) => eintrag.id !== karl.id)).toEqual(teileVorher.filter((eintrag) => eintrag.id !== karl.id))
     expect(teileNachher.find((eintrag) => eintrag.id === karl.id)).toMatchObject({ wert: 'Карлуша', ist_rufname: 1, sortier_index: karl.sortier_index })
     expect(teileNachher.map((eintrag) => eintrag.art).sort()).toEqual(['nachname', 'vatersname', 'vorname', 'vorname'])
+  })
+
+  // PR 11c-1b H1 gegen die echte Datenbank: früher meldete der ungetrimmte Vergleich „korrigiert", und der
+  // Handler schrieb einen Undo-Schritt, der nur die Norm auf 'manuell' setzte.
+  it('H4 (b): ungetrimmter Altbestand aus der flachen Brücke wird bereinigt gespeichert, ein Undo-Schritt', () => {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Gutnoff ' }).id
+    const basis = basisVon(formLesen(personId, formId))
+    const nachname = basis.teile.find((eintrag) => eintrag.art === 'nachname')
+    // Vorbedingung: die flache Brücke speichert den Nachnamen ungetrimmt.
+    expect(nachname?.wert).toBe('Gutnoff ')
+    if (nachname === undefined) throw new Error('Nachname fehlt')
+    warte(10_000)
+    const vorher = transaktionAnzahl(db)
+    const bereinigt = teilWertSetzen(basis, nachname.schluessel, 'Gutnoff')
+    expect(entwurfGeaendert(basis, bereinigt)).toBe(true)
+    fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, bereinigt))
+    expect(transaktionAnzahl(db)).toBe(vorher + 1)
+    expect(formLesen(personId, formId).teile.find((eintrag) => eintrag.art === 'nachname')?.wert).toBe('Gutnoff')
+  })
+
+  it('H1: angehängtes Leerzeichen an einer iso9-Umschrift schreibt keine Transaktion, die Norm bleibt iso9', () => {
+    const personId = neuePerson(db)
+    const haupt = fuehreAus(db, 'namensform.uebernehmen', { personId, formId: null, kopf: { rolle: 'geburtsname', sprache: 'ru', schrift: 'cyrl' }, teile: [{ art: 'nachname', wert: 'Гутнов', istRufname: false }] }).id
+    const umschriftId = fuehreAus(db, 'namensform.uebernehmen', {
+      personId,
+      formId: null,
+      kopf: { rolle: null, umschriftVon: haupt, umschriftNorm: 'iso9', schrift: 'latn' },
+      teile: [{ art: 'nachname', wert: 'Gutnov', istRufname: false }],
+    }).id
+    const basis = basisVon(formLesen(personId, umschriftId))
+    const nachname = basis.teile.find((eintrag) => eintrag.art === 'nachname' && eintrag.id !== null)
+    if (nachname === undefined) throw new Error('Nachname fehlt')
+    const vorher = transaktionAnzahl(db)
+    fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, teilWertSetzen(basis, nachname.schluessel, 'Gutnov ')))
+    expect(transaktionAnzahl(db)).toBe(vorher)
+    expect(formLesen(personId, umschriftId).umschrift_norm).toBe('iso9')
   })
 })
