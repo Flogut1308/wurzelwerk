@@ -49,6 +49,27 @@ export function namensformGeaenderteFelder(vorher: NameFormZeile, ein: Namensfor
   return felder
 }
 
+/**
+ * Die Prüfungen von `namensform.aendern` für die Änderung `ein` an `vorher` (nur lesend, wirft
+ * `VALIDIERUNG_UMSCHRIFT_BEZUG` bzw. `NICHT_GEFUNDEN_NAME`). Eigene Funktion, damit
+ * `namensform.uebernehmen` den Kopf VOR seinem ersten Schreibvorgang mit derselben Logik prüfen kann.
+ */
+export function namensformAenderungPruefen(tx: Tx, vorher: NameFormZeile, ein: NamensformAendernEin): void {
+  const geaendert = namensformGeaenderteFelder(vorher, ein)
+  const rolle = nachher<string | null>(ein.rolle, vorher.rolle)
+  const umschriftVon = nachher<string | null>(ein.umschriftVon, vorher.umschrift_von)
+  if (geaendert.includes('umschriftVon') && umschriftVon !== null) {
+    umschriftBezugPruefen(tx, vorher.person_id, vorher.id, umschriftVon)
+  }
+  // E7: eine Form ohne Rolle ist eine Umschrift und braucht eine Ursprungsform. Geprüft nur, wenn der
+  // Aufruf `rolle` oder `umschriftVon` ändert — Altbestand ohne beides (Migration 0006 bildete
+  // 'transliteriert' ohne `umschrift_von` auf `rolle = NULL` ab; `ON DELETE SET NULL` beim Löschen der
+  // Ursprungsform) bleibt in seinen übrigen Feldern bearbeitbar.
+  if ((geaendert.includes('rolle') || geaendert.includes('umschriftVon')) && rolle === null && umschriftVon === null) {
+    throw new WurzelFehler('VALIDIERUNG_UMSCHRIFT_BEZUG', 'Eine Form ohne Rolle braucht eine Ursprungsform.')
+  }
+}
+
 export function namensformAendern(tx: Tx, ein: NamensformAendernEin): null {
   const vorher = nameFormRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
@@ -58,18 +79,9 @@ export function namensformAendern(tx: Tx, ein: NamensformAendernEin): null {
   if (geaendert.length === 0) {
     return null
   }
+  namensformAenderungPruefen(tx, vorher, ein)
   const rolle = nachher<string | null>(ein.rolle, vorher.rolle)
   const umschriftVon = nachher<string | null>(ein.umschriftVon, vorher.umschrift_von)
-  if (geaendert.includes('umschriftVon') && umschriftVon !== null) {
-    umschriftBezugPruefen(tx, vorher.person_id, ein.id, umschriftVon)
-  }
-  // E7: eine Form ohne Rolle ist eine Umschrift und braucht eine Ursprungsform. Geprüft nur, wenn der
-  // Aufruf `rolle` oder `umschriftVon` ändert — Altbestand ohne beides (Migration 0006 bildete
-  // 'transliteriert' ohne `umschrift_von` auf `rolle = NULL` ab; `ON DELETE SET NULL` beim Löschen der
-  // Ursprungsform) bleibt in seinen übrigen Feldern bearbeitbar.
-  if ((geaendert.includes('rolle') || geaendert.includes('umschriftVon')) && rolle === null && umschriftVon === null) {
-    throw new WurzelFehler('VALIDIERUNG_UMSCHRIFT_BEZUG', 'Eine Form ohne Rolle braucht eine Ursprungsform.')
-  }
   nameFormRepo.aktualisieren(tx, {
     id: ein.id,
     sprache: nachher<string | null>(ein.sprache, vorher.sprache),
