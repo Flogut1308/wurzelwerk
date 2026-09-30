@@ -1001,3 +1001,69 @@ describe('namensform.uebernehmen — Leerraum-Teil aus der flachen Brücke (U-13
     }
   })
 })
+
+describe('namensform.uebernehmen — ungetrimmter Altbestand (U-130-randleerraum-altbestand)', () => {
+  /** Person mit Hauptform aus `name.anlegen` und Nachname `'Gutnoff '` — die flache Brücke speichert ihn so. */
+  function mitUngetrimmtemNachnamen(db: Db): { readonly personId: string; readonly formId: string; readonly nachname: string } {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Gutnoff ' }).id
+    return { personId, formId, nachname: teilId(db, formId, 'nachname', 'Gutnoff ') }
+  }
+
+  it('Vorbedingung: name.anlegen speichert den Nachnamen „Gutnoff “ ungetrimmt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = mitUngetrimmtemNachnamen(db)
+      expect(folge(db, formId, 'nachname')).toEqual(['Gutnoff @0'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(a) unveränderte Zielliste (auch mit angehängtem Leerzeichen): keine Transaktion, bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, nachname } = mitUngetrimmtemNachnamen(db)
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      warte(5000)
+      for (const wert of ['Gutnoff ', 'Gutnoff  ', ' Gutnoff']) {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === nachname ? { ...t, wert } : t)) })
+      }
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(b) ein anderer Teil wird geändert: „Gutnoff “ bleibt bitgleich, ein Undo-Schritt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, nachname } = mitUngetrimmtemNachnamen(db)
+      const vorher = teil(db, nachname)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === karl ? { ...t, wert: 'Carl' } : t)) })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Carl@0'])
+      expect(teil(db, nachname)).toEqual(vorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(c) Bereinigung zu „Gutnoff“: geschrieben, ein Undo-Schritt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, nachname } = mitUngetrimmtemNachnamen(db)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === nachname ? { ...t, wert: 'Gutnoff' } : t)) })
+      })
+      expect(folge(db, formId, 'nachname')).toEqual(['Gutnoff@0'])
+      expect(ids(db, formId, 'nachname')).toEqual([nachname])
+    } finally {
+      db.close()
+    }
+  })
+})
