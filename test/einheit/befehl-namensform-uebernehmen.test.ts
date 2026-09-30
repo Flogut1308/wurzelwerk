@@ -1,0 +1,413 @@
+// AP-1.30 PR 11-0 (A-02, A-19; docs/80 §33 V-130-11-E1, V-130-11-E4, V-130-11-0): `namensform.uebernehmen`
+// über den echten Befehlsbus gegen eine migrierte `:memory:`-Datenbank. Der Befehl schreibt das Modal
+// „Namensform bearbeiten" in EINER Transaktion und als EIN Undo-Schritt: Kopf (Teil-Semantik je Feld),
+// vollständige Zielliste der Teile (ändern, anlegen, löschen, umordnen, Rufname) und Hauptname. Geprüft
+// werden Wirkung, erhaltene Teil-IDs, No-op (AP-0.22), verworfene leere Teile, Ablehnungen ohne
+// Schreibvorgang, Altbestand mit Leerraum (E4), Undo/Redo bitgleich, abgeleitete Tabellen gleich ihrem
+// Neuaufbau und — per abbrechendem TEMP-Trigger (Muster `test/invarianten/namensteil-sortierindex-eindeutig`,
+// hier nachgebaut, nicht importiert) — kein doppelter `sortier_index` in irgendeinem Zwischenzustand.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../src/main/protokoll/logger', () => ({
+  protokollFehler: vi.fn(),
+  protokollInfo: vi.fn(),
+  protokollDebug: vi.fn(),
+}))
+vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
+
+import { fuehreAus } from '../../src/main/befehle/bus'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
+import { redo, undo } from '../../src/main/journal/undo'
+import type { NamensformUebernehmenEin, NamensformUebernehmenTeil } from '../../src/shared/schemata/befehle'
+import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
+import {
+  angewendeteSchritte,
+  anzeigename,
+  type Db,
+  doppelte,
+  doppelWaechterAnlegen,
+  erwarteAbgeleitetWieNeuaufbau,
+  fehlerCode,
+  folge,
+  neuePerson,
+  neueTestDatenbank,
+  originalText,
+  teile,
+  teilId,
+  transaktionAnzahl,
+  uhrStarten,
+  warte,
+} from './_hilfen-namensteil'
+
+beforeEach(() => {
+  uhrStarten()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+const WAECHTER_MELDUNG = 'Waechter: doppelter sortier_index je (name_form_id, art)'
+
+/** Feste SQL (kein Eingabewert): die gerade geschriebene Zeile teilt ihren `sortier_index` mit einem anderen
+ * Teil derselben (Form, Art). */
+const WAECHTER_WENN = `EXISTS (SELECT 1 FROM name_part p
+  WHERE p.name_form_id = NEW.name_form_id AND p.art = NEW.art AND p.sortier_index = NEW.sortier_index AND p.id <> NEW.id)`
+
+/** Abbrechender Wächter (TEMP, nur diese Verbindung): ein Doppel mitten im Befehl, im Undo oder im Redo
+ * bricht die Anweisung mit `RAISE(ABORT)` ab. */
+function abbrechendenWaechterEinbauen(db: Db): void {
+  db.exec(`
+    CREATE TEMP TRIGGER IF NOT EXISTS u110_waechter_ai AFTER INSERT ON main.name_part WHEN ${WAECHTER_WENN}
+    BEGIN SELECT RAISE(ABORT, '${WAECHTER_MELDUNG}'); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS u110_waechter_au AFTER UPDATE OF sortier_index, art, name_form_id ON main.name_part WHEN ${WAECHTER_WENN}
+    BEGIN SELECT RAISE(ABORT, '${WAECHTER_MELDUNG}'); END;
+  `)
+}
+
+/** Person mit Hauptform „Karl Friedrich* Nowak“ (über `name.anlegen`, montierter original_text). */
+function karlNowak(db: Db): { readonly personId: string; readonly formId: string } {
+  const personId = neuePerson(db)
+  const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich', rufnameIndex: 1, nachname: 'Nowak' }).id
+  return { personId, formId }
+}
+
+/** Der gespeicherte Stand einer Form als Zielliste (Arten nach Name, je Art nach Stelle). */
+function zielliste(db: Db, formId: string): readonly NamensformUebernehmenTeil[] {
+  return teile(db, formId).map((t) => ({
+    id: t.id,
+    art: artVon(t.art),
+    wert: t.wert,
+    feminineVariante: t.feminine_variante,
+    istRufname: t.ist_rufname === 1,
+  }))
+}
+
+function artVon(art: string): NamensformUebernehmenTeil['art'] {
+  switch (art) {
+    case 'vorname':
+    case 'praefix':
+    case 'nachname':
+    case 'suffix':
+    case 'titel':
+    case 'vatersname':
+      return art
+    default:
+      throw new Error(`artVon(): unbekannte Art ${art}.`)
+  }
+}
+
+function uebernehmen(db: Db, ein: NamensformUebernehmenEin): string {
+  return fuehreAus(db, 'namensform.uebernehmen', ein).id
+}
+
+interface FormKopf {
+  readonly id: string
+  readonly rolle: string | null
+  readonly sprache: string | null
+  readonly schrift: string | null
+  readonly reihenfolge: string | null
+  readonly ist_bevorzugt: number
+  readonly konfidenz: number | null
+}
+
+function kopf(db: Db, formId: string): FormKopf | undefined {
+  return db
+    .prepare<{ readonly formId: string }, FormKopf>('SELECT id, rolle, sprache, schrift, reihenfolge, ist_bevorzugt, konfidenz FROM name_form WHERE id = @formId')
+    .get({ formId })
+}
+
+/** Führt `schritt` unter beiden Wächtern (protokollierend und abbrechend) als einen Undo-Schritt aus; prüft genau einen neuen angewendeten Schritt, Undo = Ausgang
+ * bitgleich, Redo = Endstand bitgleich, abgeleitete Tabellen = Neuaufbau nach jedem Stand. */
+function erwarteEinSchrittUndoRedo(db: Db, schritt: () => void): void {
+  doppelWaechterAnlegen(db)
+  abbrechendenWaechterEinbauen(db)
+  const ausgang = kanonischerAbzug(db)
+  const vorher = angewendeteSchritte(db)
+  warte(5000)
+  schritt()
+  expect(angewendeteSchritte(db) - vorher).toBe(1)
+  expect(doppelte(db)).toEqual([])
+  erwarteAbgeleitetWieNeuaufbau(db)
+  const endstand = kanonischerAbzug(db)
+  undo(db)
+  expect(doppelte(db)).toEqual([])
+  erwarteAbgeleitetWieNeuaufbau(db)
+  expect(kanonischerAbzug(db)).toBe(ausgang)
+  redo(db)
+  expect(doppelte(db)).toEqual([])
+  erwarteAbgeleitetWieNeuaufbau(db)
+  expect(kanonischerAbzug(db)).toBe(endstand)
+}
+
+describe('namensform.uebernehmen (AP-1.30 PR 11-0)', () => {
+  it('neue Form mit Teilen, Rufname und Hauptname: ein Undo-Schritt, Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId: alteForm } = karlNowak(db)
+      doppelWaechterAnlegen(db)
+      abbrechendenWaechterEinbauen(db)
+      let neueForm = ''
+      erwarteEinSchrittUndoRedo(db, () => {
+        neueForm = uebernehmen(db, {
+          personId,
+          formId: null,
+          kopf: { rolle: 'geburtsname', sprache: 'ru', schrift: 'cyrl' },
+          teile: [
+            { art: 'vorname', wert: 'Карл', istRufname: false },
+            { art: 'vorname', wert: ' Фридрих ', istRufname: true },
+            { art: 'nachname', wert: 'Новак', feminineVariante: 'Новакова', istRufname: false },
+          ],
+          hauptname: true,
+        })
+      })
+      expect(kopf(db, neueForm)).toMatchObject({ rolle: 'geburtsname', sprache: 'ru', schrift: 'cyrl', ist_bevorzugt: 1 })
+      expect(kopf(db, alteForm)).toMatchObject({ ist_bevorzugt: 0 })
+      expect(folge(db, neueForm, 'vorname')).toEqual(['Карл@0', 'Фридрих*@1'])
+      expect(folge(db, neueForm, 'nachname')).toEqual(['Новак@0'])
+      expect(teile(db, neueForm, 'nachname')[0]?.feminine_variante).toBe('Новакова')
+      expect(originalText(db, neueForm)).toBe('Карл Фридрих Новак')
+      expect(anzeigename(db, personId)).toBe('Карл Фридрих Новак')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('erste Form einer Person ohne hauptname wird trotzdem Hauptname (Regel von namensform.anlegen)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = uebernehmen(db, { personId, formId: null, kopf: { rolle: 'geburtsname' }, teile: [{ art: 'nachname', wert: 'Nowak', istRufname: false }] })
+      expect(kopf(db, formId)).toMatchObject({ ist_bevorzugt: 1 })
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Kopf ändern: fehlt = bleibt, null = leeren; Teile unberührt; ein Undo-Schritt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      uebernehmen(db, { personId, formId, kopf: { sprache: 'de', konfidenz: 3 }, teile: zielliste(db, formId) })
+      const teileVorher = teile(db, formId)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: { reihenfolge: 'nachname_zuerst', konfidenz: null }, teile: zielliste(db, formId) })
+      })
+      expect(kopf(db, formId)).toMatchObject({ sprache: 'de', reihenfolge: 'nachname_zuerst', konfidenz: null })
+      expect(teile(db, formId)).toEqual(teileVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ändern, anlegen, löschen, umordnen und Rufname wechseln in EINEM Aufruf: IDs unveränderter Teile bleiben, kein Doppel in keinem Zwischenstand', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Anton' })
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      const friedrich = teilId(db, formId, 'vorname', 'Friedrich')
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Friedrich*@1', 'Anton@2'])
+      doppelWaechterAnlegen(db)
+      abbrechendenWaechterEinbauen(db)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, {
+          personId,
+          formId,
+          kopf: {},
+          teile: [
+            { id: friedrich, art: 'vorname', wert: 'Friedrich', istRufname: false },
+            { id: karl, art: 'vorname', wert: 'Carl', istRufname: false },
+            { art: 'vorname', wert: 'Wilhelm', istRufname: true },
+            { id: nowak, art: 'nachname', wert: 'Nowak', istRufname: false },
+            { art: 'nachname', wert: 'Schulz', istRufname: false },
+          ],
+        })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Friedrich@0', 'Carl@1', 'Wilhelm*@2'])
+      expect(folge(db, formId, 'nachname')).toEqual(['Nowak@0', 'Schulz@1'])
+      expect(teilId(db, formId, 'vorname', 'Friedrich')).toBe(friedrich)
+      expect(teilId(db, formId, 'vorname', 'Carl')).toBe(karl)
+      expect(teilId(db, formId, 'nachname', 'Nowak')).toBe(nowak)
+      expect(originalText(db, formId)).toBe('Friedrich Carl Wilhelm Nowak Schulz')
+      expect(anzeigename(db, personId)).toBe('Friedrich Carl Wilhelm Nowak Schulz')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Umordnen und Rufname-Wechsel unter abbrechendem Wächter (auch mit Lücke aus Altbestand)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Anton' })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Wilhelm' })
+      journalAus(db, 'Test V-130-11-0: Lücken im sortier_index wie Altbestand herstellen.')
+      db.prepare("UPDATE name_part SET sortier_index = sortier_index * 3 WHERE name_form_id = @formId AND art = 'vorname'").run({ formId })
+      journalAn(db)
+      abbrechendenWaechterEinbauen(db)
+      doppelWaechterAnlegen(db)
+      const [karl, friedrich, anton, wilhelm] = ['Karl', 'Friedrich', 'Anton', 'Wilhelm'].map((wert) => teilId(db, formId, 'vorname', wert))
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, {
+          personId,
+          formId,
+          kopf: {},
+          teile: [
+            { id: wilhelm, art: 'vorname', wert: 'Wilhelm', istRufname: true },
+            { id: anton, art: 'vorname', wert: 'Anton', istRufname: false },
+            { id: karl, art: 'vorname', wert: 'Karl', istRufname: false },
+            { id: friedrich, art: 'vorname', wert: 'Friedrich', istRufname: false },
+            { id: nowak, art: 'nachname', wert: 'Nowak', istRufname: false },
+          ],
+        })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Wilhelm*@0', 'Anton@3', 'Karl@6', 'Friedrich@9'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Gegenprobe: der abbrechende Wächter ist scharf (ein direktes Doppel bricht ab)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = karlNowak(db)
+      abbrechendenWaechterEinbauen(db)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      journalAus(db, 'Test V-130-11-0: Gegenprobe des Wächters.')
+      expect(() => db.prepare('UPDATE name_part SET sortier_index = 1 WHERE id = @karl').run({ karl })).toThrow(WAECHTER_MELDUNG)
+      journalAn(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Hauptname auf eine bestehende Form wechseln', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId: erste } = karlNowak(db)
+      const zweite = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename' }).id
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId: zweite, kopf: {}, teile: [{ art: 'nachname', wert: 'Schulz', istRufname: false }], hauptname: true })
+      })
+      expect(kopf(db, zweite)).toMatchObject({ ist_bevorzugt: 1 })
+      expect(kopf(db, erste)).toMatchObject({ ist_bevorzugt: 0 })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein wortgetreuer original_text bleibt; ein ausdrücklich geänderter gewinnt über die Nachführung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      const mitNachname = (wert: string): readonly NamensformUebernehmenTeil[] =>
+        zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert } : t))
+      uebernehmen(db, { personId, formId, kopf: { originalText: 'Carolus Fridericus Nowak' }, teile: mitNachname('Nowack') })
+      expect(originalText(db, formId)).toBe('Carolus Fridericus Nowak')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: mitNachname('Nowakk') })
+      expect(originalText(db, formId)).toBe('Carolus Fridericus Nowak')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('No-op (AP-0.22): unveränderter Aufruf (auch Hauptname schon gesetzt, Werte mit Rand-Leerraum) schreibt nichts', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      warte(5000)
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId) })
+      uebernehmen(db, { personId, formId, kopf: { rolle: 'geburtsname', sprache: null }, teile: zielliste(db, formId), hauptname: true })
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => ({ ...t, wert: ` ${t.wert} ` })) })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('leere Teile werden verworfen: ein neues leeres Teil legt nichts an, ein geleertes bestehendes wird entfernt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const transaktionen = transaktionAnzahl(db)
+      const abzug = kanonischerAbzug(db)
+      uebernehmen(db, { personId, formId, kopf: {}, teile: [...zielliste(db, formId), { art: 'vorname', wert: '   ', istRufname: false }, { art: 'titel', wert: '', istRufname: false }] })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === karl ? { ...t, wert: ' ' } : t)) })
+      expect(folge(db, formId, 'vorname')).toEqual(['Friedrich*@0'])
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Ablehnungen mit genauem Fehlercode — danach ist nichts geschrieben', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const fremd = karlNowak(db)
+      const fremdesTeil = teilId(db, fremd.formId, 'vorname', 'Karl')
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      // Jeder Aufruf trägt zusätzlich gültige Änderungen (Kopf, neues Teil), die ohne Ablehnung geschrieben würden.
+      const basis = { personId, formId, kopf: { sprache: 'de' } }
+      const mitKarl = (wert: string): readonly NamensformUebernehmenTeil[] => [
+        ...zielliste(db, formId).map((t) => (t.id === karl ? { ...t, wert } : t)),
+        { art: 'suffix', wert: 'jun.', istRufname: false },
+      ]
+      expect(fehlerCode(() => uebernehmen(db, { ...basis, teile: mitKarl('Hans Peter') }))).toBe('VALIDIERUNG_NAMENSTEIL_LEERRAUM')
+      expect(fehlerCode(() => uebernehmen(db, { ...basis, teile: [...zielliste(db, formId), { art: 'vorname', wert: 'Hans Peter', istRufname: false }] }))).toBe(
+        'VALIDIERUNG_NAMENSTEIL_LEERRAUM',
+      )
+      expect(fehlerCode(() => uebernehmen(db, { ...basis, teile: [...mitKarl('Carl'), { id: fremdesTeil, art: 'vorname', wert: 'Karl', istRufname: false }] }))).toBe(
+        'NICHT_GEFUNDEN_NAMENSTEIL',
+      )
+      expect(
+        fehlerCode(() =>
+          uebernehmen(db, {
+            ...basis,
+            teile: zielliste(db, formId).map((t) => ({ ...t, istRufname: t.id === nowak })),
+          }),
+        ),
+      ).toBe('VALIDIERUNG_RUFNAME_KEIN_VORNAME')
+      expect(fehlerCode(() => uebernehmen(db, { ...basis, formId: fremd.formId, teile: zielliste(db, fremd.formId) }))).toBe('NICHT_GEFUNDEN_NAME')
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E4: ein unverändertes Altbestand-Teil mit Leerraum bleibt erhalten, während andere Teile sich ändern', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      journalAus(db, 'Test V-130-11-0: mehrwortigen Vornamen wie Altbestand (Migration 0006) herstellen.')
+      db.prepare("UPDATE name_part SET wert = 'Hans Peter' WHERE id = @karl").run({ karl })
+      journalAn(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert: 'Nowack' } : t)) })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Hans Peter@0', 'Friedrich*@1'])
+      expect(teilId(db, formId, 'vorname', 'Hans Peter')).toBe(karl)
+      expect(folge(db, formId, 'nachname')).toEqual(['Nowack@0'])
+    } finally {
+      db.close()
+    }
+  })
+})

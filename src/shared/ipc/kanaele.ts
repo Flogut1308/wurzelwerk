@@ -34,6 +34,7 @@ const kanaele = [
   'befehl:namensteil.aendern',
   'befehl:namensteil.verschieben',
   'befehl:namensform.rufnameSetzen',
+  'befehl:namensform.uebernehmen',
   'befehl:elternschaft.anlegen',
   'befehl:elternschaft.aendern',
   'befehl:elternschaft.loeschen',

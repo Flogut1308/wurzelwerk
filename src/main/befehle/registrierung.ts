@@ -41,6 +41,8 @@ import {
   type NamensteilVerschiebenEin,
   namensformRufnameSetzenEinSchema,
   type NamensformRufnameSetzenEin,
+  namensformUebernehmenEinSchema,
+  type NamensformUebernehmenEin,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -128,6 +130,7 @@ import { namensteilLoeschen } from './namensteil-loeschen'
 import { namensteilAendern } from './namensteil-aendern'
 import { namensteilVerschieben } from './namensteil-verschieben'
 import { namensformRufnameSetzen } from './namensform-rufname-setzen'
+import { namensformUebernehmen } from './namensform-uebernehmen'
 import { elternschaftAnlegen } from './elternschaft-anlegen'
 import { elternschaftAendern } from './elternschaft-aendern'
 import { elternschaftLoeschen } from './elternschaft-loeschen'
@@ -211,6 +214,7 @@ interface BefehlKarte {
   'namensteil.aendern': { ein: NamensteilAendernEin; aus: null }
   'namensteil.verschieben': { ein: NamensteilVerschiebenEin; aus: null }
   'namensform.rufnameSetzen': { ein: NamensformRufnameSetzenEin; aus: null }
+  'namensform.uebernehmen': { ein: NamensformUebernehmenEin; aus: { readonly id: string } }
   'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
@@ -349,6 +353,15 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.rufname_gesetzt',
     handler: namensformRufnameSetzen,
+  },
+  // AP-1.30 PR 11-0 (V-130-11-E1): Modal „Namensform bearbeiten" → Übernehmen. Kein Autosave-Befehl, darum
+  // ohne Koaleszenzschlüssel: alle Einzelschritte laufen in DIESER Bus-Transaktion und tragen dieselbe
+  // `transaktion_id` — ein Übernehmen ist genau ein Undo-Schritt.
+  'namensform.uebernehmen': {
+    schema: namensformUebernehmenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.namensform_uebernommen',
+    handler: namensformUebernehmen,
   },
   'elternschaft.anlegen': {
     schema: elternschaftAnlegenEinSchema,
