@@ -22,6 +22,8 @@ interface Aufruf {
 }
 
 const aufrufe: Aufruf[] = []
+/** Hooks, deren `mutate` sofort über `onError` scheitert (PR 11c-1b H3). */
+const scheitert = new Set<string>()
 
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
@@ -29,8 +31,9 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
     Object.keys(original).map((name) => [
       name,
       () => ({
-        mutate: (ein: unknown) => {
+        mutate: (ein: unknown, optionen?: { readonly onError?: (fehler: unknown) => void }) => {
           aufrufe.push({ hook: name, ein })
+          if (scheitert.has(name)) optionen?.onError?.({ code: 'NICHT_GEFUNDEN_NAME', textSchluessel: 'NICHT_GEFUNDEN_NAME', vorgangsId: 'v' })
         },
         isPending: false,
         isSuccess: false,
@@ -124,6 +127,7 @@ describe('ReiterNamen', () => {
 
   beforeEach(() => {
     aufrufe.length = 0
+    scheitert.clear()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -186,6 +190,19 @@ describe('ReiterNamen', () => {
     klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Entfernen'))
     zeige([])
     expect(document.activeElement?.textContent).toBe('+ Namensform')
+  })
+
+  // PR 11c-1b H3: scheitert `name.loeschen`, darf der Fokus-Merker nicht stehen bleiben — sonst risse ein
+  // späteres Verschwinden derselben Form (z. B. Undo ihres Anlegens) den Fokus unvermittelt an sich.
+  it('H3: scheitert Entfernen, wird der Fokus-Merker verworfen', () => {
+    scheitert.add('useNameLoeschen')
+    zeige([HAUPT, OSSETISCH, RUSSISCH])
+    klicken(knopfIn(karteMit('Гуытнаты Карл'), 'Entfernen'))
+    const neu = knopfIn(document, '+ Namensform')
+    neu?.focus()
+    // Später verschwindet die Form auf anderem Weg: der Fokus bleibt, wo der Nutzer ihn hingesetzt hat.
+    zeige([HAUPT, RUSSISCH])
+    expect(document.activeElement).toBe(neu)
   })
 
   it('„Entfernen" ruft name.loeschen (E7: auch die letzte Form)', () => {

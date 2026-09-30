@@ -93,6 +93,12 @@ export function ReiterNamen({ personId, namen, istPlatzhalter }: ReiterNamenProp
     fokusNachEntfernen.current = { entfernt: id, ziel: ziel?.id ?? null }
   }
 
+  /** PR 11c-1b H3: scheitert das Löschen, gilt der Merker nicht mehr — sonst risse ein späteres Verschwinden
+   * derselben Form (z. B. Undo ihres Anlegens) den Fokus unvermittelt an sich. */
+  function entfernenFehlgeschlagen(id: string): void {
+    if (fokusNachEntfernen.current?.entfernt === id) fokusNachEntfernen.current = null
+  }
+
   return (
     <section className="wz-reiter-namen" aria-labelledby={titelId}>
       <div className="wz-reiter-namen__kopf">
@@ -132,6 +138,7 @@ export function ReiterNamen({ personId, namen, istPlatzhalter }: ReiterNamenProp
                 hauptnameId={hauptnameId}
                 aufBearbeiten={() => oeffnen(name.id)}
                 aufEntfernen={() => entfernenVorgemerkt(name.id)}
+                aufEntfernenFehlgeschlagen={() => entfernenFehlgeschlagen(name.id)}
               />
             </li>
           ))}
@@ -160,6 +167,8 @@ interface NamensformKarteProps {
   readonly aufBearbeiten: () => void
   /** Vor dem Löschen: das Fokusziel danach vormerken (Review #207 H5). */
   readonly aufEntfernen: () => void
+  /** Das Löschen ist gescheitert: den Merker verwerfen (PR 11c-1b H3). */
+  readonly aufEntfernenFehlgeschlagen: () => void
 }
 
 /** Fehler einer Kartenaktion mit Titel und Handlungsanweisung (Muster `name_fehler`). */
@@ -169,7 +178,7 @@ function aktionsFehler(fehler: AppFehler | null, t: (schluessel: string, werte: 
 
 /** Eine Karte je Namensform (Artboard 2a): Kopf mit Sprache, Schrift, Reihenfolge, Hauptname und Aktionen;
  * Teile in Anzeigefolge mit markiertem Rufnamen; Rolle mit Notiz, Gültigkeit, Genusform, „Sortiert unter". */
-function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten, aufEntfernen }: NamensformKarteProps) {
+function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten, aufEntfernen, aufEntfernenFehlgeschlagen }: NamensformKarteProps) {
   const { t } = useTranslation('profil')
   const { t: tFehler } = useTranslation('fehler')
   const titelId = useId()
@@ -208,7 +217,7 @@ function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten, au
             gesperrt={nameLoeschen.isPending}
             aufKlick={() => {
               aufEntfernen()
-              nameLoeschen.mutate({ id: name.id })
+              nameLoeschen.mutate({ id: name.id }, { onError: aufEntfernenFehlgeschlagen })
             }}
           >
             {t('namensform_entfernen')}
