@@ -4,8 +4,8 @@
 // Anzeigetext; Eigentümer 25.09.2026) → Hauptname (ist_bevorzugt). `text` ist ein zusammengesetzter
 // Anzeigestring aus den Bestandteilen; die endgültige, i18n-abhängige Formatierung (Rufname hervorheben o. Ä.) bleibt dem Renderer über
 // `anzeige.ts` (Segment-Builder) vorbehalten — dieses Modul liefert den flachen Text + die Herkunft.
-import type { NameFormReihenfolge } from './typen'
-import { rekonstruiereFlach, type GeladenerTeil } from './zerlegung'
+import type { NameFormReihenfolge, NamePartArt } from './typen'
+import { NAME_PART_ART_REIHENFOLGE, rekonstruiereFlach, type GeladenerTeil, type RekonstruierterName } from './zerlegung'
 
 /** Eine geladene Namensform mit ihren Bestandteilen — Eingabe (bereits aus der DB geladen). */
 export interface AnzeigeForm {
@@ -41,14 +41,42 @@ export interface AnzeigenameErgebnis {
  * `original_text` ist wortgetreu gespeichert und wird nie umgestellt. */
 export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText' | 'reihenfolge'>): string {
   const flach = rekonstruiereFlach(form.teile)
-  const folge =
-    form.reihenfolge === 'nachname_zuerst'
-      ? [flach.titelVor, flach.praefix, flach.nachname, flach.vornamen, flach.vatersname, flach.zusatzNach]
-      : [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach]
+  const folge = anzeigeArtFolge(form.reihenfolge).map((art) => flachesFeld(flach, art))
   const segmente = folge.filter((segment): segment is string => segment !== null && segment.trim() !== '')
   const zusammengesetzt = segmente.join(' ').trim()
   if (zusammengesetzt !== '') return zusammengesetzt
   return form.originalText ?? ''
+}
+
+/** Wortfolge bei `reihenfolge = 'nachname_zuerst'` (V-130-11-E3). */
+const ART_FOLGE_NACHNAME_ZUERST: readonly NamePartArt[] = ['titel', 'praefix', 'nachname', 'vorname', 'vatersname', 'suffix']
+
+/**
+ * Die Folge der Bestandteil-Arten im Anzeigetext einer Form (AP-1.30 PR 11c-1, V-130-11-E3): bei
+ * `nachname_zuerst` Titel, Präfix, Nachname, Vornamen, Vatersname, Zusatz, sonst (NULL, fehlend,
+ * `vorname_zuerst`) die Folge `NAME_PART_ART_REIHENFOLGE`. Exportiert, damit die Karten im Reiter „Namen"
+ * die Teile in derselben Folge zeigen, in der `anzeigetextVon` sie verbindet — die Regel gibt es einmal.
+ */
+export function anzeigeArtFolge(reihenfolge: NameFormReihenfolge | null | undefined): readonly NamePartArt[] {
+  return reihenfolge === 'nachname_zuerst' ? ART_FOLGE_NACHNAME_ZUERST : NAME_PART_ART_REIHENFOLGE
+}
+
+/** Das flache Feld einer Art in der Rekonstruktion. */
+function flachesFeld(flach: RekonstruierterName, art: NamePartArt): string | null {
+  switch (art) {
+    case 'titel':
+      return flach.titelVor
+    case 'vorname':
+      return flach.vornamen
+    case 'vatersname':
+      return flach.vatersname
+    case 'praefix':
+      return flach.praefix
+    case 'nachname':
+      return flach.nachname
+    case 'suffix':
+      return flach.zusatzNach
+  }
 }
 
 /** Hat die Form einen nicht-leeren Anzeigetext? Die Kernangabe `name` gilt genau dann als vorhanden
