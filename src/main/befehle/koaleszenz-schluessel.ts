@@ -8,7 +8,7 @@
 // Nutzlast UND den gespeicherten Stand (`vorher`), gegen den sie prüft, ob sich wirklich nur das
 // genannte Feld ändert. Vor der Transaktion wäre der Stand nicht gegen gleichzeitige Schreiber
 // gesichert, nach dem Handler wäre `vorher` überschrieben (nur noch aus dem Journal rekonstruierbar,
-// bei `name.aendern` über gelöschte und neu angelegte Bestandteile hinweg). Die Funktionen hier
+// bei `name.aendern` über abgeglichene, teils gelöschte und neu angelegte Bestandteile hinweg). Die Funktionen hier
 // lesen nur (Repositories), schreiben nie und werfen nicht: fehlt der Datensatz, gibt es keinen
 // Schlüssel — den Fehler meldet danach der Handler.
 //

@@ -56,9 +56,12 @@ function alsOperation(wert: string): JournalOperation {
  * fälschlich ein Ereignis mit einer bereits gelöschten `transaktionId` melden.
  *
  * Erreichbarkeit (AP-1.30 PR 4): EINZELNE insert+delete-Paare sind seit dem Schlüssel an
- * `name.aendern` erreichbar — der Befehl löscht die Bestandteile einer Form und legt sie mit neuen
- * ids wieder an, die Zwischenstände heben sich beim Zusammenfassen auf
- * (`test/einheit/koaleszenz-name-verdichtung.test.ts`). Dass der GANZE Merge leer wird (`null`),
+ * `name.aendern` erreichbar. Seit dem Teil-Abgleich (AP-1.30 PR 10a-2, `name-repo.ts::teileAbgleichen`)
+ * legt der Befehl NICHT mehr alle Bestandteile mit neuen ids an: ein Teil an gleicher Stelle mit gleicher
+ * Rufname-Markierung behält seine Zeile (ein geänderter Wert wird zum update). Neu angelegt — und damit
+ * Stoff für insert+delete — wird ein Teil nur, wenn eine Serie die Rufname-Markierung verschiebt oder
+ * einen Teil hinzufügt und wieder entfernt; die Zwischenstände heben sich beim Zusammenfassen auf
+ * (`test/einheit/koaleszenz-name-verdichtung.test.ts`, Rufname-Wechsel). Dass der GANZE Merge leer wird (`null`),
  * bleibt mit dem registrierten Befehlsvorrat unerreichbar: jede Transaktion mit Schlüssel ändert
  * auch eine Zeile, die über beide Transaktionen besteht (`name_form`, `person`, …), und
  * update+update bleibt eine Zeile. Das `null` bleibt als correctness-Signal für jeden künftigen

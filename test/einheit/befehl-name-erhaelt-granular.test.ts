@@ -11,12 +11,14 @@
 // NULL bzw. je Art einen Teil); die Tests legen sie darum per direktem SQL an (Journal aus), so wie
 // es die künftigen granularen Namensbefehle (AP-1.30 PR 10) tun werden.
 //
-// Eiserne Regel §5: die Fälle „Kopf-Felder" und die drei `it.fails` waren rot gegen den unveränderten
-// Stand. Die Kopf-Felder sind behoben; die drei `it.fails` (Teil-Abgleich statt Neuaufbau) bleiben rot,
-// bis der Prüfpfad-Vorlauf die Deckungsschwelle `koaleszenz.verdichtet` in
-// test/invarianten/undo-bitgleich.test.ts neu fasst (docs/80 §33 U-130-10a-bruecke-erhaelt). Die übrigen sind
-// Schutzgeländer, die vor UND nach dem Fix gelten müssen: Undo/Redo bitgleich (auch zusammengefasst
-// über den Koaleszenzschlüssel) und abgeleitete Tabellen gleich ihrem Neuaufbau.
+// Eiserne Regel §5: die Fälle „Kopf-Felder" und die drei Teil-Fälle (bis AP-1.30 PR 10a-2 `it.fails`)
+// waren rot gegen den unveränderten Stand. Die Kopf-Felder sind seit PR 10a behoben, die Teil-Fälle seit
+// dem Teil-Abgleich (`name-repo.ts::teileAbgleichen`, PR 10a-2, nach dem Prüfpfad-Vorlauf #188 zur
+// Deckungsschwelle `koaleszenz.verdichtet`). Die übrigen sind Schutzgeländer, die vor UND nach dem Fix
+// gelten müssen: Undo/Redo bitgleich (auch zusammengefasst über den Koaleszenzschlüssel), abgeleitete
+// Tabellen gleich ihrem Neuaufbau und — für die FTS-Trigger `abl_name_part_*`, die den Vorher-Stand per
+// `ORDER BY sortier_index` rekonstruieren — kein doppelter `sortier_index` je (Form, Art) in irgendeinem
+// Zwischenzustand.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -187,7 +189,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('Nachname ändern (wie die Maske): Kopf-Felder bleiben, Vorname-Teile bleiben Zeile für Zeile (ID, feminine_variante)', () => {
+  it('Nachname ändern (wie die Maske): Kopf-Felder bleiben, Vorname-Teile bleiben Zeile für Zeile (ID, feminine_variante)', () => {
     const db = neueTestDatenbank()
     try {
       const { personId, formId } = formMitGranularenFeldern(db)
@@ -205,7 +207,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('Vornamen ändern: der Nachname-Teil bleibt Zeile für Zeile (ID, feminine_variante „Nowakowa")', () => {
+  it('Vornamen ändern: der Nachname-Teil bleibt Zeile für Zeile (ID, feminine_variante „Nowakowa")', () => {
     const db = neueTestDatenbank()
     try {
       const { personId, formId } = formMitGranularenFeldern(db)
@@ -226,7 +228,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('zwei getrennte Nachnamen-Teile bleiben getrennt, wenn der flache Nachname gleich bleibt', () => {
+  it('zwei getrennte Nachnamen-Teile bleiben getrennt, wenn der flache Nachname gleich bleibt', () => {
     const db = neueTestDatenbank()
     try {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
@@ -353,6 +355,188 @@ describe('Behauptung zerlegung.ts (montiereOriginalText): Form mit original_text
       db.prepare("DELETE FROM name_form WHERE id = 'form-ohne-text'").run()
       erwarteAbgeleitetWieNeuaufbau(db)
       journalAn(db)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+interface DoppelZeile {
+  readonly zeitpunkt: string
+  readonly name_form_id: string
+  readonly art: string
+  readonly sortier_index: number
+}
+
+/** Wächter über JEDEN Zwischenzustand: temporäre Trigger (nur diese Verbindung, nicht im Schema, nicht
+ * im kanonischen Abzug) protokollieren jedes Einfügen/Ändern eines `name_part`, nach dem zwei Teile
+ * derselben (Form, Art) denselben `sortier_index` tragen — auch innerhalb eines Befehls, eines Undo
+ * oder eines Redo, wo die Endzustands-Prüfung nichts mehr sähe. */
+function doppelWaechterAnlegen(db: Db): void {
+  db.exec(`
+    CREATE TEMP TABLE sortier_doppel (zeitpunkt TEXT NOT NULL, name_form_id TEXT NOT NULL, art TEXT NOT NULL, sortier_index INTEGER NOT NULL);
+    CREATE TEMP TRIGGER sortier_doppel_ai AFTER INSERT ON main.name_part
+    WHEN (SELECT COUNT(*) FROM main.name_part np WHERE np.name_form_id = NEW.name_form_id AND np.art = NEW.art AND np.sortier_index = NEW.sortier_index) > 1
+    BEGIN
+      INSERT INTO sortier_doppel (zeitpunkt, name_form_id, art, sortier_index) VALUES ('insert', NEW.name_form_id, NEW.art, NEW.sortier_index);
+    END;
+    CREATE TEMP TRIGGER sortier_doppel_au AFTER UPDATE ON main.name_part
+    WHEN (SELECT COUNT(*) FROM main.name_part np WHERE np.name_form_id = NEW.name_form_id AND np.art = NEW.art AND np.sortier_index = NEW.sortier_index) > 1
+    BEGIN
+      INSERT INTO sortier_doppel (zeitpunkt, name_form_id, art, sortier_index) VALUES ('update', NEW.name_form_id, NEW.art, NEW.sortier_index);
+    END;
+  `)
+}
+
+function doppelte(db: Db): readonly DoppelZeile[] {
+  return db.prepare<[], DoppelZeile>('SELECT zeitpunkt, name_form_id, art, sortier_index FROM temp.sortier_doppel').all()
+}
+
+describe('Teil-Abgleich: kein Zwischenzustand mit doppeltem sortier_index, abgeleitete Tabellen nach jedem Schritt wie Neuaufbau', () => {
+  /** Maskenschritte über alle Abgleichfälle: Wert an gleicher Stelle, Anhängen, Umordnen, Entfernen,
+   * Rufname-Wechsel, Nachname, Präfix/Titel/Zusatz hinzu und weg. `true` = im Koaleszenzfenster. */
+  const SCHRITTE: readonly (readonly [boolean, (eintrag: NamenEintragWerte) => NamenEintragWerte])[] = [
+    [false, (e) => ({ ...e, vornamen: 'Carl Friedrich' })],
+    [true, (e) => ({ ...e, vornamen: 'Carl Friedrich Wilhelm' })],
+    [true, (e) => ({ ...e, vornamen: 'Wilhelm Friedrich Carl' })],
+    [true, (e) => ({ ...e, vornamen: 'Wilhelm Friedrich' })],
+    [false, (e) => ({ ...e, rufname: 'Wilhelm' })],
+    [true, (e) => ({ ...e, rufname: 'Friedrich' })],
+    [false, (e) => ({ ...e, nachname: 'Nowack' })],
+    [true, (e) => ({ ...e, nachname: 'Nowak' })],
+    [false, (e) => ({ ...e, praefix: 'von', titelVor: 'Dr.', zusatzNach: 'der Ältere' })],
+    [false, (e) => ({ ...e, praefix: '', titelVor: 'Prof.', zusatzNach: '' })],
+    [false, (e) => ({ ...e, vornamen: 'Friedrich', rufname: 'Friedrich' })],
+    [false, (e) => ({ ...e, vornamen: 'Karl Friedrich Wilhelm August' })],
+  ]
+
+  it('nach jedem name.aendern, jedem Undo und jedem Redo: kein Doppel, FTS/person_flach/name_phonetik wie Neuaufbau, integrity_check ok', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formMitGranularenFeldern(db)
+      // Zweiter getrennter Nachnamen-Teil (wie ein granularer Befehl): der Abgleich muss ihn beim
+      // Ändern des Nachnamens abräumen, ohne dass ein Zwischenzustand zwei Teile auf einer Stelle hat.
+      journalAus(db, GRUND)
+      db.prepare(
+        `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+         VALUES ('teil-zweiter-nachname', @formId, 'nachname', 'Lüdenscheidt', 0, 1, NULL, 1, 1)`,
+      ).run({ formId })
+      journalAn(db)
+      doppelWaechterAnlegen(db)
+      const schritteVorher = angewendeteSchritte(db)
+      const abzuege: string[] = [kanonischerAbzug(db)]
+
+      for (const [imFenster, aendern] of SCHRITTE) {
+        warte(imFenster ? 300 : 5000)
+        maskeAendern(db, personId, formId, aendern)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+        abzuege.push(kanonischerAbzug(db))
+      }
+      const schritte = angewendeteSchritte(db) - schritteVorher
+      expect(schritte).toBeGreaterThan(1)
+      expect(schritte).toBeLessThan(SCHRITTE.length)
+
+      const endstand = kanonischerAbzug(db)
+      for (let i = 0; i < schritte; i += 1) {
+        undo(db)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+      }
+      expect(kanonischerAbzug(db)).toBe(abzuege[0])
+      for (let i = 0; i < schritte; i += 1) {
+        redo(db)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+      }
+      expect(kanonischerAbzug(db)).toBe(endstand)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Gegenprobe des Wächters: zwei Teile auf derselben Stelle werden erkannt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = formMitGranularenFeldern(db)
+      doppelWaechterAnlegen(db)
+      journalAus(db, GRUND)
+      db.prepare(
+        `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+         VALUES ('teil-doppel', @formId, 'nachname', 'Lüdenscheidt', 0, 0, NULL, 1, 1)`,
+      ).run({ formId })
+      journalAn(db)
+      expect(doppelte(db)).toEqual([{ zeitpunkt: 'insert', name_form_id: formId, art: 'nachname', sortier_index: 0 }])
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('Teil-Abgleich: Rohecho eines angehängten mehrwortigen Rufnamens und feminine_variante (hueter #191 H1/H2)', () => {
+  it('H2: angehängter Rufname „Hans Peter": die gespeicherte flache Sicht zurück + Nachname geändert → Vorname-Teile [Karl, „Hans Peter"*] unverändert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      // `zerlegeName` Regel 3: „Hans Peter" ist kein vorhandener Vorname-Token → EIN angehängter,
+      // markierter Vorname-Teil hinter „Karl".
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnow' }).id
+      const vornamenVorher = teile(db, formId, 'vorname')
+      expect(vornamenVorher.map((teil) => [teil.wert, teil.ist_rufname])).toEqual([
+        ['Karl', 0],
+        ['Hans Peter', 1],
+      ])
+      warte(5000)
+
+      // Genau die gespeicherte flache Sicht (nameRepo.lesen) zurück, nur der Nachname neu. Die
+      // Kern-Rundreise dieser Sicht ist KEINE Identität (zerlegeName markierte „Hans" an Index 1) —
+      // nur die Rohecho-Klausel in `artUnveraendert` hält die Vornamen unberührt.
+      fuehreAus(db, 'name.aendern', {
+        id: formId,
+        typ: 'geburtsname',
+        vornamen: 'Karl Hans Peter',
+        rufnameIndex: 1,
+        rufnameText: 'Hans Peter',
+        nachname: 'Gutnoff',
+        feld: 'nachname',
+      })
+
+      expect(teile(db, formId, 'vorname')).toEqual(vornamenVorher)
+      expect(teile(db, formId, 'nachname').map((teil) => teil.wert)).toEqual(['Gutnoff'])
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('H1: feminine_variante folgt dem Wert beim Einfügen in der Mitte und beim Umordnen, nicht der Stelle', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formMitGranularenFeldern(db)
+      // Ausgang: Karl (0, „Karla"), Friedrich* (1). Neu vorn „Wilhelm": Karl rückt auf 1, Friedrich* auf 2.
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, vornamen: 'Wilhelm Karl Friedrich' }))
+      const nachEinfuegen = teile(db, formId, 'vorname')
+      expect(nachEinfuegen.map((teil) => [teil.wert, teil.sortier_index, teil.ist_rufname, teil.feminine_variante])).toEqual([
+        ['Wilhelm', 0, 0, null],
+        ['Karl', 1, 0, 'Karla'],
+        ['Friedrich', 2, 1, null],
+      ])
+      erwarteAbgeleitetWieNeuaufbau(db)
+
+      // Umordnen an festen Stellen, gleiche Markierung (reine Wert-UPDATEs): „Karla" wandert mit Karl.
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, vornamen: 'Karl Wilhelm Friedrich' }))
+      const nachUmordnen = teile(db, formId, 'vorname')
+      expect(nachUmordnen.map((teil) => [teil.wert, teil.sortier_index, teil.ist_rufname, teil.feminine_variante])).toEqual([
+        ['Karl', 0, 0, 'Karla'],
+        ['Wilhelm', 1, 0, null],
+        ['Friedrich', 2, 1, null],
+      ])
+      // Stellen behalten ihre Zeile (Grenze, docs/80 U-130-10a-bruecke-erhaelt): die ID an Stelle 0 ist
+      // die des früheren „Wilhelm", nicht die des früheren „Karl".
+      expect(nachUmordnen[0]?.id).toBe(nachEinfuegen[0]?.id)
+      erwarteAbgeleitetWieNeuaufbau(db)
     } finally {
       db.close()
     }
