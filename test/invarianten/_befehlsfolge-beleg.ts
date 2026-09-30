@@ -145,6 +145,28 @@ export type Zweig =
   | 'kurzbeschreibung.aendern.zusammengefasst'
   | 'kurzbeschreibung.aendern.neuerSchritt'
   | 'kurzbeschreibung.loeschen'
+  /** AP-1.30 PR 10b (`_befehlsfolge-namensteile.ts`), am Datenbankergebnis gemessen: `namensform.anlegen`
+   * als Umschrift einer Form derselben Person; `namensform.aendern`/`namensteil.aendern` mit der obersten
+   * Transaktion zusammengefasst bzw. als neuer Undo-Schritt; `namensteil.anlegen` mitten in die Art
+   * (Nachfolger rücken auf); `namensteil.loeschen` mit Nachnummerieren; `namensteil.verschieben` über den
+   * Parkwert (am Journal); `namensform.rufnameSetzen` neu gesetzt, gewechselt bzw. entfernt (`null`). */
+  | 'namensteile.formAnlegen.umschrift'
+  | 'namensteile.formAendern.zusammengefasst'
+  | 'namensteile.formAendern.neuerSchritt'
+  | 'namensteile.teilAendern.zusammengefasst'
+  | 'namensteile.teilAendern.neuerSchritt'
+  | 'namensteile.teilAnlegen.eingeschoben'
+  | 'namensteile.teilLoeschen.nachnummeriert'
+  | 'namensteile.verschieben.geparkt'
+  | 'namensteile.rufname.gesetzt'
+  | 'namensteile.rufname.wechsel'
+  | 'namensteile.rufname.null'
+  /** … und die Ablehnungswege, je bitgleicher Bestand ohne Transaktion. */
+  | 'ablehnung.namensteile.leer'
+  | 'ablehnung.namensteile.leerraum'
+  | 'ablehnung.namensteile.position'
+  | 'ablehnung.namensteile.keinVorname'
+  | 'ablehnung.namensteile.fremdeForm'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
