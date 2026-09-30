@@ -12,6 +12,8 @@ import {
   hauptnameWechselnEinSchema,
   namensformAnlegenEinSchema,
   namensformAendernEinSchema,
+  namensteilAnlegenEinSchema,
+  namensteilLoeschenEinSchema,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -188,6 +190,9 @@ export function ipcRegistrierung(): void {
   // `name.loeschen`/`hauptname.wechseln` (E5, docs/80 §33 V-130-10-1).
   registriere('befehl:namensform.anlegen', namensformAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensform.anlegen', ein))
   registriere('befehl:namensform.aendern', namensformAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensform.aendern', ein))
+  // AP-1.30 PR 10-2: einzelner Bestandteil einer Namensform (eindeutiger sortier_index je Form und Art).
+  registriere('befehl:namensteil.anlegen', namensteilAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.anlegen', ein))
+  registriere('befehl:namensteil.loeschen', namensteilLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.loeschen', ein))
 
   registriere('befehl:elternschaft.anlegen', elternschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.anlegen', ein))
   registriere('befehl:elternschaft.aendern', elternschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.aendern', ein))

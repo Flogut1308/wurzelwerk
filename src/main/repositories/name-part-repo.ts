@@ -53,6 +53,30 @@ export function teileFuerForm(tx: Tx, nameFormId: string): readonly NamePartZeil
     .all({ nameFormId })
 }
 
+/** AP-1.30 PR 10-2: die Bestandteile EINER Art einer Form, aufsteigend nach `sortier_index` (bei einem
+ * Doppel aus Altbestand stabil nach `id`). Grundlage des Anhängens (MAX + 1) und des Umnummerierens. */
+export function teileDerArt(tx: Tx, nameFormId: string, art: string): readonly NamePartZeile[] {
+  return tx
+    .prepare<{ readonly nameFormId: string; readonly art: string }, NamePartZeile>(
+      `SELECT id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante
+       FROM name_part WHERE name_form_id = @nameFormId AND art = @art ORDER BY sortier_index, id`,
+    )
+    .all({ nameFormId, art })
+}
+
+export interface SortierIndexSetzenEin {
+  readonly id: string
+  readonly sortierIndex: number
+  readonly geaendertAm: number
+}
+
+/** AP-1.30 PR 10-2: verschiebt EINEN Teil auf eine andere Stelle (nur `sortier_index`/`geaendert_am`).
+ * Der Aufrufer ist dafür verantwortlich, dass die Zielstelle frei ist (E1: kein Zwischenzustand mit
+ * doppeltem `sortier_index` je Form und Art — die FTS-Trigger `abl_name_part_*` setzen das voraus). */
+export function sortierIndexSetzen(tx: Tx, ein: SortierIndexSetzenEin): void {
+  tx.prepare('UPDATE name_part SET sortier_index = @sortierIndex, geaendert_am = @geaendertAm WHERE id = @id').run(ein)
+}
+
 export interface NamePartAktualisierenEin {
   readonly id: string
   readonly art: string

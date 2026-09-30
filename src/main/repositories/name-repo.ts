@@ -153,7 +153,9 @@ function geladenerTeilVon(teil: NamePartZeile): GeladenerTeil {
   }
 }
 
-function geladeneTeile(tx: Tx, formId: string): readonly GeladenerTeil[] {
+/** Die Teile einer Form als Eingabe der Kern-Rekonstruktion (`rekonstruiereFlach`). Auch von den
+ * granularen `namensteil.*`-Befehlen genutzt (Nachführen einer montierten `original_text`, E3). */
+export function geladeneTeile(tx: Tx, formId: string): readonly GeladenerTeil[] {
   return namePartRepo.teileFuerForm(tx, formId).map(geladenerTeilVon)
 }
 
