@@ -27,7 +27,12 @@
 //   nicht mehr — neu montiert zu „Karl Peter Nowak".
 // - Ein Altbestand mit verbotenem Umschrift-Bezug (Mutante A2, U-130-10b-folge) ist über Befehle seit
 //   V-130-fix-umschrift-selbstbezug nicht mehr erreichbar; ihn prüft `uebernehmen-altbestand.test.ts` (per Import
-//   geschrieben). Hier zählt das Orakel nur `uebernehmen.altbestand`, falls ein solcher Stand doch vorliegt.
+//   geschrieben). Trifft ein Weg hier doch auf einen Selbstbezug, wirft er „unerreichbar“.
+// - LEERRAUM-ALTBESTAND (Befund U-130-11-0b-leerraum-teil, Fix #212, Regressionstest in `uebernehmen-befunde.test.ts`
+//   nach dessen Merge): ein gespeicherter Teil aus reinem Leerraum (etwa ein Vatersname ' ' aus `name.anlegen`)
+//   wurde bei unverändert zurückgeschicktem Eintrag gelöscht. Bis der Fix auf main ist, schicken die Wege solche Teile nie zurück
+//   (`teileDerForm` lässt sie aus — sie entfallen durch Weglassen, das ist eindeutig), und das Orakel wirft, falls
+//   ein Eintrag doch einen gespeicherten Leerraum-Teil nennt: es legt das heutige Verhalten nicht als Soll fest.
 // - ABLEHNUNGEN (Grundsatz E-B2-2): Art-Wechsel bei gleicher ID (`VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND`),
 //   Leerraum in einem geänderten Vornamen (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`), fremde bzw. unbekannte Teil-ID
 //   (`NICHT_GEFUNDEN_NAMENSTEIL`), Rufname an einem Nicht-Vornamen (`VALIDIERUNG_RUFNAME_KEIN_VORNAME`),
@@ -302,9 +307,11 @@ function alleFormenLesen(db: Tx): readonly FormZeile[] {
     .all()
 }
 
-/** Teile einer Form in Zielfolge: nach Art (Reihenfolge von `NamePartArtEnum`), dann Stelle. */
+/** Teile einer Form in Zielfolge: nach Art (Reihenfolge von `NamePartArtEnum`), dann Stelle — OHNE Teile aus
+ * reinem Leerraum (s. Modul-Kommentar LEERRAUM-ALTBESTAND): die Wege bauen ihre Zielliste hieraus, ein solcher
+ * Teil entfällt damit durch Weglassen. */
 function teileDerForm(db: Tx, formId: string): readonly TeilZeile[] {
-  const teile = alleTeile(db).filter((t) => t.name_form_id === formId)
+  const teile = alleTeile(db).filter((t) => t.name_form_id === formId && t.wert.trim() !== '')
   const rang = (art: string): number => NamePartArtEnum.options.findIndex((a) => a === art)
   return [...teile].sort((a, b) => rang(a.art) - rang(b.art) || a.sortier_index - b.sortier_index)
 }
@@ -382,10 +389,19 @@ interface SollTeil {
 function sollTeile(ein: NamensformUebernehmenEin, gespeichert: readonly TeilZeile[]): readonly SollTeil[] {
   const soll: SollTeil[] = []
   for (const t of ein.teile) {
+    const gespeicherterTeil = t.id === undefined ? undefined : gespeichert.find((g) => g.id === t.id)
+    if (t.wert.trim() === '' && t.id !== undefined && (gespeicherterTeil === undefined || gespeicherterTeil.wert.trim() === '' || gespeicherterTeil.art !== t.art)) {
+      throw new Error('uebernehmen: leerer Eintrag mit unbekannter ID, Leerraum-Altbestand oder anderer Art (U-130-11-0b-leerraum-teil, Generatorfehler).')
+    }
     if (t.wert.trim() === '') continue
-    const alt = t.id === undefined ? undefined : gespeichert.find((g) => g.id === t.id)
+    const alt = gespeicherterTeil
     if (t.id !== undefined && alt === undefined) {
       throw new Error('uebernehmen: Zielliste nennt eine unbekannte Teil-ID (Generatorfehler).')
+    }
+    if (alt !== undefined && (alt.wert.trim() === '' || alt.art !== t.art)) {
+      // U-130-11-0b-leerraum-teil: das heutige Verhalten (Leerraum-Teil entfällt, leerer Eintrag anderer Art wird
+      // ohne Fehler verworfen) ist Befund, kein Soll — die Wege senden solche Einträge nicht.
+      throw new Error('uebernehmen: Zielliste nennt einen Leerraum-Altbestand-Teil bzw. einen leeren Eintrag anderer Art (Generatorfehler).')
     }
     soll.push({
       id: t.id,
@@ -603,10 +619,6 @@ function uebernehmen(db: Tx, zweige: Zweig[], ein: NamensformUebernehmenEin, wo:
   }
 
   // Deckungszweige (am Stand vorher und an der Zielliste).
-  if (vorher !== undefined && vorher.umschrift_von !== null) {
-    const ursprung = formenVorher.find((f) => f.id === vorher.umschrift_von)
-    if (vorher.umschrift_von === vorher.id || (ursprung !== undefined && ursprung.person_id !== vorher.person_id)) zweige.push('uebernehmen.altbestand')
-  }
   if (text.zweig !== undefined) zweige.push(text.zweig)
   if (hauptnameWechsel) zweige.push('uebernehmen.hauptname.gewechselt')
   if (ein.teile.some((t) => t.id === undefined && t.wert.trim() === '')) zweige.push('uebernehmen.leer.verworfen')
@@ -624,6 +636,7 @@ function uebernehmen(db: Tx, zweige: Zweig[], ein: NamensformUebernehmenEin, wo:
   if (umgeordnet) zweige.push('uebernehmen.umgeordnet')
   const rufVorher = gespeichert.find((t) => t.ist_rufname === 1)?.id
   if (rufVorher !== undefined && eigene.some((t) => t.ist_rufname === 1 && t.id !== rufVorher)) zweige.push('uebernehmen.rufname.wechsel')
+  if (rufVorher !== undefined && eigene.some((t) => t.id === rufVorher) && !eigene.some((t) => t.ist_rufname === 1)) zweige.push('uebernehmen.rufname.entfernt')
   return id
 }
 
@@ -883,7 +896,10 @@ function originalTextNeu(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], a
 function kopf(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): void {
   const form = formSicherstellen(db, zustand, zweige, aktion)
   if (form === undefined) return
-  const teile = teileDerForm(db, form.id)
+  // Jede dritte Kopf-Aktion entfernt zusätzlich die Rufname-Markierung an einem Vornamen, der bestehen bleibt
+  // (Zielliste ohne `istRufname`, hueter #209 H2); trägt die Form keinen Rufnamen, setzt der Vorlauf einen.
+  const rufnameEntfernen = wahl(aktion, 3) % 3 === 0
+  const teile = rufnameEntfernen ? teileSicherstellen(db, zustand, zweige, form, { vornamen: 1, andere: 0, rufname: true, wortgetreu: false }) : teileDerForm(db, form.id)
   const f = formLesen(db, form.id)
   const roh = kopfAus(aktion.kopf)
   const text = aktion.textArt === 'leer' ? '' : aktion.textArt === 'wortgetreu' ? WORTGETREU : undefined
@@ -891,7 +907,9 @@ function kopf(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: Akti
     ...(Object.keys(roh).length === 0 ? { rollenNotiz: aktion.werte[0] ?? 'Notiz' } : roh),
     ...(text !== undefined ? { originalText: text } : {}),
   }
-  const ziel = teile.map((t, i) => (i === wahl(aktion, 0) % Math.max(teile.length, 1) ? { ...unveraendert(t), wert: ` ${t.wert} ` } : unveraendert(t)))
+  const ziel = teile
+    .map((t, i) => (i === wahl(aktion, 0) % Math.max(teile.length, 1) ? { ...unveraendert(t), wert: ` ${t.wert} ` } : unveraendert(t)))
+    .map((t) => (rufnameEntfernen ? { ...t, istRufname: false } : t))
   uebernehmen(db, zweige, { personId: form.personId, formId: form.id, kopf: k, teile: ziel }, 'kopf')
   if (f.original_text !== '' && text === '') zweige.push('uebernehmen.kopf.originalTextLeer')
   zweige.push('uebernehmen.kopf')
@@ -1001,13 +1019,14 @@ function e3Grenzfall(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktio
 }
 
 /** Weg `ablehnungFlachBezug`: verbotener Umschrift-Bezug über die flache Brücke (V-130-fix-umschrift-selbstbezug)
- * — fremde Person (`name.anlegen`), Selbstbezug bzw. Kreis (`name.aendern`). */
+ * — fremde Person über `name.anlegen` bzw. über `name.aendern` (hueter #209 H3), Selbstbezug bzw. Kreis
+ * (`name.aendern`). */
 function flachBezugAblehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): void {
   const personId = zielAus(zustand.personIds, aktion.zielRoh)
   if (personId === undefined) return
   const flach = { typ: 'transliteriert', vornamen: 'Karl', nachname: 'Nowak' } as const
   const code = 'VALIDIERUNG_UMSCHRIFT_BEZUG'
-  const variante = wahl(aktion, 0) % 3
+  const variante = wahl(aktion, 0) % 4
   if (variante === 0) {
     const fremd = fremdeFormSicherstellen(db, zustand, zweige, personId, wahl(aktion, 1))
     if (fremd !== undefined) {
@@ -1018,6 +1037,14 @@ function flachBezugAblehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[]
   }
   const form = formSicherstellen(db, zustand, zweige, aktion)
   if (form === undefined) return
+  if (variante === 3) {
+    const fremd = fremdeFormSicherstellen(db, zustand, zweige, form.personId, wahl(aktion, 1))
+    if (fremd !== undefined) {
+      ablehnungVerlangen(db, 'uebernehmen.flachAendernFremdePerson', code, () => befehl(zweige, db, 'name.aendern', { id: form.id, ...flach, umschriftVon: fremd.id }))
+      zweige.push('ablehnung.uebernehmen.flachAendernFremdePerson')
+      return
+    }
+  }
   if (variante === 2) {
     // Vorstufe (gültig): eine Umschrift der Form derselben Person; dann soll die Form auf ihre Umschrift zeigen.
     const { id: umschrift } = befehl(zweige, db, 'name.anlegen', { personId: form.personId, ...flach, umschriftVon: form.id })
@@ -1028,7 +1055,9 @@ function flachBezugAblehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[]
     zweige.push('ablehnung.uebernehmen.flachKreis')
     return
   }
-  if (formLesen(db, form.id).umschrift_von === form.id) return
+  if (formLesen(db, form.id).umschrift_von === form.id) {
+    throw new Error('uebernehmen (ablehnungFlachBezug): unerreichbar — Selbstbezug ist über Befehle nicht herstellbar (#206).')
+  }
   ablehnungVerlangen(db, 'uebernehmen.flachSelbst', code, () => befehl(zweige, db, 'name.aendern', { id: form.id, ...flach, umschriftVon: form.id }))
   zweige.push('ablehnung.uebernehmen.flachSelbst')
 }
@@ -1077,6 +1106,18 @@ function ablehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: 
       return
     }
     case 'ablehnungFremd': {
+      // Jede dritte: die Form gehört einer ANDEREN Person als `personId` (hueter #209 H3) → NICHT_GEFUNDEN_NAME.
+      const anderePerson = zielAus(
+        zustand.personIds.filter((p) => p !== form.personId),
+        wahl(aktion, 3),
+      )
+      if (wahl(aktion, 2) % 3 === 0 && anderePerson !== undefined) {
+        ablehnungVerlangen(db, 'uebernehmen.ablehnungFremdePersonForm', 'NICHT_GEFUNDEN_NAME', () =>
+          befehl(zweige, db, 'namensform.uebernehmen', { personId: anderePerson, formId: form.id, kopf: {}, teile: ohneRuf }),
+        )
+        zweige.push('ablehnung.uebernehmen.fremdePersonForm')
+        return
+      }
       // Nur Teile mit nicht leerem Wert: ein gespeicherter Leerraum-Teil (etwa ein Vatersname ' ' aus
       // `name.aendern`) wäre in der Zielliste ein leerer Eintrag und würde vor jeder Prüfung verworfen.
       const fremdeTeile = alleTeile(db).filter((t) => t.name_form_id !== form.id && t.wert.trim() !== '')
@@ -1104,9 +1145,11 @@ function ablehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: 
       return
     }
     case 'ablehnungUmschrift': {
-      // An einer Form mit gespeichertem Selbstbezug (Altbestand, `uebernehmen-altbestand.test.ts`) wäre
-      // `umschriftVon: form.id` keine Änderung und damit keine Ablehnung.
-      if (f.umschrift_von === form.id) return
+      // An einer Form mit gespeichertem Selbstbezug wäre `umschriftVon: form.id` keine Änderung — über Befehle
+      // ist dieser Altbestand seit #206 nicht herstellbar (s. `uebernehmen-altbestand.test.ts`).
+      if (f.umschrift_von === form.id) {
+        throw new Error('uebernehmen (ablehnungUmschrift): unerreichbar — Selbstbezug ist über Befehle nicht herstellbar (#206).')
+      }
       const variante = wahl(aktion, 0) % 3
       const fremdePerson = variante === 1 ? fremdeFormSicherstellen(db, zustand, zweige, form.personId, wahl(aktion, 1)) : undefined
       let k: NamensformUebernehmenKopf = { umschriftVon: form.id }

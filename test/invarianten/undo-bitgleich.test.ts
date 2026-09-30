@@ -335,6 +335,14 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['ablehnung.uebernehmen.flachFremdePerson', 3],
   ['ablehnung.uebernehmen.flachSelbst', 12],
   ['ablehnung.uebernehmen.flachKreis', 8],
+  // Nachtrag hueter #209 (H2/H3), gemessen mit diesem Seed/`numRuns`: Rufname-Markierung an einem bleibenden
+  // Vornamen entfernt (12), `name.aendern` auf die Ursprungsform einer fremden Person (3), `namensform.uebernehmen`
+  // mit der Form einer anderen Person (3) — Schwelle je die Hälfte (mindestens 1). Dadurch verschoben (alle über
+  // ihrer Schwelle): `flachFremdePerson` 7 → 4, `fremd`/`unbekannt` 7/17 → 5/16, `originalText.explizit` 7 → 5,
+  // `leer.entfallen` 35 → 33, `hauptname.gewechselt` 59 → 57, `hauptname.wechseln` 27 → 28.
+  ['uebernehmen.rufname.entfernt', 6],
+  ['ablehnung.uebernehmen.flachAendernFremdePerson', 1],
+  ['ablehnung.uebernehmen.fremdePersonForm', 1],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()

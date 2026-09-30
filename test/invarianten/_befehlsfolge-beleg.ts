@@ -168,7 +168,7 @@ export type Zweig =
   | 'ablehnung.namensteile.keinVorname'
   | 'ablehnung.namensteile.fremdeForm'
   /** AP-1.30 PR 11-0b (`_befehlsfolge-uebernehmen.ts`), an Zielliste und Stand vorher gemessen:
-   * `namensform.uebernehmen` als Vorlauf; die Wege gemischt, neue Form, Kopf, Altbestand; unveränderter Aufruf
+   * `namensform.uebernehmen` als Vorlauf; die Wege gemischt, neue Form, Kopf, E3-Grenzfälle; unveränderter Aufruf
    * ohne Transaktion; Kopf-Änderung mit fehlenden Feldern; `originalText: ''`; bestehende Teile umgeordnet;
    * Rufname gewechselt; Hauptname gewechselt; leere neue Einträge verworfen bzw. geleerter Teil entfallen;
    * `original_text` einer neuen Form wortgetreu (auch als Montage nur der ersten Art), einer bestehenden
@@ -177,7 +177,6 @@ export type Zweig =
   | 'uebernehmen.gemischt'
   | 'uebernehmen.neueForm'
   | 'uebernehmen.kopf'
-  | 'uebernehmen.altbestand'
   | 'uebernehmen.e3Grenzfall.geglaettet'
   | 'uebernehmen.e3Grenzfall.dritteBedingung'
   | 'uebernehmen.noop'
@@ -185,6 +184,7 @@ export type Zweig =
   | 'uebernehmen.kopf.originalTextLeer'
   | 'uebernehmen.umgeordnet'
   | 'uebernehmen.rufname.wechsel'
+  | 'uebernehmen.rufname.entfernt'
   | 'uebernehmen.hauptname.gewechselt'
   | 'uebernehmen.leer.verworfen'
   | 'uebernehmen.leer.entfallen'
@@ -212,6 +212,8 @@ export type Zweig =
   | 'ablehnung.uebernehmen.flachFremdePerson'
   | 'ablehnung.uebernehmen.flachSelbst'
   | 'ablehnung.uebernehmen.flachKreis'
+  | 'ablehnung.uebernehmen.flachAendernFremdePerson'
+  | 'ablehnung.uebernehmen.fremdePersonForm'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
