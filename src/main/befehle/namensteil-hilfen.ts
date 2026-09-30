@@ -69,7 +69,7 @@ export function mitOriginalTextNachfuehrung(
   form: NameFormZeile,
   jetzt: number,
   aendern: () => void,
-  optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG,
+  optionen: NachfuehrungOptionen,
 ): void {
   if (!optionen.nachfuehren) {
     aendern()

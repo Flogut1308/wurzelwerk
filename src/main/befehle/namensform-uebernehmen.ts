@@ -12,7 +12,13 @@
 // folgt). Die Teilfunktionen laufen darum mit `OHNE_NACHFUEHRUNG` — je Einzelschritt entschieden, würde eine
 // wortgetreue Schreibung, die einem ZWISCHENSTAND der Montage gleicht („Anna" nach dem Anlegen von „Anna" auf
 // dem Weg zu [Anna, Nowak]), ab dort überschrieben. Am Ende (Schritt 6) wird genau einmal aus den Zielteilen
-// montiert, wenn der Text folgt; ein wortgetreuer bleibt, wie auch immer die Zwischenstände aussehen.
+// montiert, wenn der Text folgt UND die Montage der Zielteile von der Montage vor dem Befehl abweicht; ein
+// wortgetreuer bleibt, wie auch immer die Zwischenstände aussehen. Ohne Montage-Änderung wird der Text nie
+// angefasst (Review #205): `istMontierterOriginalText` erkennt auch nicht bitgleiche Texte als automatisch
+// (normierter Leerraum „Anna  Nowak", Anlege-Montage ohne angehängten Rufnamen „Karl Gutnow") — ein No-op
+// oder eine reine Kopfänderung darf sie nicht still „glätten".
+// Grenze von E3: gleicht ein wortgetreu gemeinter Text zufällig der Montage VOR dem Befehl, ist er von einer
+// automatischen Montage nicht zu unterscheiden und folgt den Teilen (wie in den Einzelbefehlen).
 //
 // Ein Undo-Schritt: alle Einzelschritte schreiben in DIESELBE Bus-Transaktion (eine `transaktion_id`); der
 // Befehl hat bewusst keinen Koaleszenzschlüssel (kein Autosave). No-op (AP-0.22): jede aufgerufene Funktion
@@ -42,7 +48,8 @@
 //   6. Kopf NACH den Teilen: bei einer bestehenden Form nur die Felder, die sich gegenüber dem Stand VOR dem
 //      Befehl ändern, bei einer neuen Form nur `originalText`. `originalText`: ein mitgeschickter, vom
 //      gespeicherten abweichender gewinnt immer (auch wenn er zufällig wie eine Montage aussieht); sonst die
-//      Montage der Zielteile, falls der Text folgt (E3, oben); sonst bleibt er. Ein unverändert mitgeschickter
+//      Montage der Zielteile, falls der Text folgt und sich die Montage geändert hat (E3, oben); sonst bleibt
+//      er. Ein unverändert mitgeschickter
 //      setzt die Nachführung also nicht zurück. Geschrieben wird nur bei einem Unterschied (No-op);
 //   7. Hauptname (`hauptnameWechseln`), falls verlangt und die Form es noch nicht ist.
 // Undo spielt das Journal der ganzen Transaktion rückwärts und durchläuft so dieselben Zwischenstände in
@@ -124,7 +131,9 @@ function anlegenEin(personId: string, kopf: NamensformUebernehmenKopf): Namensfo
 }
 
 /** Schritt 6: nur die gegenüber `vorher` (Stand vor dem Befehl bzw. nach den Teilen bei einer neuen Form)
- * geänderten Kopf-Felder an `namensformAendern`. */
+ * geänderten Kopf-Felder an `namensformAendern`. Bei einer bestehenden Form ist `vorher` der Stand VOR dem
+ * Befehl; das ist nur richtig, weil die Teilschritte mit `OHNE_NACHFUEHRUNG` die Form-Zeile nicht anfassen —
+ * sie ist nach Schritt 5 unverändert. */
 function kopfUebernehmen(tx: Tx, vorher: NameFormZeile, kopf: NamensformUebernehmenKopf): void {
   const felder = namensformGeaenderteFelder(vorher, { id: vorher.id, ...kopf })
   if (felder.length === 0) return
@@ -176,6 +185,8 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   if (vorher !== undefined) namensformAenderungPruefen(tx, vorher, { id: vorher.id, ...ein.kopf })
   // E3: einmal für den ganzen Aufruf, am Stand VOR dem ersten Schreibvorgang (neue Form: `NULL` folgt).
   const folgtDenTeilen = vorher === undefined || originalTextFolgtDenTeilen(tx, vorher)
+  // Vergleichsstand für Schritt 6: neu montiert wird nur, wenn sich die Montage der Teile ändert (Review #205).
+  const montageVorher = vorher === undefined ? undefined : montageDerTeile(tx, vorher.id)
 
   // 1. neue Form
   const formId = vorher?.id ?? namensformAnlegen(tx, anlegenEin(ein.personId, ein.kopf)).id
@@ -217,8 +228,10 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
     throw new WurzelFehler('INTERN_UNERWARTET', 'namensform.uebernehmen: neue Form fehlt.')
   }
   const mitgeschickt = ein.kopf.originalText
-  const originalText =
-    mitgeschickt !== undefined && mitgeschickt !== basis.original_text ? mitgeschickt : folgtDenTeilen ? montageDerTeile(tx, formId) : undefined
+  const montageNachher = montageDerTeile(tx, formId)
+  // Neue Form: `montageVorher` ist `undefined`, also immer „geändert" (montiert wie bisher; No-op über `kopfUebernehmen`).
+  const neuMontieren = folgtDenTeilen && montageNachher !== montageVorher
+  const originalText = mitgeschickt !== undefined && mitgeschickt !== basis.original_text ? mitgeschickt : neuMontieren ? montageNachher : undefined
   kopfUebernehmen(tx, basis, vorher === undefined ? { originalText } : { ...ein.kopf, originalText })
 
   // 7. Hauptname
