@@ -144,7 +144,7 @@ function schluesselListe(db: Db): readonly (string | null)[] {
 }
 
 describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen ist ein No-op (U-130-rufname-noop)', () => {
-  it.fails('nach der ersten Änderung: keine Transaktion, keine Journalzeile, Inhalt gleich', () => {
+  it('nach der ersten Änderung: keine Transaktion, keine Journalzeile, Inhalt gleich', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
@@ -166,7 +166,7 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
     }
   })
 
-  it.fails('nach der ersten Änderung, Rohaufrufe ohne Maske (Text statt Index, überzähliger Leerraum): ebenfalls No-op', () => {
+  it('nach der ersten Änderung, Rohaufrufe ohne Maske (Text statt Index, überzähliger Leerraum): ebenfalls No-op', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
@@ -184,7 +184,7 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
     }
   })
 
-  it.fails('bei noch unveränderter Anlege-Montage („Karl Gutnoff"): No-op, original_text bleibt (Entscheidung U-130-rufname-noop)', () => {
+  it('bei noch unveränderter Anlege-Montage („Karl Gutnoff"): No-op, original_text bleibt (Entscheidung U-130-rufname-noop)', () => {
     // Die Anlege-Montage lässt den angehängten Rufnamen weg (im Prüfpfad festgeschrieben); sie ist eine
     // AUTOMATISCHE Montage (`istMontierterOriginalText`, dieselbe Erkennung wie in der Maske) und folgt
     // den Teilen erst bei einer echten Änderung. Ein inhaltsgleicher Aufruf schreibt sie nicht still um.
@@ -207,7 +207,7 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
     }
   })
 
-  it.fails('Anlege-Montage mit überzähligem Leerraum („Karl  Otto Gutnoff"): inhaltsgleich ist No-op', () => {
+  it('Anlege-Montage mit überzähligem Leerraum („Karl  Otto Gutnoff"): inhaltsgleich ist No-op', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
@@ -239,7 +239,7 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
       vi.setSystemTime(jetzt)
     }
 
-    it.fails('ein inhaltsgleicher Aufruf mitten in einer Autosave-Serie unterbricht das Koaleszenzfenster nicht', () => {
+    it('ein inhaltsgleicher Aufruf mitten in einer Autosave-Serie unterbricht das Koaleszenzfenster nicht', () => {
       const db = oeffnen(':memory:')
       migrieren(db)
       try {
@@ -267,7 +267,7 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
       }
     })
 
-    it.fails('die erste Nachnamenänderung einer Anlege-Montage trägt den Koaleszenzschlüssel (Montage folgt den Teilen, hueter #169 H3)', () => {
+    it('die erste Nachnamenänderung einer Anlege-Montage trägt den Koaleszenzschlüssel (Montage folgt den Teilen, hueter #169 H3)', () => {
       const db = oeffnen(':memory:')
       migrieren(db)
       try {
