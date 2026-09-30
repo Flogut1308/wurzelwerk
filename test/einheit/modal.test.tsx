@@ -254,6 +254,28 @@ describe('Modal (docs/71 §2.3, T-Dialog §2.4, AP-1.30 PR 11a)', () => {
     expect(document.activeElement).toBe(document.body)
   })
 
+  // Review #199 H2: ein Klick auf die Abdunkelung darf den Fokus nicht nach body verschieben (von dort
+  // erreichte Tab den Hintergrund). jsdom verschiebt bei mousedown keinen Fokus — geprüft wird darum
+  // die Ursache: der Browser-Standard (Fokuswechsel) des mousedown wird unterdrückt.
+  it('mousedown auf der Abdunkelung wird unterdrückt, im Dialog nicht', () => {
+    act(() => root.render(<Huelle startOffen />))
+    const dialog = modal(container)
+    const abdunkelung = dialog.parentElement
+    if (abdunkelung === null) throw new Error('Abdunkelung fehlt')
+    act(() => element(container, 'sprache').focus())
+
+    const aufAbdunkelung = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    abdunkelung.dispatchEvent(aufAbdunkelung)
+    expect(aufAbdunkelung.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(element(container, 'sprache'))
+
+    for (const ziel of [element(container, 'schrift'), element(container, 'uebernehmen'), dialog]) {
+      const imDialog = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      ziel.dispatchEvent(imDialog)
+      expect(imDialog.defaultPrevented).toBe(false)
+    }
+  })
+
   it.each(['2', 'ArrowRight', 'ArrowLeft', 'Home', 'End'])('Taste "%s" im Modal erreicht weder document noch Vorfahren', (key) => {
     const vorfahr = vi.fn()
     const dokumentLauscher = vi.fn()

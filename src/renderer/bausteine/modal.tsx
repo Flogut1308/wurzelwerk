@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { erstesFokussierbares, tabImContainerHalten } from '../ansichten/profil/fokusfang'
 import { SchaltflaecheSymbol } from './schaltflaeche-symbol'
@@ -48,7 +48,8 @@ export interface ModalProps {
  * Kein Portal, `position: fixed` wie `Seitenschublade` und die Profilüberlagerung (kein Elternbaum
  * setzt `transform`). Ein Klick auf die Abdunkelung schließt NICHT — das Modal bearbeitet eine
  * zusammengesetzte Einheit mit explizitem „Übernehmen" (Vorgaben §3.5); ein Fehlklick daneben soll
- * keine Eingaben verwerfen.
+ * keine Eingaben verwerfen. Er verschiebt auch den Fokus nicht (mousedown unterdrückt), damit Tab
+ * danach im Dialog bleibt.
  */
 export function Modal({ titel, offen, beiSchliessen, fussaktionen, breite = 'mittel', fokusNachSchliessen, children }: ModalProps) {
   const { t } = useTranslation('allgemein')
@@ -90,8 +91,18 @@ export function Modal({ titel, offen, beiSchliessen, fussaktionen, breite = 'mit
     tabImContainerHalten(ereignis, dialogRef.current)
   }
 
+  // Review #199 H2: ein Klick auf die Abdunkelung würde den Fokus nach `body` legen, und Tab
+  // erreichte von dort den Hintergrund. `preventDefault` auf dem mousedown unterdrückt genau diesen
+  // Fokuswechsel — nur wenn die Abdunkelung selbst getroffen ist, damit Klicks in den Dialog
+  // (Felder, Knöpfe, Textauswahl) unberührt bleiben. Einfacher und robuster als `inert` auf dem
+  // Hintergrund: ohne Portal liegt das Modal IM Baum des Editors, ein `inert` am Vorfahren träfe
+  // das Modal mit.
+  function abdunkelungGedrueckt(ereignis: MouseEvent<HTMLDivElement>) {
+    if (ereignis.target === ereignis.currentTarget) ereignis.preventDefault()
+  }
+
   return (
-    <div className="wz-modal">
+    <div className="wz-modal" onMouseDown={abdunkelungGedrueckt}>
       <div
         ref={dialogRef}
         role="dialog"
