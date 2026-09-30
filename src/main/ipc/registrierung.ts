@@ -15,6 +15,7 @@ import {
   namensteilAnlegenEinSchema,
   namensteilLoeschenEinSchema,
   namensteilAendernEinSchema,
+  namensteilVerschiebenEinSchema,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -195,6 +196,7 @@ export function ipcRegistrierung(): void {
   registriere('befehl:namensteil.anlegen', namensteilAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.anlegen', ein))
   registriere('befehl:namensteil.loeschen', namensteilLoeschenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.loeschen', ein))
   registriere('befehl:namensteil.aendern', namensteilAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.aendern', ein))
+  registriere('befehl:namensteil.verschieben', namensteilVerschiebenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensteil.verschieben', ein))
 
   registriere('befehl:elternschaft.anlegen', elternschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.anlegen', ein))
   registriere('befehl:elternschaft.aendern', elternschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.aendern', ein))

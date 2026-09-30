@@ -417,6 +417,19 @@ export const namensteilAendernEinSchema: z.ZodType<NamensteilAendernEin> = z.obj
   feld: NamensteilAendernFeldEnum.optional(),
 })
 
+/** Nutzlast von `befehl:namensteil.verschieben` (AP-1.30 PR 10-3). `position` ist die 0-basierte Zielstelle
+ * unter den Teilen DERSELBEN Art dieser Form (0 … Anzahl − 1, sonst `VALIDIERUNG_WERTEBEREICH`); die Teile
+ * dazwischen rücken um eine Stelle. Ein Teil wandert nie in eine andere Art oder Form. */
+export interface NamensteilVerschiebenEin {
+  readonly id: string
+  readonly position: number
+}
+
+export const namensteilVerschiebenEinSchema: z.ZodType<NamensteilVerschiebenEin> = z.object({
+  id: z.string(),
+  position: z.number().int().nonnegative(),
+})
+
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
 // -----------------------------------------------------------------------------------------------
