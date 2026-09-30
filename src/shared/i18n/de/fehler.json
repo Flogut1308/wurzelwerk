@@ -39,6 +39,10 @@
     "titel": "Nur ein Vorname kann Rufname sein",
     "was_tun": "Als Rufnamen einen der Vornamen dieser Namensform wählen. Ein Nachname, Titel oder Namenszusatz kann kein Rufname sein."
   },
+  "VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND": {
+    "titel": "Die Art eines Namensteils kann nicht wechseln",
+    "was_tun": "Den Namensteil entfernen und in der gewünschten Art neu hinzufügen, zum Beispiel über „+ Nachname“. Die Bearbeitung wurde nicht übernommen."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."
