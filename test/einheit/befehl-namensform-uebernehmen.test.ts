@@ -676,3 +676,60 @@ describe('namensform.uebernehmen — E3 einmal je Aufruf (U-130-11-0b-e3-zwische
     }
   })
 })
+
+/** Form aus `name.anlegen` mit angehängtem Rufnamen: Teile „Karl", „Hans Peter"*, „Gutnow", Text „Karl Gutnow"
+ * (Anlege-Montage ohne den angehängten Rufnamen — `istMontierterOriginalText` erkennt sie als automatisch). */
+function karlMitAngehaengtemRufnamen(db: Db): { readonly personId: string; readonly formId: string } {
+  const personId = neuePerson(db)
+  const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnow' }).id
+  return { personId, formId }
+}
+
+describe('namensform.uebernehmen — E3 ohne Montage-Änderung schreibt keinen Text (Review #205)', () => {
+  it('Fall 1: Montage ohne angehängten Rufnamen, gleiche Zielliste, kopf {} — keine Transaktion, Text bleibt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      expect(originalText(db, formId)).toBe('Karl Gutnow')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId) })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Fall 2: „Anna  Nowak" (doppelter Leerraum) bleibt bei einem No-op — auch mit unverändert mitgeschicktem Text', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formOhneTeileMitText(db, 'Anna')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: ANNA_NOWAK })
+      fuehreAus(db, 'namensform.aendern', { id: formId, originalText: 'Anna  Nowak' })
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId) })
+      uebernehmen(db, { personId, formId, kopf: { originalText: 'Anna  Nowak' }, teile: zielliste(db, formId) })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      expect(originalText(db, formId)).toBe('Anna  Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Fall 3: nur der Kopf ändert sich — „Karl Gutnow" bleibt, sprache wird geschrieben', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: { sprache: 'de' }, teile: zielliste(db, formId) })
+      })
+      expect(kopf(db, formId)).toMatchObject({ sprache: 'de' })
+      expect(originalText(db, formId)).toBe('Karl Gutnow')
+    } finally {
+      db.close()
+    }
+  })
+})
