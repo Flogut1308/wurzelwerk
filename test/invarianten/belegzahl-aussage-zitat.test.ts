@@ -23,6 +23,18 @@
 // Zähler auf, der nur die erste Aussage zählt), Schritte, nach denen die Personen-Belege weniger
 // wurden (`aussage_zitat.loeschen` bzw. CASCADE), und Undo-Schritte, die sie verändern — sonst prüfte
 // die Invariante überwiegend Nullen.
+//
+// GRENZE DER DECKUNG (hueter #177 H1/H3): geprüft werden ALLE Aussagen einer Person, wie
+// `grunddatenBauen` sie gruppiert — aber das Profil `beleg` erzeugt Personen-Aussagen nur mit
+// `beruf`/`konfession` (`aussageAnlegenAktionArbitrary`/`aussageFaktAendernAktionArbitrary` in
+// `_befehlsfolge-generator.ts`; die Datumswert- und Kurzbeschreibungs-Einschübe gibt es nur im Profil
+// `bestand`). Belege an `geburtsdatum`/`todesdatum`/Orts-Prädikaten kommen darum nie vor. Heute ist die
+// Abfrage prädikatunabhängig; eine künftige Sonderbehandlung einzelner Prädikate fiele hier nicht auf
+// — Folgepunkt U-130-9d-b-praedikate (docs/80 §33, Generator-Erweiterung als eigene Prüfpfad-Folge).
+//
+// LAUFZAHL (hueter #177): 120 statt 300 Läufe — die Datei läuft in der CI parallel zu `undo-bitgleich`
+// und bremste es auf Windows von 122 s auf 148 s (sie selbst 127 s, Timeout 180 s). Lokal (macOS) ~10 s
+// statt ~25 s; alle Deckungszähler bleiben deutlich über 0 (Messwerte an den Mindestzahlen unten).
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import fc from 'fast-check'
 import type Database from 'better-sqlite3'
@@ -43,7 +55,7 @@ import { personDetail } from '../../src/main/abfragen/person-detail'
 import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand, type Zweig } from './_befehlsfolge-generator'
 
 const SEED = 20260930
-const LAEUFE = 300
+const LAEUFE = 120
 
 interface AussageZeile {
   readonly id: string
@@ -195,16 +207,16 @@ describe('Invariante: Belegzahl in person.detail ≡ aussage_zitat (V-130-9d-b)'
       }),
       { seed: SEED, numRuns: LAEUFE },
     )
-    // Mindestzahlen: je die Hälfte des gemessenen Werts mit diesem Seed/`numRuns` (2306, 915, 346, 48,
-    // 16, 217, 48), aufgerundet — Muster `NEUE_MINDESTTREFFER` in `undo-bitgleich.test.ts`. Fällt einer
+    // Mindestzahlen: je die Hälfte des gemessenen Werts mit diesem Seed/`numRuns` (1096, 410, 144, 26,
+    // 9, 107, 26), aufgerundet — Muster `NEUE_MINDESTTREFFER` in `undo-bitgleich.test.ts`. Fällt einer
     // darunter: Gewichte im Generator korrigieren, nie Seed oder Laufzahl (ADR-009-Nachtrag).
-    expect(deckung.belegteFelder, 'Prüfungen an belegten Feldern').toBeGreaterThanOrEqual(1153)
-    expect(deckung.mehrereAussagenBelegt, 'Prüfungen an belegten Feldern mit mehreren Aussagen').toBeGreaterThanOrEqual(458)
-    expect(deckung.spaetereAussageBelegt, 'Prüfungen mit Beleg an einer nicht ersten Aussage des Felds').toBeGreaterThanOrEqual(173)
-    expect(deckung.nachWenigerBelegen, 'Schritte, nach denen die Personen-Belege weniger wurden').toBeGreaterThanOrEqual(24)
-    expect(deckung.nachLoeschBefehl, 'davon über aussage_zitat.loeschen').toBeGreaterThanOrEqual(8)
-    expect(deckung.undoVeraendert, 'Undo-Schritte, die die Personen-Belege verändern').toBeGreaterThanOrEqual(109)
-    expect(deckung.undoMehrBelege, 'Undo-Schritte, die entfernte Belege zurückbringen').toBeGreaterThanOrEqual(24)
+    expect(deckung.belegteFelder, 'Prüfungen an belegten Feldern').toBeGreaterThanOrEqual(548)
+    expect(deckung.mehrereAussagenBelegt, 'Prüfungen an belegten Feldern mit mehreren Aussagen').toBeGreaterThanOrEqual(205)
+    expect(deckung.spaetereAussageBelegt, 'Prüfungen mit Beleg an einer nicht ersten Aussage des Felds').toBeGreaterThanOrEqual(72)
+    expect(deckung.nachWenigerBelegen, 'Schritte, nach denen die Personen-Belege weniger wurden').toBeGreaterThanOrEqual(13)
+    expect(deckung.nachLoeschBefehl, 'davon über aussage_zitat.loeschen').toBeGreaterThanOrEqual(5)
+    expect(deckung.undoVeraendert, 'Undo-Schritte, die die Personen-Belege verändern').toBeGreaterThanOrEqual(54)
+    expect(deckung.undoMehrBelege, 'Undo-Schritte, die entfernte Belege zurückbringen').toBeGreaterThanOrEqual(13)
   }, 180_000)
-  // it()-Timeout 180 s wie `undo-bitgleich`/`hauptname-detail-konsistent`: lokal (macOS) ~25 s.
+  // it()-Timeout 180 s wie `undo-bitgleich`/`hauptname-detail-konsistent`: lokal (macOS) ~10 s.
 })
