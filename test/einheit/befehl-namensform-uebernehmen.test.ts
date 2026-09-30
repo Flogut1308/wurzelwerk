@@ -733,3 +733,133 @@ describe('namensform.uebernehmen — E3 ohne Montage-Änderung schreibt keinen T
     }
   })
 })
+
+/** Setzt in der Zielliste den Rufnamen auf den Teil `id` (`null`: keinen). */
+function mitRufname(liste: readonly NamensformUebernehmenTeil[], id: string | null): readonly NamensformUebernehmenTeil[] {
+  return liste.map((t) => ({ ...t, istRufname: t.id !== undefined && t.id === id }))
+}
+
+/** Zielliste ohne den Nachnamen `alt`, dafür ein NEUER Nachname `neu`. */
+function nachnameErsetzt(db: Db, formId: string, alt: string, neu: string): readonly NamensformUebernehmenTeil[] {
+  const altId = teilId(db, formId, 'nachname', alt)
+  return [...zielliste(db, formId).filter((t) => t.id !== altId), { art: 'nachname', wert: neu, istRufname: false }]
+}
+
+describe('namensform.uebernehmen — E3 bei Rufname- und Montage-Kombinationen (Nachreview #205)', () => {
+  it('1a: Rufname vom angehängten „Hans Peter" auf „Karl" — Text folgt, danach auch dem Nachnamen', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: mitRufname(zielliste(db, formId), teilId(db, formId, 'vorname', 'Karl')) })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl*@0', 'Hans Peter@1'])
+      expect(originalText(db, formId)).toBe('Karl Hans Peter Gutnow')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameErsetzt(db, formId, 'Gutnow', 'Müller') })
+      expect(originalText(db, formId)).toBe('Karl Hans Peter Müller')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('1b: Rufname entfernt — Text folgt, danach auch dem Nachnamen', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: mitRufname(zielliste(db, formId), null) })
+      })
+      expect(originalText(db, formId)).toBe('Karl Hans Peter Gutnow')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameErsetzt(db, formId, 'Gutnow', 'Müller') })
+      expect(originalText(db, formId)).toBe('Karl Hans Peter Müller')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('reines Löschen an einem automatischen Text folgt („Karl Friedrich Nowak" ohne Friedrich)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const friedrich = teilId(db, formId, 'vorname', 'Friedrich')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).filter((t) => t.id !== friedrich) })
+      })
+      expect(originalText(db, formId)).toBe('Karl Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('reines Löschen, Text danach weiter als Montage erkannt: neu montiert wie im Einzelbefehl („Anna  Nowak" → „Anna Nowak")', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Anna', rufnameText: 'Maria', nachname: 'Nowak' }).id
+      fuehreAus(db, 'namensform.aendern', { id: formId, originalText: 'Anna  Nowak' })
+      const maria = teilId(db, formId, 'vorname', 'Maria')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).filter((t) => t.id !== maria) })
+      expect(originalText(db, formId)).toBe('Anna Nowak')
+      // Gegenprobe: derselbe Schritt als Einzelbefehl.
+      const zweite = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', vornamen: 'Anna', rufnameText: 'Maria', nachname: 'Nowak' }).id
+      fuehreAus(db, 'namensform.aendern', { id: zweite, originalText: 'Anna  Nowak' })
+      fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, zweite, 'vorname', 'Maria') })
+      expect(originalText(db, zweite)).toBe('Anna Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('nur Verschieben mit geänderter Montage folgt; der Rufname wandert mit dem Teil', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      const liste = zielliste(db, formId)
+      const hansPeter = teilId(db, formId, 'vorname', 'Hans Peter')
+      const umgestellt = [...liste.filter((t) => t.id === hansPeter), ...liste.filter((t) => t.id !== hansPeter)]
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: umgestellt })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Hans Peter*@0', 'Karl@1'])
+      expect(originalText(db, formId)).toBe('Hans Peter Karl Gutnow')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Rufname auf einen neu angelegten Vornamen am Ende: der neue Vorname erscheint im Text', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Nowak' }).id
+      expect(originalText(db, formId)).toBe('Karl Nowak')
+      const liste = zielliste(db, formId)
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, {
+          personId,
+          formId,
+          kopf: {},
+          teile: [...liste.filter((t) => t.art === 'vorname'), { art: 'vorname', wert: 'Hans', istRufname: true }, ...liste.filter((t) => t.art !== 'vorname')],
+        })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Hans*@1'])
+      expect(originalText(db, formId)).toBe('Karl Hans Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Vorname mit angehängtem Rufnamen gelöscht: „Karl Gutnow" bleibt, danach folgt er dem Nachnamen', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitAngehaengtemRufnamen(db)
+      const hansPeter = teilId(db, formId, 'vorname', 'Hans Peter')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).filter((t) => t.id !== hansPeter) })
+      expect(originalText(db, formId)).toBe('Karl Gutnow')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameErsetzt(db, formId, 'Gutnow', 'Müller') })
+      expect(originalText(db, formId)).toBe('Karl Müller')
+    } finally {
+      db.close()
+    }
+  })
+})
