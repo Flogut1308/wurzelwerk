@@ -290,6 +290,18 @@ describe('ReiterNamen', () => {
     expect(karten()).toHaveLength(0)
   })
 
+  // Herkunft: profil-bearbeiten-namen.test.tsx „… Name entfernen-Schaltfläche": Löschen läuft über den Baustein
+  // `Schaltflaeche` (Trefferfläche ≥ 32×32 dort geprüft, `trefferflaeche.test.ts`), kein selbstgebauter Knopf.
+  it('11c-2: die Kartenaktionen sind der Baustein Schaltflaeche (Trefferfläche), „Entfernen" in der Variante gefährlich', () => {
+    zeige([HAUPT, RUSSISCH])
+    for (const karte of karten()) {
+      const knoepfe = Array.from(karte.querySelectorAll('button'))
+      expect(knoepfe.length).toBeGreaterThan(0)
+      for (const knopf of knoepfe) expect(knopf.classList.contains('wz-schaltflaeche')).toBe(true)
+      expect(knopfIn(karte, 'Entfernen')?.classList.contains('wz-schaltflaeche--gefaehrlich')).toBe(true)
+    }
+  })
+
   // Herkunft: profil-bearbeiten-namen-rerender.test.tsx (Bugfix AP-1.15 PR-A): ein Rerender mit einer neuen,
   // inhaltsgleichen namen-Liste (Nachladen nach einem unabhängigen Schreibvorgang) löst keine Render-Schleife
   // aus und keinen Phantom-Schreibvorgang — hier mit offenem Modal, das die Form von außen vergleicht.
