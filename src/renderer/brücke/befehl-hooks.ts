@@ -282,6 +282,23 @@ export function useAussageLoeschen(): UseMutationResult<null, AppFehler, Ein<'be
   })
 }
 
+/** `befehl:aussage_zitat.anlegen` (AP-1.29 PR-A; Hook AP-1.30 PR 9d, Beleg-Wähler im Reiter Person).
+ * Ein Einzelschritt je Verknüpfung (V-130-9d E2), kein Autosave-Wert — darum ohne `SchreibBeobachter`
+ * wie `useAussageAnlegen`. */
+export function useAussageZitatAnlegen(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage_zitat.anlegen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage_zitat.anlegen'>) => ergebnisEntpacken(aufrufen('befehl:aussage_zitat.anlegen', ein)),
+  })
+}
+
+/** `befehl:aussage_zitat.loeschen` (AP-1.29 PR-A; Hook AP-1.30 PR 9d) — „Verknüpfung entfernen": nur
+ * die Verknüpfung, das Zitat bleibt (V-130-9d E10). Einzelschritt ohne `SchreibBeobachter`. */
+export function useAussageZitatLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage_zitat.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage_zitat.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:aussage_zitat.loeschen', ein)),
+  })
+}
+
 /** `befehl:ereignis.loeschen` (AP-1.12, AP-1.15 PR-A) — löscht das gesamte Ereignis (alle
  * Beteiligungen), anders als `useBeteiligungLoeschen` unten (nur die eigene Teilnahme). */
 export function useEreignisLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:ereignis.loeschen'>> {

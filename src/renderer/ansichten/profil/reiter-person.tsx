@@ -8,6 +8,18 @@ import type { ReiterId } from '../../../core/person/reiter'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
 import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailKopf } from '../../../shared/schemata/person-detail'
+import {
+  GRUPPEN_ANGABEN,
+  belegChips,
+  belegZeileZustand,
+  belegZiel,
+  gruppeVon,
+  ohneEntfernte,
+  verknuepfungEntfernenEin,
+  type BelegGruppe,
+  type VerknuepfungsPaar,
+} from './beleg-waehler-logik'
+import { BelegWaehler, BelegZeile } from './beleg-waehler'
 import { Auswahlfeld } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
 import { Datumsfeld } from '../../bausteine/datumsfeld'
@@ -23,7 +35,7 @@ import { Seitenschublade } from '../../bausteine/seitenschublade'
 import { Text } from '../../bausteine/text'
 import { Textfeld } from '../../bausteine/textfeld'
 import { useOrtSuche } from '../../brücke/abfrage-hooks'
-import { useAussageAendern, useAussageAnlegen, useAussageLoeschen, useOrtAnlegen, usePersonFeldSetzen } from '../../brücke/befehl-hooks'
+import { useAussageAendern, useAussageAnlegen, useAussageLoeschen, useAussageZitatLoeschen, useOrtAnlegen, usePersonFeldSetzen } from '../../brücke/befehl-hooks'
 import { pruefhinweisCodeSchluessel } from '../liste/pruefhinweis-schluessel'
 import { BelegListe } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
@@ -89,7 +101,9 @@ export interface ReiterPersonProps {
  * - Tod-Gruppe (D5): `todGruppeZustand` — kein Löschbefehl, die Werte bleiben gespeichert.
  * - Feldwarnungen (D7, E6): Text unter dem Feld (Feldzustand „Widerspruch"); ist die Tod-Gruppe
  *   nicht sichtbar, am Lebensstatus mit „Tod-Angaben einblenden".
- * - Belege (D8): Zähler mit Sprung zur Belegliste des Felds (Schublade); der Wähler kommt mit PR 9d.
+ * - Belege (D8): Zähler mit Sprung zur Belegliste des Felds (Schublade). PR 9d (docs/80 §33
+ *   V-130-9d): je Gruppe eine Beleg-Zeile (Chips + „Beleg verknüpfen"), der Wähler steht im Kopf
+ *   der Schublade (`beleg-waehler.tsx`), „Verknüpfung entfernen" je Beleg in der Liste.
  *
  * Die reine Logik steht in `reiter-person-logik.ts`.
  */
@@ -97,7 +111,11 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
   const { t } = useTranslation('profil')
   const status = daten.kopf.lebend_status
   const [geoeffnetBei, setGeoeffnetBei] = useState<LebendStatusAuswahl | null>(null)
-  const [belegFeld, setBelegFeld] = useState<PersonDetailGrunddatenFeld | null>(null)
+  // PR 9d: offene Belegschublade — für eine Gruppe („Beleg verknüpfen", Chips) oder eine Angabe
+  // (Belegzähler). Nur die Kennung wird gehalten; Inhalt und Ziele kommen bei jedem Rendern aus dem
+  // aktuellen Lesemodell (sonst zeigte die Schublade nach dem Verknüpfen einen alten Stand).
+  const [schublade, setSchublade] = useState<BelegSchublade | null>(null)
+  const oeffneAngabe = useCallback((angabeId: LebensdatumAngabe) => setSchublade({ gruppe: gruppeVon(angabeId), angabe: angabeId }), [])
   const nachfrager = useContext(UnlesbareEingabenKontext)
   // hueter #167 H1 / Nachreview N1: hält das Todesdatum einen unlesbaren, ungespeicherten Text, bleibt
   // die Tod-Gruppe offen — auch wenn der Lebensstatus (auch per Undo) auf „lebend"/„nicht erfasst"
@@ -122,10 +140,20 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
         warnungen={warnungen[angabeId]}
         idPraefix={idPraefix}
         aufSprung={aufSprung}
-        aufBelegeOeffnen={setBelegFeld}
+        aufBelegeOeffnen={oeffneAngabe}
         aufOffenHalten={aufOffenHalten}
       />
     )
+  }
+
+  /** Feldzustände der Angaben einer Gruppe (dieselben, die Wert, Sicherheit und Zähler zeigen). */
+  function gruppenFelder(angaben: readonly LebensdatumAngabe[]): readonly LebensdatumFeld[] {
+    return angaben.map((angabeId) => lebensdatumFeld(angabeId, daten.grunddaten, daten.lebensdaten))
+  }
+
+  function belegZeile(gruppe: BelegGruppe) {
+    const felder = gruppenFelder(GRUPPEN_ANGABEN[gruppe])
+    return <BelegZeile zustand={belegZeileZustand(felder.map(belegZiel))} chips={belegChips(felder)} aufOeffnen={() => setSchublade({ gruppe, angabe: null })} />
   }
 
   function todAusblenden(): void {
@@ -167,6 +195,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
         </Text>
         {angabe('geburtsdatum')}
         {angabe('geburtsort')}
+        {belegZeile('geburt')}
       </section>
 
       {todZustand === 'ausgeblendet' ? null : (
@@ -191,6 +220,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
             <>
               {angabe('todesdatum')}
               {angabe('todesort')}
+              {belegZeile('tod')}
               {status === 'verstorben' || status === 'vermutet_verstorben' ? null : (
                 <div>
                   <Schaltflaeche variante="unauffaellig" aufKlick={todAusblenden}>
@@ -203,9 +233,17 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
         </section>
       )}
 
-      {belegFeld === null ? null : (
-        <Seitenschublade titel={t('beleg_schublade_titel', { feld: angabeBeschriftung(belegFeld.praedikat, t) })} aufSchliessen={() => setBelegFeld(null)}>
-          <BelegListe feld={belegFeld} />
+      {schublade === null ? null : (
+        <Seitenschublade
+          titel={t('beleg_schublade_titel', { feld: schublade.angabe === null ? t(GRUPPEN_TITEL[schublade.gruppe]) : angabeBeschriftung(schublade.angabe, t) })}
+          aufSchliessen={() => setSchublade(null)}
+        >
+          <BelegSchubladeInhalt
+            angaben={schublade.angabe === null ? GRUPPEN_ANGABEN[schublade.gruppe] : [schublade.angabe]}
+            felder={gruppenFelder(schublade.angabe === null ? GRUPPEN_ANGABEN[schublade.gruppe] : [schublade.angabe])}
+            grunddaten={daten.grunddaten}
+            stand={daten}
+          />
         </Seitenschublade>
       )}
     </div>
@@ -216,6 +254,106 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
 function angabeBeschriftung(praedikat: string, t: (schluessel: string) => string): string {
   const schluessel = praedikatSchluessel(praedikat)
   return schluessel === undefined ? praedikat : t(schluessel)
+}
+
+/** Offene Belegschublade (PR 9d): `angabe = null` = die ganze Gruppe. */
+interface BelegSchublade {
+  readonly gruppe: BelegGruppe
+  readonly angabe: LebensdatumAngabe | null
+}
+
+const GRUPPEN_TITEL: { readonly [G in BelegGruppe]: string } = { geburt: 'gruppe_geburt', tod: 'gruppe_tod' }
+
+interface BelegSchubladeInhaltProps {
+  readonly angaben: readonly LebensdatumAngabe[]
+  readonly felder: readonly LebensdatumFeld[]
+  readonly grunddaten: PersonDetailAus['grunddaten']
+  readonly stand: PersonDetailAus
+}
+
+/**
+ * Inhalt der Belegschublade (PR 9d, E11): im Kopf der Beleg-Wähler (nur mit Aussage-Ziel, E3/E4),
+ * darunter je Angabe die Belegliste mit „Verknüpfung entfernen" (E10: nur `aussage_zitat.loeschen`,
+ * das Zitat bleibt). `zitat.loeschen` bietet die Schublade selbst nicht an; erreichbar ist es nur über
+ * den vorhandenen Weg „Quelle bearbeiten" → Pflege-Ansicht → „Entfernen" (hueter #176 H5).
+ */
+function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchubladeInhaltProps) {
+  const { t } = useTranslation('profil')
+  const { t: tFehler } = useTranslation('fehler')
+  const entfernen = useAussageZitatLoeschen()
+  // hueter #176 H3: eben entfernte Paare bleiben bis zum nächsten Lesestand ausgeblendet (wie
+  // `unterwegs` im Wähler) — ein zweiter Klick vor dem Nachladen fände sonst „nicht gefunden".
+  const [entfernt, setEntfernt] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
+  const paareEntfernt = entfernt.stand === stand ? entfernt.paare : []
+  const abschnitte = useRef(new Map<LebensdatumAngabe, HTMLElement>())
+  const zustand = belegZeileZustand(felder.map(belegZiel))
+  const fehler = fehlerText(entfernen.error ?? null, t, tFehler)
+
+  function verknuepfungEntfernen(angabeId: LebensdatumAngabe, aussageId: string, zitatId: string): void {
+    // H4 (WCAG 2.4.3): der Beleg samt Knopf verschwindet gleich — der Fokus bleibt im Abschnitt der
+    // Angabe, also in der Schublade (Escape schließt weiter).
+    abschnitte.current.get(angabeId)?.focus()
+    const paar = { aussageId, zitatId }
+    setEntfernt({ stand, paare: [...paareEntfernt, paar] })
+    entfernen.mutate(verknuepfungEntfernenEin(aussageId, zitatId), {
+      // Gescheitert: der Beleg ist noch da und erscheint wieder (der Fehler steht darüber).
+      onError: () => setEntfernt((vorher) => ({ stand: vorher.stand, paare: vorher.paare.filter((kandidat) => kandidat !== paar) })),
+    })
+  }
+
+  return (
+    <>
+      {zustand.art === 'waehlbar' ? (
+        <BelegWaehler zustand={zustand} stand={stand} />
+      ) : (
+        <Text rolle="hilfe" als="p">
+          {t(zustand.art === 'nur_ereignis' ? 'beleg_am_ereignis_belegen' : 'beleg_verknuepfen_ohne_wert')}
+        </Text>
+      )}
+      {/* H3: Fehler des Entfernens werden angesagt (`aria-live`, nicht `role="status"`: den trägt der Speicherstatus). */}
+      <div aria-live="polite">
+        {fehler === undefined ? null : (
+          <Text rolle="hilfe" als="p">
+            {fehler}
+          </Text>
+        )}
+      </div>
+      {angaben.map((angabeId) => {
+        const gelesen = grunddaten.find((kandidat) => kandidat.praedikat === angabeId)
+        const feld = gelesen === undefined ? undefined : ohneEntfernte(gelesen, paareEntfernt)
+        return (
+          <section
+            key={angabeId}
+            ref={(element) => {
+              if (element === null) abschnitte.current.delete(angabeId)
+              else abschnitte.current.set(angabeId, element)
+            }}
+            tabIndex={-1}
+            className="wz-reiter-person__beleg-abschnitt"
+            aria-label={angabeBeschriftung(angabeId, t)}
+          >
+            {angaben.length > 1 ? (
+              <Text rolle="beschriftung" als="h3">
+                {angabeBeschriftung(angabeId, t)}
+              </Text>
+            ) : null}
+            {feld === undefined ? (
+              <Text rolle="hilfe" als="p">
+                {t('beleg_schublade_keine_belege')}
+              </Text>
+            ) : (
+              <BelegListe
+                feld={feld}
+                mitQuelleAnlegen={false}
+                entfernenGesperrt={entfernen.isPending}
+                aufVerknuepfungEntfernen={(aussageId, zitatId) => verknuepfungEntfernen(angabeId, aussageId, zitatId)}
+              />
+            )}
+          </section>
+        )
+      })}
+    </>
+  )
 }
 
 interface LebensstatusProps {
@@ -402,7 +540,7 @@ interface LebensdatumAngabeFeldProps {
   readonly warnungen: readonly BestandHinweisCode[]
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
-  readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
+  readonly aufBelegeOeffnen: (angabe: LebensdatumAngabe) => void
   /** Meldet, ob das Datumsfeld seine Gruppe offen halten muss: es hält einen unlesbaren,
    * ungespeicherten Text oder wird seitdem noch bearbeitet (hueter #167 H1, Nachreview N1). */
   readonly aufOffenHalten: (angabe: LebensdatumAngabe, halten: boolean) => void
@@ -441,7 +579,7 @@ interface BearbeitbareAngabeProps {
   readonly feld: PersonDetailGrunddatenFeld | null
   readonly warnungen: readonly BestandHinweisCode[]
   readonly idPraefix: string
-  readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
+  readonly aufBelegeOeffnen: (angabe: LebensdatumAngabe) => void
 }
 
 function datumText(anzeige: DatumAnzeige, tDatum: Uebersetzer): string {
@@ -731,7 +869,7 @@ interface SicherheitProps {
   readonly aussage: PersonDetailAussage | null
   readonly feld: PersonDetailGrunddatenFeld | null
   readonly schreiber: { readonly schreiben: (auftrag: SchreibAuftrag) => void }
-  readonly aufBelegeOeffnen: (feld: PersonDetailGrunddatenFeld) => void
+  readonly aufBelegeOeffnen: (angabe: LebensdatumAngabe) => void
 }
 
 /** Sicherheit neben dem Wert (Einzelschritt, ohne Koaleszenz) und Belegzähler mit Sprung zur
@@ -750,7 +888,7 @@ function Sicherheit({ angabe, aussage, feld, schreiber, aufBelegeOeffnen }: Sich
           ariaLabel={t('lebensdatum_sicherheit_gruppe', { feld: angabeBeschriftung(angabe, t) })}
           aufAenderung={(stufe) => schreiber.schreiben({ aenderung: () => ({ konfidenz: stufe }), anlegen: null, koaleszenz: false })}
         />
-        {feld === null ? <BelegAbzeichen anzahl={0} /> : <BelegAbzeichen anzahl={feld.belegzahl} aufKlick={() => aufBelegeOeffnen(feld)} />}
+        {feld === null ? <BelegAbzeichen anzahl={0} /> : <BelegAbzeichen anzahl={feld.belegzahl} aufKlick={() => aufBelegeOeffnen(angabe)} />}
       </div>
     </div>
   )
