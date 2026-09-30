@@ -11,7 +11,7 @@
 // weder einen `document`-Lauscher noch einen React-Vorfahren (Editor: Escape/Tab-Fang, Reiterleiste:
 // Pfeile) noch die Kontexttasten 1…8 (`darfKontexttasteWirken`, die Entscheidung im Renderer für
 // `ereignis:kontexttaste`). jsdom + `react-dom/client` + `act` (Muster `reiterleiste.test.tsx`).
-import { act, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { act, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '../../src/renderer/i18n/einrichten'
@@ -60,6 +60,39 @@ function Huelle({ startOffen, beiSchliessen, vorfahrTaste }: HuelleProps) {
       >
         <input data-testid="sprache" aria-label="Sprache" />
         <input data-testid="schrift" aria-label="Schrift" />
+      </Modal>
+    </div>
+  )
+}
+
+/**
+ * Review #199 H1: der Auslöser hängt beim Schließen ab (z. B. die Zeile, deren „Bearbeiten" das
+ * Modal öffnete, verschwindet mit dem Übernehmen). Mit `mitErsatz` bekommt das Modal ein Ersatzziel.
+ */
+function HuelleAusloeserWeg({ mitErsatz }: { readonly mitErsatz: boolean }) {
+  const [offen, setOffen] = useState(false)
+  const [ausloeserDa, setAusloeserDa] = useState(true)
+  const ersatzRef = useRef<HTMLButtonElement | null>(null)
+  return (
+    <div>
+      <button type="button" ref={ersatzRef} data-testid="ersatz">
+        Namensform hinzufügen
+      </button>
+      {ausloeserDa ? (
+        <button type="button" data-testid="ausloeser" onClick={() => setOffen(true)}>
+          Bearbeiten
+        </button>
+      ) : null}
+      <Modal
+        titel="Namensform bearbeiten"
+        offen={offen}
+        beiSchliessen={() => {
+          setAusloeserDa(false)
+          setOffen(false)
+        }}
+        {...(mitErsatz ? { fokusNachSchliessen: () => ersatzRef.current } : {})}
+      >
+        <input data-testid="sprache" aria-label="Sprache" />
       </Modal>
     </div>
   )
@@ -195,6 +228,30 @@ describe('Modal (docs/71 §2.3, T-Dialog §2.4, AP-1.30 PR 11a)', () => {
       taste(element(container, 'sprache'), 'Escape')
     })
     expect(document.activeElement).toBe(ausloeser)
+  })
+
+  it('Auslöser beim Schließen abgehängt, mit Ersatzziel: Fokus geht auf fokusNachSchliessen', () => {
+    act(() => root.render(<HuelleAusloeserWeg mitErsatz />))
+    const ausloeser = element(container, 'ausloeser')
+    act(() => ausloeser.focus())
+    act(() => ausloeser.click())
+    act(() => {
+      taste(element(container, 'sprache'), 'Escape')
+    })
+    expect(ausloeser.isConnected).toBe(false)
+    expect(document.activeElement).toBe(element(container, 'ersatz'))
+  })
+
+  it('Auslöser beim Schließen abgehängt, ohne Ersatzziel: kein Fehler, Fokus nicht im entfernten Knoten', () => {
+    act(() => root.render(<HuelleAusloeserWeg mitErsatz={false} />))
+    const ausloeser = element(container, 'ausloeser')
+    act(() => ausloeser.focus())
+    act(() => ausloeser.click())
+    act(() => {
+      taste(element(container, 'sprache'), 'Escape')
+    })
+    expect(ausloeser.isConnected).toBe(false)
+    expect(document.activeElement).toBe(document.body)
   })
 
   it.each(['2', 'ArrowRight', 'ArrowLeft', 'Home', 'End'])('Taste "%s" im Modal erreicht weder document noch Vorfahren', (key) => {

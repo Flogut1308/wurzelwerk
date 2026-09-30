@@ -18,6 +18,12 @@ export interface ModalProps {
   readonly fussaktionen?: ReactNode
   /** Vorgabe `mittel` (640 px). */
   readonly breite?: ModalBreite
+  /**
+   * Ersatzziel für den Fokus beim Schließen, falls das auslösende Element dann nicht mehr im
+   * Dokument hängt (z. B. die Zeile, deren „Bearbeiten" das Modal öffnete, ist verschwunden).
+   * Ohne Angabe oder bei `null` bleibt der Fokus dort, wo der Browser ihn hinlegt (`body`).
+   */
+  readonly fokusNachSchliessen?: () => HTMLElement | null
   readonly children: ReactNode
 }
 
@@ -29,7 +35,8 @@ export interface ModalProps {
  * Zugänglichkeit (WAI-ARIA Dialog-Muster): `role="dialog"` mit `aria-modal`, Name über
  * `aria-labelledby` auf den Titel. Beim Öffnen liegt der Fokus auf dem ersten Bedienelement des
  * Inhalts (sonst auf dem Dialog selbst), Tab/Shift+Tab bleiben im Dialog (`fokusfang.ts`), beim
- * Schließen kehrt der Fokus zum Element zurück, das beim Öffnen fokussiert war.
+ * Schließen kehrt der Fokus zum Element zurück, das beim Öffnen fokussiert war — hängt es nicht
+ * mehr im Dokument, auf `fokusNachSchliessen()`.
  *
  * Tasten: KEIN Tastendruck verlässt das Modal (`stopPropagation` für jede Taste) — weder zum Editor
  * dahinter (dessen Escape und Tab-Fang, die Pfeiltasten der `Reiterleiste`) noch zu `document`.
@@ -43,11 +50,17 @@ export interface ModalProps {
  * zusammengesetzte Einheit mit explizitem „Übernehmen" (Vorgaben §3.5); ein Fehlklick daneben soll
  * keine Eingaben verwerfen.
  */
-export function Modal({ titel, offen, beiSchliessen, fussaktionen, breite = 'mittel', children }: ModalProps) {
+export function Modal({ titel, offen, beiSchliessen, fussaktionen, breite = 'mittel', fokusNachSchliessen, children }: ModalProps) {
   const { t } = useTranslation('allgemein')
   const titelId = useId()
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const inhaltRef = useRef<HTMLDivElement | null>(null)
+  // Über einen Ref: der Fokus-Effekt hängt nur an `offen`, sieht beim Schließen aber das aktuelle
+  // Ersatzziel (Muster `verlassenRef` in `person-bearbeiten-ansicht.tsx`).
+  const fokusNachSchliessenRef = useRef(fokusNachSchliessen)
+  useEffect(() => {
+    fokusNachSchliessenRef.current = fokusNachSchliessen
+  })
 
   useEffect(() => {
     if (!offen) return
@@ -58,7 +71,11 @@ export function Modal({ titel, offen, beiSchliessen, fussaktionen, breite = 'mit
     // Probe) soll das Fokussieren die lange Seite nicht mitscrollen.
     ziel?.focus({ preventScroll: true })
     return () => {
-      if (vorher instanceof HTMLElement && vorher.isConnected) vorher.focus()
+      if (vorher instanceof HTMLElement && vorher.isConnected) {
+        vorher.focus()
+        return
+      }
+      fokusNachSchliessenRef.current?.()?.focus()
     }
   }, [offen])
 
