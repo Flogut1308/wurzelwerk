@@ -658,3 +658,95 @@ describe('name.aendern: jede Einzelfeldänderung schreibt (hueter #181 H1)', () 
     }
   })
 })
+
+// Nachreview #181 H1, zweite Achse: ein Feld LEEREN (weglassen/undefined) ist eine Änderung — die
+// flache Brücke ersetzt die ganze Form, „fehlt" heißt „kein Wert", nicht „unverändert". Ein
+// Rohvergleich nach dem Muster `ein.vornamen ?? vorher.vornamen` verwürfe das Leeren still.
+// Je Feld außer dem Pflichtfeld `typ`: +1 Transaktion und der gespeicherte Wert danach. Meist `null`;
+// wo die Zerlegung aus den übrigen Feldern etwas ableitet, steht die abgeleitete Wirkung da.
+describe('name.aendern: jedes geleerte Feld schreibt (Nachreview #181 H1)', () => {
+  const AUSGANG = {
+    typ: 'geburtsname',
+    schrift: 'latn',
+    umschriftNorm: 'iso9',
+    vornamen: 'Anna Maria Anna',
+    rufnameIndex: 0,
+    rufnameText: 'Anna',
+    nachname: 'Muster',
+    praefix: 'von',
+    titelVor: 'Dr.',
+    zusatzNach: 'd. Ä.',
+    vatersname: 'Petrowna',
+    originalText: 'Anna Maria Anna Petrowna von Muster, geb.',
+    sprache: 'de',
+    gueltigVon: 1700,
+    gueltigBis: 1800,
+  } as const
+
+  interface LeerFall {
+    /** Abweichender Ausgangsstand (Anlegen UND unverändertes Echo), falls nötig. */
+    readonly ausgang?: (quelleId: string) => Partial<NameAendernEin>
+    /** Abweichendes Echo vor dem Leeren (wenn das Anlegen anders aussieht als die flache Sicht). */
+    readonly echo?: Partial<NameAendernEin>
+    readonly spalte: keyof NameRepoZeile
+    readonly erwartet: string | number | null
+  }
+
+  type LeerbaresFeld = Exclude<NameAendernFeld, 'typ'>
+
+  const LEER_FAELLE = {
+    schrift: { spalte: 'schrift', erwartet: null },
+    umschriftVon: { ausgang: (q) => ({ umschriftVon: q }), spalte: 'umschrift_von', erwartet: null },
+    umschriftNorm: { spalte: 'umschrift_norm', erwartet: null },
+    // Ohne Vornamen hängt die Zerlegung den Rufnamen-Text als einzigen Vornamen an (Regel 3).
+    vornamen: { spalte: 'vornamen', erwartet: 'Anna' },
+    // Ohne Index entscheidet der Text: das ERSTE „Anna" statt des dritten.
+    rufnameIndex: { ausgang: () => ({ rufnameIndex: 2 }), spalte: 'rufname_index', erwartet: 0 },
+    // Neben einem gültigen Index ist der Text abgeleitet; ändern kann das Weglassen ihn nur beim
+    // angehängten mehrwortigen Rufnamen: flache Sicht „Karl Hans Peter"/1 ohne Text → markiert „Hans".
+    rufnameText: {
+      ausgang: () => ({ vornamen: 'Karl', rufnameIndex: undefined, rufnameText: 'Hans Peter' }),
+      echo: { vornamen: 'Karl Hans Peter', rufnameIndex: 1, rufnameText: 'Hans Peter' },
+      spalte: 'rufname_text',
+      erwartet: 'Hans',
+    },
+    nachname: { spalte: 'nachname', erwartet: null },
+    praefix: { spalte: 'praefix', erwartet: null },
+    titelVor: { spalte: 'titel_vor', erwartet: null },
+    zusatzNach: { spalte: 'zusatz_nach', erwartet: null },
+    vatersname: { spalte: 'vatersname', erwartet: null },
+    // Ohne mitgegebenen Text montiert der Befehl die Teile (`montiereOriginalTextDerTeile`).
+    originalText: { spalte: 'original_text', erwartet: 'Dr. Anna Maria Anna Petrowna von Muster d. Ä.' },
+    sprache: { spalte: 'sprache', erwartet: null },
+    gueltigVon: { spalte: 'gueltig_von', erwartet: null },
+    gueltigBis: { spalte: 'gueltig_bis', erwartet: null },
+  } satisfies Record<LeerbaresFeld, LeerFall>
+
+  const LEERBAR = NameAendernFeldEnum.options.filter((feld): feld is LeerbaresFeld => feld !== 'typ')
+
+  for (const feld of LEERBAR) {
+    it(`${feld} geleert → neue Transaktion, gespeichert ${String(LEER_FAELLE[feld].erwartet)}`, () => {
+      const db = neueTestDatenbank()
+      try {
+        const personId = neuePerson(db)
+        const quelle = fuehreAus(db, 'name.anlegen', { personId, typ: 'sonstiges', nachname: 'Quelle' })
+        const fall: LeerFall = LEER_FAELLE[feld]
+        const ausgang: Omit<NameAendernEin, 'id'> = { ...AUSGANG, ...fall.ausgang?.(quelle.id) }
+        const { id } = fuehreAus(db, 'name.anlegen', { personId, ...ausgang })
+        const echo: NameAendernEin = { id, ...ausgang, ...fall.echo }
+        // Gegenprobe: das unveränderte Echo ist ein No-op.
+        const anzahlVorher = transaktionAnzahl(db)
+        fuehreAus(db, 'name.aendern', echo)
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+        expect(nameRepo.lesen(db, id)?.[fall.spalte]).not.toBe(fall.erwartet)
+
+        fuehreAus(db, 'name.aendern', { ...echo, [feld]: undefined })
+
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+        expect(nameRepo.lesen(db, id)?.[fall.spalte]).toBe(fall.erwartet)
+      } finally {
+        db.close()
+      }
+    })
+  }
+})
