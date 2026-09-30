@@ -8,7 +8,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '../../src/renderer/i18n/einrichten'
+import { i18n } from '../../src/renderer/i18n/einrichten'
 import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailLebensdatum, PersonDetailName } from '../../src/shared/schemata/person-detail'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
 
@@ -21,6 +21,8 @@ interface Aufruf {
 
 const aufrufe: Aufruf[] = []
 const antworten = new Map<string, () => Promise<unknown>>()
+/** PR 11c-2: `error` eines Hooks (sonst `null`). */
+const fehlerVon = new Map<string, unknown>()
 
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
@@ -36,7 +38,7 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
           return antworten.get(name)?.() ?? Promise.resolve({ id: `neu-${name}` })
         },
         isPending: false,
-        error: null,
+        error: fehlerVon.get(name) ?? null,
       }),
     ]),
   )
@@ -203,6 +205,7 @@ describe('ReiterPerson — Gruppe „Hauptname" (AP-1.30 PR 9c)', () => {
   beforeEach(() => {
     aufrufe.length = 0
     antworten.clear()
+    fehlerVon.clear()
     aufReiterWechsel.mockClear()
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -296,6 +299,38 @@ describe('ReiterPerson — Gruppe „Hauptname" (AP-1.30 PR 9c)', () => {
       expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-2', feld: 'nachname', nachname: 'Gutnow' })])
       act(() => vi.runOnlyPendingTimers())
       expect(aufrufe).toHaveLength(1)
+    })
+
+    // AP-1.30 PR 11c-2 (A-02), Herkunft profil-namen-zeile-rufname-fehler.test.tsx (hueter #184 P2): auch der
+    // Reiter Person schreibt über `name.aendern` und kann die Rufname-Verdopplung auslösen (Altform
+    // „Hans Peter Hans Peter" mit vorn ergänztem „Karl"). Der Fehler steht mit Titel und Handlungsanweisung in
+    // der aria-live-Metazeile der Gruppe (am ersten Feld, Vorname(n)), nicht nur als Speicherstatus.
+    it('11c-2: VALIDIERUNG_RUFNAME_VERDOPPELT von name.aendern steht mit titel/was_tun am Feld, ohne Fehler nichts', () => {
+      zeigen(detail())
+      expect(eingabe(VORNAMEN).closest('label')?.querySelector('[aria-live="polite"]')?.textContent).toBe('')
+      const code = 'VALIDIERUNG_RUFNAME_VERDOPPELT'
+      fehlerVon.set('useNameAendern', { code, textSchluessel: `${code}.titel`, vorgangsId: 'v-1' })
+      zeigen(detail())
+      const titel = i18n.t(`fehler:${code}.titel`)
+      const wasTun = i18n.t(`fehler:${code}.was_tun`)
+      expect(titel).not.toContain(code)
+      const meta = eingabe(VORNAMEN).closest('label')?.querySelector('[aria-live="polite"]')?.textContent ?? ''
+      expect(meta).toContain(titel)
+      expect(meta).toContain(wasTun)
+    })
+
+    // AP-1.30 PR 11c-2 (A-02), Herkunft profil-bearbeiten-namen-rerender.test.tsx (Bugfix AP-1.15 PR-A): die
+    // Gruppe Hauptname hängt am selben Debounce-Hook wie die frühere flache Maske (Referenzvergleich, darum
+    // `useMemo`). Ein Nachladen mit neuer, inhaltsgleicher Form löst keine Render-Schleife und kein Schreiben aus.
+    it('11c-2: neue, inhaltsgleiche Namensform (Nachladen): keine Render-Schleife, kein Schreiben, Werte bleiben', () => {
+      vi.useFakeTimers()
+      zeigen(detail({ namen: [{ ...NEBENFORM }, { ...HAUPTNAME }] }))
+      expect(() => zeigen(detail({ namen: [{ ...NEBENFORM }, { ...HAUPTNAME }] }))).not.toThrow()
+      expect(() => zeigen(detail({ namen: [{ ...NEBENFORM }, { ...HAUPTNAME }] }))).not.toThrow()
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS * 3))
+      expect(eingabe(VORNAMEN).value).toBe('Karl Friedrich')
+      expect(eingabe(NACHNAME).value).toBe('Gutnoff')
+      expect(aufrufe).toHaveLength(0)
     })
 
     it('Rufname wählen: sofort name.aendern mit feld „rufnameText"', () => {
