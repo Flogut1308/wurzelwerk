@@ -153,7 +153,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
 
   function belegZeile(gruppe: BelegGruppe) {
     const felder = gruppenFelder(GRUPPEN_ANGABEN[gruppe])
-    return <BelegZeile zustand={belegZeileZustand(felder.map(belegZiel))} chips={belegChips(felder)} aufOeffnen={() => setSchublade({ gruppe, angabe: null })} />
+    return <BelegZeile zustand={belegZeileZustand(felder.map((feld) => belegZiel(feld, [])))} chips={belegChips(felder, [])} aufOeffnen={() => setSchublade({ gruppe, angabe: null })} />
   }
 
   function todAusblenden(): void {
@@ -286,7 +286,7 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
   const [entfernt, setEntfernt] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
   const paareEntfernt = entfernt.stand === stand ? entfernt.paare : []
   const abschnitte = useRef(new Map<LebensdatumAngabe, HTMLElement>())
-  const zustand = belegZeileZustand(felder.map(belegZiel))
+  const zustand = belegZeileZustand(felder.map((feld) => belegZiel(feld, [])))
   const fehler = fehlerText(entfernen.error ?? null, t, tFehler)
 
   function verknuepfungEntfernen(angabeId: LebensdatumAngabe, aussageId: string, zitatId: string): void {
