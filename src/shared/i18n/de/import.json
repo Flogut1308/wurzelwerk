@@ -130,6 +130,11 @@
       "beschreibung": "notizen_unverarbeitet ist leer, obwohl das Ausgangsmaterial (erkennbar an pruefsumme_quelltext) umfangreich war — bei einem längeren Gespräch ist das unwahrscheinlich.",
       "was_tun": "Stichprobenartig gegen das ursprüngliche Transkript/Material prüfen, ob tatsächlich alles zugeordnet werden konnte, statt Unklares stillschweigend zu deuten."
     },
+    "IMP_311": {
+      "titel": "Rufname steht schon in den Vornamen",
+      "beschreibung": "rufname_text besteht aus mehreren Wörtern, die genau so schon in vornamen stehen, und rufname_index fehlt. Wurzelwerk hängt einen solchen Rufnamen als zusätzlichen Vornamen an — der Name enthielte die Wörter danach zweimal.",
+      "was_tun": "In der Datei rufname_index auf den gemeinten Vornamen setzen oder rufname_text entfernen und den Rufnamen nach dem Import aus den Vornamen wählen. Ist der mehrteilige Rufname eine eigene Namensform, ihn als eigenen Namenseintrag erfassen."
+    },
     "IMP_401": {
       "titel": "Mögliche Dublette",
       "beschreibung": "Eine neu angelegte Person ähnelt (Name + Geburtsdaten) einer bereits im Projekt vorhandenen Person.",

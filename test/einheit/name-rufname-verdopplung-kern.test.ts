@@ -6,6 +6,7 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { rufnameWuerdeVerdoppelt } from '../../src/core/name/rufname-verdopplung'
 import { rekonstruiereFlach, zerlegeName, type FlacherName } from '../../src/core/name/zerlegung'
+import { pruefePlausibilitaet, type PlausibilitaetEingabe } from '../../src/core/plausibilitaet/regeln'
 
 describe('rufnameWuerdeVerdoppelt', () => {
   it.each<[string, FlacherName]>([
@@ -69,5 +70,40 @@ describe('rufnameWuerdeVerdoppelt', () => {
       ),
       { seed: 130, numRuns: 300 },
     )
+  })
+})
+
+describe('pruefePlausibilitaet: IMP-311 (Import-Stufe 3, Hinweis)', () => {
+  const LEER: PlausibilitaetEingabe = {
+    personen: [],
+    namen: [],
+    orte: [],
+    ereignisse: [],
+    elternschaften: [],
+    partnerschaften: [],
+    aussagen: [],
+    diagnosen: [],
+    notizenUnverarbeitetAnzahl: 0,
+    pruefsummeVorhanden: false,
+  }
+  const basis = { personKennung: 'tmp:p', personPfad: 'personen[0]', istTransliteriert: false, istBevorzugt: true }
+
+  it('meldet den Verdopplungsfall je Namenseintrag mit Pfad und Personkennung, ohne Namensinhalt', () => {
+    const hinweise = pruefePlausibilitaet({
+      ...LEER,
+      namen: [
+        { ...basis, pfad: 'personen[0].namen[0]', vornamen: 'Hans Peter', rufnameText: 'Hans Peter' },
+        { ...basis, pfad: 'personen[0].namen[1]', vornamen: 'Hans Peter', rufnameText: 'Hans Peter', rufnameIndex: 1 },
+        { ...basis, pfad: 'personen[0].namen[2]', vornamen: 'Johann Georg Karl', rufnameText: 'Johann Georg' },
+      ],
+    })
+    expect(hinweise.filter((hinweis) => hinweis.code === 'IMP-311')).toEqual([
+      { code: 'IMP-311', pfad: 'personen[0].namen[0]', kennung: 'tmp:p' },
+      { code: 'IMP-311', pfad: 'personen[0].namen[2]', kennung: 'tmp:p' },
+    ])
+  })
+
+  it('meldet nichts ohne Rufname-Angaben (bestehende Eingaben ohne die neuen Felder)', () => {
+    expect(pruefePlausibilitaet({ ...LEER, namen: [{ ...basis, pfad: 'personen[0].namen[0]' }] }).map((hinweis) => hinweis.code)).not.toContain('IMP-311')
   })
 })

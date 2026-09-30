@@ -119,6 +119,9 @@ function baueePlausibilitaetEingabe(datei: ImportDatei): PlausibilitaetEingabe {
         istTransliteriert: n.typ === 'transliteriert',
         umschriftVonSchrift: original?.schrift,
         istBevorzugt: n.ist_bevorzugt === true,
+        vornamen: n.vornamen,
+        rufnameIndex: n.rufname_index,
+        rufnameText: n.rufname_text,
       }
     }),
   )
@@ -238,7 +241,9 @@ export function fuehreTrockenlaufDurch(tx: Tx, pfad: string, opt: TrockenlaufOpt
 
   const schreibErgebnis = schreibeImport(tx, datei, { erstelltAm: opt.erstelltAm })
 
-  const plausibilitaetHinweise = pruefePlausibilitaet(baueePlausibilitaetEingabe(datei)).map((hinweis) => alsBefund(hinweis, pfad))
+  // Stufe-3-Hinweise bekommen dieselbe Zeilenangabe wie Stufe 1/2 (§5 Punkt 4, `anreichern`) — ein
+  // Hinweis wie IMP-311 soll in der Datei auffindbar sein, nicht nur über den JSON-Pfad.
+  const plausibilitaetHinweise = anreichern(pruefePlausibilitaet(baueePlausibilitaetEingabe(datei)).map((hinweis) => alsBefund(hinweis, pfad)))
 
   const neuePersonenKandidaten = (datei.personen ?? [])
     .filter((p) => !p.id.startsWith('db:'))

@@ -353,6 +353,12 @@ Erinnerungsdaten ist das der wirksamste Qualitätsfilter, den es gibt.
 | IMP-308 | Ereignisdatum außerhalb der Existenz des Ortes |
 | IMP-309 | Person ohne jede Beziehung und ohne Ereignis (erlaubt nach A-12, aber meist ein Versehen) |
 | IMP-310 | `notizen_unverarbeitet` ist leer, obwohl das Ausgangsmaterial umfangreich war (siehe §7.3) |
+| IMP-311 | mehrwortiger `rufname_text`, der schon als zusammenhängende Wortfolge in `vornamen` steht, ohne gültigen `rufname_index` — der Rufname würde als zusätzlicher Vorname angehängt und stünde doppelt im Namen (`80` §33 U-130-rufname-doppelt; nachgetragen 30.09.2026, AP-1.30) |
+
+IMP-311 ist ein reiner Hinweis und ändert nicht, welche Dateien der Vertrag `v1` annimmt; ob der
+Fall künftig ein Fehler (Stufe 2) wird, hängt an der offenen Eigentümerfrage zu mehrteiligen
+Rufnamen (`80` §33 U-130-rufname-mehrteilig). Die Befehle `name.anlegen`/`name.aendern` weisen
+denselben Fall bereits ab (`VALIDIERUNG_RUFNAME_VERDOPPELT`).
 
 Im Beispiel `beispiel-2-widersprueche.json` ist eine Elternkante absichtlich falsch gesetzt
 (Erna nennt August ihren *Groß*vater) — sie löst IMP-302 aus, weil der Altersabstand

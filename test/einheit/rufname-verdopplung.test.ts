@@ -233,13 +233,16 @@ describe('Import: derselbe Fall ergibt einen Prüfhinweis mit Pfad und Zeile', (
     }
   }
 
-  it.fails(`„Hans Peter" + rufname_text „Hans Peter" → ${IMP_CODE} an personen[0].namen[1] mit Zeile; Trockenlauf == echter Import`, () => {
+  it(`„Hans Peter" + rufname_text „Hans Peter" → ${IMP_CODE} an personen[0].namen[1] mit Zeile; Trockenlauf == echter Import`, () => {
     const { trocken, echt } = berichte(
       importDatei([
         { typ: 'geburtsname', vornamen: 'Karl', nachname: 'Gutnow', ist_bevorzugt: true },
-        { typ: 'taufname', vornamen: 'Hans Peter', rufname_text: 'Hans Peter', nachname: 'Gutnow' },
+        { typ: 'sonstiges', vornamen: 'Hans Peter', rufname_text: 'Hans Peter', nachname: 'Gutnow' },
       ]),
     )
+    // Ein Hinweis, kein Fehler: die Datei bleibt importierbar (Vertrag v1, docs/import-vertrag.md §4).
+    expect(trocken.fehler).toEqual([])
+    expect(trocken.importGesperrt).toBe(false)
     const treffer = trocken.hinweise.filter((befund) => befund.code === IMP_CODE)
     expect(treffer).toHaveLength(1)
     expect(treffer[0]?.pfad).toBe('personen[0].namen[1]')
@@ -255,11 +258,13 @@ describe('Import: derselbe Fall ergibt einen Prüfhinweis mit Pfad und Zeile', (
     const { trocken, echt } = berichte(
       importDatei([
         { typ: 'geburtsname', vornamen: 'Hans Peterson', rufname_text: 'Hans Peter', nachname: 'Gutnow', ist_bevorzugt: true },
-        { typ: 'taufname', vornamen: 'Peter Hans', rufname_text: 'Hans Peter', nachname: 'Gutnow' },
-        { typ: 'taufname', vornamen: 'Hans Peter', rufname_text: 'Peter', nachname: 'Gutnow' },
-        { typ: 'taufname', vornamen: 'Hans Peter', rufname_text: 'Hans Peter', rufname_index: 0, nachname: 'Gutnow' },
+        { typ: 'sonstiges', vornamen: 'Peter Hans', rufname_text: 'Hans Peter', nachname: 'Gutnow' },
+        { typ: 'sonstiges', vornamen: 'Hans Peter', rufname_text: 'Peter', nachname: 'Gutnow' },
+        { typ: 'sonstiges', vornamen: 'Hans Peter', rufname_text: 'Hans Peter', rufname_index: 0, nachname: 'Gutnow' },
       ]),
     )
+    // Ohne diese Zusicherung wäre der Gegenfall leer grün, wenn die Datei schon an Stufe 1/2 scheitert.
+    expect(trocken.fehler).toEqual([])
     expect(trocken.hinweise.filter((befund) => befund.code === IMP_CODE)).toEqual([])
     expect(echt).toEqual(trocken)
   })

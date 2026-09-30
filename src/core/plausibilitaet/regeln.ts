@@ -1,4 +1,4 @@
-// AP-1.4a, 56_Import_Vertrag.md §4 Stufe 3 (IMP-301…IMP-310, Hinweise): Plausibilitätsprüfung auf
+// AP-1.4a, 56_Import_Vertrag.md §4 Stufe 3 (IMP-301…IMP-311, Hinweise): Plausibilitätsprüfung auf
 // der bereits geprüften (Stufe 1+2 akzeptierten) Importdatei, VOR dem Schreiben. Reine Funktionen —
 // KEIN Node, KEINE Datenbank, KEIN `Date.now()`/`Math.random()` (CLAUDE.md §4), KEIN Import aus
 // `src/shared` (CLAUDE.md §2: `src/core` darf nur sich selbst importieren) — deshalb sind alle
@@ -15,6 +15,7 @@
 // gregorianische Jahreslänge) — eine bewusst grobe, aber deterministische Näherung; Stufe-3-Funde
 // sind Hinweise, keine harten Fehler (§4), eine Unschärfe von Bruchteilen eines Jahres ist hier
 // ohne Belang.
+import { rufnameWuerdeVerdoppelt } from '../name/rufname-verdopplung'
 
 /** Geschlecht, wie im Vertrag (`$defs.Person.geschlecht`, §3.3) — lokal nachgebaut, kein Import aus shared. */
 export type PlausGeschlecht = 'M' | 'F' | 'U' | 'X'
@@ -42,6 +43,11 @@ export interface PlausNamenEintrag {
   readonly istTransliteriert: boolean
   readonly umschriftVonSchrift?: 'latn' | 'cyrl' | undefined
   readonly istBevorzugt: boolean
+  /** Flache Rufname-Angaben des Namenseintrags (IMP-311), wie im Vertrag (`vornamen`,
+   * `rufname_index`, `rufname_text`). */
+  readonly vornamen?: string | undefined
+  readonly rufnameIndex?: number | undefined
+  readonly rufnameText?: string | undefined
 }
 
 export interface PlausOrtKoordinate {
@@ -101,7 +107,7 @@ export interface PlausibilitaetEingabe {
   readonly pruefsummeVorhanden: boolean
 }
 
-/** Die zehn Stufe-3-Codes (56_Import_Vertrag.md §4) — lokal nachgebaut (kein Import aus
+/** Die elf Stufe-3-Codes (56_Import_Vertrag.md §4) — lokal nachgebaut (kein Import aus
  * `src/shared/import/imp-codes.ts`, CLAUDE.md §2). `src/main/import/trockenlauf.ts` bildet diesen
  * String 1:1 auf `ImpCode` ab. */
 export type PlausCode =
@@ -115,6 +121,7 @@ export type PlausCode =
   | 'IMP-308'
   | 'IMP-309'
   | 'IMP-310'
+  | 'IMP-311'
 
 export interface PlausHinweis {
   readonly code: PlausCode
@@ -219,6 +226,17 @@ function pruefeUmschriften(namen: readonly PlausNamenEintrag[]): readonly PlausH
   return hinweise
 }
 
+/** IMP-311 (U-130-rufname-doppelt, docs/80 §33): mehrwortiger `rufname_text`, der schon als
+ * zusammenhängende Wortfolge in `vornamen` steht, ohne gültigen `rufname_index` — die Zerlegung
+ * (`zerlegeName` Regel 3) hängt ihn ein zweites Mal an („Hans Peter Hans Peter"). Ein Hinweis, kein
+ * Fehler: der Vertrag v1 nimmt die Datei weiter an (docs/import-vertrag.md §4 Stufe 3); sichtbar statt
+ * still. Dieselbe Erkennung wie `name.anlegen`/`name.aendern` (`rufnameWuerdeVerdoppelt`). */
+function pruefeRufnameVerdopplung(namen: readonly PlausNamenEintrag[]): readonly PlausHinweis[] {
+  return namen
+    .filter((name) => rufnameWuerdeVerdoppelt({ vornamen: name.vornamen, rufnameIndex: name.rufnameIndex, rufnameText: name.rufnameText }))
+    .map((name) => ({ code: 'IMP-311' as const, pfad: name.pfad, kennung: name.personKennung }))
+}
+
 /** IMP-306: Diagnose mit `konfidenz >= 3` aus einer rein mündlichen Quelle. */
 function pruefeDiagnoseKonfidenz(diagnosen: readonly PlausDiagnose[]): readonly PlausHinweis[] {
   return diagnosen
@@ -305,6 +323,7 @@ export function pruefePlausibilitaet(eingabe: PlausibilitaetEingabe): readonly P
     ...pruefeEreignisOrtExistenz(eingabe.ereignisse, orteNachKennung),
     ...pruefeIsoliertePersonen(eingabe.personen, eingabe.elternschaften, eingabe.partnerschaften, eingabe.ereignisse),
     ...pruefeLeererNotizblock(eingabe.notizenUnverarbeitetAnzahl, eingabe.pruefsummeVorhanden),
+    ...pruefeRufnameVerdopplung(eingabe.namen),
   ]
 }
 
