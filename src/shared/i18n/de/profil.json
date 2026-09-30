@@ -47,6 +47,8 @@
   "beleg_chip_angaben_trenner": ", ",
   "beleg_waehler_ziele": "belegt:",
   "beleg_waehler_ziel_ereignis": "{{angabe}}: stammt aus dem Ereignis und wird dort belegt.",
+  "beleg_waehler_ziel_existenz": "{{angabe}} stammt aus dem Ereignis – der Beleg wird am Ereignis verknüpft.",
+  "beleg_ereignis_wert": "{{wert}} · {{herkunft}}",
   "beleg_waehler_keine_ziele": "Mindestens eine Angabe ankreuzen.",
   "beleg_waehler_quelle_suchen": "Quelle suchen",
   "beleg_waehler_quelle_suchhinweis": "Titel oder Autor eingeben.",

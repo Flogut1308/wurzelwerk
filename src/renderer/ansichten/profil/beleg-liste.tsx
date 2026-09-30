@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { PersonDetailBeleg, PersonDetailGrunddatenFeld } from '../../../shared/schemata/person-detail'
+import type { PersonDetailAussage, PersonDetailBeleg } from '../../../shared/schemata/person-detail'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
 import { useQuelleAnlegen } from '../../brücke/befehl-hooks'
@@ -9,8 +9,15 @@ import { quelleNeuAnlegenEin } from '../quellen/quelle-bearbeiten-logik'
 import { quelleTypSchluessel, unmittelbarkeitSchluessel } from './profil-schluessel'
 import './beleg-liste.css'
 
+/** Was die Liste von einem Feld braucht: je Aussage Kennung, Anzeigewert und Belege. Ein
+ * `PersonDetailGrunddatenFeld` passt; der Reiter Person zeigt so auch die Belege der Existenz-Aussage
+ * eines Ereignisses (AP-1.30 PR 9d-2), die kein Grunddatenfeld ist. */
+export interface BelegListeFeld {
+  readonly aussagen: readonly Pick<PersonDetailAussage, 'aussage_id' | 'wert' | 'belege'>[]
+}
+
 export interface BelegListeProps {
-  readonly feld: PersonDetailGrunddatenFeld
+  readonly feld: BelegListeFeld
   /** AP-1.30 PR 9d (V-130-9d E10): „Verknüpfung entfernen" je Beleg — nur im Editor (Reiter Person),
    * nie in der Lesesicht. Entfernt NUR die Verknüpfung (`aussage_zitat.loeschen`), das Zitat bleibt. */
   readonly aufVerknuepfungEntfernen?: (aussageId: string, zitatId: string) => void
