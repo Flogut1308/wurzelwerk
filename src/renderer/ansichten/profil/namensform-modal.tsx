@@ -112,10 +112,14 @@ export function NamensformModal({ personId, formId, namen, aufSchliessen, fokusN
 
   // Änderung der Form von außen: Zustand während des Renderns anpassen (Muster
   // `useEntwurfMitVerzoegertemCommit`), kein Effekt — sonst stünde einen Rendervorgang lang der alte Entwurf da.
+  // Während des eigenen Schreibens wird weder verglichen noch `gesehen` nachgezogen (Review #207): das Echo
+  // des Übernehmens ist keine Änderung von außen, und scheitert das Übernehmen, muss eine inzwischen
+  // eingetroffene fremde Änderung (Undo) danach noch als solche erkannt werden — sonst bliebe `basisForm`
+  // alt und der nächste Aufruf schriebe das Undo still zurück.
   const schreibt = uebernehmen.isPending || uebernehmen.isSuccess
-  if (live !== gesehen) {
+  if (!schreibt && live !== gesehen) {
     setGesehen(live)
-    const neu = live === undefined || schreibt || formVonAussen(basisForm, live) !== 'geaendert' ? null : entwurfAusForm(live)
+    const neu = live === undefined || formVonAussen(basisForm, live) !== 'geaendert' ? null : entwurfAusForm(live)
     if (live !== undefined && neu !== null) {
       setBasisForm(live)
       setBasis(neu)

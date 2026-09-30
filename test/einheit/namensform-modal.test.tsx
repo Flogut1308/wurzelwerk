@@ -29,19 +29,32 @@ const aufrufe: Aufruf[] = []
 /** Fehler, mit dem der nächste `mutate` scheitert (über `onError`), je Hook. */
 const scheitertMit = new Map<string, AppFehler>()
 
+interface MutationsOptionen {
+  readonly onSuccess?: () => void
+  readonly onError?: (fehler: AppFehler) => void
+}
+
+/** Steuerbarer Pending-Zustand (Review #207): `halten` lässt `mutate` offen, bis der Test `abschliessen`
+ * aufruft; solange meldet der Hook `isPending: true`. */
+const pending: { halten: boolean; offen: MutationsOptionen | null } = { halten: false, offen: null }
+
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
   return Object.fromEntries(
     Object.keys(original).map((name) => [
       name,
       () => ({
-        mutate: (ein: unknown, optionen?: { readonly onSuccess?: () => void; readonly onError?: (fehler: AppFehler) => void }) => {
+        mutate: (ein: unknown, optionen?: MutationsOptionen) => {
           aufrufe.push({ hook: name, ein })
+          if (pending.halten) {
+            pending.offen = optionen ?? {}
+            return
+          }
           const fehler = scheitertMit.get(name)
           if (fehler === undefined) optionen?.onSuccess?.()
           else optionen?.onError?.(fehler)
         },
-        isPending: false,
+        isPending: pending.offen !== null,
         isSuccess: false,
         error: null,
       }),
@@ -128,6 +141,8 @@ describe('NamensformModal', () => {
   beforeEach(() => {
     aufrufe.length = 0
     scheitertMit.clear()
+    pending.halten = false
+    pending.offen = null
     geschlossen = 0
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -237,6 +252,63 @@ describe('NamensformModal', () => {
     klicken(knopf('Verwerfen'))
     expect(geschlossen).toBe(2)
     expect(aufrufe).toEqual([])
+  })
+
+  /** Schließt die gehaltene Mutation ab (Erfolg oder Fehler); `isPending` fällt vorher auf false. */
+  function abschliessen(fehler?: AppFehler): void {
+    const offen = pending.offen
+    if (offen === null) throw new Error('keine gehaltene Mutation')
+    pending.halten = false
+    pending.offen = null
+    act(() => {
+      if (fehler === undefined) offen.onSuccess?.()
+      else offen.onError?.(fehler)
+    })
+  }
+
+  it('Review #207 (Wettlauf): Änderung von außen während des Übernehmens, dann Fehlschlag → Rebase mit Hinweis, kein stilles Zurückschreiben', () => {
+    zeige([KARL])
+    eintippen(feld('n1'), 'Gutnoffx')
+    pending.halten = true
+    klicken(knopf('Übernehmen'))
+    expect(aufrufe).toHaveLength(1)
+    // Während der Befehl läuft, nimmt ein Undo die Form von außen zurück (Nachladen bringt „Gutnow").
+    const vonAussen = { ...KARL, teile: [teil('v1', 'vorname', 'Karl', 0, true), teil('n1', 'nachname', 'Gutnow')] }
+    zeige([vonAussen])
+    abschliessen({ code: 'VALIDIERUNG_NAMENSTEIL_LEERRAUM', textSchluessel: 'VALIDIERUNG_NAMENSTEIL_LEERRAUM', vorgangsId: 'v' })
+    // Nach dem Fehlschlag gilt die Änderung von außen: gespeicherter Stand mit Hinweis.
+    expect(feld('n1').value).toBe('Gutnow')
+    expect(hinweis()).toContain('Rückgängig')
+    // Übernehmen schreibt das Undo nicht zurück (unverändert gegenüber dem neuen Stand → kein Aufruf).
+    klicken(knopf('Übernehmen'))
+    expect(aufrufe).toHaveLength(1)
+    expect(geschlossen).toBe(1)
+  })
+
+  it('M15: das Echo des eigenen Übernehmens zählt nicht als Änderung von außen', () => {
+    zeige([KARL])
+    eintippen(feld('n1'), 'Gutnow')
+    pending.halten = true
+    klicken(knopf('Übernehmen'))
+    // Das eigene Schreiben kommt als neuer Stand zurück, bevor die Antwort da ist.
+    zeige([{ ...KARL, teile: [teil('v1', 'vorname', 'Karl', 0, true), teil('n1', 'nachname', 'Gutnow')] }])
+    expect(hinweis()).toBeNull()
+    expect(feld('n1').value).toBe('Gutnow')
+    abschliessen()
+    expect(geschlossen).toBe(1)
+    expect(aufrufe).toHaveLength(1)
+  })
+
+  it('M15 nach Fehlschlag: ist der neue Stand gleich dem Entwurf, gibt es keinen Hinweis und keinen Rebase-Verlust', () => {
+    zeige([KARL])
+    eintippen(feld('n1'), 'Gutnoffx')
+    pending.halten = true
+    klicken(knopf('Übernehmen'))
+    // Fremdes Nachladen mit gleichem Inhalt in neuer Referenz während des Übernehmens.
+    zeige([{ ...KARL, teile: KARL.teile.map((eintrag) => ({ ...eintrag })) }])
+    abschliessen({ code: 'VALIDIERUNG_NAMENSTEIL_LEERRAUM', textSchluessel: 'VALIDIERUNG_NAMENSTEIL_LEERRAUM', vorgangsId: 'v' })
+    expect(hinweis()).toBeNull()
+    expect(feld('n1').value).toBe('Gutnoffx')
   })
 
   it('leer gemachter Teil zeigt „leer — wird verworfen"', () => {
