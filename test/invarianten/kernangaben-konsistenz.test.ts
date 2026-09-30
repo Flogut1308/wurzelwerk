@@ -66,11 +66,11 @@ vi.mock('../../src/main/protokoll/logger', () => ({
 vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
 import { fuehreAus } from '../../src/main/befehle/bus'
-import { migrieren } from '../../src/main/datenbank/migration/laeufer'
-import { oeffnen } from '../../src/main/datenbank/verbindung'
+import type { oeffnen } from '../../src/main/datenbank/verbindung'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { LEBENSDATUM_ANGABEN, RUECKFALL_ROLLEN, type LebensdatumAngabe } from '../../src/core/person/lebensdaten'
+import { frischeMigrierteDatenbank } from './_frische-datenbank'
 
 type Db = ReturnType<typeof oeffnen>
 
@@ -476,9 +476,15 @@ describe('Invariante: Kernangaben, Sterbeort und offene Punkte sind konsistent (
     const deckung: Deckung = { herkunft: new Set(), todesortZustand: new Set(), elternPunkt: new Set(), lebensdaten: new Map(), personen: 0 }
     fc.assert(
       fc.property(bestandArb, ({ personen, platzhalterAnteil, zusatz }) => {
-        const db = oeffnen(':memory:')
+        // Frische, leere, migrierte `:memory:`-Datenbank mit eingeschaltetem Journal. Seit
+        // U-130-undo-bitgleich-laufzeit (docs/80 §33, PR C) ein Klon einer einmal je Prozess migrierten
+        // Vorlage statt `oeffnen(':memory:')` + `migrieren(db)` je Lauf (`_frische-datenbank.ts`; Beleg der
+        // Gleichwertigkeit: `frische-datenbank-klon.test.ts`). Einziger Unterschied:
+        // `schema_migration.angewendet_am` trägt die Bauzeit der Vorlage — unkritisch, weil dieser Test
+        // nur `personDetail` gegen die Tabellen DERSELBEN Verbindung
+        // vergleicht.
+        const db = frischeMigrierteDatenbank()
         try {
-          migrieren(db)
           for (const personId of bestandAufbauen(db, personen, platzhalterAnteil, zusatz)) pruefePerson(db, personId, deckung)
         } finally {
           db.close()
