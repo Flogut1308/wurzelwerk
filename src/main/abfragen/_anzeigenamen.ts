@@ -16,7 +16,7 @@
 import type Database from 'better-sqlite3'
 import { anzeigenameFuer, type AnzeigeForm } from '../../core/name/anzeigename'
 import type { GeladenerTeil } from '../../core/name/zerlegung'
-import { NamePartArtEnum } from '../../shared/schemata/name'
+import { NameFormReihenfolgeEnum, NamePartArtEnum } from '../../shared/schemata/name'
 
 interface FormZeile {
   readonly id: string
@@ -26,6 +26,7 @@ interface FormZeile {
   readonly ist_bevorzugt: number
   readonly umschrift_von: string | null
   readonly original_text: string | null
+  readonly reihenfolge: string | null
 }
 
 interface TeilZeile {
@@ -48,7 +49,8 @@ export function anzeigenamenLaden(db: Database.Database, personIds: readonly str
       { readonly ids: string },
       FormZeile
     >(`SELECT nf.id AS id, nf.person_id AS person_id, nf.sprache AS sprache, nf.schrift AS schrift,
-              nf.ist_bevorzugt AS ist_bevorzugt, nf.umschrift_von AS umschrift_von, nf.original_text AS original_text
+              nf.ist_bevorzugt AS ist_bevorzugt, nf.umschrift_von AS umschrift_von, nf.original_text AS original_text,
+              nf.reihenfolge AS reihenfolge
        FROM name_form nf
        WHERE nf.person_id IN (SELECT value FROM json_each(@ids))`,
     )
@@ -84,6 +86,8 @@ export function anzeigenamenLaden(db: Database.Database, personIds: readonly str
       istBevorzugt: zeile.ist_bevorzugt === 1,
       umschriftVon: zeile.umschrift_von,
       originalText: zeile.original_text,
+      // AP-1.30 PR 11-1 (V-130-11-E2/E3): die Wortfolge des Anzeigetexts hängt an der Reihenfolge.
+      reihenfolge: zeile.reihenfolge === null ? null : NameFormReihenfolgeEnum.parse(zeile.reihenfolge),
       teile: teileJeForm.get(zeile.id) ?? [],
     })
     formenJePerson.set(zeile.person_id, liste)
