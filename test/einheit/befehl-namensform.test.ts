@@ -15,10 +15,12 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { REGISTRIERUNG } from '../../src/main/befehle/registrierung'
 import { personDetail } from '../../src/main/abfragen/person-detail'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
-import { namensformAnlegenEinSchema } from '../../src/shared/schemata/befehle'
+import { namensformAendernEinSchema, namensformAnlegenEinSchema, type NamensformAendernEin } from '../../src/shared/schemata/befehle'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
 import { sucheFtsInhaltAbzug, verwaisteFtsEintraegeAnzahl } from './_hilfen-abgeleitet'
 
@@ -322,6 +324,266 @@ describe('namensform.anlegen (AP-1.30 PR 10-1)', () => {
       erwarteAbgeleitetWieNeuaufbau(db)
       undo(db)
       expect(kanonischerAbzug(db)).toBe(vorWechsel)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// -----------------------------------------------------------------------------------------------
+// namensform.aendern
+// -----------------------------------------------------------------------------------------------
+
+const GRUND = 'Test V-130-10-1: Zustände herstellen, die kein Befehl schreibt (sortier_index, Altbestand ohne Rolle/Ursprung).'
+
+interface TeilZeile {
+  readonly id: string
+  readonly art: string
+  readonly wert: string
+  readonly ist_rufname: number
+  readonly sortier_index: number
+  readonly feminine_variante: string | null
+  readonly geaendert_am: number | null
+}
+
+function teile(db: Db, formId: string): readonly TeilZeile[] {
+  return db
+    .prepare<{ readonly formId: string }, TeilZeile>(
+      `SELECT id, art, wert, ist_rufname, sortier_index, feminine_variante, geaendert_am
+       FROM name_part WHERE name_form_id = @formId ORDER BY art, sortier_index, id`,
+    )
+    .all({ formId })
+}
+
+function angewendeteSchritte(db: Db): number {
+  return zaehle(db, "SELECT COUNT(*) AS anzahl FROM transaktion WHERE status = 'angewendet'")
+}
+
+function schluessel(db: Db, ein: NamensformAendernEin): string | null {
+  const fn = REGISTRIERUNG['namensform.aendern'].koaleszenzSchluessel
+  if (fn === undefined) throw new Error('namensform.aendern hat keine Schlüsselfunktion.')
+  return fn(db, namensformAendernEinSchema.parse(ein))
+}
+
+/** Person mit Hauptform (über `name.anlegen`, also MIT Teilen) und einer zweiten, teillosen Form. */
+function personMitZweiFormen(db: Db): { readonly personId: string; readonly haupt: string; readonly zweite: string } {
+  const personId = neuePerson(db)
+  const haupt = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich', rufnameIndex: 1, nachname: 'Nowak' }).id
+  const zweite = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename', rollenNotiz: 'Heiratsregister', sprache: 'de' }).id
+  return { personId, haupt, zweite }
+}
+
+describe('namensform.aendern (AP-1.30 PR 10-1)', () => {
+  it('ändert nur die mitgegebenen Kopf-Felder; ist_bevorzugt, person_id, sortier_index und Teile bleiben', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, haupt } = personMitZweiFormen(db)
+      journalAus(db, GRUND)
+      db.prepare('UPDATE name_form SET sortier_index = 7 WHERE id = @haupt').run({ haupt })
+      journalAn(db)
+      const vorher = form(db, haupt)
+      const teileVorher = teile(db, haupt)
+      expect(teileVorher.length).toBeGreaterThan(0)
+      warte(5000)
+
+      fuehreAus(db, 'namensform.aendern', { id: haupt, rollenNotiz: 'Taufbuch 1802', konfidenz: 2, reihenfolge: 'nachname_zuerst' })
+
+      expect(form(db, haupt)).toEqual({ ...vorher, rollen_notiz: 'Taufbuch 1802', konfidenz: 2, reihenfolge: 'nachname_zuerst', geaendert_am: jetzt })
+      expect(form(db, haupt)).toMatchObject({ person_id: personId, ist_bevorzugt: 1, sortier_index: 7 })
+      expect(teile(db, haupt)).toEqual(teileVorher)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('null leert ein Feld; ein fehlendes Feld bleibt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { zweite } = personMitZweiFormen(db)
+      fuehreAus(db, 'namensform.aendern', { id: zweite, rollenNotiz: null })
+      expect(form(db, zweite)).toMatchObject({ rollen_notiz: null, sprache: 'de', rolle: 'ehename' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ist_bevorzugt und person_id stehen nicht im Vertrag (Zod entfernt sie) und bleiben unverändert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, zweite } = personMitZweiFormen(db)
+      const andere = neuePerson(db)
+      const roh: unknown = { id: zweite, istBevorzugt: 1, personId: andere, ist_bevorzugt: 1, person_id: andere, sprache: 'pl' }
+      const geparst = namensformAendernEinSchema.parse(roh)
+      expect(geparst).toEqual({ id: zweite, sprache: 'pl' })
+      fuehreAus(db, 'namensform.aendern', geparst)
+      expect(form(db, zweite)).toMatchObject({ person_id: personId, ist_bevorzugt: 0, sprache: 'pl' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it("A-19: umschrift_norm = 'manuell' bleibt, solange umschriftNorm nicht ausdrücklich mitgegeben wird", () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const kyrillisch = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname', schrift: 'cyrl', originalText: 'Иван' }).id
+      const zweiteQuelle = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename', schrift: 'cyrl', originalText: 'Иван Петров' }).id
+      const umschrift = fuehreAus(db, 'namensform.anlegen', { personId, rolle: null, umschriftVon: kyrillisch, umschriftNorm: 'manuell', originalText: 'Iwan' }).id
+
+      // Andere Felder, sogar ein neuer Ursprung: die manuelle Umschrift bleibt als solche markiert.
+      fuehreAus(db, 'namensform.aendern', { id: umschrift, originalText: 'Iwan Petrow', umschriftVon: zweiteQuelle, schrift: 'latn' })
+      expect(form(db, umschrift)).toMatchObject({ umschrift_norm: 'manuell', umschrift_von: zweiteQuelle, original_text: 'Iwan Petrow' })
+
+      // Ausdrücklich gesetzt: dann (und nur dann) ändert sie sich.
+      fuehreAus(db, 'namensform.aendern', { id: umschrift, umschriftNorm: 'iso9' })
+      expect(form(db, umschrift)?.umschrift_norm).toBe('iso9')
+      fuehreAus(db, 'namensform.aendern', { id: umschrift, umschriftNorm: null })
+      expect(form(db, umschrift)?.umschrift_norm).toBeNull()
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('AP-0.22 No-op: inhaltsgleicher Aufruf (oder nur die ID) schreibt nichts — keine Transaktion, kein neuer Zeitstempel, kein Schlüssel', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { zweite } = personMitZweiFormen(db)
+      const vorher = form(db, zweite)
+      const schritte = transaktionAnzahl(db)
+      warte(5000)
+
+      fuehreAus(db, 'namensform.aendern', { id: zweite })
+      fuehreAus(db, 'namensform.aendern', { id: zweite, rolle: 'ehename', rollenNotiz: 'Heiratsregister', sprache: 'de', konfidenz: null, feld: 'rollenNotiz' })
+
+      expect(transaktionAnzahl(db)).toBe(schritte)
+      expect(form(db, zweite)).toEqual(vorher)
+      expect(schluessel(db, { id: zweite, rollenNotiz: 'Heiratsregister', feld: 'rollenNotiz' })).toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E7: rolle = null zusammen mit umschriftVon = null lehnt das Zod-Schema ab', () => {
+    expect(namensformAendernEinSchema.safeParse({ id: 'x', rolle: null, umschriftVon: null }).success).toBe(false)
+    expect(namensformAendernEinSchema.safeParse({ id: 'x', rolle: null }).success).toBe(true)
+    expect(namensformAendernEinSchema.safeParse({ id: 'x', rolle: 'transliteriert' }).success).toBe(false)
+    expect(namensformAendernEinSchema.safeParse({ id: 'x', konfidenz: 0 }).success).toBe(false)
+    expect(namensformAendernEinSchema.safeParse({ id: 'x', feld: 'istBevorzugt' }).success).toBe(false)
+  })
+
+  it('Fehlerfälle — nichts geschrieben: unbekannte Form, Ursprung unbekannt/fremd/selbst/zirkulär, Rolle weg ohne Ursprung, Ursprung weg ohne Rolle', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, haupt, zweite } = personMitZweiFormen(db)
+      const umschrift = fuehreAus(db, 'namensform.anlegen', { personId, rolle: null, umschriftVon: haupt }).id
+      const fremd = fuehreAus(db, 'namensform.anlegen', { personId: neuePerson(db), rolle: 'geburtsname' }).id
+      const schritte = transaktionAnzahl(db)
+      const abzug = kanonischerAbzug(db)
+
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: 'gibt-es-nicht', sprache: 'de' }))).toBe('NICHT_GEFUNDEN_NAME')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: zweite, umschriftVon: 'gibt-es-nicht' }))).toBe('NICHT_GEFUNDEN_NAME')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: zweite, umschriftVon: fremd }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: zweite, umschriftVon: zweite }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      // haupt → umschrift → haupt wäre ein Kreis.
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: haupt, umschriftVon: umschrift }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: zweite, rolle: null }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.aendern', { id: umschrift, umschriftVon: null }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+
+      expect(transaktionAnzahl(db)).toBe(schritte)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+
+      // Gegenprobe: mit Ursprung darf die Rolle weg, mit Rolle darf der Ursprung weg.
+      fuehreAus(db, 'namensform.aendern', { id: zweite, rolle: null, umschriftVon: haupt })
+      expect(form(db, zweite)).toMatchObject({ rolle: null, umschrift_von: haupt })
+      fuehreAus(db, 'namensform.aendern', { id: umschrift, rolle: 'aka', umschriftVon: null })
+      expect(form(db, umschrift)).toMatchObject({ rolle: 'aka', umschrift_von: null })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Altbestand ohne Rolle und ohne Ursprung (0006-Umzug von „transliteriert“) bleibt in den übrigen Feldern bearbeitbar', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { zweite } = personMitZweiFormen(db)
+      journalAus(db, GRUND)
+      db.prepare('UPDATE name_form SET rolle = NULL, umschrift_von = NULL WHERE id = @zweite').run({ zweite })
+      journalAn(db)
+      fuehreAus(db, 'namensform.aendern', { id: zweite, originalText: 'Iwan' })
+      expect(form(db, zweite)).toMatchObject({ rolle: null, umschrift_von: null, original_text: 'Iwan' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Undo/Redo bitgleich (auch original_text, der in die Suche geht); abgeleitete Tabellen wie Neuaufbau', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { haupt, zweite } = personMitZweiFormen(db)
+      warte(5000)
+      const ausgang = kanonischerAbzug(db)
+
+      fuehreAus(db, 'namensform.aendern', { id: zweite, originalText: "Anna d'Aboville", rolle: null, umschriftVon: haupt, umschriftNorm: 'manuell', gueltigVon: 18500101 })
+      const nachher = kanonischerAbzug(db)
+      erwarteAbgeleitetWieNeuaufbau(db)
+
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(ausgang)
+      erwarteAbgeleitetWieNeuaufbau(db)
+      redo(db)
+      expect(kanonischerAbzug(db)).toBe(nachher)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Koaleszenzschlüssel namensform.aendern:<id>:<feld> nur bei genau diesem einen geänderten Feld', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { zweite } = personMitZweiFormen(db)
+      expect(schluessel(db, { id: zweite, rollenNotiz: 'neu', feld: 'rollenNotiz' })).toBe(`namensform.aendern:${zweite}:rollenNotiz`)
+      expect(schluessel(db, { id: zweite, konfidenz: 4, feld: 'konfidenz' })).toBe(`namensform.aendern:${zweite}:konfidenz`)
+      // Unveränderte Felder in der Nutzlast stören nicht.
+      expect(schluessel(db, { id: zweite, rollenNotiz: 'neu', sprache: 'de', feld: 'rollenNotiz' })).toBe(`namensform.aendern:${zweite}:rollenNotiz`)
+      expect(schluessel(db, { id: zweite, rollenNotiz: 'neu' })).toBeNull()
+      expect(schluessel(db, { id: zweite, rollenNotiz: 'neu', sprache: 'pl', feld: 'rollenNotiz' })).toBeNull()
+      expect(schluessel(db, { id: zweite, sprache: 'pl', feld: 'rollenNotiz' })).toBeNull()
+      expect(schluessel(db, { id: 'gibt-es-nicht', rollenNotiz: 'neu', feld: 'rollenNotiz' })).toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Autosave-Folge am selben Feld = EIN Undo-Schritt, Undo/Redo bitgleich; anderes Feld = eigener Schritt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { zweite } = personMitZweiFormen(db)
+      warte(5000)
+      const ausgang = kanonischerAbzug(db)
+      const schritte = angewendeteSchritte(db)
+
+      for (const [i, notiz] of ['H', 'He', 'Hei', 'Heirat 1850'].entries()) {
+        if (i > 0) warte(300)
+        fuehreAus(db, 'namensform.aendern', { id: zweite, rollenNotiz: notiz, feld: 'rollenNotiz' })
+      }
+      expect(angewendeteSchritte(db) - schritte).toBe(1)
+      const nachher = kanonischerAbzug(db)
+
+      warte(300)
+      fuehreAus(db, 'namensform.aendern', { id: zweite, originalText: 'Anna Schmidt', feld: 'originalText' })
+      expect(angewendeteSchritte(db) - schritte).toBe(2)
+
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(nachher)
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(ausgang)
+      erwarteAbgeleitetWieNeuaufbau(db)
+      redo(db)
+      expect(kanonischerAbzug(db)).toBe(nachher)
       erwarteAbgeleitetWieNeuaufbau(db)
     } finally {
       db.close()

@@ -283,6 +283,75 @@ export const namensformAnlegenEinSchema: z.ZodType<NamensformAnlegenEin> = z
     }
   })
 
+/** Die editierbaren Kopf-Felder von `namensform.aendern` (Vertragsnamen) — zugleich die Werte des
+ * optionalen Koaleszenz-Felds `feld` (AP-1.30 PR 4). `ist_bevorzugt` und `person_id` fehlen bewusst. */
+export const NamensformAendernFeldEnum = z.enum([
+  'rolle',
+  'rollenNotiz',
+  'sprache',
+  'schrift',
+  'reihenfolge',
+  'umschriftVon',
+  'umschriftNorm',
+  'konfidenz',
+  'gueltigVon',
+  'gueltigBis',
+  'originalText',
+])
+export type NamensformAendernFeld = z.infer<typeof NamensformAendernFeldEnum>
+
+/**
+ * Nutzlast von `befehl:namensform.aendern`. ANDERS als die ersetzenden `*.aendern`-Befehle (E6,
+ * docs/80 §33 V-130-10-1) gilt hier Teil-Semantik je Feld: fehlt ein Feld (`undefined`), bleibt der
+ * gespeicherte Wert; `null` leert es; ein Wert setzt es. Grund: ein granularer Befehl darf nur
+ * überschreiben, was er trägt (Lehre aus U-130-10a-bruecke-erhaelt) — und A-19 verlangt, dass eine
+ * manuell korrigierte Umschrift (`umschrift_norm = 'manuell'`) nie überschrieben wird, wenn der
+ * Aufrufer `umschriftNorm` nicht ausdrücklich mitgibt. `ist_bevorzugt` (→ `hauptname.wechseln`) und
+ * `person_id` (eine Form wandert nicht zwischen Personen) sind nicht änderbar.
+ */
+export interface NamensformAendernEin {
+  readonly id: string
+  readonly rolle?: z.infer<typeof NameFormRolleEnum> | null | undefined
+  readonly rollenNotiz?: string | null | undefined
+  readonly sprache?: string | null | undefined
+  readonly schrift?: z.infer<typeof SchriftEnum> | null | undefined
+  readonly reihenfolge?: z.infer<typeof NameFormReihenfolgeEnum> | null | undefined
+  readonly umschriftVon?: string | null | undefined
+  readonly umschriftNorm?: z.infer<typeof UmschriftNormEnum> | null | undefined
+  readonly konfidenz?: number | null | undefined
+  readonly gueltigVon?: number | null | undefined
+  readonly gueltigBis?: number | null | undefined
+  readonly originalText?: string | null | undefined
+  /** AP-1.30 PR 4 (Autosave-Koaleszenz, docs/architektur.md §4.8): das EINE Feld, das dieser Aufruf
+   * ändern will. Nur dann vergibt der Bus einen Koaleszenzschlüssel `namensform.aendern:<id>:<feld>` —
+   * und nur, wenn sich gegenüber dem gespeicherten Stand tatsächlich nur dieses Feld ändert. */
+  readonly feld?: NamensformAendernFeld | undefined
+}
+
+export const namensformAendernEinSchema: z.ZodType<NamensformAendernEin> = z
+  .object({
+    id: z.string(),
+    rolle: NameFormRolleEnum.nullable().optional(),
+    rollenNotiz: z.string().nullable().optional(),
+    sprache: z.string().nullable().optional(),
+    schrift: SchriftEnum.nullable().optional(),
+    reihenfolge: NameFormReihenfolgeEnum.nullable().optional(),
+    umschriftVon: z.string().nullable().optional(),
+    umschriftNorm: UmschriftNormEnum.nullable().optional(),
+    konfidenz: KonfidenzSchema.nullable().optional(),
+    gueltigVon: z.number().int().nullable().optional(),
+    gueltigBis: z.number().int().nullable().optional(),
+    originalText: z.string().nullable().optional(),
+    feld: NamensformAendernFeldEnum.optional(),
+  })
+  .superRefine((ein, ctx) => {
+    // Nur der in sich widersprüchliche Aufruf ist ohne gespeicherten Stand entscheidbar; ob die Form
+    // NACH der Änderung eine Ursprungsform hat, prüft der Handler (`namensform-aendern.ts`).
+    if (ein.rolle === null && ein.umschriftVon === null) {
+      ctx.addIssue({ code: 'custom', path: ['rolle'], message: ROLLE_NULL_NUR_MIT_UMSCHRIFT })
+    }
+  })
+
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
 // -----------------------------------------------------------------------------------------------

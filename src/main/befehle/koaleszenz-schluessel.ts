@@ -20,6 +20,7 @@ import type {
   EreignisAendernEin,
   NameAendernEin,
   NameAendernFeld,
+  NamensformAendernEin,
   PartnerschaftAendernEin,
   PersonFeldSetzenEin,
 } from '../../shared/schemata/befehle'
@@ -28,10 +29,12 @@ import * as aussageRepo from '../repositories/aussage-repo'
 import * as beziehungRepo from '../repositories/beziehung-repo'
 import * as ereignisRepo from '../repositories/ereignis-repo'
 import * as nameRepo from '../repositories/name-repo'
+import * as nameFormRepo from '../repositories/name-form-repo'
 import { aussageGeaenderteFelder } from './aussage-aendern'
 import { elternschaftGeaenderteFelder } from './elternschaft-aendern'
 import { ereignisGeaenderteFelder } from './ereignis-aendern'
 import { nameGeaenderteFelder } from './name-aendern'
+import { namensformGeaenderteFelder } from './namensform-aendern'
 import { partnerschaftGeaenderteFelder } from './partnerschaft-aendern'
 
 /**
@@ -75,6 +78,14 @@ export function nameAendernSchluessel(tx: Tx, ein: NameAendernEin): string | nul
   if (ein.feld === undefined) return null
   const vorher = nameRepo.lesen(tx, ein.id)
   return schluesselBeiEinemFeld('name.aendern', ein.id, ein.feld, vorher === undefined ? undefined : nameGeaenderteFelder(vorher, ein), nameErlaubt)
+}
+
+/** AP-1.30 PR 10-1: `namensform.aendern:<id>:<feld>` — jedes Kopf-Feld steht für sich. Der Vergleich
+ * kommt aus dem Handler (`namensformGeaenderteFelder`, Teil-Semantik: nur mitgegebene Felder zählen). */
+export function namensformAendernSchluessel(tx: Tx, ein: NamensformAendernEin): string | null {
+  if (ein.feld === undefined) return null
+  const vorher = nameFormRepo.lesen(tx, ein.id)
+  return schluesselBeiEinemFeld('namensform.aendern', ein.id, ein.feld, vorher === undefined ? undefined : namensformGeaenderteFelder(vorher, ein))
 }
 
 export function ereignisAendernSchluessel(tx: Tx, ein: EreignisAendernEin): string | null {

@@ -18,6 +18,15 @@ export const AUTOSAVE_DEBOUNCE_MS = 400
  * die übrigen ersetzen eine ganze Zeile und bekommen den Schlüssel nur mit gesetztem Vertragsfeld
  * `feld` und nur, wenn sich tatsächlich nur dieses Feld ändert.
  */
-export const AUTOSAVE_BEFEHLE = ['person.feldSetzen', 'name.aendern', 'ereignis.aendern', 'partnerschaft.aendern', 'elternschaft.aendern', 'aussage.aendern'] as const
+export const AUTOSAVE_BEFEHLE = [
+  'person.feldSetzen',
+  'name.aendern',
+  'ereignis.aendern',
+  'partnerschaft.aendern',
+  'elternschaft.aendern',
+  'aussage.aendern',
+  // AP-1.30 PR 10-1: der Reiter Namen (PR 11) schreibt die Kopf-Felder einer Namensform per Autosave.
+  'namensform.aendern',
+] as const
 
 export type AutosaveBefehl = (typeof AUTOSAVE_BEFEHLE)[number]

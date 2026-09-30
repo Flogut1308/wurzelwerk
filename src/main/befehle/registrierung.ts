@@ -29,6 +29,8 @@ import {
   type HauptnameWechselnEin,
   namensformAnlegenEinSchema,
   type NamensformAnlegenEin,
+  namensformAendernEinSchema,
+  type NamensformAendernEin,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -110,6 +112,7 @@ import { nameAendern } from './name-aendern'
 import { nameLoeschen } from './name-loeschen'
 import { hauptnameWechseln } from './hauptname-wechseln'
 import { namensformAnlegen } from './namensform-anlegen'
+import { namensformAendern } from './namensform-aendern'
 import { elternschaftAnlegen } from './elternschaft-anlegen'
 import { elternschaftAendern } from './elternschaft-aendern'
 import { elternschaftLoeschen } from './elternschaft-loeschen'
@@ -151,6 +154,7 @@ import {
   elternschaftAendernSchluessel,
   ereignisAendernSchluessel,
   nameAendernSchluessel,
+  namensformAendernSchluessel,
   partnerschaftAendernSchluessel,
   personFeldSetzenSchluessel,
 } from './koaleszenz-schluessel'
@@ -185,6 +189,7 @@ interface BefehlKarte {
   'name.loeschen': { ein: NameLoeschenEin; aus: null }
   'hauptname.wechseln': { ein: HauptnameWechselnEin; aus: null }
   'namensform.anlegen': { ein: NamensformAnlegenEin; aus: { readonly id: string } }
+  'namensform.aendern': { ein: NamensformAendernEin; aus: null }
   'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
@@ -281,6 +286,13 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.namensform_angelegt',
     handler: namensformAnlegen,
+  },
+  'namensform.aendern': {
+    schema: namensformAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.namensform_geaendert',
+    handler: namensformAendern,
+    koaleszenzSchluessel: namensformAendernSchluessel,
   },
   'elternschaft.anlegen': {
     schema: elternschaftAnlegenEinSchema,
