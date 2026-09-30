@@ -178,10 +178,22 @@ function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwur
 }
 
 /**
- * Gleiche Zielliste? Werte werden GETRIMMT verglichen, genau wie der Handler (`teil.wert.trim() === vorher.wert`,
- * `namensform-uebernehmen.ts`): ein angehängtes Leerzeichen ist dort keine Änderung, also auch hier keine
- * (PR 11c-1b H1) — sonst meldete das Modal „geändert" (E9) bzw. „korrigiert" und schriebe einen Undo-Schritt,
- * der nur die Norm setzt. `mitRufname`: ob die Rufname-Markierung mitzählt.
+ * Ist der Entwurfswert eines Teils gleich dem gespeicherten (`vorher`)? Gleich bei gleichem Rohwert, oder wenn
+ * die getrimmten Werte gleich sind UND der Entwurf selbst Randleerraum trägt (Review #208 H4):
+ * - ein angehängtes Leerzeichen an einem Wert ist keine Änderung (PR 11c-1b H1; der Handler trimmt neue Werte);
+ * - die Bereinigung von ungetrimmtem Altbestand („Gutnoff " aus der flachen Brücke → „Gutnoff") IST eine
+ *   Änderung — der Handler vergleicht `teil.wert.trim() === vorher.wert` mit dem UNGETRIMMTEN gespeicherten
+ *   Wert und schreibt sie; ein beidseitiger Trim hätte sie still verworfen;
+ * - unberührter ungetrimmter Altbestand ist gleich (Rohwert), löst also keine Nachfrage aus.
+ */
+function wertGleich(vorher: string, entwurf: string): boolean {
+  return entwurf === vorher || (entwurf.trim() === vorher.trim() && entwurf !== entwurf.trim())
+}
+
+/**
+ * Gleiche Zielliste? Werte nach `wertGleich`, abgestimmt auf den Handler (`namensform-uebernehmen.ts`): sonst
+ * meldete das Modal „geändert" (E9) bzw. „korrigiert" für etwas, das der Handler nicht schreibt, oder verwürfe
+ * etwas, das er schreiben würde. `mitRufname`: ob die Rufname-Markierung mitzählt.
  */
 function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: readonly NamensformUebernehmenTeil[], mitRufname: boolean): boolean {
   return (
@@ -192,7 +204,7 @@ function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: 
         gegen !== undefined &&
         gegen.id === teil.id &&
         gegen.art === teil.art &&
-        gegen.wert.trim() === teil.wert.trim() &&
+        wertGleich(teil.wert, gegen.wert) &&
         (!mitRufname || gegen.istRufname === teil.istRufname)
       )
     })
