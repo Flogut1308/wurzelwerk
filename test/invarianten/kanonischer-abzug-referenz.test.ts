@@ -22,7 +22,9 @@
 //       Zahlen, BLOB, zusammengesetztem Primärschlüssel und einer Tabelle ohne Primärschlüssel;
 // - R6: `ROLLBACK` setzt `PRAGMA schema_version` zurück — dieselbe Zahl kann danach auf derselben
 //       Verbindung für ein ANDERES Schema stehen (hueter PR #185 H1). Ein Plan, der in einer
-//       zurückgerollten Transaktion gebaut wurde, darf später nicht wiederverwendet werden.
+//       zurückgerollten Transaktion gebaut wurde, darf später nicht wiederverwendet werden;
+// - R7: wie R6, die zweite Schemaänderung aber AUSSERHALB einer Transaktion (Autocommit) — ein in der
+//       zurückgerollten Transaktion GESPEICHERTER Plan träfe sonst auch ohne offene Transaktion.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -332,6 +334,29 @@ describe('kanonischerAbzug: neue Umsetzung ist zeichengleich der Referenz (ADR-0
       const abzug = gleich(db, 'in Transaktion 2, nach CREATE TABLE probe_b')
       expect(abzug).toContain('## probe_b (1)')
       db.prepare('ROLLBACK').run()
+    } finally {
+      db.close()
+    }
+  })
+  it.fails('R7: ein in einer zurückgerollten Transaktion gebauter Plan trifft auch eine spätere Autocommit-Änderung nicht', () => {
+    const db = neueTestDatenbank()
+    try {
+      const version = (): unknown => db.pragma('schema_version', { simple: true })
+      db.prepare('CREATE TABLE probe_a (id TEXT PRIMARY KEY) STRICT').run()
+      gleich(db, 'nach CREATE TABLE probe_a')
+
+      db.prepare('BEGIN').run()
+      db.prepare('CREATE INDEX probe_a_idx ON probe_a (id)').run()
+      gleich(db, 'in der Transaktion, nach CREATE INDEX')
+      const v2 = version()
+      db.prepare('ROLLBACK').run()
+
+      db.prepare('CREATE TABLE probe_b (id TEXT PRIMARY KEY) STRICT').run()
+      db.prepare("INSERT INTO probe_b (id) VALUES ('b-1')").run()
+      expect(db.inTransaction).toBe(false)
+      // Gleiche Zahl wie in der zurückgerollten Transaktion, aber ein anderes Schema.
+      expect(version()).toBe(v2)
+      expect(gleich(db, 'nach Autocommit-CREATE TABLE probe_b')).toContain('## probe_b (1)')
     } finally {
       db.close()
     }
