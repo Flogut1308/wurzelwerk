@@ -19,10 +19,11 @@ vi.mock('../../src/core/name/teilwert', async (original) => {
 import { teilWertUnveraendert } from '../../src/core/name/teilwert'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import type { PersonDetailName } from '../../src/shared/schemata/person-detail'
-import { entwurfAusForm, entwurfGeaendert, teilWertSetzen, uebernehmenEin, type NamensformEntwurf } from '../../src/renderer/ansichten/profil/namensform-entwurf'
+import { entwurfAusForm, entwurfGeaendert, teilWertSetzen, uebernehmenEin, vornamenMitLeerraum, type NamensformEntwurf } from '../../src/renderer/ansichten/profil/namensform-entwurf'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
-import { neuePerson, neueTestDatenbank, teilId, transaktionAnzahl, uhrStarten, warte, type Db } from './_hilfen-namensteil'
+import { fehlerCode, neuePerson, neueTestDatenbank, teilId, transaktionAnzahl, uhrStarten, warte, type Db } from './_hilfen-namensteil'
 
 const NBSP = ' '
 
@@ -69,8 +70,9 @@ describe('das Modal benutzt die gemeinsame Kernfunktion', () => {
 })
 
 describe('Modal und Handler stimmen überein (Raster, echte Datenbank)', () => {
-  const GESPEICHERT = ['Gutnoff', 'Gutnoff ', ' Gutnoff', `Gutnoff${NBSP}`] as const
-  const ENTWUERFE = ['Gutnoff', 'Gutnoff ', 'Gutnoff  ', ' Gutnoff', `Gutnoff${NBSP}`, '\tGutnoff', 'Gutnow', 'Gutnow '] as const
+  // Review #213 H3: dazu ein Leerraum-Teil (`' '`) mit leerem Entwurf, innerer Leerraum und ein geleerter Wert.
+  const GESPEICHERT = ['Gutnoff', 'Gutnoff ', ' Gutnoff', `Gutnoff${NBSP}`, ' ', 'von Gutnoff'] as const
+  const ENTWUERFE = ['Gutnoff', 'Gutnoff ', 'Gutnoff  ', ' Gutnoff', `Gutnoff${NBSP}`, '\tGutnoff', 'Gutnow', 'Gutnow ', '', ' ', 'von Gutnoff', 'von  Gutnoff'] as const
 
   for (const gespeichert of GESPEICHERT) {
     for (const wert of ENTWUERFE) {
@@ -88,6 +90,42 @@ describe('Modal und Handler stimmen überein (Raster, echte Datenbank)', () => {
         const handlerSchrieb = transaktionAnzahl(db) > vorher
         expect(handlerSchrieb).toBe(modalGeaendert)
         if (!handlerSchrieb) expect(kanonischerAbzug(db)).toBe(abzug)
+      })
+    }
+  }
+})
+
+describe('E4-Fehler am richtigen Vorname-Feld (Review #213 H1)', () => {
+  /** Person mit Hauptform „<vorname> Gutnoff"; der Vorname-Teil wird als Altbestand direkt gesetzt (mehrwortig bzw.
+   * ungetrimmt entsteht er nicht über das Modal, sondern über Migration 0006 bzw. die flache Brücke). */
+  function mitVornamen(vorname: string): { readonly personId: string; readonly formId: string; readonly vornameId: string } {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Gutnoff' }).id
+    const vornameId = teilId(db, formId, 'vorname', 'Karl')
+    journalAus(db, 'Test Review #213 H1: Altbestand-Vorname direkt setzen (entsteht nicht über das Modal).')
+    db.prepare('UPDATE name_part SET wert = @wert WHERE id = @id').run({ wert: vorname, id: vornameId })
+    journalAn(db)
+    return { personId, formId, vornameId }
+  }
+
+  it('gespeichert „Hans Peter “, Entwurf „Hans Peter“: der Befehl weist ab, der Fehler gehört an dieses Feld', () => {
+    const { personId, formId, vornameId } = mitVornamen('Hans Peter ')
+    const basis = basisVon(formLesen(personId, formId))
+    const entwurf = teilWertSetzen(basis, vornameId, 'Hans Peter')
+    expect(fehlerCode(() => fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, entwurf)))).toBe('VALIDIERUNG_NAMENSTEIL_LEERRAUM')
+    expect(vornamenMitLeerraum(basis, entwurf)).toEqual([vornameId])
+  })
+
+  const GESPEICHERT = ['Hans Peter', 'Hans Peter ', ' Hans Peter', 'Hans', 'Hans '] as const
+  const ENTWUERFE = ['Hans Peter', 'Hans Peter ', 'Hans Peter  ', ' Hans Peter', 'Hans  Peter', 'Hans', 'Hans ', 'Karl Heinz'] as const
+  for (const gespeichert of GESPEICHERT) {
+    for (const wert of ENTWUERFE) {
+      it(`Raster: gespeichert ${JSON.stringify(gespeichert)}, Entwurf ${JSON.stringify(wert)} — Zuordnung genau dann, wenn der Befehl abweist`, () => {
+        const { personId, formId, vornameId } = mitVornamen(gespeichert)
+        const basis = basisVon(formLesen(personId, formId))
+        const entwurf = teilWertSetzen(basis, vornameId, wert)
+        const abgewiesen = fehlerCode(() => fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, entwurf))) === 'VALIDIERUNG_NAMENSTEIL_LEERRAUM'
+        expect(vornamenMitLeerraum(basis, entwurf)).toEqual(abgewiesen ? [vornameId] : [])
       })
     }
   }

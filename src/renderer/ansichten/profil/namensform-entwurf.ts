@@ -222,12 +222,18 @@ export function hatInhalt(entwurf: NamensformEntwurf): boolean {
 /**
  * E4: der Befehl weist Leerraum in einem NEUEN oder GEÄNDERTEN Vornamen ab (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`,
  * ohne Angabe des Teils). Die Zeilen, an die dieser Fehler gehört: neue oder geänderte Vornamen, deren
- * getrimmter Wert Leerraum enthält. Nur die Zuordnung zum Feld — geprüft und abgewiesen hat der Befehl.
+ * getrimmter Wert Leerraum enthält. „Geändert" nach `teilWertUnveraendert`, derselben Kernfunktion wie im
+ * Handler (Review #213 H1: gespeichert „Hans Peter ", Entwurf „Hans Peter" ist eine Änderung, der Befehl weist
+ * sie ab — der Fehler gehört an dieses Feld). Nur die Zuordnung zum Feld — geprüft und abgewiesen hat der Befehl.
  */
 export function vornamenMitLeerraum(basis: NamensformEntwurf, entwurf: NamensformEntwurf): readonly string[] {
   const vorher = new Map(basis.teile.map((eintrag) => [eintrag.schluessel, eintrag.wert] as const))
   return entwurf.teile
-    .filter((eintrag) => eintrag.art === 'vorname' && (eintrag.id === null || vorher.get(eintrag.schluessel)?.trim() !== eintrag.wert.trim()) && /\s/.test(eintrag.wert.trim()))
+    .filter((eintrag) => {
+      if (eintrag.art !== 'vorname' || !/\s/.test(eintrag.wert.trim())) return false
+      const gespeichert = eintrag.id === null ? undefined : vorher.get(eintrag.schluessel)
+      return gespeichert === undefined || !teilWertUnveraendert(gespeichert, eintrag.wert)
+    })
     .map((eintrag) => eintrag.schluessel)
 }
 
