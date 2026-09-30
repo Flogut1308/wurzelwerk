@@ -56,6 +56,7 @@
 //   7. Hauptname (`hauptnameWechseln`), falls verlangt und die Form es noch nicht ist.
 // Undo spielt das Journal der ganzen Transaktion rückwärts und durchläuft so dieselben Zwischenstände in
 // umgekehrter Folge, Redo vorwärts — beide ebenfalls doppelfrei.
+import { teilWertUnveraendert } from '../../core/name/teilwert'
 import type { NamensformAnlegenEin, NamensformUebernehmenEin, NamensformUebernehmenKopf, NamensformUebernehmenTeil } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
@@ -88,18 +89,6 @@ function zielId(ziel: Ziel): string | undefined {
   return ziel.vorher?.id ?? ziel.neueId
 }
 
-/**
- * Ist der Zielwert gleich dem gespeicherten (ein unveränderter Altbestandswert bleibt, E4)? Gleich, wenn der
- * getrimmte Zielwert dem UNGETRIMMTEN gespeicherten Wert gleicht (ungetrimmter Altbestand „Gutnoff " wird bei
- * einer Bereinigung also geschrieben), oder wenn beide leer bzw. nur Leerraum sind (U-130-11-0b-leerraum-teil:
- * ein Leerraum-Teil aus der flachen Brücke, etwa Vatersname `' '`, ist im Modal schon leer — ihn zu „leeren"
- * ändert nichts, sonst verletzte ein unveränderter Aufruf den No-op, AP-0.22).
- */
-function wertUnveraendert(roh: string, vorher: NamePartZeile): boolean {
-  const wert = roh.trim()
-  return wert === vorher.wert || (wert === '' && vorher.wert.trim() === '')
-}
-
 /** Normiert und prüft die Zielliste gegen die gespeicherten Teile — wirft vor jedem Schreibvorgang. Die
  * Prüfungen von ID und Art laufen für JEDEN Eintrag mit ID, auch für einen leeren (U-130-11-0b-leerraum-teil). */
 function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePartZeile[]): readonly Ziel[] {
@@ -116,7 +105,9 @@ function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePa
         throw new WurzelFehler('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
       }
     }
-    const unveraendert = vorher !== undefined && wertUnveraendert(teil.wert, vorher)
+    // Eine Regel mit dem Modal (`teilWertUnveraendert`, U-130-randleerraum-altbestand): ungetrimmter Altbestand
+    // („Gutnoff “) bleibt unberührt bzw. mit angehängtem Leerzeichen gleich; seine Bereinigung ist eine Änderung.
+    const unveraendert = vorher !== undefined && teilWertUnveraendert(vorher.wert, teil.wert)
     // Leer und nicht unverändert: ein neuer leerer Eintrag wird verworfen, ein geleerter bestehender entfällt.
     if (!unveraendert && teil.wert.trim() === '') continue
     // E2/E4: geprüft wird nur ein neuer oder geänderter Wert; ein unveränderter Altbestandswert bleibt.
