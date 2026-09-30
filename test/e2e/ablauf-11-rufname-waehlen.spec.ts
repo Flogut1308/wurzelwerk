@@ -269,8 +269,8 @@ test.describe('Ablauf 11 — Reiter Person: Vornamen langsam umschreiben mit ges
  * U-130-11c2-rufname-verlust (docs/80 §33, behoben in PR 11e-1, V-130-11e-1): nach Fall 1 bleibt der Rufname
  * am umgeschriebenen Vornamen („Fritz", Position 1). Früher verlor die flache Brücke die Markierung
  * (`rufnameFuerAenderung`: der Rufname „Friedrich" glich im ersten Zwischenstand „Karl Friedric" keinem
- * Vornamen mehr); heute richtet `rufnamePosition` die Stelle an den zuletzt gelesenen Vornamen aus
- * (`rufnameBasis`). Bis 11e-1 stand hier `test.fail()` im Rumpf; die Erwartung ist unverändert.
+ * Vornamen mehr); heute führt der Entwurf den Rufname-Text beim Umschreiben des markierten Worts mit
+ * (`mitVornamen`). Bis 11e-1 stand hier `test.fail()` im Rumpf; die Erwartung ist unverändert.
  */
 test.describe('Ablauf 11 — Reiter Person: Rufname bleibt am umgeschriebenen Vornamen', () => {
   e2eVoraussetzung()
