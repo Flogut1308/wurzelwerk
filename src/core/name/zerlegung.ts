@@ -98,7 +98,9 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
 /**
  * Baut aus den flachen Feldern den „as written"-Anzeigetext (`name_form.original_text`):
  * `Titel Vornamen Vatersname Präfix Nachname Zusatz`, leerzeichengetrennt, leere Segmente ausgelassen
- * — dieselbe Reihenfolge wie `anzeigetextVon` (anzeigename.ts). `null`, wenn nichts übrig bleibt.
+ * — dieselbe Reihenfolge wie `anzeigetextVon` (anzeigename.ts) bei `reihenfolge` NULL/`vorname_zuerst`; bei
+ * `nachname_zuerst` stellt nur `anzeigetextVon` um, `original_text` bleibt in dieser Folge (die Montage-Erkennung
+ * `istMontierterOriginalText` hängt daran; AP-1.30 PR 11-1). `null`, wenn nichts übrig bleibt.
  *
  * Wozu (AP-1.33): der flache Schreibpfad (src/main/repositories/name-repo.ts, Fixtures, Import) füllt
  * `original_text` hiermit, wenn der Aufrufer keinen mitbringt — so trägt jede Form einen Anzeigetext und
@@ -121,7 +123,8 @@ export function montiereOriginalText(flach: FlacherName): string | null {
   return text !== '' ? text : null
 }
 
-/** Reihenfolge der Bestandteil-Arten in der Anzeige (AP-1.30 PR 10-4, docs/80 §33 V-130-10-4) — dieselbe
+/** Reihenfolge der Bestandteil-Arten in der Anzeige bei `reihenfolge` NULL/`vorname_zuerst` (AP-1.30 PR 10-4,
+ * docs/80 §33 V-130-10-4; `nachname_zuerst` stellt `anzeigetextVon` um, PR 11-1) — dieselbe
  * Folge, in der `montiereOriginalText` die Felder aus `rekonstruiereFlach` zum Anzeigetext verbindet
  * (Titel, Vornamen, Vatersname, Präfix, Nachname, Zusatz). Ein Test hält beide Folgen deckungsgleich. */
 export const NAME_PART_ART_REIHENFOLGE: readonly NamePartArt[] = ['titel', 'vorname', 'vatersname', 'praefix', 'nachname', 'suffix']

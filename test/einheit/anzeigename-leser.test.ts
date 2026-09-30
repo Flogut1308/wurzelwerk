@@ -177,3 +177,29 @@ describe('Anzeigename aus dem Kern — Randfälle (Vorarbeiten AP-1.30, PR 4b)',
     })
   })
 })
+
+// AP-1.30 PR 11-1 (A-02; Vorgaben §8, Abnahme 2a; V-130-11-E2/E3): die Leser reichen
+// `name_form.reihenfolge` an den Kern weiter — Liste, Suche und Profilkopf zeigen denselben Text.
+describe('Anzeigename nach Reihenfolge der Form (AP-1.30 PR 11-1)', () => {
+  it('N9: ossetische Hauptform mit nachname_zuerst zeigt „Гуытнаты Карл" in Liste, Suche und Kopf', () => {
+    mitDb((db) => {
+      const p = person(db)
+      const formId = fuehreAus(db, 'namensform.anlegen', { personId: p, rolle: 'geburtsname', sprache: 'os', reihenfolge: 'nachname_zuerst' }).id
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Карл' })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'nachname', wert: 'Гуытнаты' })
+
+      const zeile = personListe(db, { sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100, filter: FILTER_ALLE }).zeilen.find((z) => z.person_id === p)
+      expect(zeile?.anzeigename).toBe('Гуытнаты Карл')
+      const treffer = suche(db, { text: 'Карл', grenze: 50, filter: FILTER_ALLE, sortierung: 'nachname', richtung: 'auf', seite: 1, proSeite: 100 }).treffer.find((z) => z.person_id === p)
+      expect(treffer?.anzeigename).toBe('Гуытнаты Карл')
+      expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe('Гуытнаты Карл')
+    })
+  })
+
+  it('N10: ohne Reihenfolge (NULL) bleibt der Anzeigename unverändert', () => {
+    mitDb((db) => {
+      const p = gutnoff(db)
+      expect(personDetail(db, { personId: p }).kopf.anzeigename).toBe(VOLL)
+    })
+  })
+})

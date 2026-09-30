@@ -4,6 +4,7 @@
 // Anzeigetext; Eigentümer 25.09.2026) → Hauptname (ist_bevorzugt). `text` ist ein zusammengesetzter
 // Anzeigestring aus den Bestandteilen; die endgültige, i18n-abhängige Formatierung (Rufname hervorheben o. Ä.) bleibt dem Renderer über
 // `anzeige.ts` (Segment-Builder) vorbehalten — dieses Modul liefert den flachen Text + die Herkunft.
+import type { NameFormReihenfolge } from './typen'
 import { rekonstruiereFlach, type GeladenerTeil } from './zerlegung'
 
 /** Eine geladene Namensform mit ihren Bestandteilen — Eingabe (bereits aus der DB geladen). */
@@ -14,6 +15,9 @@ export interface AnzeigeForm {
   readonly istBevorzugt: boolean
   readonly umschriftVon: string | null
   readonly originalText: string | null
+  /** `name_form.reihenfolge` (AP-1.30 PR 11-1, V-130-11-E2/E3). Optional: fehlt sie oder ist sie
+   * `null`, gilt die bisherige Wortfolge bitgleich. */
+  readonly reihenfolge?: NameFormReihenfolge | null
   readonly teile: readonly GeladenerTeil[]
 }
 
@@ -29,12 +33,19 @@ export interface AnzeigenameErgebnis {
  * (Leerzeichen-getrennt; Vatersname zwischen Vornamen und Nachname, „Iwan Petrowitsch Iwanow",
  * Eigentümer 25.09.2026), oder `original_text`, falls keine Bestandteile vorliegen. Exportiert, weil auch die
  * Kernangabe `name` („vorhanden" = die Hauptform hat Anzeigetext, Nachtrag ADR-031) genau diese
- * Textregel braucht — keine zweite. */
-export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText'>): string {
+ * Textregel braucht — keine zweite.
+ *
+ * AP-1.30 PR 11-1 (V-130-11-E2/E3; Vorgaben §8, Abnahme 2a): bei `reihenfolge = 'nachname_zuerst'`
+ * lautet die Folge Titel Präfix Nachname Vornamen Vatersname Zusatz (ossetisch „Гуытнаты Карл"). Bei
+ * `null`, fehlender Reihenfolge oder `'vorname_zuerst'` bleibt die obige Folge bitgleich.
+ * `original_text` ist wortgetreu gespeichert und wird nie umgestellt. */
+export function anzeigetextVon(form: Pick<AnzeigeForm, 'teile' | 'originalText' | 'reihenfolge'>): string {
   const flach = rekonstruiereFlach(form.teile)
-  const segmente = [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach].filter(
-    (segment): segment is string => segment !== null && segment.trim() !== '',
-  )
+  const folge =
+    form.reihenfolge === 'nachname_zuerst'
+      ? [flach.titelVor, flach.praefix, flach.nachname, flach.vornamen, flach.vatersname, flach.zusatzNach]
+      : [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach]
+  const segmente = folge.filter((segment): segment is string => segment !== null && segment.trim() !== '')
   const zusammengesetzt = segmente.join(' ').trim()
   if (zusammengesetzt !== '') return zusammengesetzt
   return form.originalText ?? ''
