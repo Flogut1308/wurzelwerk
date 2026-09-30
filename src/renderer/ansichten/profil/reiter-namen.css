@@ -1,0 +1,237 @@
+/*
+ * Reiter „Namen" (AP-1.30 PR 11c-1, Artboard 2a) und Modal „Namensform bearbeiten". Nur Tokens, beide
+ * Themen über `tokens.css`. Karten nach dem Entwurf: Kopf auf vertiefter Fläche mit feinem Rahmen, die
+ * Hauptform mit Akzentrahmen; Teile als Paare Beschriftung/Wert nebeneinander, umbrechend; „Sortiert
+ * unter" in der technischen Schrift (Mono) über einer feinen Trennlinie.
+ */
+
+.wz-reiter-namen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+}
+
+.wz-reiter-namen__kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-namen__kopf-aktion {
+  margin-left: auto;
+}
+
+.wz-reiter-namen__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-namensform-karte {
+  overflow: hidden;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-namensform-karte--hauptname {
+  border-color: var(--wz-rahmen-akzent);
+}
+
+.wz-namensform-karte__kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+  background: var(--wz-flaeche-vertieft);
+}
+
+.wz-namensform-karte__titel {
+  font: var(--wz-schrift-titel-klein);
+  color: var(--wz-text-primaer);
+}
+
+.wz-namensform-karte__etikett {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--wz-abstand-8);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-flaeche-erhoben);
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-hilfe);
+}
+
+.wz-namensform-karte__hauptname {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+  color: var(--wz-text-akzent);
+  font: var(--wz-schrift-beschriftung);
+}
+
+.wz-namensform-karte__hauptname::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-name-hauptname-marke);
+}
+
+.wz-namensform-karte__aktionen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-4);
+  margin-left: auto;
+}
+
+.wz-namensform-karte__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12);
+}
+
+.wz-namensform-karte__teile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-12) var(--wz-abstand-24);
+  margin: 0;
+}
+
+.wz-namensform-karte__teil {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-2);
+}
+
+.wz-namensform-karte__teil dd {
+  margin: 0;
+}
+
+.wz-namensform-karte__wert {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-koerper);
+}
+
+.wz-namensform-karte__wert--rufname {
+  font-weight: 600;
+}
+
+.wz-namensform-karte__rufname {
+  padding: 0 var(--wz-abstand-8);
+  border: 1px solid var(--wz-rahmen-akzent);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-akzent-schwach);
+  color: var(--wz-text-akzent);
+  font: var(--wz-schrift-hilfe);
+  font-weight: 400;
+}
+
+.wz-namensform-karte__zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-namensform-karte__genusform {
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-koerper-klein);
+  font-weight: 600;
+}
+
+.wz-namensform-karte__fuss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  padding-top: var(--wz-abstand-8);
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+/* Modal „Namensform bearbeiten" */
+
+.wz-namensform-modal__kopf-felder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-namensform-modal__kopf-felder > * {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.wz-namensform-modal__bestandteile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-namensform-modal__neu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-namensform-modal__hauptname {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-namensform-modal__hauptname-zeile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  cursor: pointer;
+}
+
+.wz-namensform-modal__hinweis {
+  margin: 0;
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-warnung-rahmen);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-status-warnung-flaeche);
+  color: var(--wz-status-warnung-text);
+  font: var(--wz-schrift-koerper-klein);
+}
+
+.wz-namensform-modal__fehler {
+  margin: 0;
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-fehler-rahmen);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-status-fehler-flaeche);
+  color: var(--wz-status-fehler-text);
+  font: var(--wz-schrift-koerper-klein);
+}
+
+.wz-namensform-modal__vorschau {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-8);
+  margin-right: auto;
+  min-width: 0;
+}
+
+.wz-namensform-modal__vorschau-beschriftung {
+  color: var(--wz-text-tertiaer);
+  font: var(--wz-schrift-hilfe);
+}
+
+.wz-namensform-modal__vorschau-text {
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-technisch);
+}

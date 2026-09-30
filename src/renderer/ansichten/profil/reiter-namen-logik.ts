@@ -7,7 +7,7 @@
 // und wählt die Wunschsprache — es entscheidet keine Stufe selbst.
 import { vonJdn } from '../../../core/datum/kalender'
 import { anzeigeArtFolge, anzeigenameFuer, anzeigetextVon, sortierName, type AnzeigeForm, type AnzeigenameErgebnis, type AnzeigenameQuelle } from '../../../core/name/anzeigename'
-import type { NameFormReihenfolge } from '../../../core/name/typen'
+import type { NameFormReihenfolge, NamePartArt, UmschriftNorm } from '../../../core/name/typen'
 import type { PersonDetailName, PersonDetailNamensteil } from '../../../shared/schemata/person-detail'
 
 /** Die Oberflächensprache (ADR-011: es gibt nur Deutsch, `src/renderer/i18n/einrichten.ts`). */
@@ -165,4 +165,84 @@ export function gueltigkeitJahre(name: PersonDetailName): { readonly von?: numbe
     ...(name.gueltig_von === null ? {} : { von: vonJdn(name.gueltig_von, 'gregorian').jahr }),
     ...(name.gueltig_bis === null ? {} : { bis: vonJdn(name.gueltig_bis, 'gregorian').jahr }),
   }
+}
+
+/** i18n-Schlüssel (`profil.json`) der Art eines Bestandteils. */
+export function namensteilSchluessel(art: NamePartArt): string {
+  switch (art) {
+    case 'vorname':
+      return 'namensteil_vorname'
+    case 'praefix':
+      return 'namensteil_praefix'
+    case 'nachname':
+      return 'namensteil_nachname'
+    case 'suffix':
+      return 'namensteil_suffix'
+    case 'titel':
+      return 'namensteil_titel'
+    case 'vatersname':
+      return 'namensteil_vatersname'
+  }
+}
+
+/** Nummer je Teil innerhalb seiner Art (1, 2, …) in der gegebenen Folge — `null`, wenn die Art nur einmal
+ * vorkommt („Vorname" statt „Vorname 1"). Beschriftet Karten und Modal gleich. */
+export function artNummern(teile: readonly { readonly art: NamePartArt }[]): readonly (number | null)[] {
+  const anzahl = new Map<NamePartArt, number>()
+  for (const teil of teile) anzahl.set(teil.art, (anzahl.get(teil.art) ?? 0) + 1)
+  const gezaehlt = new Map<NamePartArt, number>()
+  return teile.map((teil) => {
+    const nummer = (gezaehlt.get(teil.art) ?? 0) + 1
+    gezaehlt.set(teil.art, nummer)
+    return (anzahl.get(teil.art) ?? 0) > 1 ? nummer : null
+  })
+}
+
+/** Die Arten, die das Modal mit „+ …" anbietet (Artboard 2a, Vorgaben §3.5). Nachname und Vatersname nicht:
+ * der Nachname hat immer eine Zeile, der Vatersname folgt mit den Teilen im Detail (V-130-11-zuschnitt, 11c-3). */
+export const NEU_ANLEGBARE_ARTEN = ['vorname', 'praefix', 'suffix', 'titel'] as const
+
+/** i18n-Schlüssel der Schaltfläche „+ …" einer anlegbaren Art. */
+export function namensteilNeuSchluessel(art: (typeof NEU_ANLEGBARE_ARTEN)[number]): string {
+  switch (art) {
+    case 'vorname':
+      return 'namensteil_neu_vorname'
+    case 'praefix':
+      return 'namensteil_neu_praefix'
+    case 'suffix':
+      return 'namensteil_neu_suffix'
+    case 'titel':
+      return 'namensteil_neu_titel'
+  }
+}
+
+/** i18n-Schlüssel einer Reihenfolge; `null` = nicht angegeben (angezeigt wie Vorname → Nachname). */
+export function reihenfolgeSchluessel(reihenfolge: NameFormReihenfolge | null): string {
+  switch (reihenfolge) {
+    case null:
+      return 'reihenfolge_unbestimmt'
+    case 'vorname_zuerst':
+      return 'reihenfolge_vorname_zuerst'
+    case 'nachname_zuerst':
+      return 'reihenfolge_nachname_zuerst'
+  }
+}
+
+/** i18n-Schlüssel der Kennzeichnung einer Umschrift (E6: automatisch bzw. selbst eingetragen). */
+export function umschriftNormSchluessel(norm: UmschriftNorm): string {
+  switch (norm) {
+    case 'iso9':
+      return 'umschrift_norm_iso9'
+    case 'din1460':
+      return 'umschrift_norm_din1460'
+    case 'manuell':
+      return 'umschrift_norm_manuell'
+  }
+}
+
+/** Die Sprachen, die das Modal zur Wahl stellt: die mit eigener Beschriftung, dazu die gespeicherte Sprache
+ * der Form, falls sie eine andere ist (sonst ginge sie beim Öffnen als Auswahl verloren). */
+export function spracheOptionen(aktuell: string | null): readonly string[] {
+  const bekannt = Object.keys(VORSCHAU_SPRACHE_SCHLUESSEL)
+  return aktuell === null || bekannt.includes(aktuell) ? bekannt : [...bekannt, aktuell]
 }

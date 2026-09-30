@@ -91,7 +91,12 @@ function name(id: string, vornamen: string): PersonDetailName {
     reihenfolge: null,
     konfidenz: null,
     sortier_index: null,
-    teile: [],
+    // AP-1.30 PR 11c-1: die Teile zum flachen Namen (das Lesemodell trägt beide), weil die Karten im
+    // Reiter „Namen" die Teile zeigen.
+    teile: [
+      { id: `${id}-v`, art: 'vorname', wert: vornamen, ist_rufname: false, sortier_index: 0, feminine_variante: null },
+      { id: `${id}-n`, art: 'nachname', wert: 'Beispiel', ist_rufname: false, sortier_index: 0, feminine_variante: null },
+    ],
   }
 }
 
@@ -225,7 +230,9 @@ describe('PersonBearbeitenAnsicht — eigene Ansicht mit acht Reitern (AP-1.30 P
 
     act(() => reiter(editor, 'Namen').click())
     expect(aktiverReiter(editor)).toBe('Namen')
-    expect(inhalt()?.querySelector('input[value="Anne"]')).not.toBeNull()
+    // AP-1.30 PR 11c-1: statt der flachen Maske (Eingabefeld „Anne") je Namensform eine Karte.
+    const karten = Array.from(inhalt()?.querySelectorAll('article') ?? []).map((karte) => karte.querySelector('.wz-namensform-karte__titel')?.textContent)
+    expect(karten).toEqual(['Anna Beispiel', 'Anne Beispiel'])
 
     act(() => reiter(editor, 'Notizen').click())
     const notiz = inhalt()?.querySelector('textarea')
