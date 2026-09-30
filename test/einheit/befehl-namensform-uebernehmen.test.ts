@@ -545,3 +545,134 @@ describe('namensform.uebernehmen — Nachbesserung Review #200', () => {
     }
   })
 })
+
+/** Eine Form ohne Teile mit dem wortgetreuen Text `text` (über `namensform.anlegen` + `namensform.aendern`). */
+function formOhneTeileMitText(db: Db, text: string): { readonly personId: string; readonly formId: string } {
+  const personId = neuePerson(db)
+  const formId = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname' }).id
+  fuehreAus(db, 'namensform.aendern', { id: formId, originalText: text })
+  return { personId, formId }
+}
+
+/** Eine Form mit den Teilen [Karl, Nowak] und dem wortgetreuen Text „Karl" (gesetzt NACH den Teilen). */
+function karlMitTextKarl(db: Db): { readonly personId: string; readonly formId: string } {
+  const personId = neuePerson(db)
+  const formId = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname' }).id
+  fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Karl' })
+  fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'nachname', wert: 'Nowak' })
+  fuehreAus(db, 'namensform.aendern', { id: formId, originalText: 'Karl' })
+  return { personId, formId }
+}
+
+const ANNA_NOWAK: readonly NamensformUebernehmenTeil[] = [
+  { art: 'vorname', wert: 'Anna', istRufname: false },
+  { art: 'nachname', wert: 'Nowak', istRufname: false },
+]
+
+/** Gespeicherte Zielliste ohne den Nachnamen „Nowak", dafür ein NEUER Nachname `nachname` (Tausch). */
+function nachnameGetauscht(db: Db, formId: string, nachname: string): readonly NamensformUebernehmenTeil[] {
+  const nowak = teilId(db, formId, 'nachname', 'Nowak')
+  return [...zielliste(db, formId).filter((t) => t.id !== nowak), { art: 'nachname', wert: nachname, istRufname: false }]
+}
+
+describe('namensform.uebernehmen — E3 einmal je Aufruf (U-130-11-0b-e3-zwischenstand)', () => {
+  it('Beispiel 1: wortgetreu „Anna" an einer Form ohne Teile bleibt bei [Anna, Nowak]; Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formOhneTeileMitText(db, 'Anna')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: ANNA_NOWAK })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual(['Anna@0'])
+      expect(folge(db, formId, 'nachname')).toEqual(['Nowak@0'])
+      expect(originalText(db, formId)).toBe('Anna')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Beispiel 2: wortgetreu „Karl" an [Karl, Nowak] bleibt, wenn der Nachname getauscht wird; Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlMitTextKarl(db)
+      expect(originalText(db, formId)).toBe('Karl')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameGetauscht(db, formId, 'Müller') })
+      })
+      expect(folge(db, formId, 'nachname')).toEqual(['Müller@0'])
+      expect(originalText(db, formId)).toBe('Karl')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('wortgetreu „Joh. Georg Müller alias Miller" bleibt (Form ohne Teile, danach Nachname getauscht)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formOhneTeileMitText(db, 'Joh. Georg Müller alias Miller')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: ANNA_NOWAK })
+      expect(originalText(db, formId)).toBe('Joh. Georg Müller alias Miller')
+      uebernehmen(db, { personId, formId, kopf: { sprache: 'de' }, teile: nachnameGetauscht(db, formId, 'Miller') })
+      expect(originalText(db, formId)).toBe('Joh. Georg Müller alias Miller')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein automatisch montierter Text wird am Ende aus den Zielteilen neu montiert (auch NULL und neue Form)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowak')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameGetauscht(db, formId, 'Müller') })
+      })
+      expect(originalText(db, formId)).toBe('Karl Friedrich Müller')
+
+      const ohneText = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename' }).id
+      expect(originalText(db, ohneText)).toBeNull()
+      uebernehmen(db, { personId, formId: ohneText, kopf: {}, teile: ANNA_NOWAK })
+      expect(originalText(db, ohneText)).toBe('Anna Nowak')
+
+      const neu = uebernehmen(db, { personId, formId: null, kopf: { rolle: 'ehename' }, teile: ANNA_NOWAK })
+      expect(originalText(db, neu)).toBe('Anna Nowak')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein mitgeschickter, abweichender originalText gewinnt — über wortgetreu und über automatisch', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formOhneTeileMitText(db, 'Anna')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: { originalText: 'Anna N.' }, teile: ANNA_NOWAK })
+      })
+      expect(originalText(db, formId)).toBe('Anna N.')
+
+      const karl = karlNowak(db)
+      uebernehmen(db, { personId: karl.personId, formId: karl.formId, kopf: { originalText: 'Carl Nowak' }, teile: nachnameGetauscht(db, karl.formId, 'Nowack') })
+      expect(originalText(db, karl.formId)).toBe('Carl Nowak')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('No-op: ein zweiter, gleicher Aufruf nach Beispiel 1 schreibt nichts', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formOhneTeileMitText(db, 'Anna')
+      uebernehmen(db, { personId, formId, kopf: {}, teile: ANNA_NOWAK })
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      uebernehmen(db, { personId, formId, kopf: { originalText: 'Anna' }, teile: zielliste(db, formId) })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+})
