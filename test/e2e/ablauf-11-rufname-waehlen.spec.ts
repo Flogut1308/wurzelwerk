@@ -129,7 +129,7 @@ test.describe('Ablauf 11 — Rufname wählen', () => {
  *
  * 1. Der Rufname markiert den umgeschriebenen Vornamen („Friedrich" → „Fritz"): nichts wird angehängt.
  *    Dass die Markierung dabei heute verloren geht, ist ein Fehler (docs/80 §33 U-130-11c2-rufname-verlust,
- *    Schutz in PR 11e); das Soll sichert der eigene `test.fail` unten zu, nicht dieser Ablauf.
+ *    Schutz in PR 11e); das Soll sichert der eigene Ablauf unten zu (mit `test.fail()` im Rumpf), nicht dieser.
  * 2. Der Rufname markiert einen ANDEREN Vornamen („Fritz", Karl → Carl umgeschrieben): er bleibt an seiner
  *    Position, nichts wird angehängt.
  */
@@ -269,16 +269,20 @@ test.describe('Ablauf 11 — Reiter Person: Vornamen langsam umschreiben mit ges
  * U-130-11c2-rufname-verlust (docs/80 §33, Befund für PR 11e): nach Fall 1 muss der Rufname am umgeschriebenen
  * Vornamen bleiben („Fritz", Position 1). Heute verliert die flache Brücke die Markierung
  * (`rufnameFuerAenderung`: der Rufname „Friedrich" gleicht im ersten Zwischenstand keinem Vornamen mehr).
- * `test.fail` sichert das SOLL zu und wird genau dann rot, wenn 11e den Fehler behebt — 11e entfernt dann das
- * `.fail`, die Erwartung bleibt.
+ * Der Test sichert das SOLL zu. `test.fail()` steht erst im Rumpf, direkt vor der Soll-Zusicherung: ein Fehler
+ * in `beforeAll` oder im Aufbau (`fallEinsUmschreiben`) bleibt rot, nur das verfehlte Soll gilt als erwartet;
+ * ein erfülltes Soll wird rot („Expected to fail, but passed"). 11e entfernt den `test.fail()`-Aufruf im Rumpf;
+ * die Erwartung bleibt.
  */
 test.describe('Ablauf 11 — Reiter Person: Rufname bleibt am umgeschriebenen Vornamen (bekannter Fehler)', () => {
   e2eVoraussetzung()
   const sitzung = sitzungEinrichten('wurzelwerk-e2e-rufname-verlust-')
 
-  test.fail('U-130-11c2-rufname-verlust: nach „Friedrich" → „Fritz" bleibt der Rufname „Fritz" an Position 1', async () => {
+  test('U-130-11c2-rufname-verlust: nach „Friedrich" → „Fritz" bleibt der Rufname „Fritz" an Position 1', async () => {
     test.setTimeout(90_000)
     const { personId, rufname } = await fallEinsUmschreiben(sitzung, 'Rufnametest-Verlust')
+    // Bekannter Fehler U-130-11c2-rufname-verlust (Befund für 11e): ab hier ist ein Fehlschlag erwartet.
+    test.fail()
     await expect.poll(async () => gespeicherterNameIn(sitzung, personId)).toEqual({ vornamen: 'Karl Fritz', rufname_text: 'Fritz', rufname_index: 1 })
     await expect(rufname).toHaveValue('1')
   })
