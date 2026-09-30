@@ -1,5 +1,5 @@
 // AP-1.16 PR-C (S-20-Muster, docs/71_Designsystem.md §3.2): die Orte-Pflege-Ansicht. Zustandsbasiert
-// wie `profil-bearbeiten-ereignisse.tsx`/`profil-bearbeiten-namen.tsx` — Liste bestehender Namen /
+// wie `profil-bearbeiten-ereignisse.tsx` (und die bis AP-1.30 PR 11c-2 flache Namensmaske) — Liste bestehender Namen /
 // Zugehörigkeiten (politisch UND kirchlich, getrennt) / externer Kennungen, je mit Inline-
 // Bearbeiten/Entfernen, plus drei feste „hinzufügen"-Formulare. KEIN Speichern-Knopf — jede
 // Eingabe committet sofort über den passenden Befehl (Textfelder debounced über
@@ -147,7 +147,7 @@ function NamenAbschnitt({ ortId, namen }: { readonly ortId: string; readonly nam
 }
 
 /** Inline-Bearbeiten einer bestehenden `ortsname`-Zeile — dieselbe Debounce-Commit-Form wie
- * `NamenFelder` (`profil-bearbeiten-namen.tsx`): Textfelder committen verzögert, das
+ * `HauptnameFelder` (`reiter-person-hauptname.tsx`): Textfelder committen verzögert, das
  * Auswahlfeld (`istBevorzugt`) sofort. */
 function OrtsnameFelder({ ortsname: zeile }: { readonly ortsname: OrtDetailName }) {
   const { t } = useTranslation('orte')

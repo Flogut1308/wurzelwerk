@@ -40,7 +40,7 @@ interface OffenesModal {
 /**
  * Reiter „Namen" (AP-1.30 PR 11c-1, Artboard 2a, Vorgaben §3.5; docs/80 §33 V-130-11-E6 … E10): je
  * Namensform eine Karte — reine Anzeige (E8), bearbeitet wird allein im Modal „Namensform bearbeiten"
- * (`namensform-modal.tsx`). Ersetzt im Reiter die flache Maske `profil-bearbeiten-namen.tsx`.
+ * (`namensform-modal.tsx`). Ersetzt im Reiter die flache Maske `NamenBearbeitenAbschnitt` (in PR 11c-2 gelöscht).
  *
  * - Kopf „Namensformen · n · nach Sprache" mit „+ Namensform", darunter der Vorschau-Umschalter (PR 11b).
  * - Kartenfolge E10 (`kartenFolge`); die Teile in Anzeigefolge des Kerns (`teileInAnzeigefolge`).
