@@ -17,10 +17,11 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { personDetail } from '../../src/main/abfragen/person-detail'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
-import { namensteilAnlegenEinSchema } from '../../src/shared/schemata/befehle'
+import { namensteilAnlegenEinSchema, namensteilLoeschenEinSchema } from '../../src/shared/schemata/befehle'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
 import { sucheFtsInhaltAbzug, verwaisteFtsEintraegeAnzahl } from './_hilfen-abgeleitet'
 
@@ -408,6 +409,162 @@ describe('namensteil.anlegen (AP-1.30 PR 10-2)', () => {
       fuehreAus(db, 'namensteil.anlegen', { namensformId: flach, art: 'vorname', wert: 'Friedrich' })
       expect(originalText(db, flach)).toBe('Carolus Nowak')
       erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+function teilId(db: Db, formId: string, art: string, wert: string): string {
+  const treffer = teile(db, formId, art).find((teil) => teil.wert === wert)
+  if (treffer === undefined) throw new Error(`teilId(): kein Teil ${art} "${wert}" in Form ${formId}.`)
+  return treffer.id
+}
+
+describe('namensteil.loeschen (AP-1.30 PR 10-2)', () => {
+  it('entfernt den Teil und nummeriert die übrigen derselben (Form, Art) lückenlos nach — IDs bleiben, andere Arten unberührt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Johann Karl Friedrich Wilhelm', nachname: 'Nowak' }).id
+      const ids = teile(db, formId, 'vorname').map((teil) => teil.id)
+      const nachname = teile(db, formId, 'nachname')
+      warte(5000)
+      fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, formId, 'vorname', 'Karl') })
+      expect(folge(db, formId, 'vorname')).toEqual(['Johann@0', 'Friedrich@1', 'Wilhelm@2'])
+      expect(teile(db, formId, 'vorname').map((teil) => teil.id)).toEqual([ids[0], ids[2], ids[3]])
+      // Nur die verschobenen Teile sind geändert.
+      expect(teile(db, formId, 'vorname').map((teil) => teil.geaendert_am === jetzt)).toEqual([false, true, true])
+      expect(teile(db, formId, 'nachname')).toEqual(nachname)
+      expect(anzeigename(db, personId)).toBe('Johann Friedrich Wilhelm Nowak')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('schließt eine Lücke aus Altbestand', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = leereForm(db)
+      for (const wert of ['Karl', 'Friedrich', 'Wilhelm']) fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert })
+      journalAus(db, 'Test V-130-10-2: Lücken im sortier_index wie Altbestand herstellen.')
+      db.prepare("UPDATE name_part SET sortier_index = sortier_index * 3 WHERE name_form_id = @formId AND art = 'vorname'").run({ formId })
+      journalAn(db)
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Friedrich@3', 'Wilhelm@6'])
+      erwarteSchritteUndoRedoSauber(db, [() => fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, formId, 'vorname', 'Karl') })])
+      expect(folge(db, formId, 'vorname')).toEqual(['Friedrich@0', 'Wilhelm@1'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Rufname-Teil löschen: die Markierung entfällt, kein anderer Teil wird Rufname', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich Wilhelm', rufnameIndex: 1, nachname: 'Nowak' }).id
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Friedrich*@1', 'Wilhelm@2'])
+      erwarteSchritteUndoRedoSauber(db, [() => fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, formId, 'vorname', 'Friedrich') })])
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Wilhelm@1'])
+      expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM name_part WHERE name_form_id = @formId AND ist_rufname = 1', { formId })).toBe(0)
+      const name = personDetail(db, { personId }).namen.find((kandidat) => kandidat.id === formId)
+      expect(name).toMatchObject({ vornamen: 'Karl Wilhelm', rufname_index: null, rufname_text: null })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E8: auch der letzte Teil einer Form darf weg — die Form bleibt, ein montierter original_text wird NULL', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', nachname: 'Nowak' }).id
+      expect(originalText(db, formId)).toBe('Nowak')
+      erwarteSchritteUndoRedoSauber(db, [() => fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, formId, 'nachname', 'Nowak') })])
+      expect(teile(db, formId)).toEqual([])
+      expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM name_form WHERE id = @formId', { formId })).toBe(1)
+      expect(originalText(db, formId)).toBeNull()
+      expect(zaehle(db, 'SELECT COUNT(*) AS anzahl FROM name_phonetik')).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Fehler: unbekannte ID → NICHT_GEFUNDEN_NAMENSTEIL, kein Schreibvorgang; Zod verlangt id', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = leereForm(db)
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Karl' })
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      expect(fehlerCode(() => fuehreAus(db, 'namensteil.loeschen', { id: 'gibt-es-nicht' }))).toBe('NICHT_GEFUNDEN_NAMENSTEIL')
+      // Zweimal dasselbe Löschen: das zweite findet den Teil nicht mehr.
+      const id = teilId(db, formId, 'vorname', 'Karl')
+      fuehreAus(db, 'namensteil.loeschen', { id })
+      const nachLoeschen = transaktionAnzahl(db)
+      expect(fehlerCode(() => fuehreAus(db, 'namensteil.loeschen', { id }))).toBe('NICHT_GEFUNDEN_NAMENSTEIL')
+      expect(transaktionAnzahl(db)).toBe(nachLoeschen)
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      expect(transaktionAnzahl(db)).toBe(transaktionen + 1)
+      expect(namensteilLoeschenEinSchema.safeParse({}).success).toBe(false)
+      expect(namensteilLoeschenEinSchema.safeParse({ id: 'x' }).success).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E3: montierter original_text folgt dem Löschen, wortgetreuer bleibt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const montiert = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich', nachname: 'Nowak', titelVor: 'Dr.' }).id
+      expect(originalText(db, montiert)).toBe('Dr. Karl Friedrich Nowak')
+      fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, montiert, 'titel', 'Dr.') })
+      expect(originalText(db, montiert)).toBe('Karl Friedrich Nowak')
+      fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, montiert, 'vorname', 'Karl') })
+      expect(originalText(db, montiert)).toBe('Friedrich Nowak')
+
+      const wortgetreu = fuehreAus(db, 'name.anlegen', { personId, typ: 'aka', vornamen: 'Johann Georg', nachname: 'Müller', originalText: 'Joh. Georg Müller alias Miller' }).id
+      fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, wortgetreu, 'vorname', 'Georg') })
+      expect(originalText(db, wortgetreu)).toBe('Joh. Georg Müller alias Miller')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('namensteil.anlegen und .loeschen gemischt: E1 über jeden Zwischenzustand', () => {
+  it('Einfügen und Löschen an allen Stellen, mehrere Arten und Formen — kein Doppel, abgeleitet wie Neuaufbau, Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const a = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich Wilhelm', rufnameIndex: 0, nachname: 'Nowak' }).id
+      const b = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename' }).id
+      const anlegen = (formId: string, art: 'vorname' | 'nachname', wert: string, position?: number) => () => {
+        fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art, wert, ...(position === undefined ? {} : { position }) })
+      }
+      const loeschen = (formId: string, art: string, wert: string) => () => {
+        fuehreAus(db, 'namensteil.loeschen', { id: teilId(db, formId, art, wert) })
+      }
+      erwarteSchritteUndoRedoSauber(db, [
+        loeschen(a, 'vorname', 'Friedrich'),
+        anlegen(a, 'vorname', 'Georg', 0),
+        anlegen(b, 'nachname', 'Schulz'),
+        anlegen(b, 'vorname', 'Karl'),
+        loeschen(a, 'vorname', 'Georg'),
+        anlegen(a, 'vorname', 'August', 1),
+        loeschen(a, 'vorname', 'Wilhelm'),
+        anlegen(a, 'nachname', 'Lüdenscheidt', 1),
+        loeschen(a, 'nachname', 'Nowak'),
+        loeschen(b, 'nachname', 'Schulz'),
+      ])
+      expect(folge(db, a, 'vorname')).toEqual(['Karl*@0', 'August@1'])
+      expect(folge(db, a, 'nachname')).toEqual(['Lüdenscheidt@0'])
+      expect(folge(db, b, 'vorname')).toEqual(['Karl@0'])
+      expect(folge(db, b, 'nachname')).toEqual([])
     } finally {
       db.close()
     }

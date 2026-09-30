@@ -55,6 +55,10 @@
     "titel": "Name nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist der Name tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."
   },
+  "NICHT_GEFUNDEN_NAMENSTEIL": {
+    "titel": "Namensteil nicht gefunden",
+    "was_tun": "Die Ansicht neu laden. Ist der Namensteil schon entfernt, ist nichts weiter zu tun."
+  },
   "NICHT_GEFUNDEN_ELTERNSCHAFT": {
     "titel": "Elternschaft nicht gefunden",
     "was_tun": "Die Ansicht neu laden. Ist die Elternschaft tatsächlich gelöscht, die Auswahl aufheben und neu beginnen."

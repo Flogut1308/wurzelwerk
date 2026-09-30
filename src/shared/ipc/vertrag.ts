@@ -12,6 +12,7 @@ import type {
   NamensformAnlegenEin,
   NamensformAendernEin,
   NamensteilAnlegenEin,
+  NamensteilLoeschenEin,
   ElternschaftAnlegenEin,
   ElternschaftAendernEin,
   ElternschaftLoeschenEin,
@@ -349,6 +350,7 @@ export interface Vertrag {
   'befehl:namensform.anlegen': { ein: NamensformAnlegenEin; aus: { readonly id: string } }
   'befehl:namensform.aendern': { ein: NamensformAendernEin; aus: null }
   'befehl:namensteil.anlegen': { ein: NamensteilAnlegenEin; aus: { readonly id: string } }
+  'befehl:namensteil.loeschen': { ein: NamensteilLoeschenEin; aus: null }
   'befehl:elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'befehl:elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'befehl:elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
