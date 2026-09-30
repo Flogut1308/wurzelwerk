@@ -23,6 +23,9 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { alleAbgeleitetenNeuAufbauen } from '../../src/main/datenbank/trigger'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { suche } from '../../src/main/abfragen/suche'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
+import { schreibeImport } from '../../src/main/import/schreiben'
+import { importDateiSchema } from '../../src/shared/schemata/import-v1'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
@@ -193,7 +196,54 @@ describe('name.aendern — Umschrift-Bezug (U-130-11-0b-selbstbezug)', () => {
       db.close()
     }
   })
+
+  it('Selbstbezug im Bestand (Import): name.aendern mit unverändertem umschriftVon geht durch, Index bleibt gleich dem Neuaufbau (U-130-umschrift-bestand)', () => {
+    const db = neueTestDatenbank()
+    try {
+      // Realistischer Altbestand: der Import schreibt `umschrift_von` = eigener Index still
+      // (Schema nur `int().min(0)`, docs/80 §33 U-130-umschrift-bestand).
+      journalAus(db, 'Testaufbau: Altbestand mit Selbstbezug über schreibeImport, ohne Befehlsbus.')
+      const ergebnis = schreibeImport(db, importDateiSchema.parse(importMitSelbstbezug()), { erstelltAm: 1_700_000_000_000 })
+      journalAn(db)
+      const personId = ergebnis.kennungen.get('tmp:p1')
+      if (personId === undefined) throw new Error('Kennung tmp:p1 fehlt im Schreibergebnis')
+      const id = db.prepare<{ readonly personId: string }, { readonly id: string }>('SELECT id FROM name_form WHERE person_id = @personId').get({ personId })?.id
+      if (id === undefined) throw new Error('Importierte Namensform fehlt')
+      expect(umschriftVon(db, id)).toBe(id)
+
+      // Die Maske reicht den geladenen Bezug unverändert zurück; geändert wird nur der Name.
+      fuehreAus(db, 'name.aendern', { id, typ: 'transliteriert', nachname: 'Scherbakoff', umschriftVon: id, umschriftNorm: 'iso9' })
+      expect(umschriftVon(db, id)).toBe(id)
+      fuehreAus(db, 'name.aendern', { id, typ: 'transliteriert', nachname: 'Scherbakoff', originalText: 'Scherbakoff (Taufbuch)', umschriftVon: id, umschriftNorm: 'iso9' })
+      expect(umschriftVon(db, id)).toBe(id)
+      expect(findet(db, 'Scherbakoff', personId)).toBe(true)
+      erwarteIndexIntakt(db)
+    } finally {
+      db.close()
+    }
+  })
 })
+
+/** Minimale v1-Importdatei: eine Person, deren einziger Name auf sich selbst als Ursprung zeigt. */
+function importMitSelbstbezug(): Record<string, unknown> {
+  return {
+    vertrag: 'wurzelwerk-import/v1',
+    erzeugt: { am: '2026-09-30', werkzeug: 'test' },
+    zusammenfassung: { personen: 1, orte: 0, medien: 0, notizen_unverarbeitet: 0 },
+    quellen: [{ id: 'tmp:q1', typ: 'sonstiges', titel: 'Testquelle' }],
+    orte: [],
+    personen: [
+      {
+        id: 'tmp:p1',
+        namen: [{ typ: 'transliteriert', nachname: 'Scherbakowa', umschrift_von: 0, umschrift_norm: 'iso9', ist_bevorzugt: true }],
+        konfidenz: 3,
+        belege: [{ quelle: 'tmp:q1', seite: '1', konfidenz: 3 }],
+      },
+    ],
+    ereignisse: [],
+    notizen_unverarbeitet: [],
+  }
+}
 
 describe('name.anlegen — Umschrift-Bezug (U-130-11-0b-selbstbezug)', () => {
   it('Ursprungsform einer fremden Person → VALIDIERUNG_UMSCHRIFT_BEZUG, nichts geschrieben', () => {
