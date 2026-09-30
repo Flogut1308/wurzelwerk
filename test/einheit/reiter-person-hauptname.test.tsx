@@ -134,6 +134,7 @@ function detail(ueberschreibung: Partial<PersonDetailAus> = {}): PersonDetailAus
     notiz: null,
     sterbeort: null,
     lebensdaten: [leer('geburtsdatum'), leer('geburtsort'), leer('todesdatum'), leer('todesort')],
+    ereignis_existenz: [],
     warnungen: [],
     offene_punkte: [],
     kernangaben: null,

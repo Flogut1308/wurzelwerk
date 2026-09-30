@@ -100,6 +100,7 @@ function detail(ueberschreibung: Partial<PersonDetailAus> = {}): PersonDetailAus
     notiz: 'Start',
     sterbeort: null,
     lebensdaten: [],
+    ereignis_existenz: [],
     warnungen: [],
     offene_punkte: [],
     kernangaben: null,

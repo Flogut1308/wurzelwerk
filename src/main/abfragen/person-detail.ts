@@ -51,6 +51,7 @@ import type {
   PersonDetailBeziehung,
   PersonDetailEin,
   PersonDetailEreignis,
+  PersonDetailEreignisExistenz,
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
   PersonDetailKernangaben,
@@ -698,6 +699,38 @@ function lebensdatenBauen(
   })
 }
 
+interface ExistenzZeile {
+  readonly ereignis_id: string
+  readonly aussage_id: string
+}
+
+/** Existenz-Aussagen der Herkunfts-Ereignisse (AP-1.30 PR 9d-2, docs/80 §33 V-130-9d2): nur für
+ * Ereignisse, die in `lebensdaten` als Herkunft stehen — ohne solches Ereignis KEINE Anweisung. Sonst
+ * eine Anweisung über `idx_aussage_subjekt_praedikat` (0008) plus die Belege über
+ * `belegeJeAussageLaden` (dieselbe Belegform wie an den Personen-Aussagen). Je Ereignis die
+ * Existenz-Aussage mit kleinster `id`. */
+function ereignisExistenzLaden(db: Database.Database, lebensdaten: readonly PersonDetailLebensdatum[]): readonly PersonDetailEreignisExistenz[] {
+  const ereignisIds = [...new Set(lebensdaten.flatMap((eintrag) => (eintrag.herkunft === 'ereignis' && eintrag.ereignis_id !== null ? [eintrag.ereignis_id] : [])))]
+  if (ereignisIds.length === 0) return []
+  const { platzhalter, parameter } = inKlausel(ereignisIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      ExistenzZeile
+    >(`SELECT a.subjekt_id AS ereignis_id, a.id AS aussage_id
+       FROM aussage a
+       WHERE a.subjekt_typ = 'ereignis' AND a.subjekt_id IN (${platzhalter}) AND a.praedikat = 'existenz'
+       ORDER BY a.subjekt_id, a.id`,
+    )
+    .all(parameter)
+  const erste = new Map<string, string>()
+  for (const zeile of zeilen) {
+    if (!erste.has(zeile.ereignis_id)) erste.set(zeile.ereignis_id, zeile.aussage_id)
+  }
+  const belegeKarte = belegeJeAussageLaden(db, [...erste.values()])
+  return [...erste.entries()].map(([ereignisId, aussageId]) => ({ ereignis_id: ereignisId, aussage_id: aussageId, belege: belegeKarte.get(aussageId) ?? [] }))
+}
+
 /** Sterbeort (AP-1.34 PR-C2a) — seit AP-1.30 PR 1 aus `lebensdaten` (Angabe `todesort`) abgebildet,
  * dieselbe Auflösung (`lebensdatumAufloesen`), kein zweiter Weg. */
 function sterbeortAusLebensdaten(lebensdaten: readonly PersonDetailLebensdatum[]): PersonDetailSterbeort | null {
@@ -1144,6 +1177,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     notiz: kopfZeile.notiz,
     sterbeort,
     lebensdaten,
+    ereignis_existenz: ereignisExistenzLaden(db, lebensdaten),
     warnungen,
     offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
     kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, nameVorhanden, lebensereignisse),

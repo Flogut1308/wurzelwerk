@@ -133,6 +133,7 @@ function detail(mitGeburt: boolean): PersonDetailAus {
     notiz: null,
     sterbeort: null,
     lebensdaten: [mitGeburt ? { ...leer('geburtsdatum'), herkunft: 'aussage', aussage_id: 'g-1' } : leer('geburtsdatum'), leer('geburtsort'), leer('todesdatum'), leer('todesort')],
+    ereignis_existenz: [],
     warnungen: [],
     offene_punkte: [],
     kernangaben: null,
