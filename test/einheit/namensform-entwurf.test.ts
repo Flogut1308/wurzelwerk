@@ -19,6 +19,7 @@ vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { fuehreAus } from '../../src/main/befehle/bus'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import type { PersonDetailName, PersonDetailNamensteil } from '../../src/shared/schemata/person-detail'
 import {
   entwurfAusForm,
@@ -33,7 +34,7 @@ import {
   vornamenMitLeerraum,
   type NamensformEntwurf,
 } from '../../src/renderer/ansichten/profil/namensform-entwurf'
-import { neuePerson, neueTestDatenbank, transaktionAnzahl, uhrStarten, warte, type Db } from './_hilfen-namensteil'
+import { neuePerson, neueTestDatenbank, teile, transaktionAnzahl, uhrStarten, warte, type Db } from './_hilfen-namensteil'
 
 function teil(id: string, art: PersonDetailNamensteil['art'], wert: string, sortierIndex = 0, istRufname = false): PersonDetailNamensteil {
   return { id, art, wert, ist_rufname: istRufname, sortier_index: sortierIndex, feminine_variante: null }
@@ -246,6 +247,15 @@ describe('formVonAussen (Undo bei offenem Modal)', () => {
     expect(formVonAussen(KARL, { ...KARL, rollen_notiz: 'amtlich ab 1946' })).toBe('geaendert')
     expect(formVonAussen(KARL, undefined)).toBe('entfernt')
   })
+
+  // Review #207 M8: eine Änderung nur an `feminine_variante` (z. B. Undo einer Genusform-Änderung) ist eine
+  // Änderung der gespeicherten Form. Das Modal schickt die Genusform zwar nicht mit (fehlt = bleibt), der
+  // Hinweis „Undo gewinnt" soll aber jeden abweichenden gespeicherten Stand melden — und ab 11c-3 bearbeitet
+  // das Modal die Genusform selbst.
+  it('eine Änderung nur an feminine_variante eines Teils: geändert', () => {
+    const mitGenusform = { ...KARL, teile: KARL.teile.map((eintrag) => (eintrag.id === 'n1' ? { ...eintrag, feminine_variante: 'Gutnowa' } : eintrag)) }
+    expect(formVonAussen(KARL, mitGenusform)).toBe('geaendert')
+  })
 })
 
 describe('entwurfVorschau (Live-Vorschau über den Kern)', () => {
@@ -318,5 +328,49 @@ describe('Rundreise über die echte Datenbank', () => {
     const vorher = transaktionAnzahl(db)
     fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, basis))
     expect(transaktionAnzahl(db)).toBe(vorher)
+  })
+
+  // Review #207 (Mutant M1b überlebte): eine Form mit allem, was das Modal nicht oder nur mittelbar zeigt —
+  // Vatersname, `feminine_variante` am Nachnamen, ein mehrwortiger Altbestand-Vorname (E4) und Kopf-Felder
+  // ohne Feld im Modal (`rollen_notiz`, `konfidenz`, `gueltig_*`). Ändert der Nutzer einen anderen Teil, bleibt
+  // all das bitgleich (Zeilen samt Zeitstempeln), nur der geänderte Teil ändert sich.
+  it('Übernehmen mit einer Änderung an einem Teil lässt Vatersname, Genusform, Altbestand und verdeckten Kopf bitgleich', () => {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'namensform.uebernehmen', {
+      personId,
+      formId: null,
+      kopf: { rolle: 'geburtsname', rollenNotiz: 'amtlich ab 1946', konfidenz: 3, gueltigVon: 2431822, gueltigBis: 2440588, sprache: 'ru', schrift: 'cyrl', reihenfolge: 'nachname_zuerst' },
+      teile: [
+        { art: 'vorname', wert: 'Карл', istRufname: true },
+        { art: 'vorname', wert: 'Фридрих', istRufname: false },
+        { art: 'vatersname', wert: 'Фридрихович', istRufname: false },
+        { art: 'nachname', wert: 'Гутнов', feminineVariante: 'Гутнова', istRufname: false },
+      ],
+    }).id
+    // Altbestand: ein Vorname-Teil mit innerem Leerraum (entsteht über die flache Brücke, nicht über das Modal).
+    journalAus(db, 'Test Review #207: Altbestand-Vorname mit Leerraum direkt setzen (entsteht nicht über das Modal).')
+    db.prepare("UPDATE name_part SET wert = 'Фридрих Вильгельм' WHERE name_form_id = @formId AND wert = 'Фридрих'").run({ formId })
+    journalAn(db)
+
+    const kopf = (): unknown =>
+      db
+        .prepare<{ readonly formId: string }, Record<string, unknown>>(
+          'SELECT rolle, rollen_notiz, konfidenz, gueltig_von, gueltig_bis, sprache, schrift, reihenfolge, umschrift_von, umschrift_norm, ist_bevorzugt, sortier_index FROM name_form WHERE id = @formId',
+        )
+        .get({ formId })
+    const kopfVorher = kopf()
+    const teileVorher = teile(db, formId)
+    const karl = teileVorher.find((eintrag) => eintrag.wert === 'Карл')
+    if (karl === undefined) throw new Error('Teil Карл fehlt')
+
+    warte(10_000)
+    const basis = basisVon(formLesen(personId, formId))
+    fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, teilWertSetzen(basis, karl.id, 'Карлуша')))
+
+    expect(kopf()).toEqual(kopfVorher)
+    const teileNachher = teile(db, formId)
+    expect(teileNachher.filter((eintrag) => eintrag.id !== karl.id)).toEqual(teileVorher.filter((eintrag) => eintrag.id !== karl.id))
+    expect(teileNachher.find((eintrag) => eintrag.id === karl.id)).toMatchObject({ wert: 'Карлуша', ist_rufname: 1, sortier_index: karl.sortier_index })
+    expect(teileNachher.map((eintrag) => eintrag.art).sort()).toEqual(['nachname', 'vatersname', 'vorname', 'vorname'])
   })
 })
