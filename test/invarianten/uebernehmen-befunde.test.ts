@@ -25,6 +25,20 @@ import type Database from 'better-sqlite3'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
 import { frischeMigrierteDatenbank } from './_frische-datenbank'
+import { kanonischerAbzug } from './_kanonischer-abzug'
+
+interface Teil {
+  readonly id: string
+  readonly art: 'vorname' | 'nachname' | 'vatersname' | 'praefix' | 'suffix' | 'titel'
+  readonly wert: string
+  readonly ist_rufname: number
+}
+
+function teileDerForm(db: Database.Database, formId: string): readonly Teil[] {
+  return db
+    .prepare<{ readonly formId: string }, Teil>('SELECT id, art, wert, ist_rufname FROM name_part WHERE name_form_id = @formId ORDER BY art, sortier_index')
+    .all({ formId })
+}
 
 function originalText(db: Database.Database, formId: string): unknown {
   return db.prepare('SELECT original_text FROM name_form WHERE id = @formId').get({ formId })
@@ -92,6 +106,65 @@ describe('Befunde aus der Übernehmen-Last (V-130-11-0b)', () => {
       // Abgewiesen mit dem genauen Code, der Index bleibt heil.
       expect(fehler instanceof WurzelFehler ? fehler.code : fehler).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
       expect(() => db.prepare(`INSERT INTO suche_fts (suche_fts) VALUES ('integrity-check')`).run()).not.toThrow()
+    } finally {
+      db.close()
+    }
+  })
+
+  // U-130-11-0b-leerraum-teil (hueter #209 H1, behoben in #212): ein gespeicherter Teil aus reinem Leerraum
+  // (Vatersname ' ' aus `name.anlegen`) entfiel, wenn die Zielliste ihn UNVERÄNDERT zurückschickte — mit
+  // Transaktion; und ein leerer Eintrag mit unbekannter bzw. fremder ID oder mit anderer Art wurde ohne Fehler
+  // verworfen.
+  it('U-130-11-0b-leerraum-teil: ein unverändert zurückgeschickter Leerraum-Teil bleibt, ohne Transaktion', () => {
+    const db = frischeMigrierteDatenbank()
+    try {
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const { id: formId } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Nowak', vatersname: ' ' })
+      const teile = teileDerForm(db, formId)
+      const leerraum = teile.find((t) => t.wert.trim() === '')
+      expect(leerraum, 'Vorbedingung: name.anlegen schreibt einen Leerraum-Teil').toBeDefined()
+      const abzug = kanonischerAbzug(db)
+      fuehreAus(db, 'namensform.uebernehmen', {
+        personId,
+        formId,
+        kopf: {},
+        teile: teile.map((t) => ({ id: t.id, art: t.art, wert: t.wert, istRufname: t.ist_rufname === 1 })),
+      })
+      expect(kanonischerAbzug(db), 'unveränderter Aufruf: kein Schreibvorgang, keine Transaktion').toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('U-130-11-0b-leerraum-teil: ein leerer Eintrag mit unbekannter bzw. fremder ID oder anderer Art wird abgewiesen, ohne Rückstand', () => {
+    const db = frischeMigrierteDatenbank()
+    try {
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const { id: formId } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Nowak' })
+      const { id: andereForm } = fuehreAus(db, 'name.anlegen', { personId, typ: 'ehename', vornamen: 'Karl', nachname: 'Müller' })
+      const eigene = teileDerForm(db, formId).map((t) => ({ id: t.id, art: t.art, wert: t.wert, istRufname: false }))
+      const fremd = teileDerForm(db, andereForm)[0]
+      const nachname = eigene.find((t) => t.art === 'nachname')
+      if (fremd === undefined || nachname === undefined) throw new Error('Vorbedingung: beide Formen tragen Teile.')
+      const faelle = [
+        { erwartet: 'NICHT_GEFUNDEN_NAMENSTEIL', teile: [...eigene, { id: 'unbekannte-teil-id', art: 'nachname' as const, wert: ' ', istRufname: false }] },
+        { erwartet: 'NICHT_GEFUNDEN_NAMENSTEIL', teile: [...eigene, { id: fremd.id, art: fremd.art, wert: '', istRufname: false }] },
+        {
+          erwartet: 'VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND',
+          teile: [...eigene.filter((t) => t.id !== nachname.id), { id: nachname.id, art: 'suffix' as const, wert: '', istRufname: false }],
+        },
+      ] as const
+      for (const fall of faelle) {
+        const abzug = kanonischerAbzug(db)
+        let fehler: unknown
+        try {
+          fuehreAus(db, 'namensform.uebernehmen', { personId, formId, kopf: {}, teile: fall.teile })
+        } catch (e) {
+          fehler = e
+        }
+        expect(fehler instanceof WurzelFehler ? fehler.code : fehler).toBe(fall.erwartet)
+        expect(kanonischerAbzug(db)).toBe(abzug)
+      }
     } finally {
       db.close()
     }
