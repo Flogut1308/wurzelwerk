@@ -208,6 +208,13 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['koaleszenz.verdichtet', 6],
   ['koaleszenz.fensterAbgelaufen', 20],
   ['koaleszenz.feldUnpassend', 10],
+  // AP-1.30 PR 10a-b (docs/80 §33 V-130-10a-verdichtet): Teilwechsel-Serien (`mitTeilWechsel: true`,
+  // `teilWechselSerieArbitrary()`) verdichten ein insert+delete-Paar, das nicht am Neuaufbau aller
+  // `name_part` durch `name.aendern` hängt. Gemessen 158 mit dem heutigen Neuaufbau, 62 mit dem
+  // geplanten Teil-Abgleich (U-130-10a-bruecke-erhaelt, lokal angewendet, nicht eingecheckt);
+  // Schwelle die Hälfte des KLEINEREN Werts, damit sie den Abgleich trägt. `koaleszenz.verdichtet`
+  // (Schwelle 6, oben) steigt damit auf 171 bzw. 63 (vorher 12 bzw. 0 mit Abgleich).
+  ['koaleszenz.verdichtet.teilWechsel', 31],
   // AP-1.30 PR 9a-b (Prüfpfad-Folge zu #163, docs/80 §33 V-130-9-d1-datumswert), am Datenbankergebnis
   // gemessen (`_befehlsfolge-datumswert.ts`): Datumsaussage nur mit `datum` angelegt (Branch-Wert 57),
   // per `aussage.aendern` ohne Wert mit `datum` geändert (59) bzw. dabei eine Wertspalte entfernt (71),
@@ -253,7 +260,9 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
 
   it('jeder einzelne Undo-Schritt einer beliebigen Befehlsfolge (alle registrierten Schreibbefehle, AP-1.12 PR-B) trifft exakt den passenden Vorzustand', () => {
     fc.assert(
-      fc.property(befehlsfolgeArbitrary(), (folge) => {
+      // `mitTeilWechsel` (AP-1.30 PR 10a-b): Hauptfolge und Einschübe Zug um Zug wie ohne die Option,
+      // zusätzlich 1–2 Teilwechsel-Serien je Folge (`befehlsfolge-teilwechsel-einflechtung.test.ts`).
+      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitTeilWechsel: true }), (folge) => {
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]

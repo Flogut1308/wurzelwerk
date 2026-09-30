@@ -73,6 +73,10 @@ export type Zweig =
   | 'koaleszenz.zusammengefasst'
   /** … und dabei verschwand ein `insert` der obersten Transaktion ganz (insert+delete-Paar). */
   | 'koaleszenz.verdichtet'
+  /** … dasselbe in der Serienvariante „Teilwechsel" (Anzahl Vornamen-Wörter steigt und fällt im
+   * Fenster, AP-1.30 PR 10a-b, docs/80 §33 V-130-10a-verdichtet) — hängt nicht am Neuaufbau aller
+   * `name_part` durch `name.aendern`. */
+  | 'koaleszenz.verdichtet.teilWechsel'
   /** Serienaufruf mit demselben Schlüssel wie die oberste Transaktion, aber nach Ablauf des Fensters
    * (≥ 2000 ms): neuer Undo-Schritt. */
   | 'koaleszenz.fensterAbgelaufen'
