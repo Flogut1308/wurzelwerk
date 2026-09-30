@@ -31,7 +31,7 @@ import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
 import type { NamePartZeile } from '../repositories/name-part-repo'
-import { mitOriginalTextNachfuehrung } from './namensteil-hilfen'
+import { MIT_NACHFUEHRUNG, mitOriginalTextNachfuehrung, type NachfuehrungOptionen } from './namensteil-hilfen'
 
 /** Liest ein Element, das per Konstruktion existiert (Index innerhalb der Liste); sonst interner Fehler. */
 function an<T>(liste: readonly T[], index: number): T {
@@ -42,7 +42,7 @@ function an<T>(liste: readonly T[], index: number): T {
   return element
 }
 
-export function namensteilVerschieben(tx: Tx, ein: NamensteilVerschiebenEin): null {
+export function namensteilVerschieben(tx: Tx, ein: NamensteilVerschiebenEin, optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG): null {
   const teil = namePartRepo.lesen(tx, ein.id)
   if (teil === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAMENSTEIL')
@@ -79,6 +79,6 @@ export function namensteilVerschieben(tx: Tx, ein: NamensteilVerschiebenEin): nu
       for (let rang = alt - 1; rang >= neu; rang -= 1) setze(an(vorhanden, rang).id, an(slots, rang + 1))
     }
     setze(teil.id, an(slots, neu))
-  })
+  }, optionen)
   return null
 }

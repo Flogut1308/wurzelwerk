@@ -25,7 +25,7 @@ import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
 import type { NamePartZeile } from '../repositories/name-part-repo'
-import { mitOriginalTextNachfuehrung } from './namensteil-hilfen'
+import { MIT_NACHFUEHRUNG, mitOriginalTextNachfuehrung, type NachfuehrungOptionen } from './namensteil-hilfen'
 
 function markierungSetzen(tx: Tx, teil: NamePartZeile, istRufname: 0 | 1, jetzt: number): void {
   namePartRepo.aktualisieren(tx, {
@@ -39,7 +39,7 @@ function markierungSetzen(tx: Tx, teil: NamePartZeile, istRufname: 0 | 1, jetzt:
   })
 }
 
-export function namensformRufnameSetzen(tx: Tx, ein: NamensformRufnameSetzenEin): null {
+export function namensformRufnameSetzen(tx: Tx, ein: NamensformRufnameSetzenEin, optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG): null {
   const form = nameFormRepo.lesen(tx, ein.namensformId)
   if (form === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
@@ -62,6 +62,6 @@ export function namensformRufnameSetzen(tx: Tx, ein: NamensformRufnameSetzenEin)
   mitOriginalTextNachfuehrung(tx, form, jetzt, () => {
     if (alt !== undefined) markierungSetzen(tx, alt, 0, jetzt)
     if (neu !== undefined) markierungSetzen(tx, neu, 1, jetzt)
-  })
+  }, optionen)
   return null
 }

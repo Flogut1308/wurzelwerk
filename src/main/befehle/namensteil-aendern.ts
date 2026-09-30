@@ -19,7 +19,7 @@ import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
 import type { NamePartZeile } from '../repositories/name-part-repo'
-import { mitOriginalTextNachfuehrung, namensteilWertPruefen } from './namensteil-hilfen'
+import { MIT_NACHFUEHRUNG, mitOriginalTextNachfuehrung, namensteilWertPruefen, type NachfuehrungOptionen } from './namensteil-hilfen'
 
 /**
  * Die Vertragsfelder, deren gespeicherter Wert sich durch `ein` ändern würde — nur mitgegebene Felder
@@ -34,7 +34,7 @@ export function namensteilGeaenderteFelder(vorher: NamePartZeile, ein: Namenstei
   return felder
 }
 
-export function namensteilAendern(tx: Tx, ein: NamensteilAendernEin): null {
+export function namensteilAendern(tx: Tx, ein: NamensteilAendernEin, optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG): null {
   const vorher = namePartRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAMENSTEIL')
@@ -61,6 +61,6 @@ export function namensteilAendern(tx: Tx, ein: NamensteilAendernEin): null {
       feminineVariante,
       geaendertAm: jetzt,
     })
-  })
+  }, optionen)
   return null
 }
