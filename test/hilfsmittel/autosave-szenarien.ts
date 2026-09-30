@@ -18,6 +18,7 @@ import {
   type ElternschaftAendernEin,
   type EreignisAendernEin,
   type NameAendernEin,
+  type NamensformAendernEin,
   type PartnerschaftAendernEin,
   type PersonFeldSetzenEin,
 } from '../../src/shared/schemata/befehle'
@@ -354,6 +355,39 @@ const aussageAendern: AutosaveSzenario = {
   },
 }
 
+/** AP-1.30 PR 10-1: `namensform.aendern` hat Teil-Semantik (fehlendes Feld bleibt) — die Nutzlast
+ * trägt darum nur die geänderten Felder, keinen vollständigen Stand. */
+const namensformAendern: AutosaveSzenario = {
+  befehl: 'namensform.aendern',
+  zweiSpaltenMoeglich: true,
+  ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
+  aufbauen: (db) => {
+    const p = neuePerson(db)
+    const a = fuehreAus(db, 'namensform.anlegen', { personId: p, rolle: 'geburtsname' }).id
+    const b = fuehreAus(db, 'namensform.anlegen', { personId: p, rolle: 'ehename' }).id
+    const ein = (i: number, ziel: Ziel): NamensformAendernEin => {
+      switch (ziel) {
+        case 'feld':
+          return { id: a, rollenNotiz: `Notiz ${i}`, feld: 'rollenNotiz' }
+        case 'ohneFeld':
+          return { id: a, rollenNotiz: `Notiz ${i}` }
+        case 'anderesFeld':
+          return { id: a, originalText: `Text ${i}`, feld: 'originalText' }
+        case 'anderesSubjekt':
+          return { id: b, rollenNotiz: `Notiz ${i}`, feld: 'rollenNotiz' }
+        case 'zweiSpalten':
+          return { id: a, rollenNotiz: `Notiz ${i}`, sprache: `s${i}`, feld: 'rollenNotiz' }
+      }
+    }
+    return {
+      schreiben: (i, ziel) => fuehreAus(db, 'namensform.aendern', ein(i, ziel)),
+      schluessel: (i, ziel) => schluesselVon(db, 'namensform.aendern', ein(i, ziel)),
+      erwarteterSchluessel: `namensform.aendern:${a}:rollenNotiz`,
+    }
+  },
+}
+
 export const SZENARIEN: { readonly [N in AutosaveBefehl]: AutosaveSzenario } = {
   'person.feldSetzen': personFeldSetzen,
   'name.aendern': nameAendern,
@@ -361,4 +395,5 @@ export const SZENARIEN: { readonly [N in AutosaveBefehl]: AutosaveSzenario } = {
   'partnerschaft.aendern': partnerschaftAendern,
   'elternschaft.aendern': elternschaftAendern,
   'aussage.aendern': aussageAendern,
+  'namensform.aendern': namensformAendern,
 }
