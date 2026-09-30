@@ -309,6 +309,21 @@ describe('ReiterPerson — Beleg verknüpfen an Werten aus dem Ereignis (AP-1.30
     expect(live).not.toContain('Beleg verknüpft.')
   })
 
+  it('hueter #178 H3: in der Schublade einer Angabe trägt ein Beleg mit feld NULL den Hinweis „Datum und Ort", einer mit feld datum nicht', () => {
+    zeigen(detail({ ereignis_existenz: [existenz([beleg('z-1', '42', 'datum'), beleg('z-2', '43', null)])] }))
+    const zaehler = gruppe(container, 'Geburt').querySelector('.wz-beleg-abzeichen')
+    if (!(zaehler instanceof HTMLButtonElement)) throw new Error('Belegzähler fehlt')
+    act(() => zaehler.click())
+    const eintraege = Array.from(schublade().querySelectorAll('.wz-beleg-liste__beleg'))
+    expect(eintraege).toHaveLength(2)
+    const hinweis = 'Belegt Datum und Ort des Ereignisses – „Verknüpfung entfernen“ nimmt ihn an beiden weg.'
+    const mitHinweis = eintraege.map((eintrag) => [eintrag.textContent?.includes('Seite 42') === true ? 'z-1' : 'z-2', eintrag.textContent?.includes(hinweis) === true])
+    expect(mitHinweis).toEqual([
+      ['z-1', false],
+      ['z-2', true],
+    ])
+  })
+
   it('der Zähler am Ereigniswert öffnet die Schublade der Angabe: Ereigniswert, Beleg, „Verknüpfung entfernen" an der Existenz-Aussage', () => {
     zeigen(detail({ ereignis_existenz: [existenz([beleg('z-1', '42', 'datum'), beleg('z-3', '44', 'beschreibung')])] }))
     const zaehler = gruppe(container, 'Geburt').querySelector('.wz-beleg-abzeichen')

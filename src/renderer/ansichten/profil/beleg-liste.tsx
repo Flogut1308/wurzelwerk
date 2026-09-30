@@ -26,6 +26,10 @@ export interface BelegListeProps {
   /** Der feste „Quelle anlegen"-Fuß (Standard: ja). Der Reiter Person zeigt ihn im Beleg-Wähler
    * statt einmal je Liste (PR 9d). */
   readonly mitQuelleAnlegen?: boolean
+  /** Hinweis unter einem Beleg, `null` = keiner (AP-1.30 PR 9d-2, hueter #178 H3: ein Beleg mit
+   * `feld` NULL an der Existenz-Aussage gilt für Datum UND Ort — „Verknüpfung entfernen" nimmt ihn an
+   * beiden weg, das steht dann daneben). */
+  readonly belegHinweis?: (beleg: PersonDetailBeleg) => string | null
 }
 
 export interface BelegEintragProps {
@@ -135,7 +139,16 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
  * Schublade; dort steht auch „Quelle anlegen" (`mitQuelleAnlegen = false`) und je Beleg
  * „Verknüpfung entfernen". Die Lesesicht bleibt unverändert.
  */
-export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt = false, mitQuelleAnlegen = true }: BelegListeProps) {
+function belegHinweisText(beleg: PersonDetailBeleg, belegHinweis: BelegListeProps['belegHinweis']) {
+  const text = belegHinweis?.(beleg) ?? null
+  return text === null ? null : (
+    <Text rolle="hilfe" als="p">
+      {text}
+    </Text>
+  )
+}
+
+export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt = false, mitQuelleAnlegen = true, belegHinweis }: BelegListeProps) {
   const { t } = useTranslation('profil')
   const quelleAnlegen = useQuelleAnlegen()
   const [neueQuelleId, setNeueQuelleId] = useState<string | null>(null)
@@ -162,6 +175,7 @@ export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt =
                 {aussage.belege.map((beleg, index) => (
                   <li key={index} className="wz-beleg-liste__beleg">
                     <BelegEintrag beleg={beleg} />
+                    {belegHinweisText(beleg, belegHinweis)}
                     {aufVerknuepfungEntfernen === undefined ? null : (
                       <div>
                         <Schaltflaeche variante="unauffaellig" gesperrt={entfernenGesperrt} aufKlick={() => aufVerknuepfungEntfernen(aussage.aussage_id, beleg.zitat_id)}>

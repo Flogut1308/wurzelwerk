@@ -372,6 +372,7 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, existenzen, stand }
               <BelegListe
                 feld={ausEreignis}
                 mitQuelleAnlegen={false}
+                belegHinweis={(beleg) => (beleg.feld === null ? t('beleg_ereignis_datum_und_ort') : null)}
                 entfernenGesperrt={entfernen.isPending}
                 aufVerknuepfungEntfernen={(aussageId, zitatId) => verknuepfungEntfernen(angabeId, aussageId, zitatId)}
               />
