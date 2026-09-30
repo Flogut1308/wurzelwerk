@@ -117,6 +117,14 @@ describe('hauptnameAnlegenEin (E1/E2)', () => {
     expect(ein.rufnameText).toBeUndefined()
     expect(ein.vornamen).toBe('Karl')
   })
+
+  // V-130-11e-1: folgt die Markierung der Ausrichtung an der Basis, ist der mitgetragene Rufname-Text
+  // veraltet („Friedrich" zu „Karl Friedric"). Angelegt wird mit dem Vornamen an der Stelle, sonst hinge
+  // `zerlegeName` den alten Text als dritten Vornamen an.
+  it('ein veralteter Rufname-Text geht als der Vorname an der markierten Stelle mit, nicht angehängt', () => {
+    const eintrag = { ...mitRufnameAusAuswahl({ ...NAMEN_EINTRAG_LEER, vornamen: 'Karl Friedrich', nachname: 'Gutnoff' }, '1'), vornamen: 'Karl Friedric' }
+    expect(hauptnameAnlegenEin('p-1', eintrag)).toMatchObject({ vornamen: 'Karl Friedric', rufnameText: 'Friedric' })
+  })
 })
 
 describe('Namensbrücke im Reiter Person: Vatersname und wortgetreuer original_text bleiben', () => {

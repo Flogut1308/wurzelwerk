@@ -79,3 +79,61 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
     expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
   })
 })
+
+// U-130-11c2-rufname-verlust (docs/80 §33, V-130-11e-1): Schreibt der Nutzer den markierten Vornamen um,
+// gleicht der mitgetragene Rufname schon im ersten Zwischenstand keinem Vornamen mehr. Die Stelle folgt
+// dann der Ausrichtung an den zuletzt gelesenen/gewählten Vornamen (`rufnameBasis`): Wörter davor
+// unverändert → Index bleibt; sonst Wörter dahinter unverändert → vom Ende gezählt; sonst Textsuche.
+describe('Rufname-Stelle über Zwischenstände (U-130-11c2-rufname-verlust)', () => {
+  const GELESEN: NamenEintragWerte = { ...KARL_FRIEDRICH, rufname: 'Friedrich', rufnameIndex: 1, rufnameBasis: ['Karl', 'Friedrich'] }
+  const JOHANN: NamenEintragWerte = { ...KARL_FRIEDRICH, vornamen: 'Johann Georg Johann', rufname: 'Johann', rufnameIndex: 2, rufnameBasis: ['Johann', 'Georg', 'Johann'] }
+
+  it('Lesen und Auswahl halten die Vornamen-Einheiten als Basis fest', () => {
+    expect(mitRufnameAusAuswahl(KARL_FRIEDRICH, '1').rufnameBasis).toEqual(['Karl', 'Friedrich'])
+    expect(mitRufnameAusAuswahl({ ...KARL_FRIEDRICH, vornamen: ' Karl  Hans Peter', rufname: 'Hans Peter', rufnameIndex: 1 }, '1').rufnameBasis).toEqual(['Karl', 'Hans Peter'])
+    expect(mitRufnameAusAuswahl(KARL_FRIEDRICH, '').rufnameBasis).toEqual(['Karl', 'Friedrich'])
+  })
+
+  it('„Karl Friedric": die Wörter davor sind unverändert, die Markierung bleibt an Position 1 und wandert mit', () => {
+    const eintrag = { ...GELESEN, vornamen: 'Karl Friedric' }
+    expect(rufnameAuswahlWert(eintrag)).toBe('1')
+    expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl Friedric', rufnameText: 'Friedric', rufnameIndex: 1 })
+    expect(nameAendernEinAusEintrag('name-1', { ...GELESEN, vornamen: 'Karl Fritz' })).toMatchObject({ vornamen: 'Karl Fritz', rufnameText: 'Fritz', rufnameIndex: 1 })
+  })
+
+  it('vorne eingefügt: die Wörter dahinter sind unverändert, die Stelle zählt vom Ende', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'H Karl Friedrich' })).toBe('2')
+    // Die Textsuche fände das erste „Friedrich" (Position 0).
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Friedrich Karl Friedrich' })).toBe('2')
+    expect(rufnameAuswahlWert({ ...JOHANN, vornamen: 'H Johann Georg Johann' })).toBe('3')
+  })
+
+  it('„Johann Georg Jo…": das markierte letzte „Johann" bleibt an Position 2, auch wieder vollständig', () => {
+    expect(nameAendernEinAusEintrag('name-1', { ...JOHANN, vornamen: 'Johann Georg Jo' })).toMatchObject({ rufnameText: 'Jo', rufnameIndex: 2 })
+    expect(rufnameAuswahlWert({ ...JOHANN, vornamen: 'Johann Georg Johann', rufname: 'Jo', rufnameBasis: ['Johann', 'Georg', 'Jo'] })).toBe('2')
+  })
+
+  it('das markierte Wort gelöscht: die Markierung entfällt, sie springt auf kein anderes Wort', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl' })).toBe('')
+    expect(nameAendernEinAusEintrag('name-1', { ...GELESEN, vornamen: 'Karl' })).toMatchObject({ vornamen: 'Karl', rufnameText: undefined, rufnameIndex: undefined })
+    const vorne = { ...GELESEN, vornamen: ' Friedrich', rufname: 'l', rufnameIndex: 0, rufnameBasis: ['l', 'Friedrich'] }
+    expect(rufnameAuswahlWert(vorne)).toBe('')
+  })
+
+  it('ein neu gesetzter Rufname-Text wird gesucht, der alte Index richtet ihn nicht aus', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, rufname: 'Karl' })).toBe('0')
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric', rufname: 'Karl' })).toBe('0')
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric', rufname: 'Fritz' })).toBe('')
+  })
+
+  it('ohne Basis (Neu-Formular) gilt weiter nur die Textsuche', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric', rufnameBasis: null })).toBe('')
+  })
+
+  it('nichts wird angehängt: der gesendete Rufname ist immer ein vorhandener Vorname', () => {
+    for (const vornamen of ['Karl Friedric', 'Karl F', 'Karl', 'H Karl Friedrich', 'Hans Peter']) {
+      const ein = nameAendernEinAusEintrag('name-1', { ...GELESEN, vornamen })
+      if (ein.rufnameText !== undefined) expect(vornamen.split(' ')).toContain(ein.rufnameText)
+    }
+  })
+})

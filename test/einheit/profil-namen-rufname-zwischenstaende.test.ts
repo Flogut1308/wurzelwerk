@@ -100,6 +100,86 @@ describe('Namen-Reiter: Rufname über Autosave-Zwischenstände (A-02, AP-1.30)',
     }
   })
 
+  // U-130-11c2-rufname-verlust (docs/80 §33, PR 11e-1): der Rufname hängt am umgeschriebenen Vornamen.
+  // Im ersten Zwischenstand „Karl Friedric" gleicht der Rufname „Friedrich" keinem Vornamen mehr; die
+  // Stelle folgt darum der Ausrichtung an den zuletzt gelesenen Vornamen (`rufnameBasis`): die Wörter
+  // davor sind unverändert, also bleibt Position 1 — und der Rufname wandert mit dem Wort mit.
+  it('U-130-11c2-rufname-verlust: nach „Friedrich" → „Fritz" bleibt der Rufname „Fritz" an Position 1', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Friedrich', rufnameText: 'Friedrich', nachname: 'Gutnoff' })
+
+      autosaveSchritt(db, personId, id, { vornamen: 'Karl Friedric' })
+      const erster = gespeicherterName(db, personId, id)
+      expect([erster.vornamen, erster.rufname_text, erster.rufname_index]).toEqual(['Karl Friedric', 'Friedric', 1])
+      for (const vornamen of ['Karl Friedri', 'Karl Friedr', 'Karl Fried', 'Karl Frie', 'Karl Fri', 'Karl Frit', 'Karl Fritz']) {
+        autosaveSchritt(db, personId, id, { vornamen })
+      }
+
+      const ergebnis = gespeicherterName(db, personId, id)
+      expect([ergebnis.vornamen, ergebnis.rufname_text, ergebnis.rufname_index]).toEqual(['Karl Fritz', 'Fritz', 1])
+    } finally {
+      db.close()
+    }
+  })
+
+  // Vorne eingefügt: die Wörter HINTER der Markierung sind unverändert, die Stelle zählt vom Ende. Die
+  // Textsuche allein fände das erste „Johann" (Position 1) statt des markierten letzten.
+  it('ein vorne eingefügter Vorname verschiebt die Markierung mit („H Johann Georg Johann", Position 3)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Johann Georg Johann', rufnameIndex: 2, nachname: 'Gutnoff' })
+
+      for (const vornamen of ['HJohann Georg Johann', 'H Johann Georg Johann']) autosaveSchritt(db, personId, id, { vornamen })
+
+      const ergebnis = gespeicherterName(db, personId, id)
+      expect([ergebnis.vornamen, ergebnis.rufname_text, ergebnis.rufname_index]).toEqual(['H Johann Georg Johann', 'Johann', 3])
+    } finally {
+      db.close()
+    }
+  })
+
+  // Das markierte letzte „Johann" wird umgeschrieben: die Zwischenstände „Jo…" halten Position 2, das
+  // wieder vollständige „Johann" springt nicht auf das erste.
+  it('das markierte letzte „Johann" umschreiben hält Position 2', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Johann Georg Johann', rufnameIndex: 2, nachname: 'Gutnoff' })
+
+      for (const vornamen of ['Johann Georg Johan', 'Johann Georg Joha', 'Johann Georg Joh', 'Johann Georg Jo', 'Johann Georg Joh', 'Johann Georg Joha', 'Johann Georg Johan', 'Johann Georg Johann']) {
+        autosaveSchritt(db, personId, id, { vornamen })
+        expect(gespeicherterName(db, personId, id).rufname_index).toBe(2)
+      }
+
+      const ergebnis = gespeicherterName(db, personId, id)
+      expect([ergebnis.vornamen, ergebnis.rufname_text, ergebnis.rufname_index]).toEqual(['Johann Georg Johann', 'Johann', 2])
+    } finally {
+      db.close()
+    }
+  })
+
+  // Wird das markierte Wort gelöscht, entfällt die Markierung — sie springt nicht auf ein anderes Wort.
+  it.each([
+    ['letztes Wort', 'Karl Friedrich', 1, ['Karl Friedric', 'Karl F', 'Karl'], 'Karl'],
+    ['erstes Wort', 'Karl Friedrich', 0, ['arl Friedrich', 'l Friedrich', ' Friedrich'], 'Friedrich'],
+  ] as const)('das markierte Wort löschen nimmt die Markierung weg (%s)', (_titel, vornamen, rufnameIndex, schritte, endstand) => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen, rufnameIndex, nachname: 'Gutnoff' })
+
+      for (const schritt of schritte) autosaveSchritt(db, personId, id, { vornamen: schritt })
+
+      const ergebnis = gespeicherterName(db, personId, id)
+      expect([ergebnis.vornamen, ergebnis.rufname_text, ergebnis.rufname_index]).toEqual([endstand, null, null])
+    } finally {
+      db.close()
+    }
+  })
+
   // Review H1: ein Rufname, der beim Anlegen/Import/Migration 0006 KEIN Vorname war, steht als EIN
   // `name_part` hinten an — auch mehrwortig („Hans Peter"). Die Rekonstruktion gibt ihn als
   // `rufname_text` „Hans Peter" mit Index 1 zurück, die Vornamen-Kette als „Karl Hans Peter".
