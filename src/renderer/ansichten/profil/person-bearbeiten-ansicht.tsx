@@ -26,6 +26,7 @@ import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
+import { NamenVorschau } from './reiter-namen-vorschau'
 import { ReiterPerson } from './reiter-person'
 import { UnlesbarNachfrage } from './unlesbar-nachfrage'
 import { UnlesbareEingabenKontext, useUnlesbareEingaben, type UnlesbareEingabe } from './unlesbare-eingaben'
@@ -421,7 +422,14 @@ function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: 
     case 'person':
       return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} aufReiterWechsel={aufReiterWechsel} />
     case 'namen':
-      return <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
+      // AP-1.30 PR 11b: die Vorschau steht über der (noch flachen) Namensmaske; beide lesen dieselben
+      // `daten.namen`. Liste und Modal ersetzen die Maske in 11c-1 (V-130-11-zuschnitt).
+      return (
+        <>
+          <NamenVorschau namen={daten.namen} istPlatzhalter={daten.kopf.ist_platzhalter} />
+          <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
+        </>
+      )
     case 'leben':
       return <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
     case 'notizen':
