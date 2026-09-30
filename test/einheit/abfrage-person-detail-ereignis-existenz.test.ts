@@ -15,6 +15,7 @@ import { oeffnen } from '../../src/main/datenbank/verbindung'
 import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { personDetail } from '../../src/main/abfragen/person-detail'
+import { journalAn, journalAus } from '../../src/main/journal/kontext'
 
 type Db = ReturnType<typeof oeffnen>
 
@@ -45,6 +46,19 @@ function existenzAussagen(db: Db, ereignisId: string): readonly string[] {
     )
     .all({ ereignisId })
     .map((zeile) => zeile.id)
+}
+
+/** Altbestand: eine Aussage am Ereignis mit fester id — kein Schreibbefehl legt eine zweite
+ * Existenz-Aussage oder eine frei gewählte id an. */
+function aussageDirekt(db: Db, id: string, ereignisId: string, praedikat: string): void {
+  journalAus(db, 'test-fixture: Altbestand Aussage am Ereignis mit fester id')
+  try {
+    db.prepare<{ readonly id: string; readonly ereignisId: string; readonly praedikat: string }>(
+      `INSERT INTO aussage (id, subjekt_typ, subjekt_id, praedikat, wert_text, konfidenz) VALUES (@id, 'ereignis', @ereignisId, @praedikat, 'ja', 3)`,
+    ).run({ id, ereignisId, praedikat })
+  } finally {
+    journalAn(db)
+  }
 }
 
 function geburt(db: Db, personId: string, mit: { readonly datum?: boolean; readonly ort?: boolean } = { datum: true }): string {
@@ -132,6 +146,31 @@ describe('person.detail — ereignis_existenz (V-130-9d2)', () => {
       const eintraege = personDetail(db, { personId: p }).ereignis_existenz
       expect(eintraege.map((e) => e.ereignis_id)).toEqual([geburtId, todId].sort())
       expect(eintraege.map((e) => e.aussage_id)).toEqual(eintraege.map((e) => existenzAussagen(db, e.ereignis_id)[0]))
+    })
+  })
+
+  it('EX6 (hueter #178 H2): mehrere Existenz-Aussagen (Altbestand) → die mit kleinster id, deren Belege — nicht die jüngere', () => {
+    mitDb((db) => {
+      const p = person(db)
+      const ereignisId = geburt(db, p)
+      const [aelteste = ''] = existenzAussagen(db, ereignisId)
+      aussageDirekt(db, 'ffffffff-ffff-7fff-bfff-ffffffffffff', ereignisId, 'existenz')
+      expect(existenzAussagen(db, ereignisId)).toEqual([aelteste, 'ffffffff-ffff-7fff-bfff-ffffffffffff'])
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: 'ffffffff-ffff-7fff-bfff-ffffffffffff', zitatId: zitat(db, '9'), feld: 'datum' })
+
+      expect(personDetail(db, { personId: p }).ereignis_existenz).toEqual([{ ereignis_id: ereignisId, aussage_id: aelteste, belege: [] }])
+    })
+  })
+
+  it('EX7 (hueter #178 H2): eine andere Aussage am Ereignis mit kleinerer id ist keine Existenz-Aussage', () => {
+    mitDb((db) => {
+      const p = person(db)
+      const ereignisId = geburt(db, p)
+      const [existenzId = ''] = existenzAussagen(db, ereignisId)
+      aussageDirekt(db, '00000000-0000-7000-8000-000000000000', ereignisId, 'beschreibung')
+      fuehreAus(db, 'aussage_zitat.anlegen', { aussageId: '00000000-0000-7000-8000-000000000000', zitatId: zitat(db, '8') })
+
+      expect(personDetail(db, { personId: p }).ereignis_existenz).toEqual([{ ereignis_id: ereignisId, aussage_id: existenzId, belege: [] }])
     })
   })
 
