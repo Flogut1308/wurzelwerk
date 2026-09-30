@@ -39,6 +39,8 @@ import {
   type NamensteilAendernEin,
   namensteilVerschiebenEinSchema,
   type NamensteilVerschiebenEin,
+  namensformRufnameSetzenEinSchema,
+  type NamensformRufnameSetzenEin,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -125,6 +127,7 @@ import { namensteilAnlegen } from './namensteil-anlegen'
 import { namensteilLoeschen } from './namensteil-loeschen'
 import { namensteilAendern } from './namensteil-aendern'
 import { namensteilVerschieben } from './namensteil-verschieben'
+import { namensformRufnameSetzen } from './namensform-rufname-setzen'
 import { elternschaftAnlegen } from './elternschaft-anlegen'
 import { elternschaftAendern } from './elternschaft-aendern'
 import { elternschaftLoeschen } from './elternschaft-loeschen'
@@ -207,6 +210,7 @@ interface BefehlKarte {
   'namensteil.loeschen': { ein: NamensteilLoeschenEin; aus: null }
   'namensteil.aendern': { ein: NamensteilAendernEin; aus: null }
   'namensteil.verschieben': { ein: NamensteilVerschiebenEin; aus: null }
+  'namensform.rufnameSetzen': { ein: NamensformRufnameSetzenEin; aus: null }
   'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
@@ -338,6 +342,13 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.namensteil_verschoben',
     handler: namensteilVerschieben,
+  },
+  // AP-1.30 PR 10-3: ohne Koaleszenzschlüssel — jeder Rufname-Wechsel ist ein eigener Undo-Schritt.
+  'namensform.rufnameSetzen': {
+    schema: namensformRufnameSetzenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.rufname_gesetzt',
+    handler: namensformRufnameSetzen,
   },
   'elternschaft.anlegen': {
     schema: elternschaftAnlegenEinSchema,

@@ -430,6 +430,20 @@ export const namensteilVerschiebenEinSchema: z.ZodType<NamensteilVerschiebenEin>
   position: z.number().int().nonnegative(),
 })
 
+/** Nutzlast von `befehl:namensform.rufnameSetzen` (AP-1.30 PR 10-3). `namensteilId` ist ein Vorname-Teil
+ * DIESER Form (sonst `NICHT_GEFUNDEN_NAMENSTEIL`; andere Art → `VALIDIERUNG_RUFNAME_KEIN_VORNAME`) und
+ * wird der eine Rufname der Form; `null` entfernt die Markierung. Pflichtfeld (auch `null` ausdrücklich),
+ * damit ein vergessenes Feld nicht still den Rufnamen löscht. */
+export interface NamensformRufnameSetzenEin {
+  readonly namensformId: string
+  readonly namensteilId: string | null
+}
+
+export const namensformRufnameSetzenEinSchema: z.ZodType<NamensformRufnameSetzenEin> = z.object({
+  namensformId: z.string(),
+  namensteilId: z.string().nullable(),
+})
+
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
 // -----------------------------------------------------------------------------------------------

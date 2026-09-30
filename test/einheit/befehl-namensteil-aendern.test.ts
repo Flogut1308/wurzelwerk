@@ -1,10 +1,12 @@
-// AP-1.30 PR 10-3 (A-02, A-19, F-01/F-02/F-03/F-05; docs/80 §33 V-130-10-3): `namensteil.aendern` und
-// `namensteil.verschieben` über den echten Befehlsbus gegen eine migrierte `:memory:`-Datenbank — Wirkung (Teil-Semantik je Feld),
+// AP-1.30 PR 10-3 (A-02, A-19, F-01/F-02/F-03/F-05; docs/80 §33 V-130-10-3): `namensteil.aendern`,
+// `namensteil.verschieben` und `namensform.rufnameSetzen` über den echten Befehlsbus gegen eine migrierte `:memory:`-Datenbank — Wirkung (Teil-Semantik je Feld),
 // No-op (AP-0.22), Undo/Redo bitgleich, Koaleszenz (ein Feld = Schlüssel, zwei = keiner), Fehlerfälle,
 // E2 (kein Leerraum in Vorname-Teilen), E3 (montierter `original_text` folgt, wortgetreuer bleibt) und
 // abgeleitete Tabellen gleich ihrem Neuaufbau + `integrity_check` nach jedem Schritt. Verschieben: E1 (Parkwert
 // MAX + 1 — kein Doppel-`sortier_index` in irgendeinem Zwischenzustand, auch nicht in Undo/Redo; Wächter aus
 // temporären Triggern), Slots bleiben (Lücke aus Altbestand), Rufname wandert mit, ein Undo-Schritt.
+// Rufname: erst alte Markierung entfernen, dann neue setzen (der partielle UNIQUE-Index
+// `idx_name_part_ein_rufname` sieht nie zwei, auch nicht in Undo/Redo), nur Vornamen, No-op, E3.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -18,7 +20,13 @@ import { fuehreAus } from '../../src/main/befehle/bus'
 import { REGISTRIERUNG } from '../../src/main/befehle/registrierung'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { redo, undo } from '../../src/main/journal/undo'
-import { namensteilAendernEinSchema, namensteilVerschiebenEinSchema, type NamensteilAendernEin } from '../../src/shared/schemata/befehle'
+import {
+  namensformRufnameSetzenEinSchema,
+  namensteilAendernEinSchema,
+  namensteilVerschiebenEinSchema,
+  type NamensteilAendernEin,
+} from '../../src/shared/schemata/befehle'
+import { personDetail } from '../../src/main/abfragen/person-detail'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
 import {
   angewendeteSchritte,
@@ -484,6 +492,191 @@ describe('namensteil.verschieben (AP-1.30 PR 10-3)', () => {
       fuehreAus(db, 'namensteil.verschieben', { id: teilId(db, wortgetreu, 'vorname', 'Georg'), position: 0 })
       expect(originalText(db, wortgetreu)).toBe('Joh. Georg Müller alias Miller')
       expect(anzeigename(db, personId)).toBe('Georg Johann Müller')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
+
+function rufnameSicht(db: Db, personId: string, formId: string): { readonly rufname_index: number | null; readonly rufname_text: string | null } | undefined {
+  const name = personDetail(db, { personId }).namen.find((kandidat) => kandidat.id === formId)
+  return name === undefined ? undefined : { rufname_index: name.rufname_index, rufname_text: name.rufname_text }
+}
+
+describe('namensform.rufnameSetzen (AP-1.30 PR 10-3)', () => {
+  it('Wechsel: alte Markierung weg, neue gesetzt; Werte, Stellen und IDs bleiben; beide Teile tragen geaendert_am', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      const friedrich = teilId(db, formId, 'vorname', 'Friedrich')
+      const vorherKarl = teil(db, karl)
+      const vorherFriedrich = teil(db, friedrich)
+      const nachname = teile(db, formId, 'nachname')
+      warte(5000)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: karl })
+      expect(teil(db, karl)).toEqual({ ...vorherKarl, ist_rufname: 1, geaendert_am: jetztMs() })
+      expect(teil(db, friedrich)).toEqual({ ...vorherFriedrich, ist_rufname: 0, geaendert_am: jetztMs() })
+      expect(teile(db, formId, 'nachname')).toEqual(nachname)
+      expect(rufnameSicht(db, personId, formId)).toEqual({ rufname_index: 0, rufname_text: 'Karl' })
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowak')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('gleichlautende Vornamen („Maria Anna Maria“): der Teil wird über die ID gewählt, nicht über den Wert; Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Maria Anna Maria', rufnameIndex: 0, nachname: 'Nowak' }).id
+      const [ersteMaria, anna, zweiteMaria] = ids(db, formId, 'vorname')
+      if (ersteMaria === undefined || anna === undefined || zweiteMaria === undefined) throw new Error('Drei Vornamen erwartet.')
+      expect(folge(db, formId, 'vorname')).toEqual(['Maria*@0', 'Anna@1', 'Maria@2'])
+      erwarteSchritteUndoRedoSauber(db, [
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: zweiteMaria }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: anna }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: ersteMaria }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: zweiteMaria }),
+      ])
+      expect(folge(db, formId, 'vorname')).toEqual(['Maria@0', 'Anna@1', 'Maria*@2'])
+      expect(teil(db, zweiteMaria).ist_rufname).toBe(1)
+      expect(teil(db, ersteMaria).ist_rufname).toBe(0)
+      expect(rufnameSicht(db, personId, formId)).toEqual({ rufname_index: 2, rufname_text: 'Maria' })
+      expect(originalText(db, formId)).toBe('Maria Anna Maria Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('null entfernt die Markierung; kein anderer Teil wird Rufname; danach wieder setzen', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      erwarteSchritteUndoRedoSauber(db, [
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: null }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Karl') }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: null }),
+      ])
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Friedrich@1'])
+      expect(rufnameSicht(db, personId, formId)).toEqual({ rufname_index: null, rufname_text: null })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('No-op (AP-0.22): schon gesetzter Rufname oder null ohne Markierung — keine Transaktion', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = karlNowak(db)
+      const friedrich = teilId(db, formId, 'vorname', 'Friedrich')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: friedrich })
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: null })
+      const ohne = kanonischerAbzug(db)
+      const nachEntfernen = transaktionAnzahl(db)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: null })
+      expect(kanonischerAbzug(db)).toBe(ohne)
+      expect(transaktionAnzahl(db)).toBe(nachEntfernen)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein Aufruf = ein Undo-Schritt (keine Koaleszenz, auch im Fenster); zwei Journalzeilen beim Wechsel', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = karlNowak(db)
+      const vorher = angewendeteSchritte(db)
+      const ausgang = kanonischerAbzug(db)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Karl') })
+      expect(journalZeilenLetzterSchritt(db)).toBe(2)
+      const nachEinem = kanonischerAbzug(db)
+      warte(100)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: null })
+      expect(angewendeteSchritte(db) - vorher).toBe(2)
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(nachEinem)
+      undo(db)
+      expect(kanonischerAbzug(db)).toBe(ausgang)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Fehler: Nicht-Vorname abgewiesen, Teil einer anderen Form, unbekannte Form/Teil — kein Schreibvorgang; Zod verlangt namensteilId', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'titel', wert: 'Dr.' })
+      const andere = fuehreAus(db, 'name.anlegen', { personId, typ: 'aka', vornamen: 'Carl', nachname: 'Nowack' }).id
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'nachname', 'Nowak') }))).toBe('VALIDIERUNG_RUFNAME_KEIN_VORNAME')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'titel', 'Dr.') }))).toBe('VALIDIERUNG_RUFNAME_KEIN_VORNAME')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, andere, 'vorname', 'Carl') }))).toBe('NICHT_GEFUNDEN_NAMENSTEIL')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: 'gibt-es-nicht' }))).toBe('NICHT_GEFUNDEN_NAMENSTEIL')
+      expect(fehlerCode(() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: 'gibt-es-nicht', namensteilId: null }))).toBe('NICHT_GEFUNDEN_NAME')
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(namensformRufnameSetzenEinSchema.safeParse({ namensformId: formId }).success).toBe(false)
+      expect(namensformRufnameSetzenEinSchema.safeParse({ namensformId: formId, namensteilId: null }).success).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Rufname und Verschieben gemischt: die Markierung wandert mit dem Teil; kein Doppel, Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Johann Karl Friedrich', rufnameIndex: 1, nachname: 'Nowak' }).id
+      erwarteSchritteUndoRedoSauber(db, [
+        () => fuehreAus(db, 'namensteil.verschieben', { id: teilId(db, formId, 'vorname', 'Karl'), position: 2 }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Johann') }),
+        () => fuehreAus(db, 'namensteil.verschieben', { id: teilId(db, formId, 'vorname', 'Johann'), position: 1 }),
+        () => fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Wilhelm', position: 0 }),
+        () => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Wilhelm') }),
+      ])
+      expect(folge(db, formId, 'vorname')).toEqual(['Wilhelm*@0', 'Friedrich@1', 'Johann@2', 'Karl@3'])
+      expect(rufnameSicht(db, personId, formId)).toEqual({ rufname_index: 0, rufname_text: 'Wilhelm' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E3: Montage ohne angehängten Rufnamen („Karl Nowak“ bei Rufname „Peter“) wird beim Wechsel zur vollen Montage; Undo stellt sie zurück', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Peter', nachname: 'Nowak' }).id
+      expect(folge(db, formId, 'vorname')).toEqual(['Karl@0', 'Peter*@1'])
+      expect(originalText(db, formId)).toBe('Karl Nowak')
+      erwarteSchritteUndoRedoSauber(db, [() => fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Karl') })])
+      expect(originalText(db, formId)).toBe('Karl Peter Nowak')
+      expect(rufnameSicht(db, personId, formId)).toEqual({ rufname_index: 0, rufname_text: 'Karl' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('E3: wortgetreuer original_text bleibt; eine volle Montage bleibt unverändert (keine Schreibung der Form)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const wortgetreu = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Johann Georg', rufnameIndex: 1, nachname: 'Müller', originalText: 'Joh. Georg Müller alias Miller' }).id
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: wortgetreu, namensteilId: teilId(db, wortgetreu, 'vorname', 'Johann') })
+      expect(originalText(db, wortgetreu)).toBe('Joh. Georg Müller alias Miller')
+      const { formId } = karlNowak(db)
+      fuehreAus(db, 'namensform.rufnameSetzen', { namensformId: formId, namensteilId: teilId(db, formId, 'vorname', 'Karl') })
+      // Nur die zwei Teil-UPDATEs, keine Zeile für name_form.
+      expect(journalZeilenLetzterSchritt(db)).toBe(2)
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowak')
       erwarteAbgeleitetWieNeuaufbau(db)
     } finally {
       db.close()

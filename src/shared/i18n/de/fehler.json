@@ -35,6 +35,10 @@
     "titel": "Ein Vorname enthält ein Leerzeichen",
     "was_tun": "Jeden Vornamen als eigenen Teil eingeben, zum Beispiel „Hans“ und „Peter“ statt „Hans Peter“. Mehrteilige Vornamen in einem Teil sind noch nicht vorgesehen."
   },
+  "VALIDIERUNG_RUFNAME_KEIN_VORNAME": {
+    "titel": "Nur ein Vorname kann Rufname sein",
+    "was_tun": "Als Rufnamen einen der Vornamen dieser Namensform wählen. Ein Nachname, Titel oder Namenszusatz kann kein Rufname sein."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."
