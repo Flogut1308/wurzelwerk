@@ -109,6 +109,19 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
     await menuepunktKlicken('Shift+CmdOrCtrl+Z')
   }
 
+  /**
+   * Der Klick läuft als EIGENE Aufgabe der Ereignisschleife (`setImmediate`), nicht direkt im
+   * `evaluate`. Playwright wertet `app.evaluate` über den Node-Inspector aus, und der unterbricht
+   * gerade laufendes synchrones JS des Hauptprozesses (V8-Interrupt). Traf das Redo so mitten in
+   * das `.all()` einer Abfrage, die der Renderer nach dem Undo nachlädt (z. B. `journal.verlauf`:
+   * better-sqlite3 baut die Zeilen in JS), war die Verbindung belegt. `redo()` warf dann „This
+   * database connection is busy executing a query“, `journalBefehlAusfuehren` protokollierte nur
+   * `journal.redo INTERN_UNERWARTET`, und es kam kein `ereignis:datenGeaendert`. Das Feld zeigte
+   * korrekt den Undo-Stand, das Redo hatte nie stattgefunden (CI-Flake, docs/80 §33
+   * V-130-ci-ablauf13). Ein echter Menüklick kommt nie so an: er ist eine eigene Aufgabe und wartet,
+   * bis laufendes JS fertig ist. Die Prüfungen auf fehlenden oder deaktivierten Eintrag bleiben
+   * davor, damit ihr Fehler das `evaluate` selbst scheitern lässt.
+   */
   async function menuepunktKlicken(kuerzel: string): Promise<void> {
     await app.evaluate(({ Menu }, gesucht) => {
       const menue = Menu.getApplicationMenu()
@@ -116,7 +129,18 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
       const eintrag = menue.items.flatMap((oben) => oben.submenu?.items ?? []).find((unten) => unten.accelerator === gesucht)
       if (eintrag === undefined) throw new Error(`Menüpunkt ${gesucht} fehlt`)
       if (!eintrag.enabled) throw new Error(`Menüpunkt ${gesucht} ist deaktiviert`)
-      eintrag.click()
+      return new Promise<void>((fertig, fehlgeschlagen) => {
+        setImmediate(() => {
+          // Wirft click() doch einmal, scheitert der Test sofort mit diesem Fehler statt am 60-s-Timeout
+          // (hueter #203 H2); ein bloßes finally würde den Fehler ungefangen im Hauptprozess lassen.
+          try {
+            eintrag.click()
+            fertig()
+          } catch (fehler: unknown) {
+            fehlgeschlagen(fehler)
+          }
+        })
+      })
     }, kuerzel)
   }
 
