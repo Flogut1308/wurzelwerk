@@ -364,4 +364,74 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
     expect(wurzel.textContent).toContain('Beleg verknüpft.')
     expect(wurzel.textContent).not.toContain('Quelle nicht gefunden')
   })
+
+  describe('Fokus bleibt in der Schublade (hueter #176 H4, WCAG 2.4.3)', () => {
+    function inSchublade(): boolean {
+      const aktiv = document.activeElement
+      return aktiv !== null && aktiv !== document.body && schublade().contains(aktiv)
+    }
+
+    function escape(): void {
+      const aktiv = document.activeElement
+      if (!(aktiv instanceof HTMLElement)) throw new Error('kein fokussiertes Element')
+      act(() => {
+        aktiv.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+    }
+
+    it('Quelle wählen, Zitat wählen, „Andere Quelle wählen": Fokus nie auf body, Escape schließt danach', async () => {
+      zeigen(detail())
+      act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
+      const wurzel = schublade()
+      const suche = eingabe('wz-beleg-waehler-suche')
+      act(() => suche.focus())
+      act(() => eintippen(suche, 'Tauf'))
+      const treffer = knopfMit(wurzel, 'Taufregister Marienwerder')
+      act(() => treffer.focus())
+      act(() => treffer.click())
+      expect(inSchublade()).toBe(true)
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Zitat wählen')
+
+      const zitat = knopf(wurzel, 'Seite 43 · Eintrag Nr. 17')
+      act(() => zitat.focus())
+      act(() => zitat.click())
+      await kettenende()
+      expect(inSchublade()).toBe(true)
+
+      const andere = knopf(wurzel, 'Andere Quelle wählen')
+      act(() => andere.focus())
+      act(() => andere.click())
+      expect(document.activeElement).toBe(eingabe('wz-beleg-waehler-suche'))
+
+      escape()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    })
+
+    it('neues Zitat anlegen und verknüpfen: Fokus bleibt in der Schublade', async () => {
+      zeigen(detail())
+      act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
+      const wurzel = schublade()
+      act(() => eintippen(eingabe('wz-beleg-waehler-suche'), 'Tauf'))
+      act(() => knopfMit(wurzel, 'Taufregister Marienwerder').click())
+      const neu = knopf(wurzel, 'Zitat anlegen und verknüpfen')
+      act(() => neu.focus())
+      act(() => neu.click())
+      await kettenende()
+      expect(inSchublade()).toBe(true)
+      escape()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    })
+
+    it('Klick auf den sichtbaren Text neben dem Kästchen schaltet es um (echtes label)', () => {
+      zeigen(detail())
+      act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
+      const wurzel = schublade()
+      const kaestchen = wurzel.querySelector('[role="checkbox"][aria-label="Geburtsort"]')
+      const text = Array.from(wurzel.querySelectorAll('.wz-beleg-waehler__ziel span')).find((kandidat) => kandidat.textContent === 'Geburtsort')
+      if (!(kaestchen instanceof HTMLElement) || !(text instanceof HTMLElement)) throw new Error('Kästchen oder Text fehlt')
+      expect(kaestchen.getAttribute('aria-checked')).toBe('true')
+      act(() => text.click())
+      expect(kaestchen.getAttribute('aria-checked')).toBe('false')
+    })
+  })
 })

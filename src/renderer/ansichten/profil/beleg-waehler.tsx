@@ -130,6 +130,8 @@ export function BelegZeile({ zustand, chips, aufOeffnen }: BelegZeileProps) {
 }
 
 /** Ergebnis der letzten Aktion im Wähler: verknüpft oder der Schritt, der gescheitert ist. */
+const SUCHE_ID = 'wz-beleg-waehler-suche'
+
 type Meldung = 'verknuepft' | 'fehler_verknuepfen' | 'fehler_zitat' | 'fehler_quelle'
 
 export interface BelegWaehlerProps {
@@ -178,6 +180,20 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   const [meldung, setMeldung] = useState<Meldung | null>(null)
   const [unterwegs, setUnterwegs] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
   const schreibtRef = useRef(false)
+  // hueter #176 H4 (WCAG 2.4.3): verschwindet oder sperrt das fokussierte Element (Treffer nach der
+  // Wahl, Zitat nach dem Verknüpfen, Zitatschritt nach „Andere Quelle wählen"), fiele der Fokus auf
+  // `body` — und Escape erreichte die Schublade nicht mehr. Der Fokus geht darum gezielt weiter: auf
+  // den Zitatschritt bzw. zurück ins Suchfeld.
+  const zitatSchrittRef = useRef<HTMLDivElement | null>(null)
+  const [fokusNach, setFokusNach] = useState<{ readonly ziel: 'zitate' | 'suche'; readonly nr: number } | null>(null)
+  useEffect(() => {
+    if (fokusNach === null) return
+    if (fokusNach.ziel === 'zitate') zitatSchrittRef.current?.focus()
+    else document.getElementById(SUCHE_ID)?.focus()
+  }, [fokusNach])
+  function fokusSetzen(ziel: 'zitate' | 'suche'): void {
+    setFokusNach((vorher) => ({ ziel, nr: (vorher?.nr ?? 0) + 1 }))
+  }
   const standRef = useRef(stand)
   useEffect(() => {
     standRef.current = stand
@@ -241,10 +257,14 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   }
 
   function zitatWaehlen(zitatId: string): void {
+    // Das Zitat wird gleich gesperrt und danach ausgeblendet (H4).
+    zitatSchrittRef.current?.focus()
     void schreiben(() => Promise.resolve(zitatId))
   }
 
   function neuesZitatVerknuepfen(id: string): void {
+    // Der Knopf ist gleich „ladend" und damit gesperrt (H4).
+    zitatSchrittRef.current?.focus()
     void schreiben(async () => {
       const ergebnis = await zitatAnlegen.mutateAsync(neuesZitatEin(id, seite, eintragsnummer))
       setSeite('')
@@ -284,7 +304,8 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
           ))
         ) : (
           zustand.ziele.map((ziel) => (
-            <span key={ziel.angabe} className="wz-beleg-waehler__ziel">
+            // Echtes `<label>`: ein Klick auf den sichtbaren Text schaltet das Kästchen um (H4).
+            <label key={ziel.angabe} className="wz-beleg-waehler__ziel">
               <Kontrollkaestchen
                 zustand={abgewaehlt.has(ziel.angabe) ? 'aus' : 'ein'}
                 bezeichnung={angabeText(ziel.angabe, t)}
@@ -294,7 +315,7 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
               <Text rolle="koerper-klein" als="span">
                 {angabeText(ziel.angabe, t)}
               </Text>
-            </span>
+            </label>
           ))
         )}
       </div>
@@ -312,7 +333,7 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
       {quelleId === null ? (
         <div className="wz-beleg-waehler__schritt">
           <Formularfeld beschriftung={t('beleg_waehler_quelle_suchen')} hilfetext={t('beleg_waehler_quelle_suchhinweis')}>
-            <Eingabekoerper id="wz-beleg-waehler-suche" typ="search" wert={suchtext} aufAenderung={setSuchtext} platzhalter={t('beleg_waehler_quelle_platzhalter')} />
+            <Eingabekoerper id={SUCHE_ID} typ="search" wert={suchtext} aufAenderung={setSuchtext} platzhalter={t('beleg_waehler_quelle_platzhalter')} />
           </Formularfeld>
           {sucheAktiv ? (
             suche.isPending ? (
@@ -327,7 +348,11 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
               <ul className="wz-beleg-waehler__liste" aria-label={t('beleg_waehler_quellen_liste')}>
                 {treffer.map((quelle) => (
                   <li key={quelle.id}>
-                    <button type="button" className="wz-beleg-waehler__zeile" onClick={() => setQuelleId(quelle.id)}>
+                    <button type="button" className="wz-beleg-waehler__zeile" onClick={() => {
+                        setQuelleId(quelle.id)
+                        fokusSetzen('zitate')
+                      }}
+                    >
                       <span className="wz-beleg-waehler__zeile-titel">{quelle.titel ?? t('beleg_chip_ohne_titel')}</span>
                       <span className="wz-beleg-waehler__zeile-meta">
                         {quelle.autor === null ? t(quelleTypSchluessel(quelle.typ)) : t('beleg_waehler_quelle_meta', { typ: t(quelleTypSchluessel(quelle.typ)), autor: quelle.autor })}
@@ -345,12 +370,16 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
           </div>
         </div>
       ) : (
-        <div className="wz-beleg-waehler__schritt">
+        <div ref={zitatSchrittRef} tabIndex={-1} className="wz-beleg-waehler__schritt" aria-label={t('beleg_waehler_zitat_waehlen')}>
           <div className="wz-beleg-waehler__quelle">
             <Text rolle="beschriftung" als="span">
               {kopf === undefined ? t('beleg_waehler_laedt') : t('beleg_waehler_quelle_gewaehlt', { quelle: kopf.titel ?? t(quelleTypSchluessel(kopf.typ)) })}
             </Text>
-            <Schaltflaeche variante="unauffaellig" gesperrt={schreibt} aufKlick={() => setQuelleId(null)}>
+            <Schaltflaeche variante="unauffaellig" gesperrt={schreibt} aufKlick={() => {
+                setQuelleId(null)
+                fokusSetzen('suche')
+              }}
+            >
               {t('beleg_waehler_andere_quelle')}
             </Schaltflaeche>
           </div>
@@ -420,6 +449,7 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
           quelleId={neueQuelleId}
           aufSchliessen={() => {
             setQuelleId(neueQuelleId)
+            fokusSetzen('zitate')
             setNeueQuelleId(null)
           }}
         />
