@@ -2008,32 +2008,44 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion, zwisc
  * vatersname). Ein Verlust, den Anlegen/Ändern gleichmäßig machen, bliebe sonst undo-bitgleich und
  * unbemerkt (Gegenprobe: `aktualisieren` ohne Vatersname). Gibt zurück, ob die Form einen trägt
  * (Deckungszweige `name.vatersname.*`).
+ *
+ * AP-1.30 PR 10b (docs/80 §33 V-130-10b): seit `namensteil.anlegen` kann eine Form MEHRERE
+ * Vatersname-Teile tragen („Petrowitsch" + „Sidorow"), die flache Sicht verkettet sie (`rohKette` in
+ * `name-repo.ts`). Geprüft wird darum gegen die flache Sicht VOR dem Befehl (`vorher`, die Teile in
+ * `sortier_index`-Reihenfolge; beim Anlegen leer):
+ * - bleibt die flache Sicht gleich (Eingabe = verkettete Teile vorher), müssen die Teile GENAU die
+ *   vorherigen bleiben — der Teil-Abgleich erhält eine feinere Zerlegung (U-130-10a-bruecke-erhaelt);
+ * - sonst gilt die bisherige Zusicherung unverändert: kein Teil bzw. genau einer mit `wert` = Eingabe.
+ * Keine Abschwächung: ohne die granularen Befehle trägt eine Form höchstens EINEN Vatersname-Teil
+ * (`name.*` schreibt nie mehr), `vorher` ist also `[]` oder `[x]` — und für beide Fälle verlangen beide
+ * Zweige genau `[]` bzw. `[Eingabe]`, wie vorher. Nur für die neu erreichbaren Zustände mit zwei und
+ * mehr Teilen unterscheidet sich die Prüfung, und dort verlangt sie MEHR als die flache Gleichheit
+ * (die Teile selbst bleiben). „Der Vatersname bleibt bei `name.aendern` erhalten" gilt weiter in beide
+ * Richtungen: die flache Sicht nach dem Befehl ist immer die Eingabe.
  */
-function vatersnamePruefen(db: Tx, nameFormId: string, erwartet: string | undefined): boolean {
-  const teile = db
-    .prepare<{ readonly nameFormId: string }, { readonly wert: string }>(
-      "SELECT wert FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname' ORDER BY id",
-    )
-    .all({ nameFormId })
-    .map((t) => t.wert)
-  const soll = erwartet === undefined || erwartet === '' ? [] : [erwartet]
+function vatersnamePruefen(db: Tx, nameFormId: string, erwartet: string | undefined, vorher: readonly string[]): boolean {
+  const teile = vatersnameTeile(db, nameFormId)
+  const sollFlach = erwartet === undefined || erwartet === '' ? null : erwartet
+  const vorherFlach = vorher.length === 0 ? null : vorher.join(' ')
+  const soll = sollFlach === vorherFlach ? vorher : sollFlach === null ? [] : [sollFlach]
   if (teile.length !== soll.length || teile.some((wert, i) => wert !== soll[i])) {
     throw new Error(
-      `Vatersname-Rundreise verletzt (name_form ${nameFormId}): erwartet ${JSON.stringify(soll)}, gespeichert ${JSON.stringify(teile)}.`,
+      `Vatersname-Rundreise verletzt (name_form ${nameFormId}): erwartet ${JSON.stringify(soll)}, gespeichert ${JSON.stringify(teile)} ` +
+        `(vorher ${JSON.stringify(vorher)}).`,
     )
   }
   return teile.length > 0
 }
 
-/** Trägt die Form VOR `name.aendern` einen Vatersnamen-Teil? (Zweig `name.vatersname.entfernt`). */
-function vatersnameTeilVorhanden(db: Tx, nameFormId: string): boolean {
-  return (
-    db
-      .prepare<{ readonly nameFormId: string }, { readonly id: string }>(
-        "SELECT id FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname'",
-      )
-      .get({ nameFormId }) !== undefined
-  )
+/** Die Vatersname-Teile einer Form in `sortier_index`-Reihenfolge (für `vatersnamePruefen` und den Zweig
+ * `name.vatersname.entfernt`). */
+function vatersnameTeile(db: Tx, nameFormId: string): readonly string[] {
+  return db
+    .prepare<{ readonly nameFormId: string }, { readonly wert: string }>(
+      "SELECT wert FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname' ORDER BY sortier_index, id",
+    )
+    .all({ nameFormId })
+    .map((t) => t.wert)
 }
 
 /** Bevorzugte Aussage desselben (Subjekt, Prädikat) vorhanden? — dann demoted ein weiteres
@@ -2148,7 +2160,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vornamen: aktion.vornamen,
         vatersname: aktion.vatersname,
       })
-      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, id, aktion.vatersname, [])) {
         zweige.push('name.vatersname.gesetzt')
       }
       zustand.namen.push({ id, personId })
@@ -2160,7 +2172,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      const vorherMitVatersname = vatersnameTeilVorhanden(db, ziel.id)
+      const vatersnameVorher = vatersnameTeile(db, ziel.id)
       befehlBeobachtet(zweige, db, 'name.aendern', {
         id: ziel.id,
         typ: aktion.typ,
@@ -2169,9 +2181,9 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vatersname: aktion.vatersname,
         feld: feldAusRoh(aktion.feldRoh, ['typ', 'nachname', 'vornamen', 'vatersname'], NameAendernFeldEnum.options),
       })
-      if (vatersnamePruefen(db, ziel.id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, ziel.id, aktion.vatersname, vatersnameVorher)) {
         zweige.push('name.vatersname.gesetzt')
-      } else if (vorherMitVatersname) {
+      } else if (vatersnameVorher.length > 0) {
         zweige.push('name.vatersname.entfernt')
       }
       return
@@ -2204,7 +2216,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vornamen: aktion.vornamen,
         vatersname: aktion.vatersname,
       })
-      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, id, aktion.vatersname, [])) {
         zweige.push('name.vatersname.gesetzt')
       }
       zustand.namen.push({ id, personId: vorhandene.personId })
