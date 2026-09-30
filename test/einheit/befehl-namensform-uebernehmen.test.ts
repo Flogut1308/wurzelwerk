@@ -29,9 +29,11 @@ import {
   erwarteAbgeleitetWieNeuaufbau,
   fehlerCode,
   folge,
+  ids,
   neuePerson,
   neueTestDatenbank,
   originalText,
+  teil,
   teile,
   teilId,
   transaktionAnzahl,
@@ -858,6 +860,142 @@ describe('namensform.uebernehmen — E3 bei Rufname- und Montage-Kombinationen (
       expect(originalText(db, formId)).toBe('Karl Gutnow')
       uebernehmen(db, { personId, formId, kopf: {}, teile: nachnameErsetzt(db, formId, 'Gutnow', 'Müller') })
       expect(originalText(db, formId)).toBe('Karl Müller')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('namensform.uebernehmen — Leerraum-Teil aus der flachen Brücke (U-130-11-0b-leerraum-teil)', () => {
+  /** Person mit Hauptform aus `name.anlegen` und Vatersname `' '` — die flache Brücke speichert ihn so. */
+  function mitLeerraumVatersname(db: Db): { readonly personId: string; readonly formId: string; readonly leer: string } {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Iwan', vatersname: ' ', nachname: 'Petrow' }).id
+    return { personId, formId, leer: teilId(db, formId, 'vatersname', ' ') }
+  }
+
+  it('Vorbedingung: name.anlegen speichert den Vatersname-Teil „ “', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = mitLeerraumVatersname(db)
+      expect(folge(db, formId, 'vatersname')).toEqual([' @0'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(a) unverändert zurückgeschickt: keine Transaktion, Teil unverändert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, leer } = mitLeerraumVatersname(db)
+      const vorher = teil(db, leer)
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      warte(5000)
+      uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId) })
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      expect(teil(db, leer)).toEqual(vorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(b) leerer Eintrag mit unbekannter bzw. fremder Teil-ID: NICHT_GEFUNDEN_NAMENSTEIL, nichts geschrieben', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = mitLeerraumVatersname(db)
+      const fremd = mitLeerraumVatersname(db)
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      // Jeder Aufruf trägt zusätzlich eine gültige Kopfänderung, die ohne Ablehnung geschrieben würde.
+      const basis = { personId, formId, kopf: { sprache: 'ru' } }
+      for (const id of ['gibt-es-nicht', fremd.leer]) {
+        for (const wert of ['', ' ']) {
+          expect(fehlerCode(() => uebernehmen(db, { ...basis, teile: [...zielliste(db, formId), { id, art: 'vatersname', wert, istRufname: false }] }))).toBe(
+            'NICHT_GEFUNDEN_NAMENSTEIL',
+          )
+        }
+      }
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('(c) leerer Eintrag mit eigener ID und anderer Art: VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND, nichts geschrieben', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, leer } = mitLeerraumVatersname(db)
+      const iwan = teilId(db, formId, 'vorname', 'Iwan')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      const basis = { personId, formId, kopf: { sprache: 'ru' } }
+      for (const wert of ['', ' ']) {
+        // der Leerraum-Teil selbst mit anderer Art
+        expect(
+          fehlerCode(() => uebernehmen(db, { ...basis, teile: zielliste(db, formId).map((t) => (t.id === leer ? { ...t, art: 'suffix' as const, wert } : t)) })),
+        ).toBe('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
+        // ein geleerter Inhalts-Teil mit anderer Art
+        expect(
+          fehlerCode(() => uebernehmen(db, { ...basis, teile: zielliste(db, formId).map((t) => (t.id === iwan ? { ...t, art: 'titel' as const, wert } : t)) })),
+        ).toBe('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
+      }
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('zusammen mit einer anderen Änderung: der Leerraum-Teil bleibt, ein Undo-Schritt, Undo/Redo bitgleich', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, leer } = mitLeerraumVatersname(db)
+      const vorher = teil(db, leer)
+      const petrow = teilId(db, formId, 'nachname', 'Petrow')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === petrow ? { ...t, wert: 'Petrov' } : t)) })
+      })
+      expect(folge(db, formId, 'nachname')).toEqual(['Petrov@0'])
+      expect(teil(db, leer)).toEqual(vorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('der Leerraum-Teil „geleert“ (Wert schon leer): nichts ändert sich', () => {
+    // Begründung: `' '` ist im Modal schon leer (`istLeer`), der Nutzer sieht keinen Unterschied zu `''`.
+    // „Leeren“ ändert am Inhalt nichts; gelöscht wird nur ein Teil, dessen gespeicherter Wert Inhalt hatte
+    // (geleert = entfällt). Sonst schriebe ein Aufruf, der für den Nutzer nichts ändert, eine Transaktion
+    // (No-op, AP-0.22), und der unveränderte Altbestand ginge verloren (E4).
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, leer } = mitLeerraumVatersname(db)
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      warte(5000)
+      for (const wert of ['', '   ', '\t']) {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === leer ? { ...t, wert } : t)) })
+      }
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('ein Inhalts-Teil mit ID, der geleert wird, entfällt weiterhin (neben dem Leerraum-Teil)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId, leer } = mitLeerraumVatersname(db)
+      const iwan = teilId(db, formId, 'vorname', 'Iwan')
+      erwarteEinSchrittUndoRedo(db, () => {
+        uebernehmen(db, { personId, formId, kopf: {}, teile: zielliste(db, formId).map((t) => (t.id === iwan ? { ...t, wert: '' } : t)) })
+      })
+      expect(folge(db, formId, 'vorname')).toEqual([])
+      expect(ids(db, formId, 'vatersname')).toEqual([leer])
     } finally {
       db.close()
     }
