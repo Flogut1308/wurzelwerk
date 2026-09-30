@@ -12,6 +12,7 @@ import type { NameZeile } from '../repositories/name-repo'
 import { istMontierterOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
 import { neueId } from '../id'
 import { rufnameWuerdeVerdoppelt } from '../../core/name/rufname-verdopplung'
+import { umschriftBezugPruefen } from './namensform-anlegen'
 
 function flachAusEin(ein: NameAendernEin): FlacherName {
   return {
@@ -151,8 +152,17 @@ export function nameAendern(tx: Tx, ein: NameAendernEin): null {
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
   }
-  if (nameGeaenderteFelder(vorher, ein).length === 0) {
+  const geaendert = nameGeaenderteFelder(vorher, ein)
+  if (geaendert.length === 0) {
     return null
+  }
+  // U-130-11-0b-selbstbezug (docs/80 §33 V-130-fix-umschrift-selbstbezug): derselbe Umschrift-Bezug
+  // wie `namensform.aendern` (Ursprung existiert, gleiche Person, kein Selbstbezug/Kreis) — VOR dem
+  // Schreiben. Ohne die Prüfung scheiterte ein Selbstbezug an einem `SQLITE_CORRUPT_VTAB` aus
+  // `abl_name_form_au` oder wurde (Form mit Ursprung) still geschrieben. Wie dort nur bei geändertem
+  // Bezug geprüft: Altbestand bleibt in seinen übrigen Feldern bearbeitbar.
+  if (geaendert.includes('umschriftVon') && ein.umschriftVon !== undefined) {
+    umschriftBezugPruefen(tx, vorher.person_id, vorher.id, ein.umschriftVon)
   }
   rufnameVerdopplungPruefen(vorher, ein)
   nameRepo.aktualisieren(
