@@ -119,3 +119,113 @@ test.describe('Ablauf 11 — Rufname wählen', () => {
     await expect(editor.getByRole('article', { name: 'Karl Fritz Gutnoff', exact: true })).toBeVisible()
   })
 })
+
+/**
+ * AP-1.30 PR 11c-2 (A-02): die Fassung des alten Ablaufs 11 für den Reiter „Person". Der Reiter Namen
+ * schreibt seit PR 11c-1 nur noch beim Übernehmen; der Reiter Person schreibt den Hauptnamen weiter per
+ * Autosave über die flache Brücke (`name.aendern`) — dort entstehen die Zwischenstände, an denen früher der
+ * bisherige Rufname als zusätzlicher Vorname angehängt wurde („Karl Fritz Friedrich"). Geprüft über die echte
+ * Oberfläche mit Pausen über der Debounce-Frist (jeder Zwischenstand wird geschrieben):
+ *
+ * 1. Der Rufname markiert den umgeschriebenen Vornamen („Friedrich" → „Fritz"): nichts wird angehängt; die
+ *    Markierung fällt weg, weil ihr Vorname nicht mehr existiert (heutiges Verhalten der flachen Brücke,
+ *    `rufnameFuerAenderung`; ein Schutz gegen solchen Strukturverlust ist PR 11e).
+ * 2. Der Rufname markiert einen ANDEREN Vornamen („Fritz", Karl → Carl umgeschrieben): er bleibt an seiner
+ *    Position, nichts wird angehängt.
+ *
+ * Endstand je Fall über `abfrage:person.detail` (`vornamen`, `rufname_text`, `rufname_index`).
+ */
+test.describe('Ablauf 11 — Reiter Person: Vornamen langsam umschreiben mit gesetztem Rufnamen', () => {
+  const einstiegFehlt = !existsSync(HAUPTPROZESS_EINSTIEG)
+  if (einstiegFehlt && process.env['CI'] !== undefined) {
+    throw new Error(
+      'out/main/index.js fehlt im CI-Lauf — das E2E-Gate würde stillschweigend überspringen. ' +
+        '`test:e2e` muss zuvor bauen (electron-vite build).',
+    )
+  }
+  test.skip(einstiegFehlt, 'out/main/index.js fehlt — lokal `pnpm test:e2e` (baut selbst) oder vorher `pnpm build`.')
+
+  let app: Awaited<ReturnType<typeof electron.launch>>
+  let fenster: Awaited<ReturnType<typeof app.firstWindow>>
+  let elternordner: string
+
+  test.beforeAll(async () => {
+    elternordner = mkdtempSync(join(tmpdir(), 'wurzelwerk-e2e-rufname-person-'))
+    app = await electron.launch({ args: [HAUPTPROZESS_EINSTIEG] })
+    fenster = await app.firstWindow()
+  })
+
+  test.afterAll(async () => {
+    await app.close()
+    rmSync(elternordner, { recursive: true, force: true })
+  })
+
+  async function gespeicherterName(personId: string): Promise<z.infer<typeof NameSchema>> {
+    const ergebnis = await fenster.evaluate(async (id) => window.wurzelwerk.aufrufen('abfrage:person.detail', { personId: id }), personId)
+    if (!ergebnis.ok) throw new Error('abfrage:person.detail fehlgeschlagen')
+    // `aufrufen()` ist im Preload kanalunabhängig auf `Ergebnis<unknown>` typisiert — per Zod prüfen.
+    const name = z.object({ namen: z.array(NameSchema) }).parse(ergebnis.daten).namen[0]
+    if (name === undefined) throw new Error('kein Name gespeichert')
+    return name
+  }
+
+  test('Vornamen im Reiter Person langsam umschreiben hängt den bisherigen Rufnamen nicht an', async () => {
+    test.setTimeout(90_000)
+    await app.evaluate(({ dialog }, gewaehlt) => {
+      dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
+    }, elternordner)
+    await fenster.getByPlaceholder('Projektname').fill('Rufnametest-Person')
+    await fenster.getByRole('button', { name: 'Neues Projekt anlegen' }).click()
+    await expect(fenster.getByRole('table')).toBeVisible()
+
+    const anlegen = await fenster.evaluate(async () => window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0 }))
+    if (!anlegen.ok) throw new Error('person.anlegen fehlgeschlagen')
+    const personId = z.object({ id: z.string() }).parse(anlegen.daten).id
+    const name = await fenster.evaluate(
+      async (id) =>
+        window.wurzelwerk.aufrufen('befehl:name.anlegen', { personId: id, typ: 'geburtsname', vornamen: 'Karl Friedrich', rufnameText: 'Friedrich', nachname: 'Gutnoff' }),
+      personId,
+    )
+    expect(name.ok).toBe(true)
+    expect(await gespeicherterName(personId)).toEqual({ vornamen: 'Karl Friedrich', rufname_text: 'Friedrich', rufname_index: 1 })
+
+    await fenster.locator('.wz-datentabelle__koerper [role="row"]').click()
+    await fenster.getByRole('dialog', { name: 'Profil', exact: true }).getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+    await expect(editor.getByRole('tab', { name: /^Person/ })).toHaveAttribute('aria-selected', 'true')
+    const vornamen = editor.locator('#person-bearbeiten-hauptname-vornamen')
+    const rufname = editor.locator('#person-bearbeiten-hauptname-rufname')
+    await expect(vornamen).toHaveValue('Karl Friedrich')
+    await expect(rufname.locator('option')).toHaveText(['nicht angegeben', 'Karl', 'Friedrich'])
+    await expect(rufname).toHaveValue('1')
+
+    // Fall 1: „Friedrich" (Rufname) → „Fritz", langsam; jeder Zwischenstand wird geschrieben.
+    await vornamen.click()
+    await vornamen.press('End')
+    await vornamen.press('Backspace')
+    // Beleg, dass der Ablauf die Zwischenstände wirklich schreibt (sonst prüfte er nichts).
+    await expect.poll(async () => (await gespeicherterName(personId)).vornamen).toBe('Karl Friedric')
+    for (let i = 1; i < 'edrich'.length; i += 1) {
+      await vornamen.press('Backspace')
+      await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2)
+    }
+    await vornamen.pressSequentially('tz', { delay: AUTOSAVE_DEBOUNCE_MS * 2 })
+    await expect.poll(async () => gespeicherterName(personId)).toEqual({ vornamen: 'Karl Fritz', rufname_text: null, rufname_index: null })
+    await expect(vornamen).toHaveValue('Karl Fritz')
+    await expect(rufname).toHaveValue('')
+
+    // Fall 2: Rufname „Fritz" wählen, dann „Karl" → „Carl" langsam: der Rufname bleibt an Position 1.
+    await rufname.selectOption({ label: 'Fritz' })
+    await expect.poll(async () => gespeicherterName(personId)).toEqual({ vornamen: 'Karl Fritz', rufname_text: 'Fritz', rufname_index: 1 })
+    await vornamen.click()
+    // Pfeiltasten statt Home: Home setzt die Einfügemarke unter macOS nicht an den Anfang.
+    for (let i = 0; i < 'Karl Fritz'.length; i += 1) await vornamen.press('ArrowLeft')
+    await vornamen.press('Delete')
+    await expect.poll(async () => (await gespeicherterName(personId)).vornamen).toBe('arl Fritz')
+    await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2)
+    await vornamen.pressSequentially('C', { delay: AUTOSAVE_DEBOUNCE_MS * 2 })
+    await vornamen.blur()
+    await expect.poll(async () => gespeicherterName(personId)).toEqual({ vornamen: 'Carl Fritz', rufname_text: 'Fritz', rufname_index: 1 })
+    await expect(rufname).toHaveValue('1')
+  })
+})
