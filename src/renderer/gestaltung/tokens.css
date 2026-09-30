@@ -51,6 +51,11 @@
   --wz-flaeche-aktiv: #E6E1D6;
   --wz-flaeche-auswahl: #E4EEEC;
   --wz-flaeche-gesperrt: #F1EEE8;
+  /* Abdunkelung hinter einem Modal (Template `T-Dialog`, docs/71 §2.4; Vorgaben „Modal über
+   * abgedunkeltem Hintergrund"). In §1.1 nicht benannt — AP-1.30 PR 11a, [Design-Review]: der
+   * Farbton ist der von `--wz-schatten-modal` desselben Themas, keine neue Farbe. Hell 0.5: die
+   * Modalkarte (`--wz-flaeche-erhoben`) hebt sich über jeder Grundfläche mit ≥ 3:1 ab. */
+  --wz-flaeche-abdunkelung: rgba(35, 32, 25, 0.5);
 
   /* ---- §1.1 Text ---- */
   --wz-text-primaer: #232019;
@@ -227,6 +232,12 @@
    * (Vorgaben §3.4) steht in der Media Query selbst — CSS-Variablen gelten dort nicht. ---- */
   --wz-breite-zustandsspalte: 326px;
   --wz-breite-formularspalte: 720px;
+
+  /* ---- Layout-Maße (AP-1.30 PR 11a): die drei Breiten des Templates `T-Dialog`
+   * (docs/71_Designsystem.md §2.4: schmal 480 / mittel 640 / breit 960). ---- */
+  --wz-breite-dialog-schmal: 480px;
+  --wz-breite-dialog-mittel: 640px;
+  --wz-breite-dialog-breit: 960px;
 }
 
 /* ---- Systemvorgabe dunkel: nur Überschreibungen ---- */
@@ -241,6 +252,7 @@
     --wz-flaeche-aktiv: #383D3A;
     --wz-flaeche-auswahl: #243330;
     --wz-flaeche-gesperrt: #1E211F;
+    --wz-flaeche-abdunkelung: rgba(0, 0, 0, 0.56);
 
     --wz-text-primaer: #E8E5DE;
     --wz-text-sekundaer: #A9A69E;
@@ -370,6 +382,7 @@
   --wz-flaeche-aktiv: #383D3A;
   --wz-flaeche-auswahl: #243330;
   --wz-flaeche-gesperrt: #1E211F;
+  --wz-flaeche-abdunkelung: rgba(0, 0, 0, 0.56);
 
   --wz-text-primaer: #E8E5DE;
   --wz-text-sekundaer: #A9A69E;
@@ -498,6 +511,7 @@
   --wz-flaeche-aktiv: #E6E1D6;
   --wz-flaeche-auswahl: #E4EEEC;
   --wz-flaeche-gesperrt: #F1EEE8;
+  --wz-flaeche-abdunkelung: rgba(35, 32, 25, 0.5);
 
   --wz-text-primaer: #232019;
   --wz-text-sekundaer: #5C564B;
