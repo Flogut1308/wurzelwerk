@@ -290,7 +290,21 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       // markierte, sonst (keine markiert) die erste Namenszeile überhaupt.
       const bevorzugtIndex = namen.findIndex((n) => n.ist_bevorzugt === true)
       const hauptnameIndex = bevorzugtIndex >= 0 ? bevorzugtIndex : 0
-      namen.forEach((n, index) => {
+      // A-19 (U-130-import-umschrift-vorwaerts): `umschrift_von` darf auf einen SPÄTEREN Index
+      // zeigen (der Vertrag schreibt keine Reihenfolge vor), `name_form.umschrift_von` ist aber ein
+      // sofort geprüfter Fremdschlüssel. Darum wird jedes Original vor seiner Umschrift geschrieben
+      // (`schreibeName` zieht das Original vor). Die IDs sind oben in DATEIREIHENFOLGE vergeben —
+      // die Lesereihenfolge (`ORDER BY id`) bleibt damit die der Datei, egal in welcher Folge die
+      // Zeilen entstehen; `sortier_index` setzt der Import nicht. Selbstbezug, Index außerhalb und
+      // Kreis weist Stufe 2 ab (`pruefeUmschriftBezuege`, IMP-104), bevor dieser Weg läuft; der
+      // `geschrieben`-Merker hält die Rekursion auch ohne diese Prüfung endlich.
+      const geschrieben = new Set<number>()
+      const schreibeName = (index: number): void => {
+        if (geschrieben.has(index)) return
+        geschrieben.add(index)
+        const n = namen[index]
+        if (n === undefined) return
+        if (n.umschrift_von !== undefined) schreibeName(n.umschrift_von)
         const nameId = namenIds[index]
         if (nameId === undefined) {
           // Defensiv (CLAUDE.md §4: kein `!`) — `namenIds` hat laut Konstruktion genau
@@ -327,7 +341,8 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
           neueId,
         )
         zaehle('name')
-      })
+      }
+      namen.forEach((_n, index) => schreibeName(index))
     }
 
     merkeExistenzAussage('person', id, p.konfidenz, p.belege)

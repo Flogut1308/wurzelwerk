@@ -484,6 +484,52 @@ function pruefeDoppelteBeteiligung(datei: ImportDatei): readonly Befund[] {
 }
 
 /**
+ * `umschrift_von` (§3.3, A-19): der Index des Originals im `namen`-Array DERSELBEN Person. Das Schema
+ * prüft nur `integer, minimum 0`; was nur mit Blick auf das ganze Array entscheidbar ist, prüft diese
+ * Stufe. IMP-104 („Wert außerhalb des zulässigen Bereichs") je Verletzung, Pfad auf das Feld:
+ *  - Index außerhalb des Arrays (sonst ginge der Bezug still verloren);
+ *  - Selbstbezug (eine Form ist nie ihre eigene Umschrift, wie `umschriftBezugPruefen` im Befehl);
+ *  - Kreis über mehrere Formen — EIN Befund je Kreis, am kleinsten Index des Kreises. Eine Form, die
+ *    nur IN einen Kreis zeigt, bekommt keinen eigenen Befund: ihr Bezug ist gültig, sobald der Kreis
+ *    aufgelöst ist.
+ * Jeder Index hat höchstens einen Bezug, der Graph ist also eine Menge von Ketten; ein Kreis ist
+ * erreicht, wenn eine Kette zu einem Index zurückkehrt, der in DIESEM Durchlauf schon besucht wurde.
+ * Die Reihenfolge der Formen im Array ist frei — der Schreibweg (`schreiben.ts`) löst sie auf.
+ */
+function pruefeUmschriftBezuege(personen: ImportDatei['personen']): readonly Befund[] {
+  const befunde: Befund[] = []
+  personen?.forEach((person, i) => {
+    const namen = person.namen ?? []
+    const feld = (j: number): Segment[] => ['personen', i, 'namen', j, 'umschrift_von']
+    const gueltig = new Set<number>()
+    namen.forEach((name, j) => {
+      const von = name.umschrift_von
+      if (von === undefined) return
+      if (von >= namen.length || von === j) {
+        befunde.push(befund('IMP-104', feld(j), person.id))
+      } else {
+        gueltig.add(j)
+      }
+    })
+    const erledigt = new Set<number>()
+    for (const start of gueltig) {
+      const kette: number[] = []
+      let aktuell: number | undefined = start
+      while (aktuell !== undefined && gueltig.has(aktuell) && !erledigt.has(aktuell) && !kette.includes(aktuell)) {
+        kette.push(aktuell)
+        aktuell = namen[aktuell]?.umschrift_von
+      }
+      if (aktuell !== undefined && kette.includes(aktuell)) {
+        const kreis = kette.slice(kette.indexOf(aktuell))
+        befunde.push(befund('IMP-104', feld(Math.min(...kreis)), person.id))
+      }
+      for (const j of kette) erledigt.add(j)
+    }
+  })
+  return befunde
+}
+
+/**
  * Stufe 2 des Import-Vertrags (§4 IMP-201…IMP-209): Referenz- und Strukturprüfung über die
  * TYPISIERTE Struktur (aus `pruefeStufe1` bzw. `Stufe1Ergebnis.daten`) — bewusst kein Regex auf
  * dem Rohtext (§4 „Umsetzungsdetail, das leicht falsch gemacht wird"). Läuft nur, wenn Stufe 1
@@ -501,6 +547,7 @@ export function pruefeStufe2(datei: ImportDatei, kontext: BestandsKontext): read
     ...pruefeAussageBevorzugung(datei.aussagen),
     ...pruefeMedien(datei.medien, kontext),
     ...pruefeDoppelteBeteiligung(datei),
+    ...pruefeUmschriftBezuege(datei.personen),
   ]
 
   const zyklus = findeElternschaftsZyklus(datei.elternschaften)
