@@ -11,6 +11,7 @@ import * as nameRepo from '../repositories/name-repo'
 import type { NameZeile } from '../repositories/name-repo'
 import { istMontierterOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
 import { neueId } from '../id'
+import { rufnameWuerdeVerdoppelt } from '../../core/name/rufname-verdopplung'
 
 function flachAusEin(ein: NameAendernEin): FlacherName {
   return {
@@ -123,6 +124,26 @@ export function nameGeaenderteFelder(vorher: NameZeile, ein: NameAendernEin): re
   return felder
 }
 
+/**
+ * U-130-rufname-doppelt (docs/80 §33): wie `name.anlegen` weist `name.aendern` einen mehrwortigen
+ * Rufnamen ab, der schon als Wortfolge in den Vornamen steht (`zerlegeName` Regel 3 hinge ihn ein
+ * zweites Mal an) — sonst ließe sich die Abweisung über das Ändern umgehen.
+ *
+ * Ausnahme: die Änderung ERHÄLT eine schon gespeicherte Verdopplung (Altform aus Migration 0006 (c)
+ * oder einem Import, „Hans Peter Hans Peter" mit Rufname-Index 2). Die Maske schickt eine solche Form
+ * genau so zurück (Vornamen ohne den angehängten Rufnamen + `rufnameText`, `rufnameFuerAenderung` in
+ * profil-bearbeiten-logik.ts); eine Abweisung sperrte jede Altform gegen jede andere Änderung (auch am
+ * Nachnamen). Maßstab ist die Wirkung: ergeben die neuen Felder dieselbe Vornamenkette und dieselbe
+ * Rufname-Position wie gespeichert, entsteht nichts Neues — verdoppelt war die Form schon vorher.
+ */
+function rufnameVerdopplungPruefen(vorher: NameZeile, ein: NameAendernEin): void {
+  const flach = flachAusEin(ein)
+  if (!rufnameWuerdeVerdoppelt(flach)) return
+  const wirkung = rekonstruiereFlach(zerlegeName(flach))
+  if (wirkung.vornamen === vorher.vornamen && wirkung.rufnameIndex === vorher.rufname_index) return
+  throw new WurzelFehler('VALIDIERUNG_RUFNAME_VERDOPPELT', 'Mehrwortiger Rufname steht bereits als Wortfolge in den Vornamen (ohne gültigen rufnameIndex).')
+}
+
 export function nameAendern(tx: Tx, ein: NameAendernEin): null {
   const vorher = nameRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
@@ -131,6 +152,7 @@ export function nameAendern(tx: Tx, ein: NameAendernEin): null {
   if (nameGeaenderteFelder(vorher, ein).length === 0) {
     return null
   }
+  rufnameVerdopplungPruefen(vorher, ein)
   nameRepo.aktualisieren(
     tx,
     {

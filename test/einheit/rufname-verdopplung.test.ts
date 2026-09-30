@@ -103,7 +103,7 @@ function anlegenEin(personId: string, fall: Fall): NameAnlegenEin {
 
 describe('name.anlegen: mehrwortiger Rufname, der schon in den Vornamen steht (U-130-rufname-doppelt)', () => {
   for (const fall of VERDOPPELT) {
-    it.fails(`wird abgewiesen: ${fall.titel} → ${FEHLERCODE}, nichts geschrieben, kein Journal`, () => {
+    it(`wird abgewiesen: ${fall.titel} → ${FEHLERCODE}, nichts geschrieben, kein Journal`, () => {
       mitDb((db) => {
         const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
         const vorher = stand(db)
@@ -124,7 +124,7 @@ describe('name.anlegen: mehrwortiger Rufname, der schon in den Vornamen steht (U
 })
 
 describe('name.aendern: derselbe Fall darf nicht über das Ändern entstehen', () => {
-  it.fails(`eine Form „Hans Peter" ohne Rufname auf Rufname „Hans Peter" ändern → ${FEHLERCODE}, Form unverändert`, () => {
+  it(`eine Form „Hans Peter" ohne Rufname auf Rufname „Hans Peter" ändern → ${FEHLERCODE}, Form unverändert`, () => {
     mitDb((db) => {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
       const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Hans Peter', nachname: 'Gutnow' })
@@ -152,6 +152,32 @@ describe('name.aendern: derselbe Fall darf nicht über das Ändern entstehen', (
       expect(neu?.nachname).toBe('Gutnau')
       expect(neu?.vornamen).toBe('Hans Peter Hans Peter')
       expect(neu?.rufname_index).toBe(2)
+    })
+  })
+
+  it('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Rufname-Position, andere Vornamen → abgewiesen', () => {
+    mitDb((db) => {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      // „Anna Berta" + angehängter Rufname „Carl Dora" (kein Verdopplungsfall, darum zulässig): Index 2.
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Anna Berta', rufnameText: 'Carl Dora', nachname: 'Gutnow' })
+      expect(nameRepo.lesen(db, id)?.rufname_index).toBe(2)
+      const zeileVorher = nameRepo.lesen(db, id)
+      // Ergäbe „Carl Dora Carl Dora" mit Index 2 — gleiche Position, aber eine NEUE Verdopplung.
+      expect(fehlercode(() => fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Carl Dora', rufnameText: 'Carl Dora', nachname: 'Gutnow' }))).toBe(FEHLERCODE)
+      expect(nameRepo.lesen(db, id)).toEqual(zeileVorher)
+    })
+  })
+
+  it('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Vornamenkette, neue Rufname-Position → abgewiesen', () => {
+    mitDb((db) => {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      // Vier einzelne Vornamen ohne Rufname: Kette „Hans Peter Hans Peter", Index null.
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Hans Peter Hans Peter', nachname: 'Gutnow' })
+      const zeileVorher = nameRepo.lesen(db, id)
+      expect(zeileVorher?.rufname_index).toBeNull()
+      // Ergäbe dieselbe Kette, aber mit einem neu angehängten Rufnamen an Position 2.
+      expect(fehlercode(() => fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnow' }))).toBe(FEHLERCODE)
+      expect(nameRepo.lesen(db, id)).toEqual(zeileVorher)
     })
   })
 })
