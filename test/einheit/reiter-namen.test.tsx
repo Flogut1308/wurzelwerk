@@ -173,14 +173,24 @@ describe('ReiterNamen', () => {
     expect(aufrufe).toEqual([{ hook: 'useNameLoeschen', ein: { id: 'f1' } }])
   })
 
-  it('Umschrift: eigene Karte „Umschrift von …" ohne Bearbeiten und Hauptname; ohne Ursprung mit Hinweis', () => {
+  it('Umschrift: eigene Karte „Umschrift von …" mit Bearbeiten und Entfernen, ohne Hauptname; ohne Ursprung mit Hinweis', () => {
     zeige([HAUPT, OSSETISCH, UMSCHRIFT])
     const karte = karteMit('Karl Guytnaty')
     expect(karte.textContent).toContain('Umschrift von Гуытнаты Карл')
     expect(karte.textContent).toContain('automatisch · ISO 9')
-    expect(knopfIn(karte, 'Bearbeiten')).toBeUndefined()
+    expect(knopfIn(karte, 'Bearbeiten')).toBeDefined()
     expect(knopfIn(karte, 'Als Hauptname')).toBeUndefined()
     expect(knopfIn(karte, 'Entfernen')).toBeDefined()
+
+    // Dasselbe Modal: Teile bearbeitbar, der Bezug nur angezeigt, keine Rollenwahl, kein Hauptname-Schalter.
+    klicken(knopfIn(karte, 'Bearbeiten'))
+    const dialog = document.querySelector('[role="dialog"]')
+    expect(dialog?.textContent).toContain('Umschrift von Гуытнаты Карл')
+    expect(document.querySelector<HTMLInputElement>('#namensform-teil-t9')?.value).toBe('Guytnaty')
+    const auswahlen = Array.from(dialog?.querySelectorAll('select') ?? [])
+    expect(auswahlen.some((auswahl) => Array.from(auswahl.options).some((option) => option.value === 'geburtsname'))).toBe(false)
+    expect(dialog?.querySelector('[role="checkbox"]')).toBeNull()
+    klicken(knopfIn(document, 'Abbrechen'))
 
     zeige([HAUPT, { ...UMSCHRIFT, umschrift_von: null }])
     expect(karteMit('Karl Guytnaty').textContent).toContain('die Ursprungsform ist entfernt')

@@ -23,10 +23,13 @@ export interface EntwurfTeil {
 
 /** Der Entwurf einer Namensform. Die Reihenfolge der Teile einer Art ist die Zielfolge (der Befehl ordnet
  * je Art); `rufname` ist der `schluessel` des markierten Vornamens. `originalText` wird nur für die
- * Vorschau gelesen, nicht bearbeitet. */
+ * Vorschau gelesen, nicht bearbeitet. `rolle = null` ist eine Umschrift: das Modal bietet dann keine
+ * Rollenwahl an (eine Rolle machte die Umschrift zu einer eigenständigen Form); `umschriftVon` wird nur
+ * angezeigt und nie mitgeschickt („fehlt = bleibt"). */
 export interface NamensformEntwurf {
   readonly formId: string | null
-  readonly rolle: NameFormRolle
+  readonly rolle: NameFormRolle | null
+  readonly umschriftVon: string | null
   readonly sprache: string | null
   readonly schrift: Schrift | null
   readonly reihenfolge: NameFormReihenfolge | null
@@ -53,15 +56,17 @@ function leereZeilen(teile: readonly EntwurfTeil[]): readonly EntwurfTeil[] {
 
 /**
  * Entwurf aus einer gespeicherten Form. Die Teile kommen in der Folge des Lesemodells (je Art nach
- * `sortier_index`); fehlt ein Vorname oder Nachname, steht eine leere Zeile dafür bereit. Eine Umschrift
- * (`rolle = null`) ist im Modal nicht bearbeitbar (E6) — dann `null`.
+ * `sortier_index`); fehlt ein Vorname oder Nachname, steht eine leere Zeile dafür bereit. Auch eine
+ * Umschrift (`rolle = null`) ist bearbeitbar (Teile und Kopf wie jede Form; E6 betrifft nur das Erzeugen
+ * einer Umschrift, nicht das Bearbeiten einer vorhandenen). Rückgabe `NamensformEntwurf | null` bleibt als
+ * Vertrag für künftig nicht bearbeitbare Formen; heute ist sie nie `null`.
  */
 export function entwurfAusForm(name: PersonDetailName): NamensformEntwurf | null {
-  if (name.rolle === null) return null
   const teile: readonly EntwurfTeil[] = name.teile.map((eintrag) => ({ schluessel: eintrag.id, id: eintrag.id, art: eintrag.art, wert: eintrag.wert }))
   return {
     formId: name.id,
     rolle: name.rolle,
+    umschriftVon: name.umschrift_von,
     sprache: name.sprache,
     schrift: name.schrift,
     reihenfolge: name.reihenfolge,
@@ -78,6 +83,7 @@ export function neuerEntwurf(istErsteForm: boolean): NamensformEntwurf {
   return {
     formId: null,
     rolle: NEUE_FORM_ROLLE,
+    umschriftVon: null,
     sprache: null,
     schrift: null,
     reihenfolge: null,

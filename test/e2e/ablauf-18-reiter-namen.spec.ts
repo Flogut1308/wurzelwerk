@@ -252,4 +252,44 @@ test.describe('Ablauf 18 — Reiter Namen: Karten und Modal', () => {
     expect(await nachnamen()).toEqual(['Гутнов'])
     expect(await verlaufAnzahl()).toBe(verlaufVorher)
   })
+
+  test('Umschrift bearbeiten: Teil ändern, Übernehmen — umschrift_von und rolle unverändert, genau ein Undo-Schritt', async () => {
+    const [haupt] = await formen()
+    if (haupt === undefined) throw new Error('Hauptform fehlt')
+    const umschriftId = z.object({ id: z.string() }).parse(
+      await aufrufen('befehl:namensform.uebernehmen', {
+        personId,
+        formId: null,
+        kopf: { rolle: null, umschriftVon: haupt.id, umschriftNorm: 'iso9', schrift: 'latn' },
+        teile: [
+          { art: 'vorname', wert: 'Karl', istRufname: false },
+          { art: 'nachname', wert: 'Gutnov', istRufname: false },
+        ],
+      }),
+    ).id
+    const UmschriftSchema = z.object({ id: z.string(), rolle: z.string().nullable(), umschrift_von: z.string().nullable(), umschrift_norm: z.string().nullable() })
+    const umschrift = async (): Promise<z.infer<typeof UmschriftSchema> | undefined> =>
+      z.object({ namen: z.array(UmschriftSchema) }).parse(await aufrufen('abfrage:person.detail', { personId })).namen.find((form) => form.id === umschriftId)
+    expect(await umschrift()).toEqual({ id: umschriftId, rolle: null, umschrift_von: haupt.id, umschrift_norm: 'iso9' })
+
+    const umschriftKarte = karte('Karl Gutnov')
+    await expect(umschriftKarte).toContainText('Umschrift von Карл Гутнов')
+    const verlaufVorher = await verlaufAnzahl()
+    await umschriftKarte.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    const bearbeiten = modal('Namensform bearbeiten')
+    await expect(bearbeiten).toContainText('Umschrift von Карл Гутнов')
+    await expect(bearbeiten.getByRole('combobox', { name: 'Namenstyp' })).toHaveCount(0)
+    await expect(bearbeiten.getByRole('checkbox')).toHaveCount(0)
+    await bearbeiten.getByRole('textbox', { name: /^Nachname/ }).fill('Gutnow')
+    await bearbeiten.getByRole('button', { name: 'Übernehmen', exact: true }).click()
+    await expect(bearbeiten).toHaveCount(0)
+    await expect(karte('Karl Gutnow')).toBeVisible()
+    expect(await umschrift()).toEqual({ id: umschriftId, rolle: null, umschrift_von: haupt.id, umschrift_norm: 'iso9' })
+    expect(await verlaufAnzahl()).toBe(verlaufVorher + 1)
+
+    await menuepunktKlicken('CmdOrCtrl+Z')
+    await expect(karte('Karl Gutnov')).toBeVisible()
+    await expect.poll(verlaufAnzahl).toBe(verlaufVorher)
+    expect(await umschrift()).toEqual({ id: umschriftId, rolle: null, umschrift_von: haupt.id, umschrift_norm: 'iso9' })
+  })
 })

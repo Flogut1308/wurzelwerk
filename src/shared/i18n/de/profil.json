@@ -270,7 +270,6 @@
   "namensform_gueltig_bis": "gültig bis {{jahr}}",
   "namensform_umschrift_von": "Umschrift von {{name}}",
   "namensform_umschrift_ohne_ursprung": "Umschrift — die Ursprungsform ist entfernt",
-  "namensform_umschrift_nur_anzeige": "Umschriften werden hier nur angezeigt.",
   "umschrift_norm_iso9": "automatisch · ISO 9",
   "umschrift_norm_din1460": "automatisch · DIN 1460",
   "umschrift_norm_manuell": "selbst eingetragen",

@@ -102,8 +102,25 @@ describe('Entwurf aus der Form und leer', () => {
     ])
   })
 
-  it('eine Umschrift ist im Modal nicht bearbeitbar (E6)', () => {
-    expect(entwurfAusForm(form('u', { rolle: null, umschrift_von: 'f1' }))).toBeNull()
+  // Koordinator-Entscheidung zu PR 11c-1: E6 betrifft das Erzeugen einer Umschrift, nicht das Bearbeiten einer
+  // vorhandenen — die flache Maske konnte jede Form bearbeiten, das Modal kann es auch.
+  it('eine Umschrift ist bearbeitbar: Rolle bleibt NULL, der Bezug wird nur angezeigt', () => {
+    const umschrift = form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'iso9', schrift: 'latn', teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Guytnaty')] })
+    const basis = entwurfAusForm(umschrift)
+    if (basis === null) throw new Error('Umschrift nicht bearbeitbar')
+    expect(basis).toMatchObject({ formId: 'u', rolle: null, umschriftVon: 'f1', hauptname: false })
+    const ein = uebernehmenEin('p1', basis, teilWertSetzen(basis, 'b', 'Gutnaty'))
+    expect(ein).toEqual({
+      personId: 'p1',
+      formId: 'u',
+      kopf: {},
+      teile: [
+        { id: 'a', art: 'vorname', wert: 'Karl', istRufname: false },
+        { id: 'b', art: 'nachname', wert: 'Gutnaty', istRufname: false },
+      ],
+    })
+    expect(ein.kopf).not.toHaveProperty('rolle')
+    expect(ein.kopf).not.toHaveProperty('umschriftVon')
   })
 
   it('leerer Entwurf: Vorname und Nachname leer, Hauptname nur für die erste Form', () => {

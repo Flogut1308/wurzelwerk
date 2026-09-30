@@ -235,3 +235,7 @@
   color: var(--wz-text-sekundaer);
   font: var(--wz-schrift-technisch);
 }
+
+.wz-namensform-modal__umschrift {
+  margin: 0;
+}

@@ -4,6 +4,7 @@ import { anzeigeArtFolge } from '../../../core/name/anzeigename'
 import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import { NameFormRolleEnum, SchriftEnum } from '../../../shared/schemata/name'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
+import { Abzeichen } from '../../bausteine/abzeichen'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { Formularfeld } from '../../bausteine/formularfeld'
 import { Kontrollkaestchen } from '../../bausteine/kontrollkaestchen'
@@ -32,6 +33,7 @@ import {
 import { nameTypSchluessel, schriftSchluessel } from './profil-schluessel'
 import {
   NEU_ANLEGBARE_ARTEN,
+  anzeigetextDerForm,
   artNummern,
   namensteilNeuSchluessel,
   namensteilSchluessel,
@@ -135,6 +137,11 @@ export function NamensformModal({ personId, formId, namen, aufSchliessen, fokusN
   const amRufnamen = aktiverFehler?.code === 'VALIDIERUNG_RUFNAME_KEIN_VORNAME' || aktiverFehler?.code === 'VALIDIERUNG_RUFNAME_VERDOPPELT'
   const allgemein = fehlertext !== null && leerraumFelder.length === 0 && !amRufnamen ? fehlertext : null
   const gesperrt = wartet || schreibt || (entwurf.formId === null && !hatInhalt(entwurf))
+  // Umschrift (rolle NULL): Bezug nur anzeigen, keine Rollenwahl, kein Hauptname-Schalter. Ob eine Umschrift
+  // Hauptname sein darf, entscheidet keine Regel (`hauptname.wechseln` prüft es nicht, keine Invariante) —
+  // im Zweifel ausgeblendet, wie „Als Hauptname" auf ihrer Karte (docs/80 §33 V-130-11c-1).
+  const umschrift = basis.rolle === null
+  const ursprung = umschrift && basis.umschriftVon !== null ? namen.find((name) => name.id === basis.umschriftVon) : undefined
 
   function abbrechen(): void {
     if (entwurfGeaendert(basis, entwurf)) setNachfrage(true)
@@ -216,10 +223,19 @@ export function NamensformModal({ personId, formId, namen, aufSchliessen, fokusN
           {t('namensform_von_aussen')}
         </p>
       ) : null}
+      {umschrift ? (
+        <p className="wz-namensform-modal__umschrift">
+          <Abzeichen variante={ursprung === undefined ? 'warnung' : 'neutral'}>
+            {ursprung === undefined ? t('namensform_umschrift_ohne_ursprung') : t('namensform_umschrift_von', { name: anzeigetextDerForm(ursprung) })}
+          </Abzeichen>
+        </p>
+      ) : null}
       <div className="wz-namensform-modal__kopf-felder">
-        <Formularfeld beschriftung={t('name_typ_beschriftung')}>
-          <Auswahlfeld wert={entwurf.rolle} optionen={rolleOptionen} aufAenderung={(rolle) => setEntwurf({ ...entwurf, rolle })} />
-        </Formularfeld>
+        {entwurf.rolle === null ? null : (
+          <Formularfeld beschriftung={t('name_typ_beschriftung')}>
+            <Auswahlfeld wert={entwurf.rolle} optionen={rolleOptionen} aufAenderung={(rolle) => setEntwurf({ ...entwurf, rolle })} />
+          </Formularfeld>
+        )}
         <Formularfeld beschriftung={t('sprache_beschriftung')}>
           <Auswahlfeld wert={entwurf.sprache ?? ''} optionen={sprachOptionen} aufAenderung={(sprache) => setEntwurf({ ...entwurf, sprache: sprache === '' ? null : sprache })} />
         </Formularfeld>
@@ -262,6 +278,7 @@ export function NamensformModal({ personId, formId, namen, aufSchliessen, fokusN
         </Formularfeld>
       </div>
 
+      {umschrift ? null : (
       <div className="wz-namensform-modal__hauptname">
         <label className="wz-namensform-modal__hauptname-zeile">
           <Kontrollkaestchen
@@ -280,6 +297,7 @@ export function NamensformModal({ personId, formId, namen, aufSchliessen, fokusN
           </Text>
         ) : null}
       </div>
+      )}
 
       {allgemein === null ? null : (
         <p className="wz-namensform-modal__fehler" role="alert">

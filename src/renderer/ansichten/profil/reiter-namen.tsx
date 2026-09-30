@@ -46,7 +46,8 @@ interface OffenesModal {
  * - Kartenfolge E10 (`kartenFolge`); die Teile in Anzeigefolge des Kerns (`teileInAnzeigefolge`).
  * - Aktionen im Kartenkopf als sichtbare Schaltflächen statt „⋯" (Design-Review): „Bearbeiten",
  *   „Als Hauptname" (`hauptname.wechseln`), „Entfernen" (`name.loeschen`; E7: auch die letzte Form).
- * - Umschriften (rolle NULL) als eigene Karte „Umschrift von …", nur Anzeige (E6), entfernbar.
+ * - Umschriften (rolle NULL) als eigene Karte „Umschrift von …"; bearbeitbar im selben Modal (Teile und
+ *   Kopf, der Bezug nur angezeigt) und entfernbar, aber nicht „Als Hauptname" (keine Regel lässt es zu).
  * - Verschwindet die Form eines offenen Modals (z. B. Undo ihres Anlegens), schließt das Modal mit Hinweis.
  */
 export function ReiterNamen({ personId, namen, istPlatzhalter }: ReiterNamenProps) {
@@ -165,11 +166,9 @@ function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten }: 
         {name.reihenfolge === null ? null : <span className="wz-namensform-karte__etikett">{t(reihenfolgeSchluessel(name.reihenfolge))}</span>}
         {name.ist_bevorzugt ? <span className="wz-namensform-karte__hauptname">{t('namensform_hauptname')}</span> : null}
         <span className="wz-namensform-karte__aktionen">
-          {umschrift ? null : (
-            <Schaltflaeche variante="unauffaellig" aufKlick={aufBearbeiten}>
-              {t('namensform_bearbeiten')}
-            </Schaltflaeche>
-          )}
+          <Schaltflaeche variante="unauffaellig" aufKlick={aufBearbeiten}>
+            {t('namensform_bearbeiten')}
+          </Schaltflaeche>
           {umschrift || name.ist_bevorzugt || hauptnameId === null ? null : (
             <Schaltflaeche variante="unauffaellig" gesperrt={hauptnameWechseln.isPending} aufKlick={() => hauptnameWechseln.mutate({ personId, alt: hauptnameId, neu: name.id })}>
               {t('namensform_als_hauptname')}
@@ -188,9 +187,6 @@ function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten }: 
               {ursprung === undefined ? t('namensform_umschrift_ohne_ursprung') : t('namensform_umschrift_von', { name: anzeigetextDerForm(ursprung) })}
             </Abzeichen>
             {name.umschrift_norm === null ? null : <Abzeichen variante="info">{t(umschriftNormSchluessel(name.umschrift_norm))}</Abzeichen>}
-            <Text rolle="hilfe" als="span">
-              {t('namensform_umschrift_nur_anzeige')}
-            </Text>
           </div>
         ) : null}
 
