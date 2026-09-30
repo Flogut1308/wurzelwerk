@@ -9,6 +9,7 @@ import * as nameRepo from '../repositories/name-repo'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import { neueId } from '../id'
 import { rufnameWuerdeVerdoppelt } from '../../core/name/rufname-verdopplung'
+import { umschriftBezugPruefen } from './namensform-anlegen'
 
 export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string } {
   if (!datensatzExistiert(tx, 'person', ein.personId)) {
@@ -20,8 +21,12 @@ export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string 
   // lassen (generischer Code, keine Handlungsanweisung).
   // AP-1.33: `umschrift_von` referenziert jetzt eine `name_form` (0006_namensformen.sql), nicht mehr
   // die flache `name`-Zeile.
-  if (ein.umschriftVon !== undefined && !datensatzExistiert(tx, 'name_form', ein.umschriftVon)) {
-    throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+  // U-130-11-0b-selbstbezug (docs/80 §33 V-130-fix-umschrift-selbstbezug): dieselbe Prüfung wie
+  // `namensform.anlegen` — neben der Existenz auch „Ursprungsform derselben Person" (vorher wurde
+  // ein Bezug auf die Form einer fremden Person still geschrieben).
+  const id = neueId()
+  if (ein.umschriftVon !== undefined) {
+    umschriftBezugPruefen(tx, ein.personId, id, ein.umschriftVon)
   }
 
   // U-130-rufname-doppelt (docs/80 §33): ein mehrwortiger Rufname, der schon als Wortfolge in den
@@ -32,7 +37,6 @@ export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string 
     throw new WurzelFehler('VALIDIERUNG_RUFNAME_VERDOPPELT', 'Mehrwortiger Rufname steht bereits als Wortfolge in den Vornamen (ohne gültigen rufnameIndex).')
   }
 
-  const id = neueId()
   const jetzt = Date.now()
   // „Genau ein Hauptname je Person" (0006): die ERSTE Form einer Person wird bevorzugt; jede weitere
   // ist per Vorgabe nicht bevorzugt. Ein explizit gewünschtes `istBevorzugt` wird nur akzeptiert,
