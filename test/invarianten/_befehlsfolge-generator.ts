@@ -298,6 +298,7 @@ import {
   feldAusRoh,
   serieAktionArbitrary,
   serieAusfuehren,
+  teilWechselSerieArbitrary,
   uhrVorruecken,
   UHR_SCHRITT_MS,
   UHR_START_MS,
@@ -1517,9 +1518,17 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
  * Datumswert-Einschübe werden vorher gezogen und sind darum Zug um Zug dieselben wie ohne sie; die
  * Einflechtung ändert nur Stellen, nie die relative Reihenfolge. Nachgewiesen (nicht nur behauptet) in
  * `befehlsfolge-einflechtung.test.ts`: ohne die Kurzbeschreibungs-Aktionen ist die Folge genau die mit
- * `mitKurzbeschreibung: false` (= die Fassung vor 9c-b). */
+ * `mitKurzbeschreibung: false` (= die Fassung vor 9c-b).
+ *
+ * AP-1.30 PR 10a-b (TEILWECHSEL-EINFLECHTUNG, docs/80 §33 V-130-10a-verdichtet,
+ * `teilWechselSerieArbitrary()` in `_befehlsfolge-koaleszenz.ts`): nur mit `mitTeilWechsel: true`
+ * (nur `undo-bitgleich` — dort hängt der Deckungszweig `koaleszenz.verdichtet`) als VIERTES
+ * Tupelelement, eingeflochten NACH den Kurzbeschreibungs-Aktionen. Ohne die Option ist die Folge
+ * unverändert (alle übrigen Aufrufer und `befehlsfolge-einflechtung.test.ts` sehen dieselben Folgen
+ * wie vorher); mit ihr ist sie ohne die Teilwechsel-Serien Zug um Zug dieselbe wie ohne die Option —
+ * nachgewiesen in `befehlsfolge-teilwechsel-einflechtung.test.ts`. */
 export function befehlsfolgeArbitrary(
-  optionen: { readonly profil: GeneratorProfil; readonly mitKurzbeschreibung?: boolean } = { profil: 'bestand' },
+  optionen: { readonly profil: GeneratorProfil; readonly mitKurzbeschreibung?: boolean; readonly mitTeilWechsel?: boolean } = { profil: 'bestand' },
 ): fc.Arbitrary<readonly Aktion[]> {
   const hauptfolge = fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
   if (optionen.profil === 'beleg') {
@@ -1533,8 +1542,21 @@ export function befehlsfolgeArbitrary(
     minLength: KURZBESCHREIBUNG_EINSCHUEBE_MIN,
     maxLength: KURZBESCHREIBUNG_EINSCHUEBE_MAX,
   })
-  return fc.tuple(hauptfolge, einschuebe, kurz).map(([folge, datums, kurzbeschreibungen]) => einflechten(einflechten(folge, datums), kurzbeschreibungen))
+  if (optionen.mitTeilWechsel !== true) {
+    return fc.tuple(hauptfolge, einschuebe, kurz).map(([folge, datums, kurzbeschreibungen]) => einflechten(einflechten(folge, datums), kurzbeschreibungen))
+  }
+  const teilWechsel = fc.array(fc.tuple(fc.nat(), teilWechselSerieArbitrary()), {
+    minLength: TEILWECHSEL_EINSCHUEBE_MIN,
+    maxLength: TEILWECHSEL_EINSCHUEBE_MAX,
+  })
+  return fc
+    .tuple(hauptfolge, einschuebe, kurz, teilWechsel)
+    .map(([folge, datums, kurzbeschreibungen, serien]) => einflechten(einflechten(einflechten(folge, datums), kurzbeschreibungen), serien))
 }
+
+/** Anzahl eingeflochtener Teilwechsel-Serien je Folge (s. „TEILWECHSEL-EINFLECHTUNG"). */
+const TEILWECHSEL_EINSCHUEBE_MIN = 1
+const TEILWECHSEL_EINSCHUEBE_MAX = 2
 
 /** Anzahl eingeflochtener Datumswert-Aktionen je Folge (s. „DATUMSWERT-EINFLECHTUNG"). */
 const DATUMSWERT_EINSCHUEBE_MIN = 3

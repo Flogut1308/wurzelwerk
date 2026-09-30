@@ -158,11 +158,12 @@ export function befehlBeobachtet<N extends BefehlName>(
   db: Tx,
   name: N,
   ein: BefehlEin<N>,
-): { readonly landung: Landung; readonly vorher: JournalBlick; readonly nachher: JournalBlick } {
+): { readonly landung: Landung; readonly vorher: JournalBlick; readonly nachher: JournalBlick; readonly verdichtet: boolean } {
   const vorher = journalBlick(db)
   befehl(zweige, db, name, ein)
   const nachher = journalBlick(db)
   let landung: Landung
+  let verdichtet = false
   if (nachher.anzahl > vorher.anzahl) {
     landung = 'neu'
   } else if (
@@ -179,11 +180,12 @@ export function befehlBeobachtet<N extends BefehlName>(
     const jetzt = datensaetzeDerTransaktion(db, nachher.oberste.id)
     if (vorher.einfuegungen.some((s) => !jetzt.has(s))) {
       zweige.push('koaleszenz.verdichtet')
+      verdichtet = true
     }
   } else {
     landung = 'leer'
   }
-  return { landung, vorher, nachher }
+  return { landung, vorher, nachher, verdichtet }
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -246,6 +248,8 @@ export interface AktionSerie {
   /** Je Aufruf: `feld` passend (true) oder absichtlich unpassend (false). `personNotiz` ignoriert
    * das (dort bestimmt `feld` die Spalte). */
   readonly feldPassend: readonly boolean[]
+  /** Gezielte Serienvariante (`teilWechselSerieArbitrary()`); fehlt bei der gewöhnlichen Serie. */
+  readonly variante?: 'teilWechsel'
 }
 
 /** Kleine Wertemenge (Wiederholungen → auch No-op-Aufrufe mitten in der Serie) plus freie Texte. */
@@ -287,6 +291,79 @@ export function serieAktionArbitrary(): fc.Arbitrary<AktionSerie> {
         feldPassend: r.feldPassend.slice(0, r.anzahl),
       }),
     )
+}
+
+// -----------------------------------------------------------------------------------------------
+// Serienvariante „Teilwechsel" (AP-1.30 PR 10a-b, docs/80 §33 V-130-10a-verdichtet)
+// -----------------------------------------------------------------------------------------------
+//
+// WARUM: `koaleszenz.verdichtet` (ein insert+delete-Paar derselben Zeile hebt sich in einer
+// zusammengefassten Transaktion auf) traf die gewöhnliche Serie bisher nur, weil `name.aendern`
+// (`name-repo.aktualisieren`) bei JEDER Änderung alle `name_part` löscht und neu anlegt — jede
+// koaleszierte Namensserie erzeugt dadurch Paare. Ein Teil-Abgleich (Teile nur ändern, wo sich Art,
+// Wert oder Stelle ändern; U-130-10a-bruecke-erhaelt) brächte den Zweig auf 0, obwohl die
+// Verdichtung weiter gebraucht wird: dann entsteht ein Paar nur noch, wenn eine Serie innerhalb des
+// Fensters einen Teil HINZUFÜGT und wieder ENTFERNT. Genau das erzeugt diese Variante gezielt:
+// `name.aendern` mit `feld: 'vornamen'`, die Anzahl der Vornamen-Wörter steigt und fällt
+// (`grund` → `grund + plus` → `grund`, danach 0–2 freie Wortzahlen 0–3), Abstände überwiegend im
+// Fenster. Der Zweig hängt damit an der Verdichtung selbst, nicht am Neuaufbau aller Teile.
+//
+// Sie ist eine GEWÖHNLICHE `AktionSerie` (dieselbe Ausführung, dasselbe Orakel (a)/(b)), nur mit
+// festem Befehl/Feld, passendem `feld` und `variante: 'teilWechsel'` — die Marke braucht der
+// Einflechtungsnachweis (`befehlsfolge-teilwechsel-einflechtung.test.ts`) und der eigene Zweig
+// `koaleszenz.verdichtet.teilWechsel`. Eingeflochten wird sie wie die Datumswert- und
+// Kurzbeschreibungs-Aktionen als eigenes, zuletzt gezogenes Tupelelement (`befehlsfolgeArbitrary`,
+// Option `mitTeilWechsel`), nicht als Gewicht in `aktionArbitrary()`: so bleiben Hauptfolge und alle
+// früheren Einschübe Zug um Zug unverändert (ADR-009-Nachtrag, Seed/`numRuns`/Längen unverändert).
+
+/** Einzelwörter ohne Leerraum (je ein Vorname-Teil), mit Apostroph und Nicht-ASCII. */
+const TEILWECHSEL_WOERTER = ['Karl', 'Anna', 'Maria', 'Johann', "O'Brien", 'Ольга', 'Luise', 'Friedrich'] as const
+
+/** Höchstzahl Wörter je Aufruf (`grund` 1–2 + `plus` 1–2). */
+const TEILWECHSEL_WOERTER_JE_AUFRUF = 4
+
+/** Abstände der Teilwechsel-Serie: überwiegend im Fenster (sonst verdichtet nichts), die Grenze
+ * 1999/2000 eingeschlossen. */
+function teilWechselAbstandArbitrary(): fc.Arbitrary<number> {
+  return fc.oneof(
+    { weight: 6, arbitrary: fc.integer({ min: 0, max: KOALESZENZ_FENSTER_MS - 1 }) },
+    { weight: 1, arbitrary: fc.constantFrom(KOALESZENZ_FENSTER_MS - 1, KOALESZENZ_FENSTER_MS) },
+  )
+}
+
+export function teilWechselSerieArbitrary(): fc.Arbitrary<AktionSerie> {
+  const feldRoh = SERIE_FELDER.nameAendern.indexOf('vornamen')
+  if (feldRoh < 0) {
+    throw new Error('teilWechselSerieArbitrary(): SERIE_FELDER.nameAendern enthält „vornamen" nicht.')
+  }
+  return fc
+    .record({
+      zielRoh: fc.nat(),
+      grund: fc.integer({ min: 1, max: 2 }),
+      plus: fc.integer({ min: 1, max: 2 }),
+      schwanz: fc.array(fc.integer({ min: 0, max: 3 }), { minLength: 0, maxLength: 2 }),
+      woerter: fc.array(fc.constantFrom(...TEILWECHSEL_WOERTER), {
+        minLength: 5 * TEILWECHSEL_WOERTER_JE_AUFRUF,
+        maxLength: 5 * TEILWECHSEL_WOERTER_JE_AUFRUF,
+      }),
+      abstaendeMs: fc.array(teilWechselAbstandArbitrary(), { minLength: 4, maxLength: 4 }),
+    })
+    .map((r): AktionSerie => {
+      const wortzahlen = [r.grund, r.grund + r.plus, r.grund, ...r.schwanz]
+      const werte = wortzahlen.map((anzahl, i) =>
+        r.woerter.slice(i * TEILWECHSEL_WOERTER_JE_AUFRUF, i * TEILWECHSEL_WOERTER_JE_AUFRUF + anzahl).join(' '),
+      )
+      return {
+        art: 'serie',
+        befehl: 'nameAendern',
+        zielRoh: r.zielRoh,
+        feldRoh,
+        werte,
+        abstaendeMs: r.abstaendeMs.slice(0, werte.length - 1),
+        feldPassend: werte.map(() => true),
+        variante: 'teilWechsel',
+      }
+    })
 }
 
 /** Was eine Serie vom Generatorzustand braucht (strukturell, s. Modul-Kommentar). */
@@ -480,9 +557,12 @@ export function serieAusfuehren(db: Tx, zustand: KoaleszenzZustand, aktion: Akti
     if (aufruf === undefined) {
       return
     }
-    const { landung, vorher, nachher } = serienAufrufAusfuehren(zweige, db, aufruf)
+    const { landung, vorher, nachher, verdichtet } = serienAufrufAusfuehren(zweige, db, aufruf)
     if (!passend && landung === 'neu' && nachher.oberste?.koaleszenz_schluessel === null) {
       zweige.push('koaleszenz.feldUnpassend')
+    }
+    if (verdichtet && aktion.variante === 'teilWechsel') {
+      zweige.push('koaleszenz.verdichtet.teilWechsel')
     }
 
     const imFenster =
