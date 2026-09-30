@@ -20,7 +20,13 @@ import { personDetail } from '../../src/main/abfragen/person-detail'
 import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
-import { namensformAendernEinSchema, namensformAnlegenEinSchema, type NamensformAendernEin } from '../../src/shared/schemata/befehle'
+import {
+  NamensformAendernFeldEnum,
+  namensformAendernEinSchema,
+  namensformAnlegenEinSchema,
+  type NamensformAendernEin,
+  type NamensformAendernFeld,
+} from '../../src/shared/schemata/befehle'
 import { kanonischerAbzug } from '../hilfsmittel/kanonischer-abzug'
 import { sucheFtsInhaltAbzug, verwaisteFtsEintraegeAnzahl } from './_hilfen-abgeleitet'
 
@@ -589,4 +595,80 @@ describe('namensform.aendern (AP-1.30 PR 10-1)', () => {
       db.close()
     }
   })
+})
+
+// -----------------------------------------------------------------------------------------------
+// hueter #189 H1: Leeren per `null` für JEDES Kopf-Feld von `namensform.aendern` (Teil-Semantik E6).
+// `satisfies Record<NamensformAendernFeld, …>` erzwingt einen Fall je Vertragsfeld. Die beiden
+// E7-Felder (`rolle`, `umschriftVon`) sind leerbar, solange das jeweils andere gesetzt bleibt — der
+// Ausgang trägt darum beide; die Abweisung ohne Partner prüfen die Fehlerfälle oben.
+// -----------------------------------------------------------------------------------------------
+
+interface LeerFall {
+  readonly leeren: (id: string) => NamensformAendernEin
+  readonly spalte: keyof FormZeile
+}
+
+const LEER_FAELLE = {
+  rolle: { leeren: (id) => ({ id, rolle: null }), spalte: 'rolle' },
+  rollenNotiz: { leeren: (id) => ({ id, rollenNotiz: null }), spalte: 'rollen_notiz' },
+  sprache: { leeren: (id) => ({ id, sprache: null }), spalte: 'sprache' },
+  schrift: { leeren: (id) => ({ id, schrift: null }), spalte: 'schrift' },
+  reihenfolge: { leeren: (id) => ({ id, reihenfolge: null }), spalte: 'reihenfolge' },
+  umschriftVon: { leeren: (id) => ({ id, umschriftVon: null }), spalte: 'umschrift_von' },
+  umschriftNorm: { leeren: (id) => ({ id, umschriftNorm: null }), spalte: 'umschrift_norm' },
+  konfidenz: { leeren: (id) => ({ id, konfidenz: null }), spalte: 'konfidenz' },
+  gueltigVon: { leeren: (id) => ({ id, gueltigVon: null }), spalte: 'gueltig_von' },
+  gueltigBis: { leeren: (id) => ({ id, gueltigBis: null }), spalte: 'gueltig_bis' },
+  originalText: { leeren: (id) => ({ id, originalText: null }), spalte: 'original_text' },
+} satisfies Record<NamensformAendernFeld, LeerFall>
+
+/** Eine Form, an der jedes Kopf-Feld gesetzt ist (auch `rolle` UND `umschriftVon`). */
+function volleForm(db: Db): string {
+  const personId = neuePerson(db)
+  const ursprung = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname', schrift: 'cyrl', originalText: 'Иван' }).id
+  return fuehreAus(db, 'namensform.anlegen', {
+    personId,
+    rolle: 'latinisiert',
+    rollenNotiz: 'Taufbuch',
+    sprache: 'ru',
+    schrift: 'latn',
+    reihenfolge: 'nachname_zuerst',
+    umschriftVon: ursprung,
+    umschriftNorm: 'iso9',
+    konfidenz: 2,
+    gueltigVon: 18000101,
+    gueltigBis: 18500101,
+    originalText: 'Ivan',
+  }).id
+}
+
+describe('namensform.aendern — jedes Kopf-Feld lässt sich per null leeren, Weglassen erhält es (hueter #189 H1)', () => {
+  for (const feld of NamensformAendernFeldEnum.options) {
+    it(`${feld}: null → gespeichert NULL, +1 Transaktion; weggelassen → bleibt`, () => {
+      const db = neueTestDatenbank()
+      try {
+        const id = volleForm(db)
+        const fall: LeerFall = LEER_FAELLE[feld]
+        const vorher = form(db, id)
+        expect(vorher?.[fall.spalte]).not.toBeNull()
+
+        // Gegenprobe: ein ANDERES Feld ändern, dieses weglassen → es bleibt.
+        const anderes: NamensformAendernEin = feld === 'rollenNotiz' ? { id, sprache: 'pl' } : { id, rollenNotiz: 'Heiratsregister' }
+        const anzahlVorher = transaktionAnzahl(db)
+        fuehreAus(db, 'namensform.aendern', anderes)
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+        const nachGegenprobe = form(db, id)
+        expect(nachGegenprobe?.[fall.spalte]).toBe(vorher?.[fall.spalte])
+
+        warte(5000)
+        fuehreAus(db, 'namensform.aendern', fall.leeren(id))
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher + 2)
+        // Nur dieses Feld (und der Zeitstempel) hat sich geändert.
+        expect(form(db, id)).toEqual({ ...nachGegenprobe, [fall.spalte]: null, geaendert_am: jetzt })
+      } finally {
+        db.close()
+      }
+    })
+  }
 })
