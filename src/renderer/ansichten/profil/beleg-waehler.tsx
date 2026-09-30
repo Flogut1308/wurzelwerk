@@ -163,6 +163,9 @@ export interface BelegWaehlerProps {
  *   Begründung: ein automatisch angelegtes Zitat ohne Verknüpfung wäre ein verwaister Datensatz, und
  *   das Kurzformular hat (wie das Ereignisformular im Reiter Leben, V-130-9b2 H2) einen
  *   ausdrücklichen Knopf — verloren gehen höchstens zwei kurze Felder, nichts Gespeichertes.
+ *   Grenze (hueter #176 H2): scheitert nach „Zitat anlegen" die Verknüpfung, bleibt das neue Zitat
+ *   unverknüpft in der Quelle stehen (im Wähler weiter wählbar); bei zwei Zielen sagt die
+ *   Fehlermeldung nicht, dass das erste schon verknüpft ist (docs/80 §33 V-130-9d).
  */
 export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   const { t } = useTranslation('profil')

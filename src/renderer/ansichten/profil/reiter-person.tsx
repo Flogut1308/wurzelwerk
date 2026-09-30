@@ -274,7 +274,8 @@ interface BelegSchubladeInhaltProps {
 /**
  * Inhalt der Belegschublade (PR 9d, E11): im Kopf der Beleg-Wähler (nur mit Aussage-Ziel, E3/E4),
  * darunter je Angabe die Belegliste mit „Verknüpfung entfernen" (E10: nur `aussage_zitat.loeschen`,
- * das Zitat bleibt; `zitat.loeschen` gibt es hier nicht).
+ * das Zitat bleibt). `zitat.loeschen` bietet die Schublade selbst nicht an; erreichbar ist es nur über
+ * den vorhandenen Weg „Quelle bearbeiten" → Pflege-Ansicht → „Entfernen" (hueter #176 H5).
  */
 function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchubladeInhaltProps) {
   const { t } = useTranslation('profil')
