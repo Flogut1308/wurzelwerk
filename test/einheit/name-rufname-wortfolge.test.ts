@@ -34,6 +34,7 @@ import {
   geaendertesNamensFeld,
   nameAendernEinAusEintrag,
   namenEintragAusPersonDetailName,
+  mitRufnameAusAuswahl,
   rufnameAuswahlVornamen,
   rufnameAuswahlWert,
   type NamenEintragWerte,
@@ -158,7 +159,7 @@ describe('name.anlegen über den Befehlsbus (U-130-rufname-doppelt)', () => {
     })
   })
 
-  it.fails('Wortfolge am Anfang: Maske zeigt den Rufnamen und behält ihn bei einer Nachnamenänderung', () => {
+  it('Wortfolge am Anfang: Maske zeigt den Rufnamen und behält ihn bei einer Nachnamenänderung', () => {
     mitDb((db, personId) => {
       const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Hans Peter Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
       const eintrag = namenEintragAusPersonDetailName(gespeicherterName(db, personId, id))
@@ -188,6 +189,21 @@ describe('name.anlegen über den Befehlsbus (U-130-rufname-doppelt)', () => {
         'Hans Peter',
         'Karl Hans Peter Gutnow',
       ])
+    })
+  })
+
+  it('Wortfolge in der Mitte: Auswahl eines anderen Vornamens über die Maske markiert genau diesen', () => {
+    mitDb((db, personId) => {
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Otto Hans Peter Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      const gelesen = namenEintragAusPersonDetailName(gespeicherterName(db, personId, id))
+      expect(rufnameAuswahlVornamen(gelesen).map((option) => option.vorname)).toEqual(['Otto', 'Hans Peter', 'Karl'])
+      expect(rufnameAuswahlWert(gelesen)).toBe('1')
+
+      const naechster = mitRufnameAusAuswahl(gelesen, '2')
+      fuehreAus(db, 'name.aendern', nameAendernEinAusEintrag(id, naechster, geaendertesNamensFeld(gelesen, naechster)))
+
+      const nachher = gespeicherterName(db, personId, id)
+      expect([nachher.vornamen, nachher.rufname_index, nachher.rufname_text]).toEqual(['Otto Hans Peter Karl', 3, 'Karl'])
     })
   })
 })

@@ -126,15 +126,26 @@ function vornamenTokens(vornamen: string): readonly string[] {
 /** Die Vornamen-Kette als wählbare Einheiten. Review H1: ein Rufname, der beim Anlegen/Import kein
  * Vorname war, steht als EIN Bestandteil hinter den Vornamen (`zerlegeName` Regel 3, Migration 0006
  * (c)) — auch mehrwortig („Hans Peter"). Die flache Sicht verbindet ihn mit Leerzeichen („Karl Hans
- * Peter", Index 1). Nur dieser Bestandteil kann Leerraum enthalten (alle übrigen Vornamen zerlegt die
- * Zerlegung an Leerzeichen); endet die Kette auf die Wörter eines mehrwortigen Rufnamens, bilden sie
- * darum EINE Einheit. `rufnameAngehaengt` meldet genau diesen Fall. */
+ * Peter", Index 1). Seit U-130-rufname-doppelt fasst `zerlegeName` auch eine Wortfolge der Vornamen,
+ * die einem mehrwortigen Rufnamen gleicht, zu EINEM markierten Bestandteil zusammen — an beliebiger
+ * Stelle („Hans Peter Karl", Index 0). Nur dieser Bestandteil kann Leerraum enthalten (alle übrigen
+ * Vornamen zerlegt die Zerlegung an Leerzeichen); die Wörter eines mehrwortigen Rufnamens bilden darum
+ * EINE Einheit: bevorzugt an seinem `rufnameIndex` (die Position des Bestandteils = Zahl der
+ * einwortigen Vornamen davor), sonst am Ende der Kette (angehängt), sonst an der ersten gleichlautenden
+ * Wortfolge. `rufnameAngehaengt` meldet eine Einheit am Ende der Kette. */
 function vornamenEinheiten(eintrag: NamenEintragWerte): { readonly einheiten: readonly string[]; readonly rufnameAngehaengt: boolean } {
   const tokens = vornamenTokens(eintrag.vornamen)
   const rufnameWoerter = vornamenTokens(eintrag.rufname)
+  if (rufnameWoerter.length < 2) return { einheiten: tokens, rufnameAngehaengt: false }
+  const folgeAb = (pos: number): boolean => pos >= 0 && rufnameWoerter.every((wort, i) => tokens[pos + i] === wort)
   const vorne = tokens.length - rufnameWoerter.length
-  const angehaengt = rufnameWoerter.length > 1 && vorne >= 0 && rufnameWoerter.every((wort, i) => tokens[vorne + i] === wort)
-  return angehaengt ? { einheiten: [...tokens.slice(0, vorne), rufnameWoerter.join(' ')], rufnameAngehaengt: true } : { einheiten: tokens, rufnameAngehaengt: false }
+  const anIndex = eintrag.rufnameIndex !== null && folgeAb(eintrag.rufnameIndex) ? eintrag.rufnameIndex : -1
+  const beginn = anIndex >= 0 ? anIndex : folgeAb(vorne) ? vorne : tokens.findIndex((_, pos) => folgeAb(pos))
+  if (beginn < 0) return { einheiten: tokens, rufnameAngehaengt: false }
+  return {
+    einheiten: [...tokens.slice(0, beginn), rufnameWoerter.join(' '), ...tokens.slice(beginn + rufnameWoerter.length)],
+    rufnameAngehaengt: beginn === vorne,
+  }
 }
 
 /** Die Position des Vornamens, den der Rufname markiert — `undefined`, wenn der Rufname keinem
