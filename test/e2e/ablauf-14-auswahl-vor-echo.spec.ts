@@ -19,6 +19,10 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
  * Hauptprozess zurückgehalten (nur im Test-Harness; der Produktivcode kennt keine Verzögerung).
  * Zusätzlich zählt das Tor die `befehl:name.aendern`-Aufrufe. Fehlt `ipcMain._invokeHandlers` in
  * einer künftigen Electron-Version, bricht der Test laut ab, statt still nichts zu prüfen.
+ *
+ * Seit AP-1.30 PR 11c-1 bearbeitet der Reiter „Namen" im Modal ohne Autosave (docs/80 §33 V-130-11c-1):
+ * dort schreibt eine Auswahl gar nicht, ein Anschlag bei gehaltenem Nachladen bleibt stehen, und
+ * „Übernehmen" ist genau ein `befehl:namensform.uebernehmen` (das Tor zählt auch diesen Kanal).
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
 const TOR_SCHLUESSEL = '__wurzelwerkE2eAuswahlTor'
@@ -59,24 +63,30 @@ test.describe('Ablauf 14 — Auswahl, dann Tippen vor dem Nachladen', () => {
     return name
   }
 
-  /** Umhüllt `abfrage:person.detail` (hält Antworten, solange geschlossen) und zählt `befehl:name.aendern`. */
+  /** Umhüllt `abfrage:person.detail` (hält Antworten, solange geschlossen) und zählt `befehl:name.aendern`
+   * sowie (seit AP-1.30 PR 11c-1, Modal im Reiter „Namen") `befehl:namensform.uebernehmen`. */
   async function torEinbauen(): Promise<void> {
     await app.evaluate(({ ipcMain }, schluessel) => {
       const handler: unknown = Reflect.get(ipcMain, '_invokeHandlers')
       if (!(handler instanceof Map)) throw new Error('ipcMain._invokeHandlers fehlt — Tor nicht einbaubar')
       const detail: unknown = handler.get('abfrage:person.detail')
       const aendern: unknown = handler.get('befehl:name.aendern')
+      const uebernehmen: unknown = handler.get('befehl:namensform.uebernehmen')
       if (typeof detail !== 'function') throw new Error('kein Handler für abfrage:person.detail')
       if (typeof aendern !== 'function') throw new Error('kein Handler für befehl:name.aendern')
+      if (typeof uebernehmen !== 'function') throw new Error('kein Handler für befehl:namensform.uebernehmen')
       const wartende: (() => void)[] = []
       const tor = {
         halten: false,
         aenderungen: 0,
+        uebernahmen: 0,
         anzahlGehalten: () => wartende.length,
         anzahlAenderungen: () => tor.aenderungen,
+        anzahlUebernahmen: () => tor.uebernahmen,
         schliessen: () => {
           tor.halten = true
           tor.aenderungen = 0
+          tor.uebernahmen = 0
           return 0
         },
         freigeben: () => {
@@ -96,10 +106,14 @@ test.describe('Ablauf 14 — Auswahl, dann Tippen vor dem Nachladen', () => {
         tor.aenderungen += 1
         return Reflect.apply(aendern, undefined, argumente)
       })
+      handler.set('befehl:namensform.uebernehmen', async (...argumente: unknown[]): Promise<unknown> => {
+        tor.uebernahmen += 1
+        return Reflect.apply(uebernehmen, undefined, argumente)
+      })
     }, TOR_SCHLUESSEL)
   }
 
-  async function tor(art: 'anzahlGehalten' | 'anzahlAenderungen' | 'schliessen' | 'freigeben'): Promise<number> {
+  async function tor(art: 'anzahlGehalten' | 'anzahlAenderungen' | 'anzahlUebernahmen' | 'schliessen' | 'freigeben'): Promise<number> {
     return app.evaluate((_electron, [schluessel, methodenname]) => {
       const t: unknown = Reflect.get(globalThis, schluessel)
       if (typeof t !== 'object' || t === null) throw new Error('Tor nicht eingebaut')
@@ -144,7 +158,7 @@ test.describe('Ablauf 14 — Auswahl, dann Tippen vor dem Nachladen', () => {
     await expect(textfeld).toHaveValue(`${vorher}${anschlag}`)
   }
 
-  test('Rufname (Reiter Person) und Namenstyp (Reiter Namen): EIN Schreiben je Auswahl, Anschlag danach bleibt erhalten', async () => {
+  test('Rufname (Reiter Person): EIN Schreiben je Auswahl; Namenstyp (Modal Reiter Namen): EIN Schreiben beim Übernehmen; Anschlag danach bleibt erhalten', async () => {
     test.setTimeout(90_000)
     await app.evaluate(({ dialog }, gewaehlt) => {
       dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [gewaehlt] })) as typeof dialog.showOpenDialog
@@ -176,13 +190,37 @@ test.describe('Ablauf 14 — Auswahl, dann Tippen vor dem Nachladen', () => {
     await expect.poll(() => gespeicherterName(personId), { timeout: 5_000 }).toEqual({ typ: 'geburtsname', nachname: 'Gutnoffx', rufname_text: 'Karl', rufname_index: 0 })
     await expect(hauptNachname).toHaveValue('Gutnoffx')
 
-    // 2) Reiter „Namen": Namenstyp der bestehenden Zeile.
+    // 2) Reiter „Namen": Namenstyp der bestehenden Form. Seit AP-1.30 PR 11c-1 im Modal „Namensform
+    // bearbeiten" ohne Autosave: eine Auswahl schreibt NICHTS (auch nicht nach der Frist), ein Anschlag
+    // danach bleibt auch bei gehaltenem Nachladen stehen, und „Übernehmen" schreibt genau EINMAL.
     await editor.getByRole('tab', { name: /^Namen/ }).click()
-    const zeile = editor.getByRole('tabpanel').locator('.wz-profil-bearbeiten-namen__zeile')
-    const nachname = zeile.getByRole('textbox', { name: 'Nachname' })
+    await editor.getByRole('article', { name: 'Karl Friedrich Gutnoffx', exact: true }).getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    const modal = fenster.getByRole('dialog', { name: 'Namensform bearbeiten', exact: true })
+    const nachname = modal.getByRole('textbox', { name: /^Nachname/ })
+    const namenstyp = modal.getByRole('combobox', { name: 'Namenstyp' })
     await expect(nachname).toHaveValue('Gutnoffx')
-    await auswahlSchritte(zeile.getByRole('combobox', { name: 'Namenstyp' }), nachname, 'Ehename', 'Vulgo-/Hausname', 'y')
-    await expect.poll(() => gespeicherterName(personId), { timeout: 5_000 }).toEqual({ typ: 'vulgo', nachname: 'Gutnoffxy', rufname_text: 'Karl', rufname_index: 0 })
+    await tor('schliessen')
+    await namenstyp.selectOption({ label: 'Ehename' })
+    await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 3)
+    expect.soft(await tor('anzahlUebernahmen'), 'namensform.uebernehmen nach „Ehename"').toBe(0)
+    await namenstyp.selectOption({ label: 'Vulgo-/Hausname' })
+    await nachname.click()
+    await nachname.press('End')
+    await nachname.press('y')
+    await tor('freigeben')
+    await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2)
     await expect(nachname).toHaveValue('Gutnoffxy')
+    await expect(namenstyp).toHaveValue('vulgo')
+    expect.soft(await tor('anzahlUebernahmen'), 'namensform.uebernehmen vor Übernehmen').toBe(0)
+    await tor('schliessen')
+    await modal.getByRole('button', { name: 'Übernehmen', exact: true }).click()
+    await expect.poll(() => tor('anzahlUebernahmen'), { timeout: 5_000, message: 'Übernehmen geschrieben' }).toBe(1)
+    await tor('freigeben')
+    await expect(modal).toHaveCount(0)
+    await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2)
+    expect.soft(await tor('anzahlUebernahmen'), 'namensform.uebernehmen nach Übernehmen').toBe(1)
+    expect.soft(await tor('anzahlAenderungen'), 'name.aendern im Reiter Namen').toBe(0)
+    await expect.poll(() => gespeicherterName(personId), { timeout: 5_000 }).toEqual({ typ: 'vulgo', nachname: 'Gutnoffxy', rufname_text: 'Karl', rufname_index: 0 })
+    await expect(editor.getByRole('article', { name: 'Karl Friedrich Gutnoffxy', exact: true })).toBeVisible()
   })
 })

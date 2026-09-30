@@ -5,9 +5,10 @@
 // Die Rückfallkette Sprache → Umschrift → Hauptname gibt es genau einmal, in `anzeigenameFuer`
 // (src/core/name/anzeigename.ts, AP-1.33). Dieses Modul bildet nur das Lesemodell auf deren Eingabe ab
 // und wählt die Wunschsprache — es entscheidet keine Stufe selbst.
-import { anzeigenameFuer, type AnzeigeForm, type AnzeigenameErgebnis, type AnzeigenameQuelle } from '../../../core/name/anzeigename'
-import type { NameFormReihenfolge } from '../../../core/name/typen'
-import type { PersonDetailName } from '../../../shared/schemata/person-detail'
+import { vonJdn } from '../../../core/datum/kalender'
+import { anzeigeArtFolge, anzeigenameFuer, anzeigetextVon, sortierName, type AnzeigeForm, type AnzeigenameErgebnis, type AnzeigenameQuelle } from '../../../core/name/anzeigename'
+import type { NameFormReihenfolge, NamePartArt, UmschriftNorm } from '../../../core/name/typen'
+import type { PersonDetailName, PersonDetailNamensteil } from '../../../shared/schemata/person-detail'
 
 /** Die Oberflächensprache (ADR-011: es gibt nur Deutsch, `src/renderer/i18n/einrichten.ts`). */
 export const OBERFLAECHENSPRACHE = 'de'
@@ -97,4 +98,151 @@ export function vorschauZielIndex(taste: string, index: number, anzahl: number):
     default:
       return null
   }
+}
+
+// -----------------------------------------------------------------------------------------------
+// AP-1.30 PR 11c-1 (A-02, A-19, C-26; docs/80 §33 V-130-11-E3, E6, E8, E10): die Karten im Reiter
+// „Namen" — reine Anzeige, bearbeitet wird allein im Modal (E8).
+// -----------------------------------------------------------------------------------------------
+
+/** Binärer Vergleich von Zeichenketten (Codepunkte, wie `vorschauSprachen`), unabhängig vom Gebietsschema. */
+function binaer(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** `null` zuletzt, sonst `vergleich`. */
+function nullZuletzt<T>(a: T | null, b: T | null, vergleich: (x: T, y: T) => number): number {
+  if (a === null) return b === null ? 0 : 1
+  if (b === null) return -1
+  return vergleich(a, b)
+}
+
+/**
+ * Kartenfolge (V-130-11-E10): Hauptname zuerst, dann nach Sprache (Code binär, `NULL` zuletzt), dann nach
+ * `name_form.sortier_index` (`NULL` zuletzt), dann nach `id`. Deterministisch und unabhängig von der
+ * Ladereihenfolge; die Eingabe bleibt unverändert.
+ */
+export function kartenFolge(namen: readonly PersonDetailName[]): readonly PersonDetailName[] {
+  return [...namen].sort(
+    (a, b) =>
+      (a.ist_bevorzugt ? 0 : 1) - (b.ist_bevorzugt ? 0 : 1) ||
+      nullZuletzt(a.sprache, b.sprache, binaer) ||
+      nullZuletzt(a.sortier_index, b.sortier_index, (x, y) => x - y) ||
+      binaer(a.id, b.id),
+  )
+}
+
+/**
+ * Die Teile einer Form in Anzeigefolge: nach der Wortfolge des Kerns (`anzeigeArtFolge`, dieselbe, in der
+ * `anzeigetextVon` die Teile verbindet — bei `nachname_zuerst` umgestellt), innerhalb einer Art nach
+ * `sortier_index`, dann `id`. Das Lesemodell liefert die Teile in fester Art-Folge (V-130-10-4), nicht so.
+ */
+export function teileInAnzeigefolge(name: PersonDetailName): readonly PersonDetailNamensteil[] {
+  const folge = anzeigeArtFolge(name.reihenfolge)
+  return [...name.teile].sort((a, b) => folge.indexOf(a.art) - folge.indexOf(b.art) || a.sortier_index - b.sortier_index || binaer(a.id, b.id))
+}
+
+/** Eine Form ohne Rolle ist eine Umschrift (0006: `rolle IS NULL` statt 'transliteriert', E7) — auch dann,
+ * wenn ihre Ursprungsform inzwischen gelöscht ist (`umschrift_von` auf NULL, U-130-10-umschrift-set-null). */
+export function istUmschrift(name: PersonDetailName): boolean {
+  return name.rolle === null
+}
+
+/** Anzeigetext einer einzelnen Form, über den Kern (`anzeigetextVon`, Reihenfolge eingeschlossen). */
+export function anzeigetextDerForm(name: PersonDetailName): string {
+  return anzeigetextVon(anzeigeFormAus(name))
+}
+
+/** „Sortiert unter" einer Form, über den Kern (`sortierName`: Präfix zählt nicht). */
+export function sortiertUnter(name: PersonDetailName): string {
+  return sortierName(anzeigeFormAus(name))
+}
+
+/** Gültigkeit einer Form als gregorianische Jahre. `gueltig_von`/`gueltig_bis` sind Sortierschlüssel (JDN,
+ * docs/datenmodell.md §2, wie `datum_sort_von`); eine offene Grenze bleibt offen. */
+export function gueltigkeitJahre(name: PersonDetailName): { readonly von?: number; readonly bis?: number } {
+  return {
+    ...(name.gueltig_von === null ? {} : { von: vonJdn(name.gueltig_von, 'gregorian').jahr }),
+    ...(name.gueltig_bis === null ? {} : { bis: vonJdn(name.gueltig_bis, 'gregorian').jahr }),
+  }
+}
+
+/** i18n-Schlüssel (`profil.json`) der Art eines Bestandteils. */
+export function namensteilSchluessel(art: NamePartArt): string {
+  switch (art) {
+    case 'vorname':
+      return 'namensteil_vorname'
+    case 'praefix':
+      return 'namensteil_praefix'
+    case 'nachname':
+      return 'namensteil_nachname'
+    case 'suffix':
+      return 'namensteil_suffix'
+    case 'titel':
+      return 'namensteil_titel'
+    case 'vatersname':
+      return 'namensteil_vatersname'
+  }
+}
+
+/** Nummer je Teil innerhalb seiner Art (1, 2, …) in der gegebenen Folge — `null`, wenn die Art nur einmal
+ * vorkommt („Vorname" statt „Vorname 1"). Beschriftet Karten und Modal gleich. */
+export function artNummern(teile: readonly { readonly art: NamePartArt }[]): readonly (number | null)[] {
+  const anzahl = new Map<NamePartArt, number>()
+  for (const teil of teile) anzahl.set(teil.art, (anzahl.get(teil.art) ?? 0) + 1)
+  const gezaehlt = new Map<NamePartArt, number>()
+  return teile.map((teil) => {
+    const nummer = (gezaehlt.get(teil.art) ?? 0) + 1
+    gezaehlt.set(teil.art, nummer)
+    return (anzahl.get(teil.art) ?? 0) > 1 ? nummer : null
+  })
+}
+
+/** Die Arten, die das Modal mit „+ …" anbietet (Artboard 2a, Vorgaben §3.5). Nachname und Vatersname nicht:
+ * der Nachname hat immer eine Zeile, der Vatersname folgt mit den Teilen im Detail (V-130-11-zuschnitt, 11c-3). */
+export const NEU_ANLEGBARE_ARTEN = ['vorname', 'praefix', 'suffix', 'titel'] as const
+
+/** i18n-Schlüssel der Schaltfläche „+ …" einer anlegbaren Art. */
+export function namensteilNeuSchluessel(art: (typeof NEU_ANLEGBARE_ARTEN)[number]): string {
+  switch (art) {
+    case 'vorname':
+      return 'namensteil_neu_vorname'
+    case 'praefix':
+      return 'namensteil_neu_praefix'
+    case 'suffix':
+      return 'namensteil_neu_suffix'
+    case 'titel':
+      return 'namensteil_neu_titel'
+  }
+}
+
+/** i18n-Schlüssel einer Reihenfolge; `null` = nicht angegeben (angezeigt wie Vorname → Nachname). */
+export function reihenfolgeSchluessel(reihenfolge: NameFormReihenfolge | null): string {
+  switch (reihenfolge) {
+    case null:
+      return 'reihenfolge_unbestimmt'
+    case 'vorname_zuerst':
+      return 'reihenfolge_vorname_zuerst'
+    case 'nachname_zuerst':
+      return 'reihenfolge_nachname_zuerst'
+  }
+}
+
+/** i18n-Schlüssel der Kennzeichnung einer Umschrift (E6: automatisch bzw. selbst eingetragen). */
+export function umschriftNormSchluessel(norm: UmschriftNorm): string {
+  switch (norm) {
+    case 'iso9':
+      return 'umschrift_norm_iso9'
+    case 'din1460':
+      return 'umschrift_norm_din1460'
+    case 'manuell':
+      return 'umschrift_norm_manuell'
+  }
+}
+
+/** Die Sprachen, die das Modal zur Wahl stellt: die mit eigener Beschriftung, dazu die gespeicherte Sprache
+ * der Form, falls sie eine andere ist (sonst ginge sie beim Öffnen als Auswahl verloren). */
+export function spracheOptionen(aktuell: string | null): readonly string[] {
+  const bekannt = Object.keys(VORSCHAU_SPRACHE_SCHLUESSEL)
+  return aktuell === null || bekannt.includes(aktuell) ? bekannt : [...bekannt, aktuell]
 }

@@ -96,6 +96,23 @@ export function useNameLoeschen(): UseMutationResult<null, AppFehler, Ein<'befeh
   })
 }
 
+/** `befehl:hauptname.wechseln` (AP-1.33; Hook AP-1.30 PR 11c-1) — „Als Hauptname" auf einer Karte im Reiter
+ * „Namen". Ein Einzelschritt ohne `SchreibBeobachter` wie `useNameLoeschen`. */
+export function useHauptnameWechseln(): UseMutationResult<null, AppFehler, Ein<'befehl:hauptname.wechseln'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:hauptname.wechseln'>) => ergebnisEntpacken(aufrufen('befehl:hauptname.wechseln', ein)),
+  })
+}
+
+/** `befehl:namensform.uebernehmen` (AP-1.30 PR 11-0; Hook PR 11c-1) — „Übernehmen" im Modal „Namensform
+ * bearbeiten": die ganze Form in einem Schritt (V-130-11-E1). Kein Autosave-Wert (das Modal schreibt nur auf
+ * ausdrücklichen Wunsch), darum ohne `SchreibBeobachter` wie `useAussageAnlegen`. */
+export function useNamensformUebernehmen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:namensform.uebernehmen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:namensform.uebernehmen'>) => ergebnisEntpacken(aufrufen('befehl:namensform.uebernehmen', ein)),
+  })
+}
+
 /** `befehl:ort.anlegen` (AP-1.13 PR-C, docs/71 §3.2) — die feste Schlusszeile des `Ortsfeld`s. */
 export function useOrtAnlegen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:ort.anlegen'>> {
   return useMutation({

@@ -523,7 +523,9 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           for (const kombination of VIER_KOMBINATIONEN) {
             test(`person-bearbeiten-namen-${kombination.theme}-${kombination.dichte}`, async () => {
               await reiterWaehlen(/^Namen/)
-              await expect(editor.getByRole('heading', { name: 'Namen', exact: true, level: 2 })).toBeVisible()
+              // AP-1.30 PR 11c-1: Karten + Modal statt der flachen Maske (Überschrift „Namensformen").
+              await expect(editor.getByRole('heading', { name: 'Namensformen', exact: true, level: 2 })).toBeVisible()
+              await expect(editor.locator('article.wz-namensform-karte').first()).toBeVisible()
               await aufnahme(fenster, `person-bearbeiten-namen-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
             })
           }
@@ -790,6 +792,101 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           await aufnahme(fenster, `person-bearbeiten-warnungen-${theme}-standard`, theme, 'standard')
         })
       }
+    })
+
+    // AP-1.30 PR 11c-1 (docs/80 §33 V-130-11c-1, hueter #204): Reiter „Namen" einer Person mit drei
+    // Sprachformen (Deutsch als Hauptname, Russisch mit Vatersname, Ossetisch mit `nachname_zuerst`) —
+    // deckt die Segmente der Vorschau samt nicht gewählter Knöpfe, die Karten und das Modal „Namensform
+    // bearbeiten" ab. Eigene Person über die Befehle, NACH allen übrigen Motiven (Liste und Profil bleiben
+    // unverändert). Nur Standarddichte (Motiv prüft Karten und Modal, nicht die Dichte).
+    test.describe('Reiter Namen mit Sprachformen und Modal — hell und dunkel', () => {
+      let editor: ReturnType<typeof fenster.getByRole>
+
+      test.beforeAll(async () => {
+        test.setTimeout(60_000)
+        const ergebnisse = await fenster.evaluate(async () => {
+          const person = await window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, geschlecht: 'M' })
+          if (!person.ok) throw new Error('person.anlegen fehlgeschlagen')
+          const daten: unknown = person.daten
+          if (typeof daten !== 'object' || daten === null || !('id' in daten) || typeof daten.id !== 'string') throw new Error('person.anlegen ohne id')
+          const personId = daten.id
+          const formen = [
+            {
+              kopf: { rolle: 'geburtsname', rollenNotiz: 'amtlich ab 1946', sprache: 'de', schrift: 'latn', reihenfolge: 'vorname_zuerst' },
+              teile: [
+                { art: 'vorname', wert: 'Karl', istRufname: true },
+                { art: 'vorname', wert: 'Friedrich', istRufname: false },
+                { art: 'nachname', wert: 'Gutnoff', istRufname: false },
+              ],
+            },
+            {
+              kopf: { rolle: 'sonstiges', sprache: 'ru', schrift: 'cyrl' },
+              teile: [
+                { art: 'vorname', wert: 'Карл', istRufname: false },
+                { art: 'vatersname', wert: 'Фридрихович', istRufname: false },
+                { art: 'nachname', wert: 'Гутнов', istRufname: false },
+              ],
+            },
+            {
+              kopf: { rolle: 'sonstiges', sprache: 'os', schrift: 'cyrl', reihenfolge: 'nachname_zuerst' },
+              teile: [
+                { art: 'vorname', wert: 'Карл', istRufname: false },
+                { art: 'nachname', wert: 'Гуытнаты', istRufname: false },
+              ],
+            },
+          ]
+          const ok: boolean[] = []
+          for (const form of formen) {
+            const ergebnis = await window.wurzelwerk.aufrufen('befehl:namensform.uebernehmen', { personId, formId: null, kopf: form.kopf, teile: form.teile })
+            ok.push(ergebnis.ok)
+          }
+          return ok
+        })
+        expect(ergebnisse).toEqual([true, true, true])
+
+        await fenster.locator('[role="row"]:has-text("Karl Friedrich Gutnoff")').click()
+        const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+        await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+        editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+        const reiter = editor.getByRole('tab', { name: /^Namen/ })
+        await reiter.click()
+        await expect(reiter).toHaveAttribute('aria-selected', 'true')
+        await expect(editor.locator('.wz-namensform-karte__titel')).toHaveText(['Karl Friedrich Gutnoff', 'Гуытнаты Карл', 'Карл Фридрихович Гутнов'])
+      })
+
+      test.afterAll(async () => {
+        await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+        await expect(editor).toHaveCount(0)
+      })
+
+      for (const theme of ['hell', 'dunkel'] as const) {
+        test(`person-bearbeiten-namen-sprachen-${theme}-standard`, async () => {
+          await expect(editor.getByRole('radiogroup', { name: 'Vorschau in' }).getByRole('radio')).toHaveText(['Deutsch', 'Ирон', 'Русский'])
+          await aufnahme(fenster, `person-bearbeiten-namen-sprachen-${theme}-standard`, theme, 'standard')
+        })
+      }
+
+      test.describe('Modal „Namensform bearbeiten" (ossetische Form)', () => {
+        let modal: ReturnType<typeof fenster.getByRole>
+
+        test.beforeAll(async () => {
+          await editor.getByRole('article', { name: 'Гуытнаты Карл', exact: true }).getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+          modal = fenster.getByRole('dialog', { name: 'Namensform bearbeiten', exact: true })
+          await expect(modal.locator('.wz-namensform-modal__vorschau-text')).toHaveText('Гуытнаты Карл')
+        })
+
+        test.afterAll(async () => {
+          await modal.getByRole('button', { name: 'Abbrechen', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+        })
+
+        for (const theme of ['hell', 'dunkel'] as const) {
+          test(`person-bearbeiten-namen-modal-${theme}-standard`, async () => {
+            await expect(modal.getByRole('textbox', { name: /^Nachname/ })).toHaveValue('Гуытнаты')
+            await aufnahme(fenster, `person-bearbeiten-namen-modal-${theme}-standard`, theme, 'standard')
+          })
+        }
+      })
     })
   })
 })

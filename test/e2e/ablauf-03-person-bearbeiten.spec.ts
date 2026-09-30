@@ -86,19 +86,25 @@ test.describe('Ablauf 03 — Person bearbeiten (Kernfelder)', () => {
     await expect(editor.getByText('Änderungen werden sofort gespeichert.')).toBeVisible()
     await expect(editor.getByRole('heading', { level: 1 })).toHaveText('(ohne Namen)')
 
-    // Namen ergänzen im Reiter „Namen": das feste "neuen Namen erfassen"-Formular (die Person hat
-    // noch KEINE Namenszeile, darum ist es das EINZIGE Vorkommen dieser Beschriftungen im Dialog).
+    // Namen ergänzen im Reiter „Namen": seit AP-1.30 PR 11c-1 über „+ Namensform" und das Modal
+    // „Neue Namensform" (die Person hat noch KEINE Form, darum sind Vorname und Nachname die einzigen
+    // Teilzeilen im Modal). Übernehmen ist gesperrt, solange kein Teil Inhalt hat.
     await editor.getByRole('tab', { name: /^Namen/ }).click()
-    await editor.getByLabel('Vorname(n)', { exact: true }).fill('Minna')
-    await editor.getByLabel('Nachname', { exact: true }).fill('Muster')
-    const hinzufuegen = editor.getByRole('button', { name: 'Name hinzufügen', exact: true })
+    await editor.getByRole('button', { name: '+ Namensform', exact: true }).click()
+    const modal = fenster.getByRole('dialog', { name: 'Neue Namensform', exact: true })
+    const hinzufuegen = modal.getByRole('button', { name: 'Übernehmen', exact: true })
+    await expect(hinzufuegen).toBeDisabled()
+    await modal.getByRole('textbox', { name: /^Vorname/ }).fill('Minna')
+    await modal.getByRole('textbox', { name: /^Nachname/ }).fill('Muster')
     await expect(hinzufuegen).toBeEnabled()
     await hinzufuegen.click()
 
-    // `befehl:name.anlegen` committet sofort (kein Speichern-Knopf) — nach der `ereignis:
-    // datenGeaendert`-Invalidierung erscheint die neue Zeile in der Namensliste.
-    await expect(editor.locator('input[value="Minna"]')).toBeVisible()
-    await expect(editor.locator('input[value="Muster"]')).toBeVisible()
+    // `befehl:namensform.uebernehmen` schreibt beim Übernehmen — nach der `ereignis:
+    // datenGeaendert`-Invalidierung erscheint die neue Form als Karte in der Liste, mit beiden Teilen.
+    await expect(modal).toHaveCount(0)
+    const karte = editor.getByRole('article', { name: 'Minna Muster', exact: true })
+    await expect(karte).toBeVisible()
+    await expect(karte.getByRole('definition')).toHaveText(['Minna', 'Muster'])
 
     // Zurück in die Lesesicht — KEIN eigener "Namen"-Abschnitt dort (AP-1.14a-Scope), aber die
     // Person hat jetzt GENAU eine Namenszeile: sie wird `person_flach.anzeigename` und damit die

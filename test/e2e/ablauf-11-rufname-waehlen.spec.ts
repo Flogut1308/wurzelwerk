@@ -15,6 +15,11 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
  *   bleiben „Karl Friedrich".
  * - Vornamen langsam umschreiben (Pausen über der Debounce-Frist) hängt den bisherigen Rufnamen nicht an.
  *
+ * Seit AP-1.30 PR 11c-1 geht beides über das Modal „Namensform bearbeiten" (docs/80 §33 V-130-11c-1):
+ * jeder Vorname ist ein eigener Teil, der Rufname eine Auswahl aus ihnen, geschrieben wird beim Übernehmen.
+ * Zusätzlich geprüft: während des langsamen Tippens ist nichts gespeichert, und der Rufname bleibt am
+ * umbenannten Teil („Fritz", Position 1).
+ *
  * Zusicherungen an DOM-State und `abfrage:*`-Ergebnisse (kein Log-Datei-Lesen).
  */
 const HAUPTPROZESS_EINSTIEG = join(__dirname, '../../out/main/index.js')
@@ -77,26 +82,40 @@ test.describe('Ablauf 11 — Rufname wählen', () => {
     await fenster.getByRole('dialog', { name: 'Profil', exact: true }).getByRole('button', { name: 'Bearbeiten', exact: true }).click()
     const editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
     await editor.getByRole('tab', { name: /^Namen/ }).click()
-    const zeile = editor.getByRole('tabpanel').locator('.wz-profil-bearbeiten-namen__zeile')
+    // AP-1.30 PR 11c-1: bearbeitet wird im Modal „Namensform bearbeiten" (jeder Vorname ein eigener Teil);
+    // geschrieben wird erst beim Übernehmen.
+    const karte = editor.getByRole('article', { name: 'Karl Friedrich Gutnoff', exact: true })
+    await karte.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    let modal = fenster.getByRole('dialog', { name: 'Namensform bearbeiten', exact: true })
 
-    const rufname = zeile.getByRole('combobox', { name: 'Rufname' })
+    const rufname = modal.getByRole('combobox', { name: 'Rufname' })
     await expect(rufname.locator('option')).toHaveText(['nicht angegeben', 'Karl', 'Friedrich'])
     await rufname.selectOption({ label: 'Friedrich' })
+    await modal.getByRole('button', { name: 'Übernehmen', exact: true }).click()
+    await expect(modal).toHaveCount(0)
     await expect.poll(async () => gespeicherterName(personId)).toEqual({ vornamen: 'Karl Friedrich', rufname_text: 'Friedrich', rufname_index: 1 })
-    await expect(rufname).toHaveValue('1')
+    await expect(editor.getByRole('article', { name: 'Karl Friedrich Gutnoff', exact: true }).locator('.wz-namensform-karte__wert--rufname')).toContainText('Friedrich')
 
-    // „Friedrich" → „Fritz", mit Pausen über der Debounce-Frist: jeder Zwischenstand wird geschrieben.
-    const vornamen = zeile.getByRole('textbox', { name: 'Vorname(n)' })
-    await vornamen.click()
-    await vornamen.press('End')
+    // „Friedrich" → „Fritz", mit Pausen über der früheren Debounce-Frist: das Modal schreibt keinen
+    // Zwischenstand (kein Autosave), erst „Übernehmen" genau den Endstand.
+    await editor.getByRole('article', { name: 'Karl Friedrich Gutnoff', exact: true }).getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+    modal = fenster.getByRole('dialog', { name: 'Namensform bearbeiten', exact: true })
+    await expect(modal.getByRole('combobox', { name: 'Rufname' })).toHaveValue(/.+/)
+    const vorname2 = modal.getByRole('textbox', { name: /^Vorname 2/ })
+    await expect(vorname2).toHaveValue('Friedrich')
+    await vorname2.click()
+    await vorname2.press('End')
     for (let i = 0; i < 'edrich'.length; i += 1) {
-      await vornamen.press('Backspace')
+      await vorname2.press('Backspace')
       await fenster.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2)
     }
-    await vornamen.pressSequentially('tz', { delay: AUTOSAVE_DEBOUNCE_MS * 2 })
-    await vornamen.blur()
-    await expect.poll(async () => (await gespeicherterName(personId)).vornamen).toBe('Karl Fritz')
-    await expect(vornamen).toHaveValue('Karl Fritz')
-    await expect(rufname.locator('option')).toHaveText(['nicht angegeben', 'Karl', 'Fritz'])
+    await vorname2.pressSequentially('tz', { delay: AUTOSAVE_DEBOUNCE_MS * 2 })
+    expect(await gespeicherterName(personId)).toEqual({ vornamen: 'Karl Friedrich', rufname_text: 'Friedrich', rufname_index: 1 })
+    await expect(modal.getByRole('combobox', { name: 'Rufname' }).locator('option')).toHaveText(['nicht angegeben', 'Karl', 'Fritz'])
+    await modal.getByRole('button', { name: 'Übernehmen', exact: true }).click()
+    await expect(modal).toHaveCount(0)
+    // Nichts angehängt: zwei Vornamen, der Rufname bleibt am umbenannten Teil.
+    await expect.poll(async () => gespeicherterName(personId)).toEqual({ vornamen: 'Karl Fritz', rufname_text: 'Fritz', rufname_index: 1 })
+    await expect(editor.getByRole('article', { name: 'Karl Fritz Gutnoff', exact: true })).toBeVisible()
   })
 })

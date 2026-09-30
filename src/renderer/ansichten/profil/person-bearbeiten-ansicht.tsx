@@ -23,10 +23,9 @@ import { useEditorSpeicherstatus, type EditorSpeicherstatus } from './editor-spe
 import { tabImContainerHalten } from './fokusfang'
 import { darfKontexttasteWirken } from './kontexttaste-logik'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
-import { NamenBearbeitenAbschnitt } from './profil-bearbeiten-namen'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
-import { NamenVorschau } from './reiter-namen-vorschau'
+import { ReiterNamen } from './reiter-namen'
 import { ReiterPerson } from './reiter-person'
 import { UnlesbarNachfrage } from './unlesbar-nachfrage'
 import { UnlesbareEingabenKontext, useUnlesbareEingaben, type UnlesbareEingabe } from './unlesbare-eingaben'
@@ -85,7 +84,7 @@ function reiterAusDomId(domId: string): ReiterId | undefined {
  * speichert, hält nichts zurück".
  *
  * **Vorläufige Anordnung (CLAUDE.md §14):** die bisherigen Bearbeiten-Abschnitte stehen in ihrem
- * Reiter — Namen → „Namen", Geschlecht/Platzhalter → „Person", Ereignisse → „Leben", Notiz →
+ * Reiter — Namen → „Namen" (seit PR 11c-1 Karten + Modal, `reiter-namen.tsx`), Geschlecht/Platzhalter → „Person", Ereignisse → „Leben", Notiz →
  * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Beziehungen, Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
  * Inhalts-PRs einen Leerzustand mit Verweis auf das Profil, das diese Angaben weiter zeigt.
  *
@@ -422,14 +421,9 @@ function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: 
     case 'person':
       return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} aufReiterWechsel={aufReiterWechsel} />
     case 'namen':
-      // AP-1.30 PR 11b: die Vorschau steht über der (noch flachen) Namensmaske; beide lesen dieselben
-      // `daten.namen`. Liste und Modal ersetzen die Maske in 11c-1 (V-130-11-zuschnitt).
-      return (
-        <>
-          <NamenVorschau namen={daten.namen} istPlatzhalter={daten.kopf.ist_platzhalter} />
-          <NamenBearbeitenAbschnitt personId={personId} namen={daten.namen} />
-        </>
-      )
+      // AP-1.30 PR 11c-1: Karten + Modal „Namensform bearbeiten" ersetzen die flache Maske
+      // (`profil-bearbeiten-namen.tsx` bleibt bis 11c-2 liegen, ihre Einheitstests rendern sie direkt).
+      return <ReiterNamen personId={personId} namen={daten.namen} istPlatzhalter={daten.kopf.ist_platzhalter} />
     case 'leben':
       return <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
     case 'notizen':
