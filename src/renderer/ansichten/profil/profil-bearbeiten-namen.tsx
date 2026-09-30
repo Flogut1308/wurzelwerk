@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import { NameTypEnum, SchriftEnum } from '../../../shared/schemata/name'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
@@ -161,16 +162,38 @@ function NamenFelder({ name }: NamenFelderProps) {
   )
 }
 
+interface NeuFormularFehler {
+  readonly amVornamen: { readonly fehlertext?: string }
+  readonly amRufnamen: { readonly fehlertext?: string }
+}
+
+/** Fehler von `name.anlegen` mit Titel UND Handlungsanweisung (derselbe Weg wie
+ * `reiter-person-hauptname.tsx`: `lebensdatum_fehler` aus `.titel`/`.was_tun`). Die Rufname-
+ * Verdopplung gehört ans Rufname-Feld, jeder andere Fehler an die Vornamen (erstes Namensfeld). */
+function neuFormularFehler(
+  fehler: AppFehler | null,
+  t: (schluessel: string, werte: Readonly<Record<string, string>>) => string,
+  tFehler: (schluessel: string) => string,
+): NeuFormularFehler {
+  if (fehler === null) return { amVornamen: {}, amRufnamen: {} }
+  const fehlertext = t('lebensdatum_fehler', { titel: tFehler(`${fehler.code}.titel`), was_tun: tFehler(`${fehler.code}.was_tun`) })
+  return fehler.code === 'VALIDIERUNG_RUFNAME_VERDOPPELT' ? { amVornamen: {}, amRufnamen: { fehlertext } } : { amVornamen: { fehlertext }, amRufnamen: {} }
+}
+
 function NamenNeuFormular({ personId }: { readonly personId: string }) {
   const { t } = useTranslation('profil')
+  const { t: tFehler } = useTranslation('fehler')
   const nameAnlegen = useNameAnlegen()
   const [eintrag, setEintrag] = useState<NamenEintragWerte>(NAMEN_EINTRAG_LEER)
+  const fehler = neuFormularFehler(nameAnlegen.error ?? null, t, tFehler)
 
+  // U-130-rufname-doppelt (docs/80 §33): geleert wird erst nach erfolgreichem Anlegen — weist
+  // `name.anlegen` die Eingabe ab (z. B. `VALIDIERUNG_RUFNAME_VERDOPPELT`), bleibt sie zum Korrigieren
+  // stehen, statt mit der Meldung zusammen zu verschwinden.
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault()
     if (!namenEintragHatInhalt(eintrag)) return
-    nameAnlegen.mutate(nameAnlegenEinAusEintrag(personId, eintrag))
-    setEintrag(NAMEN_EINTRAG_LEER)
+    nameAnlegen.mutate(nameAnlegenEinAusEintrag(personId, eintrag), { onSuccess: () => setEintrag(NAMEN_EINTRAG_LEER) })
   }
 
   return (
@@ -189,13 +212,13 @@ function NamenNeuFormular({ personId }: { readonly personId: string }) {
             aufAenderung={(wert) => setEintrag({ ...eintrag, schrift: auswahlWertZuSchrift(wert) })}
           />
         </Formularfeld>
-        <Formularfeld beschriftung={t('name_vornamen_beschriftung')}>
+        <Formularfeld beschriftung={t('name_vornamen_beschriftung')} {...fehler.amVornamen}>
           <Textfeld wert={eintrag.vornamen} aufAenderung={(wert) => setEintrag({ ...eintrag, vornamen: wert })} />
         </Formularfeld>
         <Formularfeld beschriftung={t('name_nachname_beschriftung')}>
           <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} />
         </Formularfeld>
-        <Formularfeld beschriftung={t('name_rufname_beschriftung')}>
+        <Formularfeld beschriftung={t('name_rufname_beschriftung')} {...fehler.amRufnamen}>
           <Textfeld wert={eintrag.rufname} aufAenderung={(wert) => setEintrag({ ...eintrag, rufname: wert })} />
         </Formularfeld>
         <Formularfeld beschriftung={t('name_praefix_beschriftung')}>

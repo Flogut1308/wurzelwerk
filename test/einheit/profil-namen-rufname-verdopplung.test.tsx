@@ -65,7 +65,7 @@ describe('Neu-Formular Namen: Rufname-Verdopplung wird angezeigt, nicht still ve
     ziel.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
-  it.fails('zeigt Titel und Handlungsanweisung des Fehlers am Rufname-Feld', () => {
+  it('zeigt Titel und Handlungsanweisung des Fehlers am Rufname-Feld', () => {
     zustand.fehler = { code: CODE, textSchluessel: `${CODE}.titel`, vorgangsId: 'v-1' }
     act(() => root.render(<NamenBearbeitenAbschnitt personId="p-1" namen={[]} />))
     const titel = i18n.t(`fehler:${CODE}.titel`)
@@ -78,7 +78,7 @@ describe('Neu-Formular Namen: Rufname-Verdopplung wird angezeigt, nicht still ve
     expect(rufnameFeld?.textContent).toContain(wasTun)
   })
 
-  it.fails('leert die Eingaben erst nach erfolgreichem Anlegen, nicht schon beim Absenden', () => {
+  it('leert die Eingaben erst nach erfolgreichem Anlegen, nicht schon beim Absenden', () => {
     act(() => root.render(<NamenBearbeitenAbschnitt personId="p-1" namen={[]} />))
     act(() => eintippen(textfeld(0), 'Hans Peter'))
     act(() => eintippen(textfeld(2), 'Hans Peter'))
@@ -96,5 +96,28 @@ describe('Neu-Formular Namen: Rufname-Verdopplung wird angezeigt, nicht still ve
     act(() => eintippen(textfeld(2), 'Fritz'))
     act(() => formular().requestSubmit())
     expect(nameAnlegenMutate.mock.calls[0]?.[0]).toMatchObject({ vornamen: 'Friedrich', rufnameText: 'Fritz' })
+  })
+
+  it('nach erfolgreichem Anlegen ist das Formular wieder leer', () => {
+    act(() => root.render(<NamenBearbeitenAbschnitt personId="p-1" namen={[]} />))
+    act(() => eintippen(textfeld(0), 'Friedrich'))
+    act(() => eintippen(textfeld(2), 'Fritz'))
+    act(() => formular().requestSubmit())
+    const optionen: unknown = nameAnlegenMutate.mock.calls[0]?.[1]
+    if (typeof optionen !== 'object' || optionen === null || !('onSuccess' in optionen) || typeof optionen.onSuccess !== 'function') {
+      throw new Error('mutate ohne onSuccess aufgerufen')
+    }
+    const { onSuccess } = optionen
+    act(() => onSuccess())
+    expect(textfeld(0).value).toBe('')
+    expect(textfeld(2).value).toBe('')
+  })
+
+  it('ein anderer Fehler von name.anlegen erscheint an den Vornamen, nicht am Rufnamen', () => {
+    zustand.fehler = { code: 'NICHT_GEFUNDEN_PERSON', textSchluessel: 'NICHT_GEFUNDEN_PERSON.titel', vorgangsId: 'v-2' }
+    act(() => root.render(<NamenBearbeitenAbschnitt personId="p-1" namen={[]} />))
+    const titel = i18n.t('fehler:NICHT_GEFUNDEN_PERSON.titel')
+    expect(textfeld(0).closest('label')?.textContent).toContain(titel)
+    expect(textfeld(2).closest('label')?.textContent).not.toContain(titel)
   })
 })
