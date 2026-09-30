@@ -165,6 +165,20 @@ describe('NamenVorschau (AP-1.30 PR 11b, Artboard 2a)', () => {
     expect(option(container, 'Русский').getAttribute('aria-checked')).toBe('true')
   })
 
+  // Review #204 (H4/M15): verschwindet die gewählte Sprache aus den Formen (Löschen, Sprache umgestellt),
+  // gilt wieder die Oberflächensprache — sonst stünde kein Knopf mehr in der Tab-Folge.
+  it('verschwindet die gewählte Sprache, gilt wieder Deutsch (genau ein Tab-Stopp, Anzeige = Kopf)', () => {
+    act(() => root.render(<NamenVorschau namen={NAMEN} istPlatzhalter={false} />))
+    act(() => option(container, 'Русский').click())
+    expect(gezeigt(container).name).toBe('Карл Гутнов')
+
+    act(() => root.render(<NamenVorschau namen={NAMEN.slice(0, 2)} istPlatzhalter={false} />))
+    expect(optionen(container).map((element) => element.textContent)).toEqual(['Deutsch', 'Ирон'])
+    expect(optionen(container).filter((element) => element.tabIndex === 0)).toEqual([option(container, 'Deutsch')])
+    expect(optionen(container).map((element) => element.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+    expect(gezeigt(container)).toEqual({ name: 'Karl Gwytnaty', herkunft: 'Herkunft: Umschrift des Hauptnamens' })
+  })
+
   it('ohne Namensformen: keine Vorschau', () => {
     act(() => root.render(<NamenVorschau namen={[]} istPlatzhalter={false} />))
     expect(container.querySelector('[role="radiogroup"]')).toBeNull()

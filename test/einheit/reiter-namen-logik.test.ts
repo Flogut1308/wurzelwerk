@@ -29,7 +29,7 @@ import {
   vorschauSpracheBeschriftung,
   vorschauSprachen,
 } from '../../src/renderer/ansichten/profil/reiter-namen-logik'
-import { neuePerson, neueTestDatenbank, uhrStarten, type Db } from './_hilfen-namensteil'
+import { neuePerson, neueTestDatenbank, uhrStarten, warte, type Db } from './_hilfen-namensteil'
 
 function teil(id: string, art: PersonDetailNamensteil['art'], wert: string, sortierIndex = 0, istRufname = false): PersonDetailNamensteil {
   return { id, art, wert, ist_rufname: istRufname, sortier_index: sortierIndex, feminine_variante: null }
@@ -98,6 +98,34 @@ describe('anzeigeFormAus (AP-1.30 PR 11b)', () => {
     })
     // `null` wird als `null` durchgereicht, nicht weggelassen.
     expect(anzeigeFormAus(HAUPT)).toHaveProperty('reihenfolge', null)
+  })
+
+  // Review #204 (M6/M9): Hauptform, Rufname und Stelle ≠ 0 — sonst überlebten Mutanten, die
+  // `istBevorzugt`, `istRufname` oder `sortierIndex` fest setzen.
+  it('reicht Hauptform, Rufname, Stelle, Umschriftbezug und originalText unverändert durch', () => {
+    const quelle = form('f9', {
+      ist_bevorzugt: true,
+      sprache: 'de',
+      schrift: 'latn',
+      umschrift_von: 'f8',
+      original_text: 'Karl Friedrich Gutnoff',
+      reihenfolge: 'vorname_zuerst',
+      teile: [teil('t1', 'vorname', 'Karl', 0), teil('t2', 'vorname', 'Friedrich', 1, true), teil('t3', 'nachname', 'Gutnoff', 2)],
+    })
+    expect(anzeigeFormAus(quelle)).toEqual({
+      formId: 'f9',
+      sprache: 'de',
+      schrift: 'latn',
+      istBevorzugt: true,
+      umschriftVon: 'f8',
+      originalText: 'Karl Friedrich Gutnoff',
+      reihenfolge: 'vorname_zuerst',
+      teile: [
+        { art: 'vorname', wert: 'Karl', istRufname: false, sortierIndex: 0 },
+        { art: 'vorname', wert: 'Friedrich', istRufname: true, sortierIndex: 1 },
+        { art: 'nachname', wert: 'Gutnoff', istRufname: false, sortierIndex: 2 },
+      ],
+    })
   })
 
   it('reicht `nachname_zuerst` bis in den Anzeigetext durch (Abnahme 2a: „Гуытнаты Карл")', () => {
@@ -231,6 +259,25 @@ describe('Vorschau ohne Wunschsprache = Kopf des Lesemodells (echte Datenbank)',
     // Die de-Form verdrängt in der Oberflächensprache weder Umschrift noch Hauptname (V-4-wunschsprache);
     // eine andere Sprache fragt nach ihrer Form.
     expect(vorschauFuer(personDetail(db, { personId }).namen, 'os')).toMatchObject({ text: 'Гуытнаты Карл', quelle: 'sprache' })
+  })
+
+  // Review #204 (H1/M8): die Hauptform ist NICHT die Form mit der kleinsten ID — sonst fiele ein
+  // verlorenes `istBevorzugt` nicht auf, weil die Reihung dann nach `formId` dieselbe Form wählt.
+  it('nach hauptname.wechseln ist eine später angelegte Form Hauptname', () => {
+    const personId = neuePerson(db)
+    const alt = formMitTeilen(personId, { rolle: 'geburtsname', schrift: 'latn' }, [
+      { art: 'vorname', wert: 'Anna' },
+      { art: 'nachname', wert: 'Alt' },
+    ])
+    warte(10)
+    const neu = formMitTeilen(personId, { rolle: 'ehename', schrift: 'latn' }, [
+      { art: 'vorname', wert: 'Anna' },
+      { art: 'nachname', wert: 'Neu' },
+    ])
+    expect(alt < neu).toBe(true)
+    fuehreAus(db, 'hauptname.wechseln', { personId, alt, neu })
+    expect(personDetail(db, { personId }).kopf.anzeigename).toBe('Anna Neu')
+    vergleiche(personId)
   })
 
   it('Altbestand über name.anlegen (flache Brücke) und eine Person ohne Namen', () => {
