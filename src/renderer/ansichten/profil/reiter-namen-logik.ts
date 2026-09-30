@@ -5,9 +5,10 @@
 // Die Rückfallkette Sprache → Umschrift → Hauptname gibt es genau einmal, in `anzeigenameFuer`
 // (src/core/name/anzeigename.ts, AP-1.33). Dieses Modul bildet nur das Lesemodell auf deren Eingabe ab
 // und wählt die Wunschsprache — es entscheidet keine Stufe selbst.
-import { anzeigenameFuer, type AnzeigeForm, type AnzeigenameErgebnis, type AnzeigenameQuelle } from '../../../core/name/anzeigename'
+import { vonJdn } from '../../../core/datum/kalender'
+import { anzeigeArtFolge, anzeigenameFuer, anzeigetextVon, sortierName, type AnzeigeForm, type AnzeigenameErgebnis, type AnzeigenameQuelle } from '../../../core/name/anzeigename'
 import type { NameFormReihenfolge } from '../../../core/name/typen'
-import type { PersonDetailName } from '../../../shared/schemata/person-detail'
+import type { PersonDetailName, PersonDetailNamensteil } from '../../../shared/schemata/person-detail'
 
 /** Die Oberflächensprache (ADR-011: es gibt nur Deutsch, `src/renderer/i18n/einrichten.ts`). */
 export const OBERFLAECHENSPRACHE = 'de'
@@ -96,5 +97,72 @@ export function vorschauZielIndex(taste: string, index: number, anzahl: number):
       return anzahl - 1
     default:
       return null
+  }
+}
+
+// -----------------------------------------------------------------------------------------------
+// AP-1.30 PR 11c-1 (A-02, A-19, C-26; docs/80 §33 V-130-11-E3, E6, E8, E10): die Karten im Reiter
+// „Namen" — reine Anzeige, bearbeitet wird allein im Modal (E8).
+// -----------------------------------------------------------------------------------------------
+
+/** Binärer Vergleich von Zeichenketten (Codepunkte, wie `vorschauSprachen`), unabhängig vom Gebietsschema. */
+function binaer(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** `null` zuletzt, sonst `vergleich`. */
+function nullZuletzt<T>(a: T | null, b: T | null, vergleich: (x: T, y: T) => number): number {
+  if (a === null) return b === null ? 0 : 1
+  if (b === null) return -1
+  return vergleich(a, b)
+}
+
+/**
+ * Kartenfolge (V-130-11-E10): Hauptname zuerst, dann nach Sprache (Code binär, `NULL` zuletzt), dann nach
+ * `name_form.sortier_index` (`NULL` zuletzt), dann nach `id`. Deterministisch und unabhängig von der
+ * Ladereihenfolge; die Eingabe bleibt unverändert.
+ */
+export function kartenFolge(namen: readonly PersonDetailName[]): readonly PersonDetailName[] {
+  return [...namen].sort(
+    (a, b) =>
+      (a.ist_bevorzugt ? 0 : 1) - (b.ist_bevorzugt ? 0 : 1) ||
+      nullZuletzt(a.sprache, b.sprache, binaer) ||
+      nullZuletzt(a.sortier_index, b.sortier_index, (x, y) => x - y) ||
+      binaer(a.id, b.id),
+  )
+}
+
+/**
+ * Die Teile einer Form in Anzeigefolge: nach der Wortfolge des Kerns (`anzeigeArtFolge`, dieselbe, in der
+ * `anzeigetextVon` die Teile verbindet — bei `nachname_zuerst` umgestellt), innerhalb einer Art nach
+ * `sortier_index`, dann `id`. Das Lesemodell liefert die Teile in fester Art-Folge (V-130-10-4), nicht so.
+ */
+export function teileInAnzeigefolge(name: PersonDetailName): readonly PersonDetailNamensteil[] {
+  const folge = anzeigeArtFolge(name.reihenfolge)
+  return [...name.teile].sort((a, b) => folge.indexOf(a.art) - folge.indexOf(b.art) || a.sortier_index - b.sortier_index || binaer(a.id, b.id))
+}
+
+/** Eine Form ohne Rolle ist eine Umschrift (0006: `rolle IS NULL` statt 'transliteriert', E7) — auch dann,
+ * wenn ihre Ursprungsform inzwischen gelöscht ist (`umschrift_von` auf NULL, U-130-10-umschrift-set-null). */
+export function istUmschrift(name: PersonDetailName): boolean {
+  return name.rolle === null
+}
+
+/** Anzeigetext einer einzelnen Form, über den Kern (`anzeigetextVon`, Reihenfolge eingeschlossen). */
+export function anzeigetextDerForm(name: PersonDetailName): string {
+  return anzeigetextVon(anzeigeFormAus(name))
+}
+
+/** „Sortiert unter" einer Form, über den Kern (`sortierName`: Präfix zählt nicht). */
+export function sortiertUnter(name: PersonDetailName): string {
+  return sortierName(anzeigeFormAus(name))
+}
+
+/** Gültigkeit einer Form als gregorianische Jahre. `gueltig_von`/`gueltig_bis` sind Sortierschlüssel (JDN,
+ * docs/datenmodell.md §2, wie `datum_sort_von`); eine offene Grenze bleibt offen. */
+export function gueltigkeitJahre(name: PersonDetailName): { readonly von?: number; readonly bis?: number } {
+  return {
+    ...(name.gueltig_von === null ? {} : { von: vonJdn(name.gueltig_von, 'gregorian').jahr }),
+    ...(name.gueltig_bis === null ? {} : { bis: vonJdn(name.gueltig_bis, 'gregorian').jahr }),
   }
 }
