@@ -61,6 +61,12 @@ function frischesNameObjekt(): PersonDetailName {
     gueltig_von: null,
     gueltig_bis: null,
     original_text: 'August Wruck',
+    rolle: 'geburtsname',
+    rollen_notiz: null,
+    reihenfolge: null,
+    konfidenz: null,
+    sortier_index: null,
+    teile: [],
   }
 }
 

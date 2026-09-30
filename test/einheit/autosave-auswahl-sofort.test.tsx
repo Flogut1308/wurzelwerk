@@ -91,6 +91,12 @@ function name(ueberschreibung: Partial<PersonDetailName> = {}): PersonDetailName
     gueltig_von: null,
     gueltig_bis: null,
     original_text: 'Karl Friedrich Gutnoff',
+    rolle: 'geburtsname',
+    rollen_notiz: null,
+    reihenfolge: null,
+    konfidenz: null,
+    sortier_index: null,
+    teile: [],
     ...ueberschreibung,
   }
 }

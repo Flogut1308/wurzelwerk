@@ -22,9 +22,9 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { BeteiligungRolleEnum } from '../../shared/schemata/beteiligung'
 import { ElternschaftTypEnum } from '../../shared/schemata/elternschaft'
 import { EreignisTypEnum } from '../../shared/schemata/ereignis'
-import { NamePartArtEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from '../../shared/schemata/name'
+import { NameFormReihenfolgeEnum, NameFormRolleEnum, NamePartArtEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from '../../shared/schemata/name'
 import { hatAnzeigetext } from '../../core/name/anzeigename'
-import { rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
+import { namePartArtRang, rekonstruiereFlach, type GeladenerTeil } from '../../core/name/zerlegung'
 import { kernangabenAuswerten, type KernAussage, type KernEreignis, type KernOrtAussage } from '../../core/person/kernangaben'
 import {
   aussageHatWert,
@@ -57,6 +57,7 @@ import type {
   PersonDetailKernangaben,
   PersonDetailLebensdatum,
   PersonDetailName,
+  PersonDetailNamensteil,
   PersonDetailOffenerPunkt,
   PersonDetailSterbeort,
   PersonDetailWarnung,
@@ -101,6 +102,10 @@ function kopfLaden(db: Database.Database, personId: string): KopfZeile | undefin
 interface FormZeile {
   readonly id: string
   readonly rolle: string | null
+  readonly rollen_notiz: string | null
+  readonly reihenfolge: string | null
+  readonly konfidenz: number | null
+  readonly sortier_index: number | null
   readonly umschrift_von: string | null
   readonly schrift: string | null
   readonly ist_bevorzugt: number
@@ -118,11 +123,23 @@ interface Namen {
 }
 
 interface TeilZeile {
+  readonly id: string
   readonly name_form_id: string
   readonly art: string
   readonly wert: string
   readonly ist_rufname: number
   readonly sortier_index: number
+  readonly feminine_variante: string | null
+}
+
+/** Ausgabe-Reihenfolge der Teile einer Form (V-130-10-4): Art nach `NAME_PART_ART_REIHENFOLGE`, dann
+ * `sortier_index`, dann `id` (binärer Vergleich wie SQLite, deterministisch auch bei einem Doppel aus
+ * Altbestand). */
+function teilVergleichen(a: PersonDetailNamensteil, b: PersonDetailNamensteil): number {
+  const rang = namePartArtRang(a.art) - namePartArtRang(b.art)
+  if (rang !== 0) return rang
+  if (a.sortier_index !== b.sortier_index) return a.sortier_index - b.sortier_index
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /** `name_form`-Zeilen dieser Person (AP-1.14a Kernfelder-Schreibmaske; AP-1.33: Modell name_form/
@@ -134,7 +151,9 @@ function namenLaden(db: Database.Database, personId: string): Namen {
     .prepare<
       { readonly personId: string },
       FormZeile
-    >(`SELECT id AS id, rolle AS rolle, umschrift_von AS umschrift_von, schrift AS schrift,
+    >(`SELECT id AS id, rolle AS rolle, rollen_notiz AS rollen_notiz, reihenfolge AS reihenfolge,
+              konfidenz AS konfidenz, sortier_index AS sortier_index,
+              umschrift_von AS umschrift_von, schrift AS schrift,
               ist_bevorzugt AS ist_bevorzugt, original_text AS original_text,
               umschrift_norm AS umschrift_norm, sprache AS sprache,
               gueltig_von AS gueltig_von, gueltig_bis AS gueltig_bis
@@ -146,28 +165,41 @@ function namenLaden(db: Database.Database, personId: string): Namen {
   if (formen.length === 0) return { namen: [], nameVorhanden: false }
 
   const teileJeForm = new Map<string, GeladenerTeil[]>()
+  const ausgabeTeileJeForm = new Map<string, PersonDetailNamensteil[]>()
   const teile = db
     .prepare<
       { readonly personId: string },
       TeilZeile
-    >(`SELECT tp.name_form_id AS name_form_id, tp.art AS art, tp.wert AS wert,
-              tp.ist_rufname AS ist_rufname, tp.sortier_index AS sortier_index
+    >(`SELECT tp.id AS id, tp.name_form_id AS name_form_id, tp.art AS art, tp.wert AS wert,
+              tp.ist_rufname AS ist_rufname, tp.sortier_index AS sortier_index,
+              tp.feminine_variante AS feminine_variante
        FROM name_part tp
        JOIN name_form fm ON fm.id = tp.name_form_id
        WHERE fm.person_id = @personId`,
     )
     .all({ personId })
   for (const zeile of teile) {
+    const art = NamePartArtEnum.parse(zeile.art)
     const liste = teileJeForm.get(zeile.name_form_id) ?? []
-    liste.push({ art: NamePartArtEnum.parse(zeile.art), wert: zeile.wert, istRufname: zeile.ist_rufname === 1, sortierIndex: zeile.sortier_index })
+    liste.push({ art, wert: zeile.wert, istRufname: zeile.ist_rufname === 1, sortierIndex: zeile.sortier_index })
     teileJeForm.set(zeile.name_form_id, liste)
+    const ausgabe = ausgabeTeileJeForm.get(zeile.name_form_id) ?? []
+    ausgabe.push({
+      id: zeile.id,
+      art,
+      wert: zeile.wert,
+      ist_rufname: zeile.ist_rufname === 1,
+      sortier_index: zeile.sortier_index,
+      feminine_variante: zeile.feminine_variante,
+    })
+    ausgabeTeileJeForm.set(zeile.name_form_id, ausgabe)
   }
 
   const hauptform = formen.find((form) => form.ist_bevorzugt === 1)
   const nameVorhanden =
     hauptform !== undefined && hatAnzeigetext({ teile: teileJeForm.get(hauptform.id) ?? [], originalText: hauptform.original_text })
 
-  const namen = formen.map((form) => {
+  const namen = formen.map((form): PersonDetailName => {
     const flach = rekonstruiereFlach(teileJeForm.get(form.id) ?? [])
     const typ = form.rolle ?? (form.umschrift_von !== null ? 'transliteriert' : 'sonstiges')
     return {
@@ -192,6 +224,13 @@ function namenLaden(db: Database.Database, personId: string): Namen {
       gueltig_von: form.gueltig_von,
       gueltig_bis: form.gueltig_bis,
       original_text: form.original_text,
+      // AP-1.30 PR 10-4 (V-130-10-4): Kopf-Felder und Teile nur lesend für den Reiter „Namen" (PR 11).
+      rolle: form.rolle === null ? null : NameFormRolleEnum.parse(form.rolle),
+      rollen_notiz: form.rollen_notiz,
+      reihenfolge: form.reihenfolge === null ? null : NameFormReihenfolgeEnum.parse(form.reihenfolge),
+      konfidenz: form.konfidenz,
+      sortier_index: form.sortier_index,
+      teile: [...(ausgabeTeileJeForm.get(form.id) ?? [])].sort(teilVergleichen),
     }
   })
   return { namen, nameVorhanden }

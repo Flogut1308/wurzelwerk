@@ -121,6 +121,16 @@ export function montiereOriginalText(flach: FlacherName): string | null {
   return text !== '' ? text : null
 }
 
+/** Reihenfolge der Bestandteil-Arten in der Anzeige (AP-1.30 PR 10-4, docs/80 §33 V-130-10-4) — dieselbe
+ * Folge, in der `montiereOriginalText` die Felder aus `rekonstruiereFlach` zum Anzeigetext verbindet
+ * (Titel, Vornamen, Vatersname, Präfix, Nachname, Zusatz). Ein Test hält beide Folgen deckungsgleich. */
+export const NAME_PART_ART_REIHENFOLGE: readonly NamePartArt[] = ['titel', 'vorname', 'vatersname', 'praefix', 'nachname', 'suffix']
+
+/** Rang einer Bestandteil-Art in `NAME_PART_ART_REIHENFOLGE` (0-basiert). */
+export function namePartArtRang(art: NamePartArt): number {
+  return NAME_PART_ART_REIHENFOLGE.indexOf(art)
+}
+
 /** Ein bereits geladener Bestandteil (aus name_part), Eingabe der Rekonstruktion. */
 export interface GeladenerTeil {
   readonly art: NamePartArt
