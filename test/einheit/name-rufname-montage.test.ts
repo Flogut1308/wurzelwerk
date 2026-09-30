@@ -310,7 +310,7 @@ describe('Rohecho der flachen Sicht bei mehrwortigem angehängtem Rufnamen ist N
     }
   }
 
-  it.fails('bei Anlege-Montage: keine Transaktion, rufname_text bleibt „Hans Peter", kein Koaleszenzschlüssel', () => {
+  it('bei Anlege-Montage: keine Transaktion, rufname_text bleibt „Hans Peter", kein Koaleszenzschlüssel', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
@@ -330,7 +330,7 @@ describe('Rohecho der flachen Sicht bei mehrwortigem angehängtem Rufnamen ist N
     }
   })
 
-  it.fails('nach der ersten Änderung, ohne originalText (Teile-Montage): ebenfalls No-op', () => {
+  it('nach der ersten Änderung, ohne originalText (Teile-Montage): ebenfalls No-op', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
