@@ -121,10 +121,14 @@ export function istLeer(teil: Pick<EntwurfTeil, 'wert'>): boolean {
 }
 
 /** Die Zielliste: leere Teile verworfen (neue wie geleerte bestehende), bestehende mit ihrer `id`, der Wert
- * unverändert (ein unveränderter Altbestandswert trifft die No-op-Prüfung des Befehls, E4). */
-function zielTeile(entwurf: NamensformEntwurf): readonly NamensformUebernehmenTeil[] {
+ * unverändert (ein unveränderter Altbestandswert trifft die No-op-Prüfung des Befehls, E4). Ausnahme: ein
+ * bestehender Teil, der schon in `basis` leer war (Leerraum-Teil aus der flachen Brücke, etwa Vatersname
+ * `' '`), geht mit — sonst löschte der Befehl ihn als „entfallen" (U-130-11-0b-leerraum-teil); der Befehl
+ * behält ihn, auch „geleert", unverändert. */
+function zielTeile(basis: NamensformEntwurf, entwurf: NamensformEntwurf): readonly NamensformUebernehmenTeil[] {
+  const schonLeer = new Set(basis.teile.flatMap((eintrag) => (eintrag.id !== null && istLeer(eintrag) ? [eintrag.id] : [])))
   return entwurf.teile
-    .filter((eintrag) => !istLeer(eintrag))
+    .filter((eintrag) => !istLeer(eintrag) || (eintrag.id !== null && schonLeer.has(eintrag.id)))
     .map((eintrag) => ({
       ...(eintrag.id === null ? {} : { id: eintrag.id }),
       art: eintrag.art,
@@ -162,7 +166,7 @@ export function uebernehmenEin(personId: string, basis: NamensformEntwurf, entwu
     personId,
     formId: entwurf.formId,
     kopf,
-    teile: zielTeile(entwurf),
+    teile: zielTeile(basis, entwurf),
     ...(entwurf.hauptname && !basis.hauptname ? { hauptname: true } : {}),
   }
 }
@@ -174,7 +178,7 @@ export function uebernehmenEin(personId: string, basis: NamensformEntwurf, entwu
 function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
   if (basis.rolle !== null || (basis.umschriftNorm !== 'iso9' && basis.umschriftNorm !== 'din1460')) return false
   // H2 (PR 11c-1b, entschieden): eine reine Rufname-Markierung korrigiert die Transliteration nicht.
-  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf), false)
+  return !zielTeileGleich(zielTeile(basis, basis), zielTeile(basis, entwurf), false)
 }
 
 /**
@@ -184,10 +188,12 @@ function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwur
  * - die Bereinigung von ungetrimmtem Altbestand („Gutnoff " aus der flachen Brücke → „Gutnoff") IST eine
  *   Änderung — der Handler vergleicht `teil.wert.trim() === vorher.wert` mit dem UNGETRIMMTEN gespeicherten
  *   Wert und schreibt sie; ein beidseitiger Trim hätte sie still verworfen;
- * - unberührter ungetrimmter Altbestand ist gleich (Rohwert), löst also keine Nachfrage aus.
+ * - unberührter ungetrimmter Altbestand ist gleich (Rohwert), löst also keine Nachfrage aus;
+ * - beide leer bzw. nur Leerraum ist gleich: einen Leerraum-Teil (`' '`) zu leeren schreibt der Handler nicht
+ *   (U-130-11-0b-leerraum-teil), also ist es auch keine Änderung (E9) und keine Korrektur.
  */
 function wertGleich(vorher: string, entwurf: string): boolean {
-  return entwurf === vorher || (entwurf.trim() === vorher.trim() && entwurf !== entwurf.trim())
+  return entwurf === vorher || (entwurf.trim() === vorher.trim() && (entwurf !== entwurf.trim() || entwurf.trim() === ''))
 }
 
 /**
@@ -217,7 +223,7 @@ function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: 
 export function entwurfGeaendert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
   if (KOPF_FELDER.some((feld) => basis[feld] !== entwurf[feld])) return true
   if (basis.hauptname !== entwurf.hauptname) return true
-  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf), true)
+  return !zielTeileGleich(zielTeile(basis, basis), zielTeile(basis, entwurf), true)
 }
 
 /** Hat der Entwurf eine neue Form mit mindestens einem nicht leeren Teil? Eine neue Form ohne Teile legt
