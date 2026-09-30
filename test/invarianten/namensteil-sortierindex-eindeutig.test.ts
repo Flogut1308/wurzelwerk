@@ -211,4 +211,35 @@ describe('Invariante: sortier_index je (Form, Art) eindeutig, höchstens ein Ruf
       db.close()
     }
   })
+
+  // AP-1.30 PR 11-0b (hueter #198 H4): die Gegenprobe oben trifft nur den UPDATE-Wächter. Ein neuer Teil auf
+  // einer besetzten Stelle (der Zwischenzustand eines Anlegens ohne vorheriges Aufrücken) muss schon beim
+  // INSERT abbrechen — und nur dort: dieselbe Stelle in einer anderen Art bzw. Form geht durch (über den
+  // Befehl; ein rohes INSERT außerhalb des Busses scheitert sonst an den Journal-Triggern).
+  it('Gegenprobe: der Wächter bricht auch ein INSERT auf einer besetzten Stelle ab', () => {
+    const db = frischeMigrierteDatenbank()
+    try {
+      waechterEinbauen(db)
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const { id: formId } = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname' })
+      const { id: andereForm } = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename' })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Anna' })
+      // Roh (ohne Befehl): genau der Zwischenzustand, den ein Anlegen an Stelle 0 ohne Aufrücken erzeugte.
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+             VALUES ('waechter-insert', @formId, 'vorname', 'Maria', 0, 0, NULL, 0, 0)`,
+          )
+          .run({ formId }),
+      ).toThrow(WAECHTER_MELDUNG)
+      expect(db.prepare(`SELECT COUNT(*) AS anzahl FROM name_part WHERE id = 'waechter-insert'`).get()).toEqual({ anzahl: 0 })
+      // Andere Art derselben Form bzw. dieselbe Art einer anderen Form: Stelle 0 ist dort frei.
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'nachname', wert: 'Müller', position: 0 })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: andereForm, art: 'vorname', wert: 'Maria', position: 0 })
+      orakel(db, 'Gegenprobe INSERT')
+    } finally {
+      db.close()
+    }
+  })
 })
