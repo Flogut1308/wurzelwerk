@@ -289,6 +289,28 @@ describe('ReiterPerson — Gruppe „Hauptname" (AP-1.30 PR 9c)', () => {
       expect(aufrufe).toHaveLength(1)
     })
 
+    // V-130-11e-1 (U-130-11c2-rufname-verlust, Review #215): das Vornamen-Feld führt Änderungen über
+    // `mitVornamen` — der Rufname folgt dem umgeschriebenen markierten Wort, sichtbar in der Auswahl.
+    it('das markierte Wort umschreiben: die Rufname-Auswahl folgt, name.aendern trägt den neuen Rufnamen', () => {
+      vi.useFakeTimers()
+      zeigen(detail({ namen: [NEBENFORM, { ...HAUPTNAME, rufname_text: 'Friedrich', rufname_index: 1 }] }))
+      expect(auswahl(RUFNAME).value).toBe('1')
+      act(() => eintippen(eingabe(VORNAMEN), 'Karl Friedric'))
+      expect(auswahl(RUFNAME).value).toBe('1')
+      expect(Array.from(auswahl(RUFNAME).options).map((option) => option.textContent)).toContain('Friedric')
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+      expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-2', vornamen: 'Karl Friedric', rufnameText: 'Friedric', rufnameIndex: 1 })])
+    })
+
+    it('das markierte Wort durch Einfügen ersetzt: keine Markierung auf dem fremden Wort', () => {
+      vi.useFakeTimers()
+      zeigen(detail({ namen: [NEBENFORM, { ...HAUPTNAME, rufname_text: 'Friedrich', rufname_index: 1 }] }))
+      act(() => eintippen(eingabe(VORNAMEN), 'Anna'))
+      expect(auswahl(RUFNAME).value).toBe('')
+      act(() => vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS))
+      expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-2', vornamen: 'Anna', rufnameText: undefined, rufnameIndex: undefined })])
+    })
+
     it('Nachname ändern: feld „nachname"; Blur schreibt sofort und nicht doppelt', () => {
       vi.useFakeTimers()
       zeigen(detail())
