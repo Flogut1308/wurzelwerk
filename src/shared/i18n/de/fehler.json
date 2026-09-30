@@ -27,6 +27,14 @@
     "titel": "Diese Umschrift passt nicht zu ihrer Ursprungsform",
     "was_tun": "Als Ursprung eine andere Namensform derselben Person wählen. Eine Form ohne Rolle ist eine Umschrift und braucht immer eine Ursprungsform – sonst eine Rolle wie Geburtsname oder Ehename wählen."
   },
+  "VALIDIERUNG_NAMENSTEIL_LEER": {
+    "titel": "Dieser Namensteil ist leer",
+    "was_tun": "Den Namensteil eingeben, zum Beispiel einen Vornamen oder Nachnamen. Soll der Teil wegfallen, ihn entfernen statt leer zu lassen."
+  },
+  "VALIDIERUNG_NAMENSTEIL_LEERRAUM": {
+    "titel": "Ein Vorname enthält ein Leerzeichen",
+    "was_tun": "Jeden Vornamen als eigenen Teil eingeben, zum Beispiel „Hans“ und „Peter“ statt „Hans Peter“. Mehrteilige Vornamen in einem Teil sind noch nicht vorgesehen."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."

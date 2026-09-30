@@ -12,7 +12,7 @@
 import { z } from 'zod'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
 import { BoolWert, KonfidenzSchema, SubjektTypEnum } from './gemeinsam'
-import { NameFormReihenfolgeEnum, NameFormRolleEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
+import { NameFormReihenfolgeEnum, NameFormRolleEnum, NamePartArtEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
 import { ElternschaftTypEnum } from './elternschaft'
 import { PartnerschaftTypEnum, EndeGrundEnum } from './partnerschaft'
 import { EreignisTypEnum } from './ereignis'
@@ -351,6 +351,34 @@ export const namensformAendernEinSchema: z.ZodType<NamensformAendernEin> = z
       ctx.addIssue({ code: 'custom', path: ['rolle'], message: ROLLE_NULL_NUR_MIT_UMSCHRIFT })
     }
   })
+
+// -----------------------------------------------------------------------------------------------
+// namensteil.anlegen (AP-1.30 PR 10-2; A-02, A-19; docs/schema/0006_namensformen.sql `name_part`) —
+// granularer Befehl für EINEN Bestandteil einer Namensform. `sortier_index` ist je (Form, Art)
+// eindeutig; der Befehl hält das in jedem Zwischenzustand (E1, docs/80 §33 V-130-10-2). Die
+// Rufname-Markierung setzt dieser Befehl nie (→ `namensteil.rufnameSetzen`, PR 10-3).
+// -----------------------------------------------------------------------------------------------
+
+/** Nutzlast von `befehl:namensteil.anlegen`. `wert` wird getrimmt und darf nicht leer sein
+ * (`VALIDIERUNG_NAMENSTEIL_LEER`); ein Vorname-Teil enthält keinen Leerraum
+ * (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`, E2 bis U-130-rufname-mehrteilig). `position` ist die 0-basierte
+ * Stelle unter den Teilen DERSELBEN Art dieser Form (0 … Anzahl); fehlt sie, wird hinten angehängt.
+ * Die Teile ab dieser Stelle rücken um eins nach hinten. */
+export interface NamensteilAnlegenEin {
+  readonly namensformId: string
+  readonly art: z.infer<typeof NamePartArtEnum>
+  readonly wert: string
+  readonly feminineVariante?: string | undefined
+  readonly position?: number | undefined
+}
+
+export const namensteilAnlegenEinSchema: z.ZodType<NamensteilAnlegenEin> = z.object({
+  namensformId: z.string(),
+  art: NamePartArtEnum,
+  wert: z.string(),
+  feminineVariante: z.string().optional(),
+  position: z.number().int().nonnegative().optional(),
+})
 
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
