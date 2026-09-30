@@ -21,9 +21,9 @@ import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
 import { neueId } from '../id'
-import { mitOriginalTextNachfuehrung, namensteilWertPruefen } from './namensteil-hilfen'
+import { MIT_NACHFUEHRUNG, mitOriginalTextNachfuehrung, namensteilWertPruefen, type NachfuehrungOptionen } from './namensteil-hilfen'
 
-export function namensteilAnlegen(tx: Tx, ein: NamensteilAnlegenEin): { readonly id: string } {
+export function namensteilAnlegen(tx: Tx, ein: NamensteilAnlegenEin, optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG): { readonly id: string } {
   const form = nameFormRepo.lesen(tx, ein.namensformId)
   if (form === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
@@ -56,6 +56,6 @@ export function namensteilAnlegen(tx: Tx, ein: NamensteilAnlegenEin): { readonly
       erstelltAm: jetzt,
       geaendertAm: jetzt,
     })
-  })
+  }, optionen)
   return { id }
 }

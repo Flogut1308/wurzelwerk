@@ -21,9 +21,9 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
-import { mitOriginalTextNachfuehrung } from './namensteil-hilfen'
+import { MIT_NACHFUEHRUNG, mitOriginalTextNachfuehrung, type NachfuehrungOptionen } from './namensteil-hilfen'
 
-export function namensteilLoeschen(tx: Tx, ein: NamensteilLoeschenEin): null {
+export function namensteilLoeschen(tx: Tx, ein: NamensteilLoeschenEin, optionen: NachfuehrungOptionen = MIT_NACHFUEHRUNG): null {
   const teil = namePartRepo.lesen(tx, ein.id)
   if (teil === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAMENSTEIL')
@@ -41,6 +41,6 @@ export function namensteilLoeschen(tx: Tx, ein: NamensteilLoeschenEin): null {
         namePartRepo.sortierIndexSetzen(tx, { id: rest.id, sortierIndex: rang, geaendertAm: jetzt })
       }
     })
-  })
+  }, optionen)
   return null
 }

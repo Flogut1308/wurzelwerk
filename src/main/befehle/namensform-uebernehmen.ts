@@ -5,7 +5,14 @@
 // Keine zweite Schreiblogik und kein eigenes SQL: der Handler vergleicht Zielliste und Kopf mit dem
 // gespeicherten Stand und ruft nur die granularen Befehlsfunktionen (`namensformAnlegen`/`Aendern`,
 // `namensteilLoeschen`/`Aendern`/`Anlegen`/`Verschieben`, `namensformRufnameSetzen`, `hauptnameWechseln`) auf —
-// je mit ihren eigenen Prüfungen, ihrer E1-sicheren Schrittfolge und ihrer `original_text`-Nachführung (E3).
+// je mit ihren eigenen Prüfungen und ihrer E1-sicheren Schrittfolge.
+//
+// E3 EINMAL je Aufruf (U-130-11-0b-e3-zwischenstand): ob `original_text` den Teilen folgt, wird VOR dem ersten
+// Teilschritt entschieden (`originalTextFolgtDenTeilen` am Stand vor dem Befehl; eine neue Form hat `NULL` und
+// folgt). Die Teilfunktionen laufen darum mit `OHNE_NACHFUEHRUNG` — je Einzelschritt entschieden, würde eine
+// wortgetreue Schreibung, die einem ZWISCHENSTAND der Montage gleicht („Anna" nach dem Anlegen von „Anna" auf
+// dem Weg zu [Anna, Nowak]), ab dort überschrieben. Am Ende (Schritt 6) wird genau einmal aus den Zielteilen
+// montiert, wenn der Text folgt; ein wortgetreuer bleibt, wie auch immer die Zwischenstände aussehen.
 //
 // Ein Undo-Schritt: alle Einzelschritte schreiben in DIESELBE Bus-Transaktion (eine `transaktion_id`); der
 // Befehl hat bewusst keinen Koaleszenzschlüssel (kein Autosave). No-op (AP-0.22): jede aufgerufene Funktion
@@ -33,9 +40,10 @@
 //      Schritt setzt `ist_rufname = 1` (Anlegen schreibt 0, Ändern/Verschieben lassen die Markierung) —
 //      so sieht der Index `idx_name_part_ein_rufname` nie zwei;
 //   6. Kopf NACH den Teilen: bei einer bestehenden Form nur die Felder, die sich gegenüber dem Stand VOR dem
-//      Befehl ändern, bei einer neuen Form nur ein gesetzter `originalText`. So gewinnt ein ausdrücklich
-//      gesetzter bzw. geänderter `originalText` über die Nachführung aus Schritt 2–5 (auch wenn er zufällig
-//      wie eine Montage der ersten Teile aussieht), ein unverändert mitgeschickter setzt sie nicht zurück;
+//      Befehl ändern, bei einer neuen Form nur `originalText`. `originalText`: ein mitgeschickter, vom
+//      gespeicherten abweichender gewinnt immer (auch wenn er zufällig wie eine Montage aussieht); sonst die
+//      Montage der Zielteile, falls der Text folgt (E3, oben); sonst bleibt er. Ein unverändert mitgeschickter
+//      setzt die Nachführung also nicht zurück. Geschrieben wird nur bei einem Unterschied (No-op);
 //   7. Hauptname (`hauptnameWechseln`), falls verlangt und die Form es noch nicht ist.
 // Undo spielt das Journal der ganzen Transaktion rückwärts und durchläuft so dieselben Zwischenstände in
 // umgekehrter Folge, Redo vorwärts — beide ebenfalls doppelfrei.
@@ -52,7 +60,7 @@ import { namensformAnlegen } from './namensform-anlegen'
 import { namensformRufnameSetzen } from './namensform-rufname-setzen'
 import { namensteilAendern, namensteilGeaenderteFelder } from './namensteil-aendern'
 import { namensteilAnlegen } from './namensteil-anlegen'
-import { namensteilWertPruefen } from './namensteil-hilfen'
+import { montageDerTeile, namensteilWertPruefen, OHNE_NACHFUEHRUNG, originalTextFolgtDenTeilen } from './namensteil-hilfen'
 import { namensteilLoeschen } from './namensteil-loeschen'
 import { namensteilVerschieben } from './namensteil-verschieben'
 
@@ -98,7 +106,7 @@ function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePa
 }
 
 /** Kopf einer NEUEN Form: `null` heißt dort „nicht gesetzt". `rolle` ist per Schema vorhanden. `originalText`
- * fehlt bewusst — er kommt erst in Schritt 6, nach den Teilen (sonst montierte ihn die Nachführung neu). */
+ * fehlt bewusst — er kommt erst in Schritt 6, nach den Teilen (FTS-Trigger, `mitOriginalTextNachfuehrung`). */
 function anlegenEin(personId: string, kopf: NamensformUebernehmenKopf): NamensformAnlegenEin {
   return {
     personId,
@@ -142,7 +150,7 @@ function artEinordnen(tx: Tx, formId: string, art: Ziel['art'], ziele: readonly 
   ziele.forEach((ziel, rang) => {
     if (ziel.vorher === undefined) {
       const feminineVariante = ziel.feminineVariante ?? undefined
-      ziel.neueId = namensteilAnlegen(tx, { namensformId: formId, art, wert: ziel.wert, feminineVariante, position: rang }).id
+      ziel.neueId = namensteilAnlegen(tx, { namensformId: formId, art, wert: ziel.wert, feminineVariante, position: rang }, OHNE_NACHFUEHRUNG).id
       return
     }
     const id = ziel.vorher.id
@@ -151,7 +159,7 @@ function artEinordnen(tx: Tx, formId: string, art: Ziel['art'], ziele: readonly 
       // Unerreichbar: Ränge 0 … rang−1 tragen schon die vorigen Ziele, der Teil ist keines davon.
       throw new WurzelFehler('INTERN_UNERWARTET', 'namensform.uebernehmen: Teil steht vor seinem Zielrang.')
     }
-    if (stelle !== rang) namensteilVerschieben(tx, { id, position: rang })
+    if (stelle !== rang) namensteilVerschieben(tx, { id, position: rang }, OHNE_NACHFUEHRUNG)
   })
 }
 
@@ -166,6 +174,8 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   const gespeichert = vorher === undefined ? [] : namePartRepo.teileFuerForm(tx, vorher.id)
   const ziele = zieleBilden(ein, gespeichert)
   if (vorher !== undefined) namensformAenderungPruefen(tx, vorher, { id: vorher.id, ...ein.kopf })
+  // E3: einmal für den ganzen Aufruf, am Stand VOR dem ersten Schreibvorgang (neue Form: `NULL` folgt).
+  const folgtDenTeilen = vorher === undefined || originalTextFolgtDenTeilen(tx, vorher)
 
   // 1. neue Form
   const formId = vorher?.id ?? namensformAnlegen(tx, anlegenEin(ein.personId, ein.kopf)).id
@@ -173,14 +183,14 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   // 2. entfallene Teile
   const behalten = new Set(ziele.flatMap((ziel) => (ziel.vorher === undefined ? [] : [ziel.vorher.id])))
   for (const teil of gespeichert) {
-    if (!behalten.has(teil.id)) namensteilLoeschen(tx, { id: teil.id })
+    if (!behalten.has(teil.id)) namensteilLoeschen(tx, { id: teil.id }, OHNE_NACHFUEHRUNG)
   }
 
   // 3. geänderte Werte/Varianten — nur bei einem Unterschied aufrufen
   for (const ziel of ziele) {
     if (ziel.vorher === undefined) continue
     const aendern = { id: ziel.vorher.id, wert: ziel.wert, feminineVariante: ziel.feminineVariante }
-    if (namensteilGeaenderteFelder(ziel.vorher, aendern).length > 0) namensteilAendern(tx, aendern)
+    if (namensteilGeaenderteFelder(ziel.vorher, aendern).length > 0) namensteilAendern(tx, aendern, OHNE_NACHFUEHRUNG)
   }
 
   // 4. je Art einordnen (Arten in der Folge ihres ersten Auftretens)
@@ -198,19 +208,18 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   const zielRufname = ziele.find((ziel) => ziel.istRufname)
   const neuerRufname = zielRufname === undefined ? null : (zielId(zielRufname) ?? null)
   const alterRufname = namePartRepo.teileDerArt(tx, formId, 'vorname').find((teil) => teil.ist_rufname === 1)?.id ?? null
-  if (neuerRufname !== alterRufname) namensformRufnameSetzen(tx, { namensformId: formId, namensteilId: neuerRufname })
+  if (neuerRufname !== alterRufname) namensformRufnameSetzen(tx, { namensformId: formId, namensteilId: neuerRufname }, OHNE_NACHFUEHRUNG)
 
-  // 6. Kopf nach den Teilen
-  if (vorher !== undefined) {
-    kopfUebernehmen(tx, vorher, ein.kopf)
-  } else if (ein.kopf.originalText !== undefined && ein.kopf.originalText !== null) {
-    const neu = nameFormRepo.lesen(tx, formId)
-    if (neu === undefined) {
-      // Unerreichbar: die Form wurde in Schritt 1 in dieser Transaktion angelegt.
-      throw new WurzelFehler('INTERN_UNERWARTET', 'namensform.uebernehmen: neue Form fehlt.')
-    }
-    kopfUebernehmen(tx, neu, { originalText: ein.kopf.originalText })
+  // 6. Kopf nach den Teilen (`basis`: Stand vor dem Befehl bzw. die gerade angelegte Form)
+  const basis = vorher ?? nameFormRepo.lesen(tx, formId)
+  if (basis === undefined) {
+    // Unerreichbar: die Form wurde in Schritt 1 in dieser Transaktion angelegt.
+    throw new WurzelFehler('INTERN_UNERWARTET', 'namensform.uebernehmen: neue Form fehlt.')
   }
+  const mitgeschickt = ein.kopf.originalText
+  const originalText =
+    mitgeschickt !== undefined && mitgeschickt !== basis.original_text ? mitgeschickt : folgtDenTeilen ? montageDerTeile(tx, formId) : undefined
+  kopfUebernehmen(tx, basis, vorher === undefined ? { originalText } : { ...ein.kopf, originalText })
 
   // 7. Hauptname
   if (ein.hauptname === true && nameFormRepo.lesen(tx, formId)?.ist_bevorzugt !== 1) {
