@@ -150,6 +150,29 @@ describe('Modal (docs/71 §2.3, T-Dialog §2.4, AP-1.30 PR 11a)', () => {
     expect(document.activeElement).toBe(letztes)
   })
 
+  // Review #199 V1: liegt der Fokus auf dem Dialog selbst (Anfangsfokus ohne Bedienelement im Inhalt,
+  // in Chromium auch nach einem Mausklick auf Text im Modal), griff der Fang nicht — Shift+Tab
+  // verließ das Modal.
+  it('Fokus auf dem Dialog selbst: Shift+Tab springt zum letzten, Tab zum ersten Element', () => {
+    act(() => root.render(<Huelle startOffen />))
+    const dialog = modal(container)
+    const bedienbar = Array.from(dialog.querySelectorAll<HTMLElement>('button, input'))
+    const erstes = bedienbar[0]
+    const letztes = bedienbar[bedienbar.length - 1]
+    if (erstes === undefined || letztes === undefined) throw new Error('keine Bedienelemente')
+
+    act(() => dialog.focus())
+    expect(document.activeElement).toBe(dialog)
+    const zurueck = taste(dialog, 'Tab', true)
+    expect(zurueck.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(letztes)
+
+    act(() => dialog.focus())
+    const vor = taste(dialog, 'Tab')
+    expect(vor.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(erstes)
+  })
+
   it('Escape schließt über beiSchliessen und erreicht den Editor dahinter nicht', () => {
     const geschlossen = vi.fn()
     const vorfahr = vi.fn()
