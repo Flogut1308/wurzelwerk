@@ -472,3 +472,73 @@ describe('Teil-Abgleich: kein Zwischenzustand mit doppeltem sortier_index, abgel
     }
   })
 })
+
+describe('Teil-Abgleich: Rohecho eines angehängten mehrwortigen Rufnamens und feminine_variante (hueter #191 H1/H2)', () => {
+  it('H2: angehängter Rufname „Hans Peter": die gespeicherte flache Sicht zurück + Nachname geändert → Vorname-Teile [Karl, „Hans Peter"*] unverändert', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      // `zerlegeName` Regel 3: „Hans Peter" ist kein vorhandener Vorname-Token → EIN angehängter,
+      // markierter Vorname-Teil hinter „Karl".
+      const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnow' }).id
+      const vornamenVorher = teile(db, formId, 'vorname')
+      expect(vornamenVorher.map((teil) => [teil.wert, teil.ist_rufname])).toEqual([
+        ['Karl', 0],
+        ['Hans Peter', 1],
+      ])
+      warte(5000)
+
+      // Genau die gespeicherte flache Sicht (nameRepo.lesen) zurück, nur der Nachname neu. Die
+      // Kern-Rundreise dieser Sicht ist KEINE Identität (zerlegeName markierte „Hans" an Index 1) —
+      // nur die Rohecho-Klausel in `artUnveraendert` hält die Vornamen unberührt.
+      fuehreAus(db, 'name.aendern', {
+        id: formId,
+        typ: 'geburtsname',
+        vornamen: 'Karl Hans Peter',
+        rufnameIndex: 1,
+        rufnameText: 'Hans Peter',
+        nachname: 'Gutnoff',
+        feld: 'nachname',
+      })
+
+      expect(teile(db, formId, 'vorname')).toEqual(vornamenVorher)
+      expect(teile(db, formId, 'nachname').map((teil) => teil.wert)).toEqual(['Gutnoff'])
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('H1: feminine_variante folgt dem Wert beim Einfügen in der Mitte und beim Umordnen, nicht der Stelle', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formMitGranularenFeldern(db)
+      // Ausgang: Karl (0, „Karla"), Friedrich* (1). Neu vorn „Wilhelm": Karl rückt auf 1, Friedrich* auf 2.
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, vornamen: 'Wilhelm Karl Friedrich' }))
+      const nachEinfuegen = teile(db, formId, 'vorname')
+      expect(nachEinfuegen.map((teil) => [teil.wert, teil.sortier_index, teil.ist_rufname, teil.feminine_variante])).toEqual([
+        ['Wilhelm', 0, 0, null],
+        ['Karl', 1, 0, 'Karla'],
+        ['Friedrich', 2, 1, null],
+      ])
+      erwarteAbgeleitetWieNeuaufbau(db)
+
+      // Umordnen an festen Stellen, gleiche Markierung (reine Wert-UPDATEs): „Karla" wandert mit Karl.
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, vornamen: 'Karl Wilhelm Friedrich' }))
+      const nachUmordnen = teile(db, formId, 'vorname')
+      expect(nachUmordnen.map((teil) => [teil.wert, teil.sortier_index, teil.ist_rufname, teil.feminine_variante])).toEqual([
+        ['Karl', 0, 0, 'Karla'],
+        ['Wilhelm', 1, 0, null],
+        ['Friedrich', 2, 1, null],
+      ])
+      // Stellen behalten ihre Zeile (Grenze, docs/80 U-130-10a-bruecke-erhaelt): die ID an Stelle 0 ist
+      // die des früheren „Wilhelm", nicht die des früheren „Karl".
+      expect(nachUmordnen[0]?.id).toBe(nachEinfuegen[0]?.id)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
