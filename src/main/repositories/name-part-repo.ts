@@ -74,8 +74,3 @@ export function aktualisieren(tx: Tx, ein: NamePartAktualisierenEin): void {
 export function loeschen(tx: Tx, id: string): void {
   tx.prepare('DELETE FROM name_part WHERE id = @id').run({ id })
 }
-
-/** Löscht alle Bestandteile einer Form (für den vollständigen Neuaufbau der Teile bei `name.aendern`). */
-export function loescheFuerForm(tx: Tx, nameFormId: string): void {
-  tx.prepare('DELETE FROM name_part WHERE name_form_id = @nameFormId').run({ nameFormId })
-}

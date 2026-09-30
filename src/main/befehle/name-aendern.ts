@@ -74,7 +74,7 @@ function rohUnveraendert(vorher: NameZeile, ein: NameAendernEin, flachEin: Flach
 /**
  * AP-1.30 PR 4 (Koaleszenzschlüssel, `koaleszenz-schluessel.ts`): die Vertragsfelder, deren
  * GESPEICHERTER Wert sich durch `ein` ändern würde — verglichen wird die WIRKUNG, nicht die rohe
- * Nutzlast: `name.aendern` baut die Bestandteile neu auf (`zerlegeName`), die flache Sicht
+ * Nutzlast: `name.aendern` schreibt die Bestandteile aus `zerlegeName` (abgeglichen, `teileAbgleichen`), die flache Sicht
  * (`nameRepo.lesen`) rekonstruiert sie wieder (`rekonstruiereFlach`). Erst so sind `rufnameIndex`/
  * `rufnameText` vergleichbar (beide sind nur zwei Sichten auf DAS eine `ist_rufname` eines Teils).
  *
