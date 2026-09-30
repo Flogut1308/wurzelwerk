@@ -77,6 +77,24 @@
   width: 100%;
 }
 
+/* `Modal` (AP-1.30 PR 11a): die feste Abdunkelung wird in der Probe zur absoluten — sie dunkelt
+ * nur die Probenbox ab, nicht die ganze Bibliothek; die Karte behält ihre echte Breite (640 px). */
+.wz-zb__modalProbe {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-grund);
+}
+
+.wz-zb__modalProbe .wz-modal {
+  position: absolute;
+  z-index: auto;
+}
+
 .wz-zb__datentabelleProbe {
   width: 100%;
   max-width: 640px;

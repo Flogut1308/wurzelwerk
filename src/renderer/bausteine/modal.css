@@ -1,0 +1,74 @@
+/*
+ * Baustein `Modal` — Organismus (docs/71_Designsystem.md §2.3), Template `T-Dialog` (§2.4: schmal
+ * 480 / mittel 640 / breit 960). Flächen nach dem Entwurf „Namensform bearbeiten" (Artboard 2a):
+ * Karte `--wz-flaeche-erhoben` mit feinem Rahmen, Fuß abgesetzt auf `--wz-flaeche-basis`, Radius
+ * und Schatten aus den Modal-Tokens. `position: fixed` statt eines Portals — wie
+ * `seitenschublade.css` (kein Elternbaum setzt `transform`). Über der Seitenschublade (200), gleich
+ * hoch wie die Nachfrage „Datum nicht lesbar" (`unlesbar-nachfrage.css`, 300).
+ */
+
+.wz-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--wz-abstand-24);
+  background: var(--wz-flaeche-abdunkelung);
+  z-index: 300;
+}
+
+.wz-modal__dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--wz-breite-dialog-mittel), 100%);
+  max-height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-modal);
+  background: var(--wz-flaeche-erhoben);
+  box-shadow: var(--wz-schatten-modal);
+}
+
+.wz-modal__dialog:focus-visible {
+  outline: none;
+}
+
+.wz-modal__dialog--schmal {
+  width: min(var(--wz-breite-dialog-schmal), 100%);
+}
+
+.wz-modal__dialog--breit {
+  width: min(var(--wz-breite-dialog-breit), 100%);
+}
+
+.wz-modal__kopf {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12) var(--wz-abstand-12) var(--wz-abstand-12) var(--wz-abstand-20);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-modal__inhalt {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--wz-abstand-16);
+  padding: var(--wz-abstand-20);
+  overflow-y: auto;
+}
+
+.wz-modal__fuss {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-12) var(--wz-abstand-20);
+  border-top: 1px solid var(--wz-rahmen-fein);
+  background: var(--wz-flaeche-basis);
+}
