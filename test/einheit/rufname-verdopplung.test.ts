@@ -168,6 +168,22 @@ describe('name.aendern: derselbe Fall darf nicht über das Ändern entstehen', (
     })
   })
 
+  it.fails('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Kette und Position, anderer Rufname-Text → abgewiesen (hueter #184 P1)', () => {
+    mitDb((db) => {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      // Vier einzelne Vornamen, Rufname „Hans" an Index 2: Kette „Hans Peter Hans Peter", Text „Hans".
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Hans Peter Hans Peter', rufnameIndex: 2, nachname: 'Gutnow' })
+      const zeileVorher = nameRepo.lesen(db, id)
+      expect(zeileVorher?.rufname_index).toBe(2)
+      expect(zeileVorher?.rufname_text).toBe('Hans')
+      const teileVorher = zaehle(db, 'name_part')
+      // Ergäbe dieselbe Kette und Position 2, deutete den Rufnamen aber von „Hans" zu „Hans Peter" um.
+      expect(fehlercode(() => fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnow' }))).toBe(FEHLERCODE)
+      expect(nameRepo.lesen(db, id)).toEqual(zeileVorher)
+      expect(zaehle(db, 'name_part')).toBe(teileVorher)
+    })
+  })
+
   it('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Vornamenkette, neue Rufname-Position → abgewiesen', () => {
     mitDb((db) => {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
