@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test } from '@playwright/test'
+import { _electron as electron, expect, type Locator, test } from '@playwright/test'
 import { z } from 'zod'
 import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
 
@@ -12,7 +12,9 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
  * - Person mit Geburtsdatum-Aussage, Quelle mit Zitat → „Beleg verknüpfen" → Quelle suchen → Zitat
  *   wählen: nach ≤ 1 s steht der Chip da, `person.detail` liefert genau einen Beleg an der Aussage.
  * - Ein Undo nimmt NUR die Verknüpfung zurück; das Zitat bleibt in der Quelle.
- * - Tippen im Datumsfeld (Debounce läuft) und sofort „Beleg verknüpfen": beides ist gespeichert.
+ * - Tippen im Datumsfeld (Debounce läuft) und sofort „Beleg verknüpfen": beides ist gespeichert, das
+ *   Datum genau einmal und erst mit dem Verlassen des Felds. Die Vorbedingung „der Fokuswechsel fiel
+ *   in den laufenden Debounce" misst der Renderer (App-Uhr), nicht die Test-Uhr (V-130-fix-ablauf15).
  *
  * Undo über `befehl:journal.undo` statt ⌘Z (wie ablauf-07/-10: das Menükürzel ist unter Playwright
  * nicht deterministisch auslösbar; der Kanal ist derselbe Weg, den das Menü nimmt). Zusicherungen an
@@ -105,6 +107,39 @@ test.describe('Ablauf 15 — Reiter Person: Beleg verknüpfen', () => {
     return z.object({ id: z.string() }).parse(ergebnis.daten).id
   }
 
+  /** Transaktionen zur Person (Zeitpunkt nach der Uhr der App), neueste zuerst. */
+  async function verlauf(id: string): Promise<readonly { readonly id: string; readonly zeitpunkt: number; readonly beschreibung: string | null }[]> {
+    const ergebnis = await fenster.evaluate(async (pid) => window.wurzelwerk.aufrufen('abfrage:journal.verlauf', { grenze: 50, personId: pid }), id)
+    if (!ergebnis.ok) throw new Error('abfrage:journal.verlauf fehlgeschlagen')
+    return z.array(z.object({ id: z.string(), zeitpunkt: z.number(), beschreibung: z.string().nullable() })).parse(ergebnis.daten)
+  }
+
+  /**
+   * Lässt den Renderer am Feld selbst mitschreiben, wann die letzte Eingabe kam und wann das Feld
+   * danach zuerst den Fokus verlor (`Date.now()` im Renderer — dieselbe Systemuhr, die der
+   * Hauptprozess in `transaktion.zeitpunkt` schreibt). Native Listener am Element laufen vor den an
+   * der Wurzel gebündelten React-Handlern: „Eingabe" liegt also nicht nach dem Start des
+   * Debounce-Timers, „Verlassen" nicht nach `sofortSchreiben`.
+   */
+  async function feldZeitenAufzeichnen(feld: Locator): Promise<void> {
+    await feld.evaluate((element) => {
+      if (!(element instanceof HTMLElement)) throw new Error('Datumsfeld ist kein HTMLElement')
+      element.addEventListener('input', () => {
+        element.dataset['e2eEingabe'] = String(Date.now())
+        delete element.dataset['e2eVerlassen']
+      })
+      element.addEventListener('focusout', () => {
+        if (element.dataset['e2eEingabe'] !== undefined && element.dataset['e2eVerlassen'] === undefined) element.dataset['e2eVerlassen'] = String(Date.now())
+      })
+    })
+  }
+
+  async function feldZeiten(feld: Locator): Promise<{ readonly eingabe: number; readonly verlassen: number }> {
+    const roh = await feld.evaluate((element) => (element instanceof HTMLElement ? { ...element.dataset } : {}))
+    const zeiten = z.object({ e2eEingabe: z.coerce.number().int(), e2eVerlassen: z.coerce.number().int() }).parse(roh)
+    return { eingabe: zeiten.e2eEingabe, verlassen: zeiten.e2eVerlassen }
+  }
+
   let personId = ''
   let quelleId = ''
   let zitatId = ''
@@ -170,11 +205,16 @@ test.describe('Ablauf 15 — Reiter Person: Beleg verknüpfen', () => {
     await datum.click()
     await datum.press('End')
     await datum.press('Shift+ArrowLeft')
-    const vorAnschlag = Date.now()
+    const vorher = new Set((await verlauf(personId)).map((eintrag) => eintrag.id))
+    await feldZeitenAufzeichnen(datum)
     await datum.press('5')
     await geburt.getByRole('button', { name: 'Beleg verknüpfen', exact: true }).click()
-    // Der Klick fiel in den laufenden Debounce — sonst prüfte dieser Fall nichts.
-    expect(Date.now() - vorAnschlag).toBeLessThan(AUTOSAVE_DEBOUNCE_MS)
+    // Vorbedingung an der Uhr der App (docs/80 §33 V-130-fix-ablauf15): das Feld verlor den Fokus,
+    // bevor der Debounce-Timer fällig war — sonst prüfte dieser Fall nichts. Der Timer entsteht erst
+    // im Effekt NACH der Eingabe und feuert nie früher als `AUTOSAVE_DEBOUNCE_MS` danach; beide
+    // Zeitpunkte nimmt der Renderer selbst auf, ohne die Befehlslatenz von Playwright davor und danach.
+    const zeiten = await feldZeiten(datum)
+    expect(zeiten.verlassen - zeiten.eingabe, 'Eingabe → Verlassen des Felds (App-Uhr)').toBeLessThan(AUTOSAVE_DEBOUNCE_MS)
 
     const schublade = fenster.getByRole('dialog', { name: 'Belege: Geburt', exact: true })
     await schublade.locator('#wz-beleg-waehler-suche').fill('Taufregister')
@@ -184,5 +224,16 @@ test.describe('Ablauf 15 — Reiter Person: Beleg verknüpfen', () => {
     await expect.poll(() => geburtsdatum(personId)).toEqual({ werte: ['1905'], belege: [zitatId], belegzahl: 1 })
     await expect(geburt.locator('.wz-beleg-zeile__chip', { hasText: 'Taufregister Marienwerder, S. 42' })).toBeVisible()
     await expect(datum).toHaveValue('1905')
+    // Genau EIN Schreiben des Datums, und zwar durch das Verlassen des Felds (Hauptprozess und Renderer
+    // lesen dieselbe Systemuhr): Eingabe ≤ Verlassen ≤ Transaktion < Eingabe + Debounce. Nicht vor dem
+    // Fokuswechsel geschrieben, und früher, als der Debounce-Timer je hätte schreiben können — ohne
+    // `sofortSchreiben` beim Verlassen schriebe erst der Timer, und auch dann stünden 1905 und der
+    // Beleg am Ende da; nur diese Zeitkette unterscheidet die beiden Wege.
+    const neu = (await verlauf(personId)).filter((eintrag) => !vorher.has(eintrag.id))
+    const datumsSchreiben = neu.filter((eintrag) => eintrag.beschreibung === 'journal.aussage_geaendert')
+    expect(datumsSchreiben, 'genau ein Schreiben des Datums').toHaveLength(1)
+    const geschrieben = datumsSchreiben[0]?.zeitpunkt ?? 0
+    expect(geschrieben, 'Datum geschrieben ab dem Verlassen des Felds (App-Uhr)').toBeGreaterThanOrEqual(zeiten.verlassen)
+    expect(geschrieben - zeiten.eingabe, 'Datum geschrieben, bevor der Debounce-Timer fällig war (App-Uhr)').toBeLessThan(AUTOSAVE_DEBOUNCE_MS)
   })
 })
