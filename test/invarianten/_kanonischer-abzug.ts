@@ -108,17 +108,96 @@ function spaltenPlan(db: Database.Database, tabelle: string): SpaltenPlan {
   return { spalten, sortierSpalten: pkSpalten.length > 0 ? pkSpalten : spalten }
 }
 
-/** Deterministischer, sortierter Textabzug einer einzelnen Basistabelle. */
-function tabellenAbzug(db: Database.Database, tabelle: string): string {
-  const { spalten, sortierSpalten } = spaltenPlan(db, tabelle)
-  if (spalten.length === 0) {
-    // Unerreichbar für die heutigen Basistabellen (jede hat mindestens eine Spalte) — rein defensiv.
-    return `## ${tabelle}\n`
+/** Vorbereiteter Abzug EINER Tabelle (Teil des Plans je Verbindung, s. `abzugPlan`). */
+type TabellenPlan =
+  | { readonly art: 'leer'; readonly tabelle: string }
+  | {
+      readonly art: 'zeilen'
+      readonly tabelle: string
+      readonly anweisung: Database.Statement<[], ZeileWerte>
+      /**
+       * Spaltennamen, sortiert — derselbe Array-Replacer wie früher `Object.keys(zeile).sort()` je
+       * Zeile: better-sqlite3 liefert je Zeile genau die Spalten des `SELECT` als Schlüssel, die
+       * Menge ist also dieselbe, nur einmal statt je Zeile sortiert. Nicht `readonly`, weil
+       * `JSON.stringify` den Replacer als veränderbares Array typisiert (liest ihn nur).
+       */
+      readonly schluessel: string[]
+    }
+
+interface AbzugPlan {
+  /** `PRAGMA schema_version` beim Bau des Plans — jede Schemaänderung erhöht ihn. */
+  readonly schemaVersion: number
+  readonly tabellen: readonly TabellenPlan[]
+}
+
+/**
+ * Plan-Cache je Verbindung (Folgepunkt U-130-undo-bitgleich-laufzeit, docs/80 §33). Tabellenliste,
+ * Spaltenplan und vorbereitete `SELECT`s hängen NUR am Schema, nicht an den Daten — sie wurden
+ * früher bei jedem Abzug neu erfragt und neu vorbereitet (`undo-bitgleich.test.ts` ruft den Abzug
+ * ~19 000-mal auf).
+ *
+ * WANN DER CACHE GILT (genau zwei Bedingungen, sonst wird der Plan frisch gebaut):
+ * 1. Die Verbindung steht NICHT in einer offenen Transaktion (`db.inTransaction`). Innerhalb einer
+ *    Transaktion wird der Plan weder gelesen noch gespeichert. Grund (hueter PR #185 H1, R6/R7 in
+ *    `kanonischer-abzug-referenz.test.ts`): `ROLLBACK` setzt `PRAGMA schema_version` zurück — ein in
+ *    einer zurückgerollten Transaktion gebauter Plan trüge sonst dieselbe Zahl wie ein späteres,
+ *    ANDERES Schema, und eine neue Tabelle fehlte still im Abzug.
+ * 2. `PRAGMA schema_version` ist gleich dem Wert beim Bau. Außerhalb von Transaktionen ist das der
+ *    committete Wert, und der steigt mit jedem `CREATE`/`ALTER`/`DROP` streng monoton — ein
+ *    gespeicherter Plan gehört damit eindeutig zu genau einem Schema (B-T6 in
+ *    `undo-bitgleich-ausnahmen.test.ts`, R3/R4/R6/R7 in `kanonischer-abzug-referenz.test.ts`).
+ * Nicht abgedeckt: ein explizites Setzen von `PRAGMA schema_version = n` (laut SQLite-Doku ein Weg,
+ * die Datenbank zu beschädigen; kommt weder im Produktivcode noch in den Tests vor).
+ * `WeakMap`: eine geschlossene Verbindung hält keinen Plan am Leben; eine neu geöffnete bekommt einen
+ * eigenen.
+ */
+const PLAENE = new WeakMap<Database.Database, AbzugPlan>()
+
+function aktuelleSchemaVersion(db: Database.Database): number {
+  const wert: unknown = db.pragma('schema_version', { simple: true })
+  if (typeof wert !== 'number') {
+    throw new Error(`PRAGMA schema_version lieferte keine Zahl: ${typeof wert}`)
   }
-  const sql = `SELECT ${spalten.join(', ')} FROM ${tabelle} ORDER BY ${sortierSpalten.join(', ')}`
-  const zeilen = db.prepare<[], ZeileWerte>(sql).all()
-  const zeilenText = zeilen.map((zeile) => JSON.stringify(zeile, Object.keys(zeile).sort())).join('\n')
-  return `## ${tabelle} (${zeilen.length})\n${zeilenText}`
+  return wert
+}
+
+function planBauen(db: Database.Database, schemaVersion: number): AbzugPlan {
+  const tabellen = basisTabellenNamen(db).map((tabelle): TabellenPlan => {
+    const { spalten, sortierSpalten } = spaltenPlan(db, tabelle)
+    if (spalten.length === 0) {
+      // Unerreichbar für die heutigen Basistabellen (jede hat mindestens eine Spalte) — rein defensiv.
+      return { art: 'leer', tabelle }
+    }
+    const sql = `SELECT ${spalten.join(', ')} FROM ${tabelle} ORDER BY ${sortierSpalten.join(', ')}`
+    return { art: 'zeilen', tabelle, anweisung: db.prepare<[], ZeileWerte>(sql), schluessel: [...spalten].sort() }
+  })
+  return { schemaVersion, tabellen }
+}
+
+/** Gültiger Plan für den aktuellen Schemastand dieser Verbindung (s. `PLAENE`). */
+function abzugPlan(db: Database.Database): AbzugPlan {
+  const schemaVersion = aktuelleSchemaVersion(db)
+  if (db.inTransaction) {
+    // Bedingung 1 (s. `PLAENE`): in einer Transaktion kann `schema_version` durch ROLLBACK zurückfallen.
+    return planBauen(db, schemaVersion)
+  }
+  const vorhanden = PLAENE.get(db)
+  if (vorhanden !== undefined && vorhanden.schemaVersion === schemaVersion) {
+    return vorhanden
+  }
+  const plan = planBauen(db, schemaVersion)
+  PLAENE.set(db, plan)
+  return plan
+}
+
+/** Deterministischer, sortierter Textabzug einer einzelnen Basistabelle. */
+function tabellenAbzug(plan: TabellenPlan): string {
+  if (plan.art === 'leer') {
+    return `## ${plan.tabelle}\n`
+  }
+  const zeilen = plan.anweisung.all()
+  const zeilenText = zeilen.map((zeile) => JSON.stringify(zeile, plan.schluessel)).join('\n')
+  return `## ${plan.tabelle} (${zeilen.length})\n${zeilenText}`
 }
 
 /**
@@ -128,10 +207,12 @@ function tabellenAbzug(db: Database.Database, tabelle: string): string {
  * Einfüge-/Undo-Reihenfolge) — genau das macht ihn tauglich für einen Vorher/Nachher-Vergleich
  * über eine beliebige Befehlsfolge + vollständiges Undo hinweg
  * (`test/invarianten/undo-bitgleich.test.ts`). Rein und deterministisch: kein `Date.now()`, kein
- * `Math.random()` — nur eine reine Funktion der aktuellen Tabelleninhalte.
+ * `Math.random()` — nur eine reine Funktion der aktuellen Tabelleninhalte (und des Schemas). Der
+ * Plan-Cache (`PLAENE`) ändert daran nichts: die Ausgabe ist zeichengleich der Fassung ohne Cache
+ * (wortgleiche Referenz in `kanonischer-abzug-referenz.test.ts`, ADR-009-Nachtrag 25.09.2026).
  */
 export function kanonischerAbzug(db: Database.Database): string {
-  return basisTabellenNamen(db)
-    .map((tabelle) => tabellenAbzug(db, tabelle))
+  return abzugPlan(db)
+    .tabellen.map((tabelle) => tabellenAbzug(tabelle))
     .join('\n\n')
 }

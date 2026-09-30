@@ -115,17 +115,22 @@ vi.mock('../../src/main/protokoll/logger', () => ({
 }))
 vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
-import { oeffnen } from '../../src/main/datenbank/verbindung'
-import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import type { oeffnen } from '../../src/main/datenbank/verbindung'
 import { undo } from '../../src/main/journal/undo'
 import { undoZiel } from '../../src/main/repositories/journal-repo'
+import { frischeMigrierteDatenbank } from './_frische-datenbank'
 import { kanonischerAbzug } from './_kanonischer-abzug'
 import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand, type Zweig } from './_befehlsfolge-generator'
 
+// Frische, leere, migrierte `:memory:`-Datenbank mit eingeschaltetem Journal (Punkt 1 oben). Seit
+// U-130-undo-bitgleich-laufzeit (docs/80 §33) ein Klon einer einmal je Prozess migrierten Vorlage
+// statt `oeffnen(':memory:')` + `migrieren(db)` je Lauf (`_frische-datenbank.ts`; Beleg der
+// Gleichwertigkeit: `frische-datenbank-klon.test.ts`). Einziger Unterschied:
+// `schema_migration.angewendet_am` trägt die Bauzeit der Vorlage — unkritisch, weil dieser Test nur
+// Zustände INNERHALB eines Laufs vergleicht (jeder Undo-Schritt gegen einen Schnappschuss derselben
+// Verbindung).
 function neueTestDatenbank(): ReturnType<typeof oeffnen> {
-  const db = oeffnen(':memory:')
-  migrieren(db)
-  return db
+  return frischeMigrierteDatenbank()
 }
 
 type Zaehlschluessel = Zweig | 'undo.entwertung'
