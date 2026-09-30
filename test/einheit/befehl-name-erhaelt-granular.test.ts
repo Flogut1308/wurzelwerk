@@ -358,3 +358,115 @@ describe('Behauptung zerlegung.ts (montiereOriginalText): Form mit original_text
     }
   })
 })
+
+interface DoppelZeile {
+  readonly zeitpunkt: string
+  readonly name_form_id: string
+  readonly art: string
+  readonly sortier_index: number
+}
+
+/** Wächter über JEDEN Zwischenzustand: temporäre Trigger (nur diese Verbindung, nicht im Schema, nicht
+ * im kanonischen Abzug) protokollieren jedes Einfügen/Ändern eines `name_part`, nach dem zwei Teile
+ * derselben (Form, Art) denselben `sortier_index` tragen — auch innerhalb eines Befehls, eines Undo
+ * oder eines Redo, wo die Endzustands-Prüfung nichts mehr sähe. */
+function doppelWaechterAnlegen(db: Db): void {
+  db.exec(`
+    CREATE TEMP TABLE sortier_doppel (zeitpunkt TEXT NOT NULL, name_form_id TEXT NOT NULL, art TEXT NOT NULL, sortier_index INTEGER NOT NULL);
+    CREATE TEMP TRIGGER sortier_doppel_ai AFTER INSERT ON main.name_part
+    WHEN (SELECT COUNT(*) FROM main.name_part np WHERE np.name_form_id = NEW.name_form_id AND np.art = NEW.art AND np.sortier_index = NEW.sortier_index) > 1
+    BEGIN
+      INSERT INTO sortier_doppel (zeitpunkt, name_form_id, art, sortier_index) VALUES ('insert', NEW.name_form_id, NEW.art, NEW.sortier_index);
+    END;
+    CREATE TEMP TRIGGER sortier_doppel_au AFTER UPDATE ON main.name_part
+    WHEN (SELECT COUNT(*) FROM main.name_part np WHERE np.name_form_id = NEW.name_form_id AND np.art = NEW.art AND np.sortier_index = NEW.sortier_index) > 1
+    BEGIN
+      INSERT INTO sortier_doppel (zeitpunkt, name_form_id, art, sortier_index) VALUES ('update', NEW.name_form_id, NEW.art, NEW.sortier_index);
+    END;
+  `)
+}
+
+function doppelte(db: Db): readonly DoppelZeile[] {
+  return db.prepare<[], DoppelZeile>('SELECT zeitpunkt, name_form_id, art, sortier_index FROM temp.sortier_doppel').all()
+}
+
+describe('Teil-Abgleich: kein Zwischenzustand mit doppeltem sortier_index, abgeleitete Tabellen nach jedem Schritt wie Neuaufbau', () => {
+  /** Maskenschritte über alle Abgleichfälle: Wert an gleicher Stelle, Anhängen, Umordnen, Entfernen,
+   * Rufname-Wechsel, Nachname, Präfix/Titel/Zusatz hinzu und weg. `true` = im Koaleszenzfenster. */
+  const SCHRITTE: readonly (readonly [boolean, (eintrag: NamenEintragWerte) => NamenEintragWerte])[] = [
+    [false, (e) => ({ ...e, vornamen: 'Carl Friedrich' })],
+    [true, (e) => ({ ...e, vornamen: 'Carl Friedrich Wilhelm' })],
+    [true, (e) => ({ ...e, vornamen: 'Wilhelm Friedrich Carl' })],
+    [true, (e) => ({ ...e, vornamen: 'Wilhelm Friedrich' })],
+    [false, (e) => ({ ...e, rufname: 'Wilhelm' })],
+    [true, (e) => ({ ...e, rufname: 'Friedrich' })],
+    [false, (e) => ({ ...e, nachname: 'Nowack' })],
+    [true, (e) => ({ ...e, nachname: 'Nowak' })],
+    [false, (e) => ({ ...e, praefix: 'von', titelVor: 'Dr.', zusatzNach: 'der Ältere' })],
+    [false, (e) => ({ ...e, praefix: '', titelVor: 'Prof.', zusatzNach: '' })],
+    [false, (e) => ({ ...e, vornamen: 'Friedrich', rufname: 'Friedrich' })],
+    [false, (e) => ({ ...e, vornamen: 'Karl Friedrich Wilhelm August' })],
+  ]
+
+  it('nach jedem name.aendern, jedem Undo und jedem Redo: kein Doppel, FTS/person_flach/name_phonetik wie Neuaufbau, integrity_check ok', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formMitGranularenFeldern(db)
+      // Zweiter getrennter Nachnamen-Teil (wie ein granularer Befehl): der Abgleich muss ihn beim
+      // Ändern des Nachnamens abräumen, ohne dass ein Zwischenzustand zwei Teile auf einer Stelle hat.
+      journalAus(db, GRUND)
+      db.prepare(
+        `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+         VALUES ('teil-zweiter-nachname', @formId, 'nachname', 'Lüdenscheidt', 0, 1, NULL, 1, 1)`,
+      ).run({ formId })
+      journalAn(db)
+      doppelWaechterAnlegen(db)
+      const schritteVorher = angewendeteSchritte(db)
+      const abzuege: string[] = [kanonischerAbzug(db)]
+
+      for (const [imFenster, aendern] of SCHRITTE) {
+        warte(imFenster ? 300 : 5000)
+        maskeAendern(db, personId, formId, aendern)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+        abzuege.push(kanonischerAbzug(db))
+      }
+      const schritte = angewendeteSchritte(db) - schritteVorher
+      expect(schritte).toBeGreaterThan(1)
+      expect(schritte).toBeLessThan(SCHRITTE.length)
+
+      const endstand = kanonischerAbzug(db)
+      for (let i = 0; i < schritte; i += 1) {
+        undo(db)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+      }
+      expect(kanonischerAbzug(db)).toBe(abzuege[0])
+      for (let i = 0; i < schritte; i += 1) {
+        redo(db)
+        expect(doppelte(db)).toEqual([])
+        erwarteAbgeleitetWieNeuaufbau(db)
+      }
+      expect(kanonischerAbzug(db)).toBe(endstand)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Gegenprobe des Wächters: zwei Teile auf derselben Stelle werden erkannt', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { formId } = formMitGranularenFeldern(db)
+      doppelWaechterAnlegen(db)
+      journalAus(db, GRUND)
+      db.prepare(
+        `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+         VALUES ('teil-doppel', @formId, 'nachname', 'Lüdenscheidt', 0, 0, NULL, 1, 1)`,
+      ).run({ formId })
+      journalAn(db)
+      expect(doppelte(db)).toEqual([{ zeitpunkt: 'insert', name_form_id: formId, art: 'nachname', sortier_index: 0 }])
+    } finally {
+      db.close()
+    }
+  })
+})
