@@ -8,7 +8,17 @@ import type { ReiterId } from '../../../core/person/reiter'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
 import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailKopf } from '../../../shared/schemata/person-detail'
-import { GRUPPEN_ANGABEN, belegChips, belegZeileZustand, belegZiel, gruppeVon, verknuepfungEntfernenEin, type BelegGruppe } from './beleg-waehler-logik'
+import {
+  GRUPPEN_ANGABEN,
+  belegChips,
+  belegZeileZustand,
+  belegZiel,
+  gruppeVon,
+  ohneEntfernte,
+  verknuepfungEntfernenEin,
+  type BelegGruppe,
+  type VerknuepfungsPaar,
+} from './beleg-waehler-logik'
 import { BelegWaehler, BelegZeile } from './beleg-waehler'
 import { Auswahlfeld } from '../../bausteine/auswahlfeld'
 import { BelegAbzeichen } from '../../bausteine/beleg-abzeichen'
@@ -270,8 +280,26 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
   const { t } = useTranslation('profil')
   const { t: tFehler } = useTranslation('fehler')
   const entfernen = useAussageZitatLoeschen()
+  // hueter #176 H3: eben entfernte Paare bleiben bis zum nächsten Lesestand ausgeblendet (wie
+  // `unterwegs` im Wähler) — ein zweiter Klick vor dem Nachladen fände sonst „nicht gefunden".
+  const [entfernt, setEntfernt] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
+  const paareEntfernt = entfernt.stand === stand ? entfernt.paare : []
+  const abschnitte = useRef(new Map<LebensdatumAngabe, HTMLElement>())
   const zustand = belegZeileZustand(felder.map(belegZiel))
   const fehler = fehlerText(entfernen.error ?? null, t, tFehler)
+
+  function verknuepfungEntfernen(angabeId: LebensdatumAngabe, aussageId: string, zitatId: string): void {
+    // H4 (WCAG 2.4.3): der Beleg samt Knopf verschwindet gleich — der Fokus bleibt im Abschnitt der
+    // Angabe, also in der Schublade (Escape schließt weiter).
+    abschnitte.current.get(angabeId)?.focus()
+    const paar = { aussageId, zitatId }
+    setEntfernt({ stand, paare: [...paareEntfernt, paar] })
+    entfernen.mutate(verknuepfungEntfernenEin(aussageId, zitatId), {
+      // Gescheitert: der Beleg ist noch da und erscheint wieder (der Fehler steht darüber).
+      onError: () => setEntfernt((vorher) => ({ stand: vorher.stand, paare: vorher.paare.filter((kandidat) => kandidat !== paar) })),
+    })
+  }
+
   return (
     <>
       {zustand.art === 'waehlbar' ? (
@@ -281,15 +309,28 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
           {t(zustand.art === 'nur_ereignis' ? 'beleg_am_ereignis_belegen' : 'beleg_verknuepfen_ohne_wert')}
         </Text>
       )}
-      {fehler === undefined ? null : (
-        <Text rolle="hilfe" als="p">
-          {fehler}
-        </Text>
-      )}
+      {/* H3: Fehler des Entfernens werden angesagt (`aria-live`, nicht `role="status"`: den trägt der Speicherstatus). */}
+      <div aria-live="polite">
+        {fehler === undefined ? null : (
+          <Text rolle="hilfe" als="p">
+            {fehler}
+          </Text>
+        )}
+      </div>
       {angaben.map((angabeId) => {
-        const feld = grunddaten.find((kandidat) => kandidat.praedikat === angabeId)
+        const gelesen = grunddaten.find((kandidat) => kandidat.praedikat === angabeId)
+        const feld = gelesen === undefined ? undefined : ohneEntfernte(gelesen, paareEntfernt)
         return (
-          <section key={angabeId} className="wz-reiter-person__beleg-abschnitt" aria-label={angabeBeschriftung(angabeId, t)}>
+          <section
+            key={angabeId}
+            ref={(element) => {
+              if (element === null) abschnitte.current.delete(angabeId)
+              else abschnitte.current.set(angabeId, element)
+            }}
+            tabIndex={-1}
+            className="wz-reiter-person__beleg-abschnitt"
+            aria-label={angabeBeschriftung(angabeId, t)}
+          >
             {angaben.length > 1 ? (
               <Text rolle="beschriftung" als="h3">
                 {angabeBeschriftung(angabeId, t)}
@@ -304,7 +345,7 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
                 feld={feld}
                 mitQuelleAnlegen={false}
                 entfernenGesperrt={entfernen.isPending}
-                aufVerknuepfungEntfernen={(aussageId, zitatId) => entfernen.mutate(verknuepfungEntfernenEin(aussageId, zitatId))}
+                aufVerknuepfungEntfernen={(aussageId, zitatId) => verknuepfungEntfernen(angabeId, aussageId, zitatId)}
               />
             )}
           </section>

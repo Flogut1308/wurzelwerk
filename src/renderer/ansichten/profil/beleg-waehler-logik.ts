@@ -12,7 +12,7 @@
 //   `KONFLIKT_BEREITS_VORHANDEN`).
 import type { LebensdatumAngabe } from '../../../core/person/lebensdaten'
 import type { AussageZitatAnlegenEin, AussageZitatLoeschenEin, ZitatAnlegenEin } from '../../../shared/schemata/befehle'
-import type { PersonDetailBeleg } from '../../../shared/schemata/person-detail'
+import type { PersonDetailBeleg, PersonDetailGrunddatenFeld } from '../../../shared/schemata/person-detail'
 import type { LebensdatumFeld } from './reiter-person-logik'
 
 // ── Gruppen ────────────────────────────────────────────────────────────────────────────────────
@@ -123,6 +123,19 @@ export function neuesZitatEin(quelleId: string, seite: string, eintragsnummer: s
 /** „Verknüpfung entfernen" (E10): nur die Verknüpfung, das Zitat bleibt. */
 export function verknuepfungEntfernenEin(aussageId: string, zitatId: string): AussageZitatLoeschenEin {
   return { aussageId, zitatId }
+}
+
+/** Das Feld ohne eben entfernte Verknüpfungen (hueter #176 H3): bis zum nächsten Lesestand gilt ein
+ * entferntes Paar als weg, damit ein zweiter Klick es nicht erneut zu entfernen versucht. */
+export function ohneEntfernte(feld: PersonDetailGrunddatenFeld, entfernt: readonly VerknuepfungsPaar[]): PersonDetailGrunddatenFeld {
+  if (entfernt.length === 0) return feld
+  return {
+    ...feld,
+    aussagen: feld.aussagen.map((aussage) => ({
+      ...aussage,
+      belege: aussage.belege.filter((beleg) => !entfernt.some((paar) => paar.aussageId === aussage.aussage_id && paar.zitatId === beleg.zitat_id)),
+    })),
+  }
 }
 
 // ── Chips (Beleg-Zeile) ────────────────────────────────────────────────────────────────────────

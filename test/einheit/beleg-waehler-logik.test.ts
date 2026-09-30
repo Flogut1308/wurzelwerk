@@ -8,6 +8,7 @@ import {
   belegChips,
   belegZeileZustand,
   belegZiel,
+  ohneEntfernte,
   chipAngabenZeigen,
   gruppeVon,
   neuesZitatEin,
@@ -155,6 +156,18 @@ describe('neuesZitatEin / verknuepfungEntfernenEin (E7/E10)', () => {
   it('Entfernen nennt nur die Verknüpfung', () => {
     const ein = verknuepfungEntfernenEin('a-1', 'z-1')
     expect(aussageZitatLoeschenEinSchema.parse(ein)).toEqual({ aussageId: 'a-1', zitatId: 'z-1' })
+  })
+})
+
+describe('ohneEntfernte (hueter #176 H3)', () => {
+  it('blendet genau die entfernten Paare aus, andere Aussagen und Zitate bleiben', () => {
+    const eingang = feld('geburtsdatum', [aussage('a-1', [beleg('z-1'), beleg('z-2')]), aussage('a-2', [beleg('z-1')])])
+    const ergebnis = ohneEntfernte(eingang, [{ aussageId: 'a-1', zitatId: 'z-1' }])
+    expect(ergebnis.aussagen.map((a) => [a.aussage_id, a.belege.map((b) => b.zitat_id)])).toEqual([
+      ['a-1', ['z-2']],
+      ['a-2', ['z-1']],
+    ])
+    expect(ohneEntfernte(eingang, [])).toBe(eingang)
   })
 })
 

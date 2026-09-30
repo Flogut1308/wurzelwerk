@@ -26,6 +26,10 @@ const antworten = new Map<string, () => Promise<unknown>>()
 /** Fehlerzustand je Hook (`error` der Mutation) — wie bei `useMutation` bleibt er stehen, bis dieselbe
  * Mutation erneut läuft. */
 const fehler = new Map<string, AppFehler>()
+/** Hooks, deren Mutation gerade läuft (`isPending`). */
+const laeuft = new Set<string>()
+/** Hooks, deren `mutate` scheitert (ruft `onError` der Aufrufoptionen). */
+const scheitert = new Set<string>()
 
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
@@ -33,14 +37,15 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
     Object.keys(original).map((name) => [
       name,
       () => ({
-        mutate: (ein: unknown) => {
+        mutate: (ein: unknown, optionen?: { readonly onError?: () => void }) => {
           aufrufe.push({ hook: name, ein })
+          if (scheitert.has(name)) optionen?.onError?.()
         },
         mutateAsync: (ein: unknown) => {
           aufrufe.push({ hook: name, ein })
           return antworten.get(name)?.() ?? Promise.resolve(name === 'useAussageZitatAnlegen' ? null : { id: `neu-${name}` })
         },
-        isPending: false,
+        isPending: laeuft.has(name),
         error: fehler.get(name) ?? null,
       }),
     ]),
@@ -200,6 +205,8 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
     aufrufe.length = 0
     antworten.clear()
     fehler.clear()
+    laeuft.clear()
+    scheitert.clear()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -363,6 +370,78 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
     expect(aufrufeVon('useAussageZitatAnlegen')).toEqual([{ aussageId: 'g-1', zitatId: 'z-1' }])
     expect(wurzel.textContent).toContain('Beleg verknüpft.')
     expect(wurzel.textContent).not.toContain('Quelle nicht gefunden')
+  })
+
+  describe('Meldungen und Entfernen (hueter #176 H1/H3, überlebende Mutanten)', () => {
+    const verknuepfFehler: AppFehler = { code: 'KONFLIKT_BEREITS_VORHANDEN', textSchluessel: 'KONFLIKT_BEREITS_VORHANDEN', vorgangsId: 'v-2' }
+    const entfernFehler: AppFehler = { code: 'NICHT_GEFUNDEN_ZITAT', textSchluessel: 'NICHT_GEFUNDEN_ZITAT', vorgangsId: 'v-3' }
+
+    function zitatStartklar(): HTMLElement {
+      zeigen(detail({ grunddaten: [feld('geburtsdatum', aussage('g-1', '1901'))], lebensdaten: [ausAussage('geburtsdatum', 'g-1'), leer('geburtsort'), leer('todesdatum'), leer('todesort')] }))
+      act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
+      const wurzel = schublade()
+      act(() => eintippen(eingabe('wz-beleg-waehler-suche'), 'Tauf'))
+      act(() => knopfMit(wurzel, 'Taufregister Marienwerder').click())
+      return wurzel
+    }
+
+    it('Erfolg: „Beleg verknüpft." wird angesagt, ohne Fehlertext', async () => {
+      const wurzel = zitatStartklar()
+      expect(wurzel.textContent).not.toContain('Beleg verknüpft.')
+      act(() => knopf(wurzel, 'Seite 42').click())
+      await kettenende()
+      const live = wurzel.querySelector('.wz-beleg-waehler__status')
+      expect(live?.getAttribute('aria-live')).toBe('polite')
+      expect(live?.textContent).toBe('Beleg verknüpft.')
+    })
+
+    it('scheitert die Verknüpfung, steht ihr Fehler (Titel und was tun) im Wähler, keine Erfolgsmeldung', async () => {
+      const wurzel = zitatStartklar()
+      antworten.set('useAussageZitatAnlegen', () => Promise.reject(verknuepfFehler))
+      fehler.set('useAussageZitatAnlegen', verknuepfFehler)
+      act(() => knopf(wurzel, 'Seite 42').click())
+      await kettenende()
+      const live = wurzel.querySelector('.wz-beleg-waehler__status')?.textContent ?? ''
+      expect(live).toContain('Eintrag bereits vorhanden – Den bestehenden Eintrag verwenden')
+      expect(live).not.toContain('Beleg verknüpft.')
+    })
+
+    it('Entfernen: Fokus bleibt im Abschnitt, der Beleg ist bis zum nächsten Lesestand ausgeblendet', () => {
+      const daten = detail()
+      zeigen(daten)
+      act(() => knopfMit(gruppe(container, 'Geburt'), 'Taufregister Marienwerder, S. 42').click())
+      const entfernen = knopf(schublade(), 'Verknüpfung entfernen')
+      act(() => entfernen.focus())
+      act(() => entfernen.click())
+      expect(schublade().contains(document.activeElement)).toBe(true)
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Geburtsdatum')
+      expect(Array.from(schublade().querySelectorAll('button')).some((kandidat) => kandidat.textContent === 'Verknüpfung entfernen')).toBe(false)
+      // Derselbe Lesestand (kein Nachladen): bleibt weg. Neuer Lesestand (z. B. Undo): das Lesemodell gilt.
+      zeigen(daten)
+      expect(Array.from(schublade().querySelectorAll('button')).some((kandidat) => kandidat.textContent === 'Verknüpfung entfernen')).toBe(false)
+      zeigen(detail())
+      expect(knopf(schublade(), 'Verknüpfung entfernen')).toBeDefined()
+      expect(aufrufeVon('useAussageZitatLoeschen')).toEqual([{ aussageId: 'g-1', zitatId: 'z-1' }])
+    })
+
+    it('Entfernen gescheitert: der Beleg erscheint wieder, der Fehler wird angesagt', () => {
+      scheitert.add('useAussageZitatLoeschen')
+      zeigen(detail())
+      act(() => knopfMit(gruppe(container, 'Geburt'), 'Taufregister Marienwerder, S. 42').click())
+      act(() => knopf(schublade(), 'Verknüpfung entfernen').click())
+      expect(knopf(schublade(), 'Verknüpfung entfernen')).toBeDefined()
+      fehler.set('useAussageZitatLoeschen', entfernFehler)
+      zeigen(detail())
+      const live = Array.from(schublade().querySelectorAll('[aria-live="polite"]')).map((knoten) => knoten.textContent ?? '')
+      expect(live.some((text) => text.includes('Beleg nicht gefunden'))).toBe(true)
+    })
+
+    it('„Verknüpfung entfernen" ist gesperrt, solange ein Entfernen läuft', () => {
+      laeuft.add('useAussageZitatLoeschen')
+      zeigen(detail())
+      act(() => knopfMit(gruppe(container, 'Geburt'), 'Taufregister Marienwerder, S. 42').click())
+      expect(knopf(schublade(), 'Verknüpfung entfernen').disabled).toBe(true)
+    })
   })
 
   describe('Fokus bleibt in der Schublade (hueter #176 H4, WCAG 2.4.3)', () => {
