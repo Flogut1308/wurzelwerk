@@ -30,6 +30,9 @@ import {
   type NamenEintragWerte,
 } from '../../src/renderer/ansichten/profil/profil-bearbeiten-logik'
 import type { PersonDetailName } from '../../src/shared/schemata/person-detail'
+import type { NameAendernEin, NameAendernFeld } from '../../src/shared/schemata/befehle'
+import * as nameRepo from '../../src/main/repositories/name-repo'
+import { nameAendernSchluessel } from '../../src/main/befehle/koaleszenz-schluessel'
 import type { PersonListeFilter } from '../../src/shared/schemata/person-liste'
 
 type Db = ReturnType<typeof oeffnen>
@@ -282,6 +285,69 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen is
         db.close()
       }
     })
+  })
+})
+
+// hueter #181 H2 (U-130-rufname-noop, Wechselwirkung mit #180): die Kern-Rundreise
+// `rekonstruiereFlach ∘ zerlegeName` ist bei einem angehängten mehrwortigen Rufnamen NICHT die
+// Identität — die flache Sicht „Karl Hans Peter" / Index 1 / „Hans Peter" zerlegt sich zu „Karl",
+// „Hans"*, „Peter" (Regel 1 markiert nur das Wort am Index). Ein Aufrufer, der die flache Sicht roh
+// zurückschickt, darf darum nichts schreiben: sonst ein Undo-Schritt ohne Anlass und `rufname_text`
+// schrumpft still auf „Hans" (offene Datenmodellfrage U-130-rufname-mehrteilig).
+describe('Rohecho der flachen Sicht bei mehrwortigem angehängtem Rufnamen ist No-op (hueter #181 H2)', () => {
+  function rohecho(db: Db, id: string, feld?: NameAendernFeld): NameAendernEin {
+    const z = nameRepo.lesen(db, id)
+    if (z === undefined) throw new Error(`rohecho(): Name ${id} fehlt.`)
+    return {
+      id,
+      typ: 'geburtsname',
+      vornamen: z.vornamen ?? undefined,
+      rufnameIndex: z.rufname_index ?? undefined,
+      rufnameText: z.rufname_text ?? undefined,
+      nachname: z.nachname ?? undefined,
+      originalText: z.original_text ?? undefined,
+      ...(feld === undefined ? {} : { feld }),
+    }
+  }
+
+  it.fails('bei Anlege-Montage: keine Transaktion, rufname_text bleibt „Hans Peter", kein Koaleszenzschlüssel', () => {
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      const ein = rohecho(db, id, 'rufnameText')
+      expect([ein.vornamen, ein.rufnameIndex, ein.rufnameText]).toEqual(['Karl Hans Peter', 1, 'Hans Peter'])
+      const anzahlVorher = transaktionAnzahl(db)
+
+      expect(nameAendernSchluessel(db, ein)).toBeNull()
+      fuehreAus(db, 'name.aendern', ein)
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+      expect(nameRepo.lesen(db, id)?.rufname_text).toBe('Hans Peter')
+    } finally {
+      db.close()
+    }
+  })
+
+  it.fails('nach der ersten Änderung, ohne originalText (Teile-Montage): ebenfalls No-op', () => {
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+      const ohneText: NameAendernEin = { ...rohecho(db, id), originalText: undefined }
+      const anzahlVorher = transaktionAnzahl(db)
+
+      fuehreAus(db, 'name.aendern', ohneText)
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+      const nachher = nameRepo.lesen(db, id)
+      expect([nachher?.rufname_text, nachher?.original_text]).toEqual(['Hans Peter', 'Karl Hans Peter Gutnow'])
+    } finally {
+      db.close()
+    }
   })
 })
 
