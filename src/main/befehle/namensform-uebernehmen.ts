@@ -232,7 +232,7 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   const mitgeschickt = ein.kopf.originalText
   const montageNachher = montageDerTeile(tx, formId)
   // Neue Form: `montageVorher` ist `undefined`, also immer „geändert" (montiert wie bisher; No-op über `kopfUebernehmen`).
-  // Zweite Bedingung (Nachreview #205): `basis` trägt noch den alten Text, `tx` liest die neuen Teile — würde der
+  // Dritte Bedingung (neben `folgtDenTeilen` und dem Montage-Vergleich; Nachreview #205): `basis` trägt noch den alten Text, `tx` liest die neuen Teile — würde der
   // Text nach den Teilen nicht mehr als Montage erkannt (Rufname verschoben/entfernt bei gleicher Montage), gälte
   // er fortan als wortgetreu und folgte nie wieder; dann wird ebenfalls neu montiert.
   const neuMontieren = folgtDenTeilen && (montageNachher !== montageVorher || !originalTextFolgtDenTeilen(tx, basis))
