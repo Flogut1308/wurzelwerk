@@ -347,8 +347,8 @@ function teilBefehl(db: Tx, formId: string, wo: string, ausfuehren: () => void, 
 }
 
 /** Führt `ausfuehren` aus und verlangt genau den Fehlercode, keine neue Transaktion und einen bitgleichen
- * Bestand (Grundsatz E-B2-2). */
-function ablehnungVerlangen(db: Tx, wo: string, code: FehlerCode, ausfuehren: () => void): void {
+ * Bestand (Grundsatz E-B2-2). Auch von `_befehlsfolge-uebernehmen.ts` genutzt. */
+export function ablehnungVerlangen(db: Tx, wo: string, code: FehlerCode, ausfuehren: () => void): void {
   const abzugVorher = kanonischerAbzug(db)
   const txVorher = txFingerabdruck(db)
   let fehler: unknown

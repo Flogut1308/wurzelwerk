@@ -294,6 +294,7 @@ import {
 import { datumswertAktionArbitrary, datumswertAusfuehren, type AktionDatumswert } from './_befehlsfolge-datumswert'
 import { kurzbeschreibungAktionArbitrary, kurzbeschreibungAusfuehren, type AktionKurzbeschreibung } from './_befehlsfolge-kurzbeschreibung'
 import { namensteileAktionArbitrary, namensteileAusfuehren, type AktionNamensteile } from './_befehlsfolge-namensteile'
+import { uebernehmenAktionArbitrary, uebernehmenAusfuehren, type AktionUebernehmen } from './_befehlsfolge-uebernehmen'
 import {
   befehlBeobachtet,
   feldAusRoh,
@@ -828,6 +829,7 @@ export type Aktion =
   | AktionDatumswert
   | AktionKurzbeschreibung
   | AktionNamensteile
+  | AktionUebernehmen
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -1536,20 +1538,37 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
  * `mitTeilWechsel`). Ohne die Option ist die Folge unverändert; mit ihr ist sie ohne die
  * `namensteile`-Aktionen Zug um Zug dieselbe wie ohne die Option — nachgewiesen in
  * `befehlsfolge-namensteile-einflechtung.test.ts` (samt Gegenprobe: dasselbe Tupel an ERSTER Stelle
- * gezogen verschiebt die Hauptfolge). */
+ * gezogen verschiebt die Hauptfolge).
+ *
+ * AP-1.30 PR 11-0b (ÜBERNEHMEN-EINFLECHTUNG, docs/80 §33 V-130-11-0b, `_befehlsfolge-uebernehmen.ts`): nur mit
+ * `mitUebernehmen: true` (`undo-bitgleich`, `namensteil-sortierindex-eindeutig`) als weiteres, NOCH SPÄTER
+ * gezogenes Tupelelement, eingeflochten (von hinten gezählt) NACH den Namensteil-Aktionen. Ohne die Option ist
+ * die Folge unverändert; mit ihr ist sie ohne die `uebernehmen`-Aktionen Zug um Zug dieselbe wie ohne die
+ * Option — nachgewiesen in `befehlsfolge-uebernehmen-einflechtung.test.ts` (samt Gegenprobe). */
 export function befehlsfolgeArbitrary(
   optionen: {
     readonly profil: GeneratorProfil
     readonly mitKurzbeschreibung?: boolean
     readonly mitTeilWechsel?: boolean
     readonly mitNamensteilen?: boolean
+    readonly mitUebernehmen?: boolean
   } = { profil: 'bestand' },
 ): fc.Arbitrary<readonly Aktion[]> {
   const ohneNamensteile = befehlsfolgeOhneNamensteile(optionen)
-  if (optionen.mitNamensteilen !== true) {
-    return ohneNamensteile
+  const ohneUebernehmen =
+    optionen.mitNamensteilen !== true
+      ? ohneNamensteile
+      : fc.tuple(ohneNamensteile, namensteileEinschuebeArbitrary()).map(([folge, namensteile]) => einflechtenVonHinten(folge, namensteile))
+  if (optionen.mitUebernehmen !== true) {
+    return ohneUebernehmen
   }
-  return fc.tuple(ohneNamensteile, namensteileEinschuebeArbitrary()).map(([folge, namensteile]) => einflechtenVonHinten(folge, namensteile))
+  return fc.tuple(ohneUebernehmen, uebernehmenEinschuebeArbitrary()).map(([folge, uebernahmen]) => einflechtenVonHinten(folge, uebernahmen))
+}
+
+/** Die eingeflochtenen `uebernehmen`-Aktionen samt Stelle (s. „ÜBERNEHMEN-EINFLECHTUNG"); exportiert für die
+ * Gegenprobe in `befehlsfolge-uebernehmen-einflechtung.test.ts`. */
+export function uebernehmenEinschuebeArbitrary(): fc.Arbitrary<readonly (readonly [number, Aktion])[]> {
+  return fc.array(fc.tuple(fc.nat(), uebernehmenAktionArbitrary()), { minLength: UEBERNEHMEN_EINSCHUEBE_MIN, maxLength: UEBERNEHMEN_EINSCHUEBE_MAX })
 }
 
 /** Die eingeflochtenen `namensteile`-Aktionen samt Stelle (s. „NAMENSTEIL-EINFLECHTUNG"); exportiert für
@@ -1584,6 +1603,10 @@ function befehlsfolgeOhneNamensteile(
     .tuple(hauptfolge, einschuebe, kurz, teilWechsel)
     .map(([folge, datums, kurzbeschreibungen, serien]) => einflechten(einflechten(einflechten(folge, datums), kurzbeschreibungen), serien))
 }
+
+/** Anzahl eingeflochtener Übernehmen-Aktionen je Folge (s. „ÜBERNEHMEN-EINFLECHTUNG"). */
+const UEBERNEHMEN_EINSCHUEBE_MIN = 2
+const UEBERNEHMEN_EINSCHUEBE_MAX = 4
 
 /** Anzahl eingeflochtener Namensteil-Aktionen je Folge (s. „NAMENSTEIL-EINFLECHTUNG"). */
 const NAMENSTEILE_EINSCHUEBE_MIN = 3
@@ -1736,6 +1759,9 @@ export interface Zustand {
   /** AP-1.30 PR 10b: die per `namensform.anlegen` angelegten Formen (`_befehlsfolge-namensteile.ts`,
    * `NamensteileZustand.namensformen`) — getrennt von `namen`, damit die Hauptfolge sie nicht als Ziel sieht. */
   namensformen: NameInfo[]
+  /** AP-1.30 PR 11-0b: die per `namensform.uebernehmen` bzw. als Altbestand angelegten Formen
+   * (`_befehlsfolge-uebernehmen.ts`) — getrennt von `namen` und `namensformen` (s. dort). */
+  uebernahmeFormen: NameInfo[]
   elternschaften: ElternschaftInfo[]
   partnerschaften: PartnerschaftInfo[]
   ereignisse: EreignisInfo[]
@@ -1768,6 +1794,7 @@ export function neuerZustand(): Zustand {
     personIds: [],
     namen: [],
     namensformen: [],
+    uebernahmeFormen: [],
     elternschaften: [],
     partnerschaften: [],
     ereignisse: [],
@@ -2183,6 +2210,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       zustand.personIds = zustand.personIds.filter((vorhandeneId) => vorhandeneId !== id)
       zustand.namen = zustand.namen.filter((n) => n.personId !== id) // CASCADE (name.person_id)
       zustand.namensformen = zustand.namensformen.filter((n) => n.personId !== id) // ebenso
+      zustand.uebernahmeFormen = zustand.uebernahmeFormen.filter((n) => n.personId !== id) // ebenso
       // Kein FK-`CASCADE` auf `aussage` (s. Modul-Kommentar) — eine bereits vorhandene `aussage`-
       // ZEILE über die gelöschte Person (oder ihre kaskadiert gelöschten Namen) bleibt bestehen,
       // aber der (subjektTyp, subjektId, praedikat)-Dreiklang darf NICHT mehr für eine neue
@@ -2562,6 +2590,13 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       // AP-1.30 PR 10b: s. `_befehlsfolge-namensteile.ts`. Neue Formen trägt das Modul selbst in
       // `zustand.namensformen` ein.
       namensteileAusfuehren(db, zustand, aktion, zweige)
+      return
+    }
+
+    case 'uebernehmen': {
+      // AP-1.30 PR 11-0b: s. `_befehlsfolge-uebernehmen.ts`. Neue Formen trägt das Modul selbst in
+      // `zustand.uebernahmeFormen` ein.
+      uebernehmenAusfuehren(db, zustand, aktion, zweige)
       return
     }
 

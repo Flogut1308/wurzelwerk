@@ -167,6 +167,51 @@ export type Zweig =
   | 'ablehnung.namensteile.position'
   | 'ablehnung.namensteile.keinVorname'
   | 'ablehnung.namensteile.fremdeForm'
+  /** AP-1.30 PR 11-0b (`_befehlsfolge-uebernehmen.ts`), an Zielliste und Stand vorher gemessen:
+   * `namensform.uebernehmen` als Vorlauf; die Wege gemischt, neue Form, Kopf, Altbestand; unveränderter Aufruf
+   * ohne Transaktion; Kopf-Änderung mit fehlenden Feldern; `originalText: ''`; bestehende Teile umgeordnet;
+   * Rufname gewechselt; Hauptname gewechselt; leere neue Einträge verworfen bzw. geleerter Teil entfallen;
+   * `original_text` einer neuen Form wortgetreu (auch als Montage nur der ersten Art), einer bestehenden
+   * ausdrücklich geändert (mit bzw. ohne Teiländerung) bzw. unverändert mitgeschickt und nachgeführt. */
+  | 'uebernehmen.vorlauf'
+  | 'uebernehmen.gemischt'
+  | 'uebernehmen.neueForm'
+  | 'uebernehmen.kopf'
+  | 'uebernehmen.altbestand'
+  | 'uebernehmen.e3Grenzfall.geglaettet'
+  | 'uebernehmen.e3Grenzfall.dritteBedingung'
+  | 'uebernehmen.noop'
+  | 'uebernehmen.kopf.fehltBleibt'
+  | 'uebernehmen.kopf.originalTextLeer'
+  | 'uebernehmen.umgeordnet'
+  | 'uebernehmen.rufname.wechsel'
+  | 'uebernehmen.hauptname.gewechselt'
+  | 'uebernehmen.leer.verworfen'
+  | 'uebernehmen.leer.entfallen'
+  | 'uebernehmen.originalText.neueForm'
+  | 'uebernehmen.originalText.praefixMontage'
+  | 'uebernehmen.originalText.leer'
+  | 'uebernehmen.originalText.explizit'
+  | 'uebernehmen.originalText.explizitMitTeilen'
+  | 'uebernehmen.originalText.mitgeschicktNachgefuehrt'
+  /** E3 je Aufruf (V-130-fix-uebernehmen-e3, s. `sollOriginalText()` dort): wortgetreuer Text bleibt trotz
+   * Teiländerung; bei gleicher Montage neu montiert, weil der alte Text nicht mehr passte (dritte Bedingung);
+   * bei geänderter Montage geglättet, obwohl der alte Text weiter passte. */
+  | 'uebernehmen.originalText.wortgetreuBleibt'
+  | 'uebernehmen.originalText.dritteBedingung'
+  | 'uebernehmen.originalText.geglaettet'
+  /** … und die Ablehnungswege, je bitgleicher Bestand ohne Transaktion. */
+  | 'ablehnung.uebernehmen.art'
+  | 'ablehnung.uebernehmen.leerraum'
+  | 'ablehnung.uebernehmen.fremd'
+  | 'ablehnung.uebernehmen.unbekannt'
+  | 'ablehnung.uebernehmen.keinVorname'
+  | 'ablehnung.uebernehmen.umschriftSelbst'
+  | 'ablehnung.uebernehmen.umschriftFremdePerson'
+  | 'ablehnung.uebernehmen.umschriftOhneUrsprung'
+  | 'ablehnung.uebernehmen.flachFremdePerson'
+  | 'ablehnung.uebernehmen.flachSelbst'
+  | 'ablehnung.uebernehmen.flachKreis'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit
