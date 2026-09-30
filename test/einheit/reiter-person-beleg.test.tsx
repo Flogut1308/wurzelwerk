@@ -346,7 +346,7 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
 
   // hueter #176 H1: ein alter Fehler einer ANDEREN Mutation (hier `zitat.anlegen`) blieb im Wähler
   // stehen und verdeckte die Erfolgsmeldung einer späteren, gelungenen Verknüpfung.
-  it.fails('nach einem gescheiterten „neues Zitat" zeigt eine spätere Verknüpfung „Beleg verknüpft." statt des alten Fehlers (H1, rot)', async () => {
+  it('nach einem gescheiterten „neues Zitat" zeigt eine spätere Verknüpfung „Beleg verknüpft." statt des alten Fehlers (H1)', async () => {
     zeigen(detail({ grunddaten: [feld('geburtsdatum', aussage('g-1', '1901'))], lebensdaten: [ausAussage('geburtsdatum', 'g-1'), leer('geburtsort'), leer('todesdatum'), leer('todesort')] }))
     act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
     const wurzel = schublade()

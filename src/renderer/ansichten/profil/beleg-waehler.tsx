@@ -129,6 +129,9 @@ export function BelegZeile({ zustand, chips, aufOeffnen }: BelegZeileProps) {
   )
 }
 
+/** Ergebnis der letzten Aktion im Wähler: verknüpft oder der Schritt, der gescheitert ist. */
+type Meldung = 'verknuepft' | 'fehler_verknuepfen' | 'fehler_zitat' | 'fehler_quelle'
+
 export interface BelegWaehlerProps {
   readonly zustand: Extract<BelegZeileZustand, { readonly art: 'waehlbar' }>
   /** Der Lesestand, aus dem `zustand` stammt (Referenz des Lesemodells). Wechselt er, gilt wieder
@@ -169,7 +172,10 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   const [seite, setSeite] = useState('')
   const [eintragsnummer, setEintragsnummer] = useState('')
   const [schreibt, setSchreibt] = useState(false)
-  const [verknuepft, setVerknuepft] = useState(false)
+  // Meldung der LETZTEN Aktion (hueter #176 H1): welcher Schritt gescheitert ist bzw. ob verknüpft
+  // wurde. Nicht `a.error ?? b.error`: `useMutation.error` bleibt stehen, bis dieselbe Mutation erneut
+  // läuft — ein alter Fehler verdeckte sonst die Meldung einer späteren, gelungenen Aktion.
+  const [meldung, setMeldung] = useState<Meldung | null>(null)
   const [unterwegs, setUnterwegs] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
   const schreibtRef = useRef(false)
   const standRef = useRef(stand)
@@ -188,7 +194,18 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   const ziele = aktiveZiele(zustand.ziele, abgewaehlt)
   const paareUnterwegs = unterwegs.stand === stand ? unterwegs.paare : []
   const gesperrt = schreibt || ziele.length === 0
-  const fehler = fehlerText(verknuepfen.error ?? zitatAnlegen.error ?? quelleAnlegen.error ?? null, t, tFehler)
+  const fehler = meldung === null || meldung === 'verknuepft' ? null : fehlerText(fehlerDer(meldung), t, tFehler)
+
+  function fehlerDer(schritt: Exclude<Meldung, 'verknuepft'>): AppFehler | null {
+    switch (schritt) {
+      case 'fehler_verknuepfen':
+        return verknuepfen.error
+      case 'fehler_zitat':
+        return zitatAnlegen.error
+      case 'fehler_quelle':
+        return quelleAnlegen.error
+    }
+  }
 
   function zielUmschalten(angabe: LebensdatumAngabe, an: boolean): void {
     const naechste = new Set(abgewaehlt)
@@ -202,17 +219,20 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
     if (schreibtRef.current) return
     schreibtRef.current = true
     setSchreibt(true)
-    setVerknuepft(false)
+    setMeldung(null)
     const geschrieben: VerknuepfungsPaar[] = []
+    let schritt: Exclude<Meldung, 'verknuepft'> = 'fehler_zitat'
     try {
       const zitatId = await zitatIdHolen()
+      schritt = 'fehler_verknuepfen'
       for (const ein of verknuepfungsBefehle(zitatId, ziele, paareUnterwegs)) {
         await verknuepfen.mutateAsync(ein)
         geschrieben.push(ein)
       }
-      setVerknuepft(true)
+      setMeldung('verknuepft')
     } catch {
-      // Der Fehler steht im Wähler (`error` der Mutation); Geschriebenes bleibt geschrieben.
+      // Der Text kommt aus `error` der gescheiterten Mutation; Geschriebenes bleibt geschrieben.
+      setMeldung(schritt)
     } finally {
       if (geschrieben.length > 0) setUnterwegs({ stand: standRef.current, paare: [...paareUnterwegs, ...geschrieben] })
       schreibtRef.current = false
@@ -234,10 +254,11 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   }
 
   function quelleNeuAnlegen(): void {
+    setMeldung(null)
     quelleAnlegen.mutateAsync(quelleNeuAnlegenEin()).then(
       (ergebnis) => setNeueQuelleId(ergebnis.id),
-      // Der Fehler steht im Wähler (`quelleAnlegen.error`).
-      () => undefined,
+      // Der Text kommt aus `quelleAnlegen.error`.
+      () => setMeldung('fehler_quelle'),
     )
   }
 
@@ -387,7 +408,7 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
           <Text rolle="hilfe" als="p">
             {fehler}
           </Text>
-        ) : verknuepft ? (
+        ) : meldung === 'verknuepft' ? (
           <Text rolle="hilfe" als="p">
             {t('beleg_waehler_verknuepft')}
           </Text>
