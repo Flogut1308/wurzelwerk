@@ -78,7 +78,7 @@ describe('Bestehende Namenszeile: Rufname-Verdopplung wird an der Zeile angezeig
     return feld
   }
 
-  it.fails('zeigt Titel und Handlungsanweisung am Rufname-Feld der Zeile, in der aria-live-Metazeile', () => {
+  it('zeigt Titel und Handlungsanweisung am Rufname-Feld der Zeile, in der aria-live-Metazeile', () => {
     zustand.aendernFehler = { code: CODE, textSchluessel: `${CODE}.titel`, vorgangsId: 'v-1' }
     act(() => root.render(<NamenBearbeitenAbschnitt personId="p-1" namen={[ALTFORM]} />))
     const titel = i18n.t(`fehler:${CODE}.titel`)
