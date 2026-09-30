@@ -63,7 +63,8 @@ const rohArbitrary: fc.Arbitrary<Roh> = fc.record({
   originalText: originalTextArbitrary,
 })
 
-/** Teile je Art mit eindeutigem `sortierIndex` (zufällige Lücken), in zufälliger Ladereihenfolge. */
+/** Teile je Art mit eindeutigem `sortierIndex` (feste Lücken: `index * 3` — keine zufälligen Abstände, keine
+ * negativen/großen Werte; hueter #201 H1), in zufälliger Ladereihenfolge. */
 const eingabeArbitrary: fc.Arbitrary<{ readonly roh: Roh; readonly teile: readonly GeladenerTeil[] }> = rohArbitrary.chain((roh) => {
   const arten: readonly NamePartArt[] = ALTE_FOLGE
   const teile: GeladenerTeil[] = arten.flatMap((art) =>
@@ -119,8 +120,10 @@ interface Deckung {
   mitVatersname: number
   mehrereEinerArt: number
   originalTextRueckfall: number
-  /** Ein Vorname aus '' bzw. reinem Leerraum neben einem Teil mit Inhalt — prüft, dass leere
-   * Segmente nicht als Doppelleerzeichen im Text landen. */
+  /** Ein Vorname aus '' bzw. reinem Leerraum neben einem Teil mit Inhalt — prüft, dass ganz leere
+   * Segmente nicht als Doppelleerzeichen im Text landen. Leerraum-Positionen INNERHALB der Vornamen
+   * bleiben wie im Produkt erhalten (['Karl', ' ', 'Heinz'] → „Karl   Heinz“, bitgleich zur alten Folge);
+   * ob die Anzeige sie zusammenzieht, ist offen (U-130-11-1b-leerraum, hueter #201 H2). */
   leererVornameNebenInhalt: number
 }
 
