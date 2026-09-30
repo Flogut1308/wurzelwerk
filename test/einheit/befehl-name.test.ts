@@ -15,6 +15,9 @@ import { migrieren } from '../../src/main/datenbank/migration/laeufer'
 import { fuehreAus } from '../../src/main/befehle/bus'
 import { redo, undo } from '../../src/main/journal/undo'
 import { WurzelFehler } from '../../src/shared/fehler/wurzel-fehler'
+import { NameAendernFeldEnum, type NameAendernEin, type NameAendernFeld } from '../../src/shared/schemata/befehle'
+import * as nameRepo from '../../src/main/repositories/name-repo'
+import type { NameZeile as NameRepoZeile } from '../../src/main/repositories/name-repo'
 
 interface NameZeile {
   readonly id: string
@@ -555,4 +558,195 @@ describe('name.anlegen/name.aendern mit Vatersname (AP-1.30 PR 3, V-3-flache-bru
       db.close()
     }
   })
+})
+
+// hueter #181 H1: seit U-130-rufname-noop ist `nameGeaenderteFelder` die No-op-Schranke des Handlers —
+// fehlt dort ein Feld, wird eine Änderung NUR an diesem Feld still verworfen. Tabellengetrieben über
+// ALLE Vertragsfelder (`NameAendernFeldEnum.options`): je Feld ändert der Aufruf genau dieses Feld
+// gegenüber einem vollständig belegten Ausgangsstand → eine neue Transaktion, und der neue Wert steht
+// in der flachen Sicht (`nameRepo.lesen`). `satisfies Record<NameAendernFeld, …>` erzwingt, dass ein
+// neues Vertragsfeld hier einen Fall bekommt.
+describe('name.aendern: jede Einzelfeldänderung schreibt (hueter #181 H1)', () => {
+  interface Fall {
+    /** Überschreibt den Ausgangsaufruf; `quelleId` ist eine zweite, existierende Form (für umschriftVon). */
+    readonly aenderung: (quelleId: string) => Partial<NameAendernEin>
+    readonly spalte: keyof NameRepoZeile
+    readonly erwartet: (quelleId: string) => string | number
+  }
+
+  const FAELLE = {
+    typ: { aenderung: () => ({ typ: 'ehename' }), spalte: 'typ', erwartet: () => 'ehename' },
+    schrift: { aenderung: () => ({ schrift: 'cyrl' }), spalte: 'schrift', erwartet: () => 'cyrl' },
+    umschriftVon: { aenderung: (q) => ({ umschriftVon: q }), spalte: 'umschrift_von', erwartet: (q) => q },
+    umschriftNorm: { aenderung: () => ({ umschriftNorm: 'din1460' }), spalte: 'umschrift_norm', erwartet: () => 'din1460' },
+    vornamen: { aenderung: () => ({ vornamen: 'Anna Maria Anna Luise' }), spalte: 'vornamen', erwartet: () => 'Anna Maria Anna Luise' },
+    // Gleicher Text an anderer Stelle: nur der Index unterscheidet „Anna" (0) von „Anna" (2).
+    rufnameIndex: { aenderung: () => ({ rufnameIndex: 2 }), spalte: 'rufname_index', erwartet: () => 2 },
+    // Ohne Index entscheidet der Text (zerlegeName Regel 2).
+    rufnameText: { aenderung: () => ({ rufnameIndex: undefined, rufnameText: 'Maria' }), spalte: 'rufname_text', erwartet: () => 'Maria' },
+    nachname: { aenderung: () => ({ nachname: 'Beispiel' }), spalte: 'nachname', erwartet: () => 'Beispiel' },
+    praefix: { aenderung: () => ({ praefix: 'zu' }), spalte: 'praefix', erwartet: () => 'zu' },
+    titelVor: { aenderung: () => ({ titelVor: 'Prof.' }), spalte: 'titel_vor', erwartet: () => 'Prof.' },
+    zusatzNach: { aenderung: () => ({ zusatzNach: 'd. J.' }), spalte: 'zusatz_nach', erwartet: () => 'd. J.' },
+    vatersname: { aenderung: () => ({ vatersname: 'Iwanowna' }), spalte: 'vatersname', erwartet: () => 'Iwanowna' },
+    originalText: { aenderung: () => ({ originalText: 'Anna M. Muster (Kirchenbuch)' }), spalte: 'original_text', erwartet: () => 'Anna M. Muster (Kirchenbuch)' },
+    sprache: { aenderung: () => ({ sprache: 'ru' }), spalte: 'sprache', erwartet: () => 'ru' },
+    gueltigVon: { aenderung: () => ({ gueltigVon: 1710 }), spalte: 'gueltig_von', erwartet: () => 1710 },
+    gueltigBis: { aenderung: () => ({ gueltigBis: 1790 }), spalte: 'gueltig_bis', erwartet: () => 1790 },
+  } satisfies Record<NameAendernFeld, Fall>
+
+  for (const feld of NameAendernFeldEnum.options) {
+    it(`nur ${feld} geändert → neue Transaktion, neuer Wert gespeichert`, () => {
+      const db = neueTestDatenbank()
+      try {
+        const personId = neuePerson(db)
+        const quelle = fuehreAus(db, 'name.anlegen', { personId, typ: 'sonstiges', nachname: 'Quelle' })
+        const ausgang = {
+          typ: 'geburtsname',
+          schrift: 'latn',
+          umschriftNorm: 'iso9',
+          vornamen: 'Anna Maria Anna',
+          rufnameIndex: 0,
+          rufnameText: 'Anna',
+          nachname: 'Muster',
+          praefix: 'von',
+          titelVor: 'Dr.',
+          zusatzNach: 'd. Ä.',
+          vatersname: 'Petrowna',
+          // wortgetreu (keine Montage) — so schickt die Maske ihn bei jedem Aufruf mit
+          originalText: 'Anna Maria Anna Petrowna von Muster, geb.',
+          sprache: 'de',
+          gueltigVon: 1700,
+          gueltigBis: 1800,
+        } as const
+        const { id } = fuehreAus(db, 'name.anlegen', { personId, ...ausgang })
+        // Gegenprobe: der unveränderte Ausgangsaufruf ist ein No-op.
+        const anzahlVorher = transaktionAnzahl(db)
+        fuehreAus(db, 'name.aendern', { id, ...ausgang })
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+
+        const fall = FAELLE[feld]
+        fuehreAus(db, 'name.aendern', { id, ...ausgang, ...fall.aenderung(quelle.id), feld })
+
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+        expect(nameRepo.lesen(db, id)?.[fall.spalte]).toBe(fall.erwartet(quelle.id))
+      } finally {
+        db.close()
+      }
+    })
+  }
+
+  // In der Tabelle ändert `rufnameText` immer auch `rufnameIndex` mit. Einzig bei einem angehängten
+  // mehrwortigen Rufnamen kann sich NUR der Text ändern: gleiche Vornamen-Kette, gleicher Index, aber
+  // der markierte Bestandteil ist „Hans" statt „Hans Peter".
+  it('nur rufnameText geändert (mehrwortig angehängt → ein Wort, gleiche Vornamen, gleicher Index) → neue Transaktion', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      const vorher = nameRepo.lesen(db, id)
+      expect([vorher?.vornamen, vorher?.rufname_index, vorher?.rufname_text]).toEqual(['Karl Hans Peter', 1, 'Hans Peter'])
+      const anzahlVorher = transaktionAnzahl(db)
+
+      fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Karl Hans Peter', rufnameIndex: 1, rufnameText: 'Hans', nachname: 'Gutnoff', feld: 'rufnameText' })
+
+      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      const nachher = nameRepo.lesen(db, id)
+      expect([nachher?.vornamen, nachher?.rufname_index, nachher?.rufname_text]).toEqual(['Karl Hans Peter', 1, 'Hans'])
+    } finally {
+      db.close()
+    }
+  })
+})
+
+// Nachreview #181 H1, zweite Achse: ein Feld LEEREN (weglassen/undefined) ist eine Änderung — die
+// flache Brücke ersetzt die ganze Form, „fehlt" heißt „kein Wert", nicht „unverändert". Ein
+// Rohvergleich nach dem Muster `ein.vornamen ?? vorher.vornamen` verwürfe das Leeren still.
+// Je Feld außer dem Pflichtfeld `typ`: +1 Transaktion und der gespeicherte Wert danach. Meist `null`;
+// wo die Zerlegung aus den übrigen Feldern etwas ableitet, steht die abgeleitete Wirkung da.
+describe('name.aendern: jedes geleerte Feld schreibt (Nachreview #181 H1)', () => {
+  const AUSGANG = {
+    typ: 'geburtsname',
+    schrift: 'latn',
+    umschriftNorm: 'iso9',
+    vornamen: 'Anna Maria Anna',
+    rufnameIndex: 0,
+    rufnameText: 'Anna',
+    nachname: 'Muster',
+    praefix: 'von',
+    titelVor: 'Dr.',
+    zusatzNach: 'd. Ä.',
+    vatersname: 'Petrowna',
+    originalText: 'Anna Maria Anna Petrowna von Muster, geb.',
+    sprache: 'de',
+    gueltigVon: 1700,
+    gueltigBis: 1800,
+  } as const
+
+  interface LeerFall {
+    /** Abweichender Ausgangsstand (Anlegen UND unverändertes Echo), falls nötig. */
+    readonly ausgang?: (quelleId: string) => Partial<NameAendernEin>
+    /** Abweichendes Echo vor dem Leeren (wenn das Anlegen anders aussieht als die flache Sicht). */
+    readonly echo?: Partial<NameAendernEin>
+    readonly spalte: keyof NameRepoZeile
+    readonly erwartet: string | number | null
+  }
+
+  type LeerbaresFeld = Exclude<NameAendernFeld, 'typ'>
+
+  const LEER_FAELLE = {
+    schrift: { spalte: 'schrift', erwartet: null },
+    umschriftVon: { ausgang: (q) => ({ umschriftVon: q }), spalte: 'umschrift_von', erwartet: null },
+    umschriftNorm: { spalte: 'umschrift_norm', erwartet: null },
+    // Ohne Vornamen hängt die Zerlegung den Rufnamen-Text als einzigen Vornamen an (Regel 3).
+    vornamen: { spalte: 'vornamen', erwartet: 'Anna' },
+    // Ohne Index entscheidet der Text: das ERSTE „Anna" statt des dritten.
+    rufnameIndex: { ausgang: () => ({ rufnameIndex: 2 }), spalte: 'rufname_index', erwartet: 0 },
+    // Neben einem gültigen Index ist der Text abgeleitet; ändern kann das Weglassen ihn nur beim
+    // angehängten mehrwortigen Rufnamen: flache Sicht „Karl Hans Peter"/1 ohne Text → markiert „Hans".
+    rufnameText: {
+      ausgang: () => ({ vornamen: 'Karl', rufnameIndex: undefined, rufnameText: 'Hans Peter' }),
+      echo: { vornamen: 'Karl Hans Peter', rufnameIndex: 1, rufnameText: 'Hans Peter' },
+      spalte: 'rufname_text',
+      erwartet: 'Hans',
+    },
+    nachname: { spalte: 'nachname', erwartet: null },
+    praefix: { spalte: 'praefix', erwartet: null },
+    titelVor: { spalte: 'titel_vor', erwartet: null },
+    zusatzNach: { spalte: 'zusatz_nach', erwartet: null },
+    vatersname: { spalte: 'vatersname', erwartet: null },
+    // Ohne mitgegebenen Text montiert der Befehl die Teile (`montiereOriginalTextDerTeile`).
+    originalText: { spalte: 'original_text', erwartet: 'Dr. Anna Maria Anna Petrowna von Muster d. Ä.' },
+    sprache: { spalte: 'sprache', erwartet: null },
+    gueltigVon: { spalte: 'gueltig_von', erwartet: null },
+    gueltigBis: { spalte: 'gueltig_bis', erwartet: null },
+  } satisfies Record<LeerbaresFeld, LeerFall>
+
+  const LEERBAR = NameAendernFeldEnum.options.filter((feld): feld is LeerbaresFeld => feld !== 'typ')
+
+  for (const feld of LEERBAR) {
+    it(`${feld} geleert → neue Transaktion, gespeichert ${String(LEER_FAELLE[feld].erwartet)}`, () => {
+      const db = neueTestDatenbank()
+      try {
+        const personId = neuePerson(db)
+        const quelle = fuehreAus(db, 'name.anlegen', { personId, typ: 'sonstiges', nachname: 'Quelle' })
+        const fall: LeerFall = LEER_FAELLE[feld]
+        const ausgang: Omit<NameAendernEin, 'id'> = { ...AUSGANG, ...fall.ausgang?.(quelle.id) }
+        const { id } = fuehreAus(db, 'name.anlegen', { personId, ...ausgang })
+        const echo: NameAendernEin = { id, ...ausgang, ...fall.echo }
+        // Gegenprobe: das unveränderte Echo ist ein No-op.
+        const anzahlVorher = transaktionAnzahl(db)
+        fuehreAus(db, 'name.aendern', echo)
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher)
+        expect(nameRepo.lesen(db, id)?.[fall.spalte]).not.toBe(fall.erwartet)
+
+        fuehreAus(db, 'name.aendern', { ...echo, [feld]: undefined })
+
+        expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+        expect(nameRepo.lesen(db, id)?.[fall.spalte]).toBe(fall.erwartet)
+      } finally {
+        db.close()
+      }
+    })
+  }
 })

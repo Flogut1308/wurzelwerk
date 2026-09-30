@@ -1,58 +1,16 @@
 // AP-1.12: Handler für `name.aendern`. Läuft in der vom Befehlsbus bereits geöffneten und
 // armierten Transaktion (CLAUDE.md §2: kein `BEGIN`/`COMMIT` hier).
-// AP-0.22: vorher `lesen()`, Feld-für-Feld-Vergleich; stimmen ALLE Felder bereits mit `ein`
-// überein, bleibt der Aufruf ein No-op (kein Repo-Schreibvorgang, kein neuer
-// `geaendert_am`-Zeitstempel) — der Befehlsbus verwirft die dadurch leere Transaktion vollständig.
+// AP-0.22: vorher `lesen()`, Feld-für-Feld-Vergleich; ist `nameGeaenderteFelder` leer (Rohfelder
+// unverändert ODER Wirkung unverändert, U-130-rufname-noop), bleibt der Aufruf ein No-op (kein
+// Repo-Schreibvorgang, kein neuer `geaendert_am`-Zeitstempel) — der Befehlsbus verwirft die dadurch
+// leere Transaktion vollständig.
 import type { NameAendernEin, NameAendernFeld } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as nameRepo from '../repositories/name-repo'
 import type { NameZeile } from '../repositories/name-repo'
-import { montiereOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
+import { istMontierterOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName } from '../../core/name/zerlegung'
 import { neueId } from '../id'
-
-/** Der `original_text`, den `nameRepo.aktualisieren()` effektiv schreiben würde (montiert, wenn der
- * Aufrufer keinen mitgibt) — nötig, damit der No-op-Vergleich nicht wegen des automatisch gesetzten
- * `original_text` fälschlich eine Änderung sieht. */
-function effektiverOriginalText(ein: NameAendernEin): string | null {
-  return (
-    ein.originalText ??
-    montiereOriginalTextDerTeile({
-      vornamen: ein.vornamen,
-      rufnameIndex: ein.rufnameIndex,
-      rufnameText: ein.rufnameText,
-      nachname: ein.nachname,
-      praefix: ein.praefix,
-      titelVor: ein.titelVor,
-      zusatzNach: ein.zusatzNach,
-      vatersname: ein.vatersname,
-    })
-  )
-}
-
-// AP-1.33: `ist_bevorzugt` (Hauptname) ist NICHT mehr über `name.aendern` editierbar — der Wechsel
-// läuft über `befehl:hauptname.wechseln` (das „genau ein Hauptname je Person"-Constraint verbietet
-// einen In-Place-Tausch, s. `name-form-repo.ts`). Der No-op-Vergleich lässt `ist_bevorzugt` darum aus.
-function unveraendert(vorher: NameZeile, ein: NameAendernEin): boolean {
-  return (
-    vorher.typ === ein.typ &&
-    vorher.schrift === (ein.schrift ?? null) &&
-    vorher.umschrift_von === (ein.umschriftVon ?? null) &&
-    vorher.umschrift_norm === (ein.umschriftNorm ?? null) &&
-    vorher.vornamen === (ein.vornamen ?? null) &&
-    vorher.rufname_index === (ein.rufnameIndex ?? null) &&
-    vorher.rufname_text === (ein.rufnameText ?? null) &&
-    vorher.nachname === (ein.nachname ?? null) &&
-    vorher.praefix === (ein.praefix ?? null) &&
-    vorher.titel_vor === (ein.titelVor ?? null) &&
-    vorher.zusatz_nach === (ein.zusatzNach ?? null) &&
-    vorher.vatersname === (ein.vatersname ?? null) &&
-    vorher.original_text === effektiverOriginalText(ein) &&
-    vorher.sprache === (ein.sprache ?? null) &&
-    vorher.gueltig_von === (ein.gueltigVon ?? null) &&
-    vorher.gueltig_bis === (ein.gueltigBis ?? null)
-  )
-}
 
 function flachAusEin(ein: NameAendernEin): FlacherName {
   return {
@@ -80,6 +38,38 @@ function flachAusZeile(vorher: NameZeile): FlacherName {
   }
 }
 
+/** Regel für `original_text` (s. `nameGeaenderteFelder`): geändert, wenn der zu schreibende Text vom
+ * gespeicherten abweicht — außer der Aufrufer gibt keinen mit und der gespeicherte ist eine
+ * automatische Montage (dann folgt er nur den Teilen). */
+function originalTextGeaendert(vorher: NameZeile, ein: NameAendernEin, flachEin: FlacherName): boolean {
+  const geschrieben = ein.originalText ?? montiereOriginalTextDerTeile(flachEin)
+  const folgtDenTeilen = ein.originalText === undefined && istMontierterOriginalText(vorher.original_text, flachAusZeile(vorher))
+  return vorher.original_text !== geschrieben && !folgtDenTeilen
+}
+
+/** hueter #181 H2: die rohe Nutzlast gleicht Feld für Feld der gespeicherten flachen Sicht
+ * (`nameRepo.lesen`) — ohne Umweg über `zerlegeName`. */
+function rohUnveraendert(vorher: NameZeile, ein: NameAendernEin, flachEin: FlacherName): boolean {
+  return (
+    vorher.typ === ein.typ &&
+    vorher.schrift === (ein.schrift ?? null) &&
+    vorher.umschrift_von === (ein.umschriftVon ?? null) &&
+    vorher.umschrift_norm === (ein.umschriftNorm ?? null) &&
+    vorher.vornamen === (ein.vornamen ?? null) &&
+    vorher.rufname_index === (ein.rufnameIndex ?? null) &&
+    vorher.rufname_text === (ein.rufnameText ?? null) &&
+    vorher.nachname === (ein.nachname ?? null) &&
+    vorher.praefix === (ein.praefix ?? null) &&
+    vorher.titel_vor === (ein.titelVor ?? null) &&
+    vorher.zusatz_nach === (ein.zusatzNach ?? null) &&
+    vorher.vatersname === (ein.vatersname ?? null) &&
+    !originalTextGeaendert(vorher, ein, flachEin) &&
+    vorher.sprache === (ein.sprache ?? null) &&
+    vorher.gueltig_von === (ein.gueltigVon ?? null) &&
+    vorher.gueltig_bis === (ein.gueltigBis ?? null)
+  )
+}
+
 /**
  * AP-1.30 PR 4 (Koaleszenzschlüssel, `koaleszenz-schluessel.ts`): die Vertragsfelder, deren
  * GESPEICHERTER Wert sich durch `ein` ändern würde — verglichen wird die WIRKUNG, nicht die rohe
@@ -88,16 +78,30 @@ function flachAusZeile(vorher: NameZeile): FlacherName {
  * `rufnameText` vergleichbar (beide sind nur zwei Sichten auf DAS eine `ist_rufname` eines Teils).
  *
  * `original_text`: zählt NICHT als eigene Änderung, wenn der Aufrufer keinen mitgibt und der
- * gespeicherte die automatische Montage der gespeicherten Teile war — dann folgt er nur den Teilen
- * (derselbe Montage-Weg wie `nameRepo.aktualisieren`). Ersetzt die Montage dagegen eine wortgetreue
- * Schreibung, ist das eine zweite Änderung.
+ * gespeicherte eine AUTOMATISCHE Montage der gespeicherten Teile ist (`istMontierterOriginalText` —
+ * dieselbe Erkennung, mit der die Maske entscheidet, ob sie `originalText` mitschickt): dann folgt er
+ * nur den Teilen (derselbe Montage-Weg wie `nameRepo.aktualisieren`). Das schließt die Anlege-Montage
+ * ohne angehängten Rufnamen („Karl Gutnoff" zu den Teilen „Karl Hans Peter" + „Gutnoff") und einen
+ * reinen Leerraum-Unterschied ein (U-130-rufname-noop, hueter #169 H3). Ersetzt die Montage dagegen
+ * eine wortgetreue Schreibung, ist das eine zweite Änderung. Ein gespeichertes `null` gilt wie in der
+ * Erkennung als automatisch (nichts Wortgetreues zu erhalten) — der flache Schreibpfad hinterlässt es
+ * bei vorhandenen Teilen ohnehin nicht (`nameRepo.aktualisieren`/`einfuegen` montieren).
  *
- * Bewusst getrennt vom No-op-Vergleich `unveraendert()` oben (roh, seit AP-0.22 unverändert): wo die
- * beiden abweichen (z. B. ein fehlender `rufnameText`, der dieselben Teile ergibt), schreibt der
- * Handler, aber diese Liste ist leer — und ohne Änderung gibt es keinen Schlüssel.
+ * Zugleich der No-op-Vergleich des Handlers (U-130-rufname-noop): eine leere Liste heißt „nichts zu
+ * schreiben" — kein Schreibvorgang, keine Transaktion, kein Schlüssel. Leer ist sie in ZWEI Fällen:
+ *  1. die Wirkung gleicht dem gespeicherten Stand. Deckt den angehängten Rufnamen der Maske ab („Karl"
+ *     + `rufnameText` „Hans Peter" gegen gespeichert „Karl Hans Peter", Review H1 #168).
+ *  2. die ROHFELDER gleichen der gespeicherten flachen Sicht (`rohUnveraendert`). Nötig, weil die
+ *     Kern-Rundreise `rekonstruiereFlach ∘ zerlegeName` bei einem angehängten mehrwortigen Rufnamen
+ *     NICHT die Identität ist: die flache Sicht „Karl Hans Peter" / Index 1 / „Hans Peter" zerlegte
+ *     sich zu „Karl", „Hans"*, „Peter" — ein Rohecho schriebe einen Undo-Schritt und kürzte
+ *     `rufname_text` still auf „Hans" (hueter #181 H2; offene Datenmodellfrage
+ *     U-130-rufname-mehrteilig). Auf main verhinderte das der alleinige Rohvergleich.
+ * `ist_bevorzugt` fehlt bewusst (AP-1.33: Wechsel über `befehl:hauptname.wechseln`).
  */
 export function nameGeaenderteFelder(vorher: NameZeile, ein: NameAendernEin): readonly NameAendernFeld[] {
   const flachEin = flachAusEin(ein)
+  if (rohUnveraendert(vorher, ein, flachEin)) return []
   const wirkung = rekonstruiereFlach(zerlegeName(flachEin))
   const felder: NameAendernFeld[] = []
   if (vorher.typ !== ein.typ) felder.push('typ')
@@ -112,9 +116,7 @@ export function nameGeaenderteFelder(vorher: NameZeile, ein: NameAendernEin): re
   if (vorher.titel_vor !== wirkung.titelVor) felder.push('titelVor')
   if (vorher.zusatz_nach !== wirkung.zusatzNach) felder.push('zusatzNach')
   if (vorher.vatersname !== wirkung.vatersname) felder.push('vatersname')
-  const geschrieben = ein.originalText ?? montiereOriginalTextDerTeile(flachEin)
-  const folgtDenTeilen = ein.originalText === undefined && vorher.original_text === montiereOriginalText(flachAusZeile(vorher))
-  if (vorher.original_text !== geschrieben && !folgtDenTeilen) felder.push('originalText')
+  if (originalTextGeaendert(vorher, ein, flachEin)) felder.push('originalText')
   if (vorher.sprache !== (ein.sprache ?? null)) felder.push('sprache')
   if (vorher.gueltig_von !== (ein.gueltigVon ?? null)) felder.push('gueltigVon')
   if (vorher.gueltig_bis !== (ein.gueltigBis ?? null)) felder.push('gueltigBis')
@@ -126,7 +128,7 @@ export function nameAendern(tx: Tx, ein: NameAendernEin): null {
   if (vorher === undefined) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
   }
-  if (unveraendert(vorher, ein)) {
+  if (nameGeaenderteFelder(vorher, ein).length === 0) {
     return null
   }
   nameRepo.aktualisieren(
