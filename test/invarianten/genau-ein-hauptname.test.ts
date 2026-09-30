@@ -26,12 +26,12 @@ vi.mock('../../src/main/protokoll/logger', () => ({
 }))
 vi.mock('../../src/main/ipc/ereignisse', () => ({ sendeEreignis: vi.fn() }))
 
-import { oeffnen } from '../../src/main/datenbank/verbindung'
-import { migrieren } from '../../src/main/datenbank/migration/laeufer'
+import type { oeffnen } from '../../src/main/datenbank/verbindung'
 import { undo } from '../../src/main/journal/undo'
 import { undoZiel } from '../../src/main/repositories/journal-repo'
 import { generiere } from '../../fixtures/generiert/generator'
 import { fixtureLaden, type FixtureName } from '../hilfsmittel/fixture-laden'
+import { frischeMigrierteDatenbank } from './_frische-datenbank'
 import { aktionAusfuehren, befehlsfolgeArbitrary, neuerZustand } from './_befehlsfolge-generator'
 
 interface HauptnameVerstossZeile {
@@ -67,10 +67,14 @@ function personenMitMehrerenFormen(db: Database.Database): number {
   return zeile?.anzahl ?? 0
 }
 
+// Frische, leere, migrierte `:memory:`-Datenbank mit eingeschaltetem Journal. Seit
+// U-130-undo-bitgleich-laufzeit (docs/80 §33, PR C) ein Klon einer einmal je Prozess migrierten
+// Vorlage statt `oeffnen(':memory:')` + `migrieren(db)` je Lauf (`_frische-datenbank.ts`; Beleg der
+// Gleichwertigkeit: `frische-datenbank-klon.test.ts`). Einziger Unterschied:
+// `schema_migration.angewendet_am` trägt die Bauzeit der Vorlage — unkritisch, weil dieser Test
+// nur `name_form` DERSELBEN Verbindung nach jedem Schritt liest.
 function neueTestDatenbank(): ReturnType<typeof oeffnen> {
-  const db = oeffnen(':memory:')
-  migrieren(db)
-  return db
+  return frischeMigrierteDatenbank()
 }
 
 /** Die acht Fixture-Bäume (identisch zu `fixture-gesund.test.ts`). */
