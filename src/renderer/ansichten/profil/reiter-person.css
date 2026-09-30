@@ -131,3 +131,14 @@
 .wz-reiter-person__wert--rufname {
   flex: 0 1 240px;
 }
+
+/*
+ * PR 9d — Belegschublade des Reiters: je Angabe ein Abschnitt (Überschrift nur bei zwei Angaben),
+ * unter dem Beleg-Wähler im Kopf (`beleg-waehler.css`).
+ */
+.wz-reiter-person__beleg-abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  margin-bottom: var(--wz-abstand-16);
+}

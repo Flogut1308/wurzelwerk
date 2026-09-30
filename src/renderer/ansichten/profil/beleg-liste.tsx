@@ -11,6 +11,14 @@ import './beleg-liste.css'
 
 export interface BelegListeProps {
   readonly feld: PersonDetailGrunddatenFeld
+  /** AP-1.30 PR 9d (V-130-9d E10): „Verknüpfung entfernen" je Beleg — nur im Editor (Reiter Person),
+   * nie in der Lesesicht. Entfernt NUR die Verknüpfung (`aussage_zitat.loeschen`), das Zitat bleibt. */
+  readonly aufVerknuepfungEntfernen?: (aussageId: string, zitatId: string) => void
+  /** Sperrt „Verknüpfung entfernen", solange ein Entfernen läuft. */
+  readonly entfernenGesperrt?: boolean
+  /** Der feste „Quelle anlegen"-Fuß (Standard: ja). Der Reiter Person zeigt ihn im Beleg-Wähler
+   * statt einmal je Liste (PR 9d). */
+  readonly mitQuelleAnlegen?: boolean
 }
 
 export interface BelegEintragProps {
@@ -115,9 +123,12 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
  * gebunden) legt dieser Link eine NEUE, noch unverknüpfte Quelle an (§14-Vermerk,
  * docs/80_Offene_Fragen.md §29: das Verknüpfen einer neuen Quelle mit dieser Aussage — ein
  * `aussage_zitat.anlegen`-Schreibweg — existiert noch nicht, das bleibt einem Folge-AP
- * vorbehalten; diese Quelle lässt sich trotzdem schon jetzt anlegen und pflegen).
+ * vorbehalten; diese Quelle lässt sich trotzdem schon jetzt anlegen und pflegen). Seit AP-1.30
+ * PR 9d verknüpft der Reiter Person über den `BelegWaehler` (`beleg-waehler.tsx`) im Kopf der
+ * Schublade; dort steht auch „Quelle anlegen" (`mitQuelleAnlegen = false`) und je Beleg
+ * „Verknüpfung entfernen". Die Lesesicht bleibt unverändert.
  */
-export function BelegListe({ feld }: BelegListeProps) {
+export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt = false, mitQuelleAnlegen = true }: BelegListeProps) {
   const { t } = useTranslation('profil')
   const quelleAnlegen = useQuelleAnlegen()
   const [neueQuelleId, setNeueQuelleId] = useState<string | null>(null)
@@ -144,6 +155,13 @@ export function BelegListe({ feld }: BelegListeProps) {
                 {aussage.belege.map((beleg, index) => (
                   <li key={index} className="wz-beleg-liste__beleg">
                     <BelegEintrag beleg={beleg} />
+                    {aufVerknuepfungEntfernen === undefined ? null : (
+                      <div>
+                        <Schaltflaeche variante="unauffaellig" gesperrt={entfernenGesperrt} aufKlick={() => aufVerknuepfungEntfernen(aussage.aussage_id, beleg.zitat_id)}>
+                          {t('beleg_verknuepfung_entfernen')}
+                        </Schaltflaeche>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -151,9 +169,11 @@ export function BelegListe({ feld }: BelegListeProps) {
           </li>
         ))}
       </ul>
-      <Schaltflaeche variante="unauffaellig" aufKlick={() => void quelleAnlegenUndOeffnen()}>
-        {t('beleg_quelle_anlegen')}
-      </Schaltflaeche>
+      {mitQuelleAnlegen ? (
+        <Schaltflaeche variante="unauffaellig" aufKlick={() => void quelleAnlegenUndOeffnen()}>
+          {t('beleg_quelle_anlegen')}
+        </Schaltflaeche>
+      ) : null}
       {neueQuelleId !== null ? <QuelleBearbeitenAnsicht quelleId={neueQuelleId} aufSchliessen={() => setNeueQuelleId(null)} /> : null}
     </>
   )

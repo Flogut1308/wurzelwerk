@@ -1,0 +1,135 @@
+/*
+ * Beleg-Zeile und Beleg-Wähler im Reiter „Person" (AP-1.30 PR 9d, Artboard 1a „Beleg (Chip mit Typ +
+ * Titel, ‚Beleg verknüpfen')"). Nur Tokens (beide Themen über `tokens.css`).
+ *
+ * Abweichungen (CLAUDE.md §14, [Design-Review]): das Etikett im Chip ist der Quellentyp als
+ * `Abzeichen` statt „PDF" (Medien erst mit AP-1.31); „Beleg verknüpfen" ist eine unauffällige
+ * Schaltfläche statt gepunkteter Unterstreichung (kein Link-Baustein, wie V-130-9c); die Trefferzeilen
+ * des Wählers folgen der Trefferliste des `Personenwaehler` (im Fluss unter dem Feld, kein Popover).
+ */
+
+.wz-beleg-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-beleg-zeile__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-beleg-zeile__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  min-height: var(--wz-trefferflaeche-min);
+  padding: 0 var(--wz-abstand-8);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-flaeche-erhoben);
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-koerper-klein);
+  cursor: pointer;
+}
+
+.wz-beleg-zeile__chip:hover {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-beleg-zeile__chip-angaben {
+  color: var(--wz-text-tertiaer);
+}
+
+.wz-beleg-waehler {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+  padding-bottom: var(--wz-abstand-16);
+  margin-bottom: var(--wz-abstand-16);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-beleg-waehler__ziele,
+.wz-beleg-waehler__quelle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-beleg-waehler__ziel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-4);
+}
+
+.wz-beleg-waehler__schritt,
+.wz-beleg-waehler__neu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-beleg-waehler__neu-felder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-beleg-waehler__neu-felder > * {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.wz-beleg-waehler__liste {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.wz-beleg-waehler__liste > li + li {
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-beleg-waehler__zeile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--wz-abstand-2);
+  width: 100%;
+  min-height: var(--wz-trefferflaeche-min);
+  padding: var(--wz-abstand-8) var(--wz-abstand-16);
+  border: none;
+  background: transparent;
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-koerper);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wz-beleg-waehler__zeile:hover:not(:disabled) {
+  background: var(--wz-flaeche-hover);
+}
+
+.wz-beleg-waehler__zeile:disabled {
+  color: var(--wz-text-gesperrt);
+  cursor: default;
+}
+
+.wz-beleg-waehler__zeile-meta {
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-koerper-klein);
+}
