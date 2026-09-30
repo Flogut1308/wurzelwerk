@@ -36,7 +36,7 @@ import type {
 } from '../../../shared/schemata/person-detail'
 import { datumsfeldInterpretationAusWert, type DatumsfeldInterpretation } from '../../bausteine/datumsfeld-logik'
 import type { AussageAenderung } from './profil-aussage-logik'
-import { nameAnlegenEinAusEintrag, rufnameAuswahlWert, type NamenEintragWerte } from './profil-bearbeiten-logik'
+import { markierterRufname, nameAnlegenEinAusEintrag, type NamenEintragWerte } from './profil-bearbeiten-logik'
 import { ereignisWert, herkunftSchluesselFuer, type EreignisWert, type HerkunftSchluessel } from './profil-lebensdaten-logik'
 
 // ── Lebensstatus ──────────────────────────────────────────────────────────────────────────────
@@ -322,9 +322,10 @@ export function hauptnameHatSichtbarenInhalt(eintrag: NamenEintragWerte): boolea
 
 /** `name.anlegen` für den ersten Hauptnamen (E2). Ein Rufname geht nur mit, wenn er einen der
  * Vornamen markiert — sonst hinge `zerlegeName` ihn als weiteren Vornamen an (E1, dieselbe Regel wie
- * `rufnameFuerAenderung` beim Ändern, V-130-fix-rufname-anhaengen). */
+ * `rufnameFuerAenderung` beim Ändern, V-130-fix-rufname-anhaengen) — und zwar als der Vorname an der
+ * markierten Stelle, nicht als der mitgetragene, evtl. veraltete Text (V-130-11e-1). */
 export function hauptnameAnlegenEin(personId: string, eintrag: NamenEintragWerte): NameAnlegenEin {
-  const rufname = rufnameAuswahlWert(eintrag) === '' ? '' : eintrag.rufname
+  const rufname = markierterRufname(eintrag)
   return nameAnlegenEinAusEintrag(personId, { ...eintrag, rufname, rufnameIndex: rufname === '' ? null : eintrag.rufnameIndex })
 }
 

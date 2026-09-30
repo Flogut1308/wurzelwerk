@@ -61,6 +61,8 @@ describe('profil-bearbeiten-logik: Namen (AP-1.14a)', () => {
       // AP-1.30 PR 2a: nicht angezeigte Felder werden mitgetragen; der montierte original_text zählt
       // nicht als wortgetreu.
       rufnameIndex: null,
+      // V-130-11e-1: die Vornamen-Einheiten beim Lesen (Ausrichtung der Rufname-Stelle).
+      rufnameBasis: ['August'],
       // AP-1.30 PR 3: der Vatersname wird mitgetragen (null -> '').
       vatersname: '',
       umschriftVon: null,
