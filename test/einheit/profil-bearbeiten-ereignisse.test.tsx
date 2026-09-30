@@ -1,11 +1,11 @@
 // AP-1.15 PR-A: `profil-bearbeiten-logik.ts` (reine Ereignis-Umrechnungen, Muster
-// `profil-bearbeiten-namen.test.tsx`) UND `EreignisseBearbeitenAbschnitt` (`renderToStaticMarkup`,
+// `profil-bearbeiten-logik-namen.test.ts`) UND `EreignisseBearbeitenAbschnitt` (`renderToStaticMarkup`,
 // vitest läuft mit `environment: 'node'`). Befehl- UND Abfrage-Hooks hängen an
 // `@tanstack/react-query` (brauchen einen `QueryClientProvider`) und werden darum gemockt, je EIN
 // `mutate`-Spion pro Kanal.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-// Seiteneffekt: initialisiert die einzige i18next-Instanz synchron (Muster `profil-bearbeiten-namen.test.tsx`).
+// Seiteneffekt: initialisiert die einzige i18next-Instanz synchron (Muster `profil-bearbeiten-grunddaten.test.tsx`).
 import '../../src/renderer/i18n/einrichten'
 
 const ereignisAnlegenMutate = vi.fn()

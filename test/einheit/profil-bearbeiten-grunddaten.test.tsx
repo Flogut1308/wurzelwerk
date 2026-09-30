@@ -1,6 +1,6 @@
 // AP-1.14a (S-20, erste echte Schreibmaske): `profil-bearbeiten-logik.ts` (reine Umrechnungen für
 // Geschlecht/Notiz/Platzhalter-Kennzeichen+Grund) UND `GrunddatenBearbeitenAbschnitt`
-// (`renderToStaticMarkup`, wie `profil-bearbeiten-namen.test.tsx`). `usePersonFeldSetzen` hängt an
+// (`renderToStaticMarkup`, wie `ortsfeld.test.tsx`). `usePersonFeldSetzen` hängt an
 // `@tanstack/react-query` und wird darum gemockt (Auftrag AP-1.14a: „Befehl-Hooks mocken").
 //
 // Lebensdaten (Geburts-/Todesdatum mit Konfidenz+Beleg) sind bewusst NICHT Teil von AP-1.14a —

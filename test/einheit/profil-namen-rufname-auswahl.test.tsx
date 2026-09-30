@@ -1,19 +1,10 @@
-// A-02, AP-1.30 (Fix Rufname-Anhängen): Der Rufname einer bestehenden Namenszeile wird aus ihren
+// A-02, AP-1.30 (Fix Rufname-Anhängen): Der Rufname einer bestehenden Namensform wird aus ihren
 // Vornamen GEWÄHLT (docs/20_Domaenenwissen.md §24), nicht getippt — ein getippter Rufname ging mit
 // jedem Autosave-Zwischenstand als zusätzlicher Vorname in die Datenbank
-// (`profil-namen-rufname-zwischenstaende.test.ts`). Muster wie `profil-bearbeiten-namen.test.tsx`
-// (`renderToStaticMarkup`, Befehl-Hooks gemockt).
-import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
-import '../../src/renderer/i18n/einrichten'
-
-vi.mock('../../src/renderer/brücke/befehl-hooks', () => ({
-  useNameAnlegen: () => ({ mutate: vi.fn() }),
-  useNameAendern: () => ({ mutate: vi.fn() }),
-  useNameLoeschen: () => ({ mutate: vi.fn() }),
-}))
-
-import { NamenBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-namen'
+// (`profil-namen-rufname-zwischenstaende.test.ts`). Die Logik der flachen Brücke nutzt heute der Reiter
+// Person (`reiter-person-hauptname.tsx`); die Anzeige der Auswahl prüfen `reiter-person-hauptname.test.tsx`
+// und für das Modal `namensform-modal.test.tsx` (AP-1.30 PR 11c-2, docs/80 §33 V-130-11c-2).
+import { describe, expect, it } from 'vitest'
 import {
   NAMEN_EINTRAG_LEER,
   mitRufnameAusAuswahl,
@@ -23,7 +14,6 @@ import {
   rufnameAuswahlWert,
   type NamenEintragWerte,
 } from '../../src/renderer/ansichten/profil/profil-bearbeiten-logik'
-import type { PersonDetailName } from '../../src/shared/schemata/person-detail'
 
 const KARL_FRIEDRICH: NamenEintragWerte = { ...NAMEN_EINTRAG_LEER, typ: 'geburtsname', vornamen: 'Karl Friedrich', nachname: 'Gutnoff' }
 
@@ -87,39 +77,5 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
     const eintrag = { ...KARL_FRIEDRICH, vornamen: 'Karl Hans  Peter', rufname: 'Hans  Peter', rufnameIndex: 1 }
     expect(rufnameAuswahlWert(eintrag)).toBe('1')
     expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
-  })
-
-  it('bestehende Zeile: Rufname ist eine Auswahl aus den Vornamen, der markierte ist gewählt', () => {
-    const name: PersonDetailName = {
-      id: 'name-1',
-      ist_bevorzugt: true,
-      typ: 'geburtsname',
-      schrift: null,
-      vornamen: 'Karl Friedrich',
-      nachname: 'Gutnoff',
-      praefix: null,
-      titel_vor: null,
-      zusatz_nach: null,
-      vatersname: null,
-      rufname_text: 'Friedrich',
-      rufname_index: 1,
-      umschrift_von: null,
-      umschrift_norm: null,
-      sprache: null,
-      gueltig_von: null,
-      gueltig_bis: null,
-      original_text: 'Karl Friedrich Gutnoff',
-      rolle: 'geburtsname',
-      rollen_notiz: null,
-      reihenfolge: null,
-      konfidenz: null,
-      sortier_index: null,
-      teile: [],
-    }
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[name]} />)
-    const zeile = markup.slice(markup.indexOf('wz-profil-bearbeiten-namen__zeile'), markup.indexOf('wz-profil-bearbeiten-namen__neu'))
-    const rufnameFeld = zeile.slice(zeile.indexOf('Rufname'))
-    expect(rufnameFeld).toMatch(/^Rufname<\/span><\/span><span class="wz-formularfeld__feld"><select/u)
-    expect(rufnameFeld).toContain('<option value="">nicht angegeben</option><option value="0">Karl</option><option value="1" selected="">Friedrich</option>')
   })
 })

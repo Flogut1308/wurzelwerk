@@ -1,11 +1,11 @@
 // AP-1.16 PR-C — rot zuerst (CLAUDE.md §5, eiserne Regel): vor der Implementierung geschrieben.
 // `ort-bearbeiten-logik.ts` (reine Umrechnungen, Muster `profil-bearbeiten-logik.ts`/
-// `profil-bearbeiten-namen.test.tsx`) UND `OrtBearbeitenAnsicht` (`renderToStaticMarkup`, vitest
+// `profil-bearbeiten-logik-namen.test.ts`) UND `OrtBearbeitenAnsicht` (`renderToStaticMarkup`, vitest
 // läuft mit `environment: 'node'`). Befehl- UND Abfrage-Hooks hängen an `@tanstack/react-query`
 // (brauchen einen `QueryClientProvider`) und werden darum gemockt, je EIN `mutate`-Spion pro Kanal.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-// Seiteneffekt: initialisiert die einzige i18next-Instanz synchron (Muster `profil-bearbeiten-namen.test.tsx`).
+// Seiteneffekt: initialisiert die einzige i18next-Instanz synchron (Muster `profil-bearbeiten-grunddaten.test.tsx`).
 import '../../src/renderer/i18n/einrichten'
 
 const ortsnameAnlegenMutate = vi.fn()

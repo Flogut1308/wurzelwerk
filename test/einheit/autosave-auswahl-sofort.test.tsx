@@ -12,8 +12,10 @@
 // 2. Ohne rechtzeitiges Echo sieht der Timer einen ausstehenden Entwurf (`entwurf !== bekannt`)
 //    und schreibt denselben Stand nach der Frist ein zweites Mal.
 //
-// Geprüft an allen Aufrufern mit diesem Muster (Reiter „Namen", Reiter „Person"/Hauptname,
-// Ortsnamen, Quellen-Stammfelder, Zitat). Das Echo wird als Rerender mit dem nachgeladenen Stand
+// Geprüft an allen Aufrufern mit diesem Muster (Reiter „Person"/Hauptname, Ortsnamen,
+// Quellen-Stammfelder, Zitat). Der Reiter „Namen" schreibt seit AP-1.30 PR 11c-1 nur beim Übernehmen
+// des Modals, ohne Zwischenstände; seine Fälle stehen seit PR 11c-2 in `namensform-modal.test.tsx`
+// (docs/80 §33 V-130-11c-2). Das Echo wird als Rerender mit dem nachgeladenen Stand
 // nachgestellt (kontrollierter Zeitpunkt, gefälschte Uhr); Muster `reiter-person-hauptname.test.tsx`
 // (alle Befehls-/Abfrage-Hooks durch einen Rekorder ersetzt).
 import { act } from 'react'
@@ -63,7 +65,6 @@ vi.mock('../../src/renderer/brücke/abfrage-hooks', async (importOriginal) => {
 const abfrageDaten = new Map<string, unknown>()
 
 import { OrteBearbeitenInhalt } from '../../src/renderer/ansichten/orte/ort-bearbeiten'
-import { NamenBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-namen'
 import { ReiterPerson } from '../../src/renderer/ansichten/profil/reiter-person'
 import { QuelleBearbeitenInhalt } from '../../src/renderer/ansichten/quellen/quelle-bearbeiten'
 
@@ -283,43 +284,6 @@ describe('Autosave: sofort schreibende Auswahl läuft über den Entwurfs-Hook (U
       vi.advanceTimersByTime(ms)
     })
   }
-
-  describe('Reiter „Namen" (NamenFelder)', () => {
-    const zeile = (): Element => bereich('.wz-profil-bearbeiten-namen__zeile')
-    const zeigeNamen = (n: PersonDetailName): void => zeigen(<NamenBearbeitenAbschnitt personId="p-1" namen={[n]} />)
-
-    it('Namenstyp wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
-      zeigeNamen(name())
-      act(() => waehlen(feldIn(zeile(), 'Namenstyp'), 'ehename'))
-      expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ id: 'n-1', typ: 'ehename', nachname: 'Gutnoff' })])
-      act(() => eintippen(feldIn(zeile(), 'Nachname'), 'Gutnoffx'))
-      zeigeNamen(name({ typ: 'ehename' })) // Echo des Auswahl-Schreibens
-      expect(wert(feldIn(zeile(), 'Nachname'))).toBe('Gutnoffx')
-      warte(AUTOSAVE_DEBOUNCE_MS)
-      expect(aufrufeVon('useNameAendern')).toEqual([
-        expect.objectContaining({ typ: 'ehename', nachname: 'Gutnoff' }),
-        expect.objectContaining({ typ: 'ehename', nachname: 'Gutnoffx', feld: 'nachname' }),
-      ])
-    })
-
-    it('Rufname wählen ohne Echo innerhalb der Frist: genau EIN name.aendern', () => {
-      zeigeNamen(name())
-      act(() => waehlen(feldIn(zeile(), 'Rufname'), '1'))
-      warte(AUTOSAVE_DEBOUNCE_MS * 3)
-      expect(aufrufeVon('useNameAendern')).toEqual([expect.objectContaining({ rufnameText: 'Friedrich', rufnameIndex: 1 })])
-    })
-
-    it('Rufname wählen, sofort im Nachnamen tippen, Echo kommt: der Anschlag bleibt und wird geschrieben', () => {
-      zeigeNamen(name())
-      act(() => waehlen(feldIn(zeile(), 'Rufname'), '1'))
-      act(() => eintippen(feldIn(zeile(), 'Nachname'), 'Gutnow'))
-      zeigeNamen(name({ rufname_text: 'Friedrich', rufname_index: 1 }))
-      expect(wert(feldIn(zeile(), 'Nachname'))).toBe('Gutnow')
-      warte(AUTOSAVE_DEBOUNCE_MS)
-      expect(aufrufeVon('useNameAendern')).toHaveLength(2)
-      expect(aufrufeVon('useNameAendern')[1]).toEqual(expect.objectContaining({ rufnameText: 'Friedrich', nachname: 'Gutnow' }))
-    })
-  })
 
   describe('Reiter „Person" (Hauptname)', () => {
     const RUFNAME = 'pb-hauptname-rufname'
