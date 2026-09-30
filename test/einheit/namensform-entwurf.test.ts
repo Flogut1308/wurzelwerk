@@ -480,3 +480,62 @@ describe('Rundreise über die echte Datenbank', () => {
     expect(formLesen(personId, umschriftId).umschrift_norm).toBe('iso9')
   })
 })
+
+// U-130-11-0b-leerraum-teil: die flache Brücke (`name.anlegen`) speichert einen Vatersname-Teil `' '`. Das
+// Modal zeigt ihn als leere Zeile. Ein Übernehmen mit einer ANDEREN Änderung darf ihn nicht löschen, und ihn zu
+// „leeren“ ist keine Änderung (er ist schon leer) — abgestimmt auf den Handler.
+describe('Leerraum-Teil aus der flachen Brücke (U-130-11-0b-leerraum-teil)', () => {
+  let db: Db
+
+  beforeEach(() => {
+    uhrStarten()
+    db = neueTestDatenbank()
+  })
+
+  afterEach(() => {
+    db.close()
+    vi.useRealTimers()
+  })
+
+  function iwanPetrow(): { readonly personId: string; readonly name: PersonDetailName; readonly leer: string; readonly petrow: string } {
+    const personId = neuePerson(db)
+    const formId = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Iwan', vatersname: ' ', nachname: 'Petrow' }).id
+    const name = personDetail(db, { personId }).namen.find((eintrag) => eintrag.id === formId)
+    if (name === undefined) throw new Error('Form fehlt')
+    const leer = name.teile.find((eintrag) => eintrag.art === 'vatersname')?.id
+    const petrow = name.teile.find((eintrag) => eintrag.art === 'nachname')?.id
+    if (leer === undefined || petrow === undefined) throw new Error('Teile fehlen')
+    return { personId, name, leer, petrow }
+  }
+
+  it('Vorbedingung: der Vatersname-Teil „ “ steht im Lesemodell', () => {
+    const { name } = iwanPetrow()
+    expect(name.teile.filter((eintrag) => eintrag.art === 'vatersname').map((eintrag) => eintrag.wert)).toEqual([' '])
+  })
+
+  it('Übernehmen mit einer anderen Änderung: der Leerraum-Teil geht mit seiner ID mit und bleibt erhalten', () => {
+    const { personId, name, leer, petrow } = iwanPetrow()
+    const vorher = teile(db, name.id).find((eintrag) => eintrag.id === leer)
+    const basis = basisVon(name)
+    const ein = uebernehmenEin(personId, basis, teilWertSetzen(basis, petrow, 'Petrov'))
+    expect(ein.teile).toContainEqual({ id: leer, art: 'vatersname', wert: ' ', istRufname: false })
+    const transaktionen = transaktionAnzahl(db)
+    warte(5000)
+    fuehreAus(db, 'namensform.uebernehmen', ein)
+    expect(transaktionAnzahl(db)).toBe(transaktionen + 1)
+    expect(teile(db, name.id).find((eintrag) => eintrag.id === leer)).toEqual(vorher)
+  })
+
+  it('den Leerraum-Teil zu leeren ist keine Änderung: nicht geändert (E9), und auch als Aufruf keine Transaktion', () => {
+    const { personId, name, leer } = iwanPetrow()
+    const basis = basisVon(name)
+    const geleert = teilWertSetzen(basis, leer, '')
+    expect(entwurfGeaendert(basis, basis)).toBe(false)
+    expect(entwurfGeaendert(basis, geleert)).toBe(false)
+    const transaktionen = transaktionAnzahl(db)
+    warte(5000)
+    fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, basis))
+    fuehreAus(db, 'namensform.uebernehmen', uebernehmenEin(personId, basis, geleert))
+    expect(transaktionAnzahl(db)).toBe(transaktionen)
+  })
+})

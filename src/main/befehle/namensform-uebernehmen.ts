@@ -27,7 +27,7 @@
 // wird nur bei einem tatsächlichen Unterschied aufgerufen (bzw. ist selbst ein No-op) — ein unveränderter
 // Aufruf schreibt nichts, und der Bus verwirft die leere Transaktion.
 //
-// Prüfen VOR dem ersten Schreiben: fremde/unbekannte Teil-ID, bestehende Teil-ID mit anderer Art
+// Prüfen VOR dem ersten Schreiben (je Eintrag mit ID, auch einem leeren): fremde/unbekannte Teil-ID, bestehende Teil-ID mit anderer Art
 // (`VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND` — `namensteil.aendern` ändert die Art nie, im Modal ist sie je Zeile
 // fest), leerer bzw. Vorname mit Leerraum in einem NEUEN oder GEÄNDERTEN Wert, Rufname an einem
 // Nicht-Vornamen, und der Kopf einer bestehenden Form (`namensformAenderungPruefen`, dieselbe Prüfung wie in
@@ -73,7 +73,7 @@ import { montageDerTeile, namensteilWertPruefen, OHNE_NACHFUEHRUNG, originalText
 import { namensteilLoeschen } from './namensteil-loeschen'
 import { namensteilVerschieben } from './namensteil-verschieben'
 
-/** Ein geprüfter, nicht leerer Eintrag der Zielliste. `vorher` ist der gespeicherte Teil (gleiche ID und Art)
+/** Ein geprüfter Eintrag der Zielliste (nicht leer, oder ein unveränderter Leerraum-Teil). `vorher` ist der gespeicherte Teil (gleiche ID und Art)
  * oder `undefined` für einen neuen Teil; `neueId` wird beim Anlegen gesetzt. */
 interface Ziel {
   readonly vorher: NamePartZeile | undefined
@@ -88,12 +88,24 @@ function zielId(ziel: Ziel): string | undefined {
   return ziel.vorher?.id ?? ziel.neueId
 }
 
-/** Normiert und prüft die Zielliste gegen die gespeicherten Teile — wirft vor jedem Schreibvorgang. */
+/**
+ * Ist der Zielwert gleich dem gespeicherten (ein unveränderter Altbestandswert bleibt, E4)? Gleich, wenn der
+ * getrimmte Zielwert dem UNGETRIMMTEN gespeicherten Wert gleicht (ungetrimmter Altbestand „Gutnoff " wird bei
+ * einer Bereinigung also geschrieben), oder wenn beide leer bzw. nur Leerraum sind (U-130-11-0b-leerraum-teil:
+ * ein Leerraum-Teil aus der flachen Brücke, etwa Vatersname `' '`, ist im Modal schon leer — ihn zu „leeren"
+ * ändert nichts, sonst verletzte ein unveränderter Aufruf den No-op, AP-0.22).
+ */
+function wertUnveraendert(roh: string, vorher: NamePartZeile): boolean {
+  const wert = roh.trim()
+  return wert === vorher.wert || (wert === '' && vorher.wert.trim() === '')
+}
+
+/** Normiert und prüft die Zielliste gegen die gespeicherten Teile — wirft vor jedem Schreibvorgang. Die
+ * Prüfungen von ID und Art laufen für JEDEN Eintrag mit ID, auch für einen leeren (U-130-11-0b-leerraum-teil). */
 function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePartZeile[]): readonly Ziel[] {
   const nachId = new Map(gespeichert.map((teil) => [teil.id, teil] as const))
   const ziele: Ziel[] = []
   for (const teil of ein.teile) {
-    if (teil.wert.trim() === '') continue
     let vorher: NamePartZeile | undefined
     if (teil.id !== undefined) {
       vorher = nachId.get(teil.id)
@@ -104,8 +116,11 @@ function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePa
         throw new WurzelFehler('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
       }
     }
+    const unveraendert = vorher !== undefined && wertUnveraendert(teil.wert, vorher)
+    // Leer und nicht unverändert: ein neuer leerer Eintrag wird verworfen, ein geleerter bestehender entfällt.
+    if (!unveraendert && teil.wert.trim() === '') continue
     // E2/E4: geprüft wird nur ein neuer oder geänderter Wert; ein unveränderter Altbestandswert bleibt.
-    const wert = vorher !== undefined && teil.wert.trim() === vorher.wert ? vorher.wert : namensteilWertPruefen(teil.art, teil.wert)
+    const wert = unveraendert && vorher !== undefined ? vorher.wert : namensteilWertPruefen(teil.art, teil.wert)
     if (teil.istRufname && teil.art !== 'vorname') {
       throw new WurzelFehler('VALIDIERUNG_RUFNAME_KEIN_VORNAME')
     }
@@ -202,7 +217,10 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   // 3. geänderte Werte/Varianten — nur bei einem Unterschied aufrufen
   for (const ziel of ziele) {
     if (ziel.vorher === undefined) continue
-    const aendern = { id: ziel.vorher.id, wert: ziel.wert, feminineVariante: ziel.feminineVariante }
+    // Ein unveränderter Wert geht nicht mit: `namensteilGeaenderteFelder` vergleicht getrimmt und hielte einen
+    // gespeicherten Leerraum-Teil (`' '`) sonst für geändert (U-130-11-0b-leerraum-teil).
+    const wert = ziel.wert === ziel.vorher.wert ? undefined : ziel.wert
+    const aendern = { id: ziel.vorher.id, wert, feminineVariante: ziel.feminineVariante }
     if (namensteilGeaenderteFelder(ziel.vorher, aendern).length > 0) namensteilAendern(tx, aendern, OHNE_NACHFUEHRUNG)
   }
 
