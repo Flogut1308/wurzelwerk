@@ -13,7 +13,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '../../src/renderer/i18n/einrichten'
+import { i18n } from '../../src/renderer/i18n/einrichten'
+import { AUTOSAVE_DEBOUNCE_MS } from '../../src/shared/autosave'
 import type { AppFehler } from '../../src/shared/fehler/app-fehler'
 import type { PersonDetailName, PersonDetailNamensteil } from '../../src/shared/schemata/person-detail'
 import { NachladenKontext, nachladenMelderErzeugen, type NachladenMelder } from '../../src/renderer/brücke/nachladen-stand'
@@ -158,6 +159,7 @@ describe('NamensformModal', () => {
       root.unmount()
     })
     container.remove()
+    vi.useRealTimers()
   })
 
   function zeige(namen: readonly PersonDetailName[], formId: string | null = 'f1'): void {
@@ -331,5 +333,168 @@ describe('NamensformModal', () => {
     expect(text).toContain('Leerzeichen')
     // Der unveränderte Nachname trägt den Fehler nicht.
     expect(feld('n1').closest('.wz-formularfeld')?.textContent).not.toContain('Leerzeichen')
+  })
+
+  // -------------------------------------------------------------------------------------------------
+  // AP-1.30 PR 11c-2 (A-02): Zusicherungen der flachen Maske `NamenBearbeitenAbschnitt`, die fachlich für
+  // das Modal weiter gelten (Inventar docs/80 §33 V-130-11c-2). Je Test die Herkunft im Kommentar.
+  // -------------------------------------------------------------------------------------------------
+
+  /** Das `Formularfeld` (label) mit genau dieser Beschriftung im Modal. */
+  function formularfeld(beschriftung: string): HTMLLabelElement {
+    const treffer = Array.from(document.querySelectorAll<HTMLLabelElement>('label.wz-formularfeld')).find(
+      (kandidat) => kandidat.querySelector('.wz-formularfeld__kopf')?.textContent === beschriftung,
+    )
+    if (treffer === undefined) throw new Error(`Formularfeld fehlt: ${beschriftung}`)
+    return treffer
+  }
+
+  function auswahlIn(beschriftung: string): HTMLSelectElement {
+    const knoten = formularfeld(beschriftung).querySelector('select')
+    if (knoten === null) throw new Error(`Auswahl fehlt: ${beschriftung}`)
+    return knoten
+  }
+
+  function waehlen(auswahl: HTMLSelectElement, wert: string): void {
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    if (setter === undefined) throw new Error('kein nativer value-Setter')
+    act(() => {
+      setter.call(auswahl, wert)
+      auswahl.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+
+  const KARL_FRIEDRICH = form('f1', {
+    ist_bevorzugt: true,
+    teile: [teil('v1', 'vorname', 'Karl', 0), teil('v2', 'vorname', 'Friedrich', 1, true), teil('n1', 'nachname', 'Gutnoff')],
+  })
+
+  // Herkunft: profil-namen-zeile-rufname-fehler.test.tsx (hueter #184 P2) und profil-namen-rufname-verdopplung.test.tsx
+  // (Fehler am Rufname-Feld). `namensform.uebernehmen` meldet einen Rufname-Fehler als KEIN_VORNAME; die
+  // Verdopplung stammt aus der flachen Brücke, das Modal ordnet beide gleich zu.
+  for (const code of ['VALIDIERUNG_RUFNAME_KEIN_VORNAME', 'VALIDIERUNG_RUFNAME_VERDOPPELT'] as const) {
+    it(`11c-2: ${code} steht mit titel/was_tun am Rufname-Feld (aria-live), nicht an den Teilen und nicht allgemein`, () => {
+      zeige([KARL_FRIEDRICH])
+      expect(formularfeld('Rufname').querySelector('[aria-live="polite"]')?.textContent).toBe('')
+      scheitertMit.set('useNamensformUebernehmen', { code, textSchluessel: `${code}.titel`, vorgangsId: 'v' })
+      waehlen(auswahlIn('Rufname'), 'v1')
+      klicken(knopf('Übernehmen'))
+      expect(aufrufe).toHaveLength(1)
+      const titel = i18n.t(`fehler:${code}.titel`)
+      const wasTun = i18n.t(`fehler:${code}.was_tun`)
+      expect(titel).not.toContain(code)
+      const meta = formularfeld('Rufname').querySelector('[aria-live="polite"]')?.textContent ?? ''
+      expect(meta).toContain(titel)
+      expect(meta).toContain(wasTun)
+      expect(feld('v1').closest('.wz-formularfeld')?.textContent).not.toContain(titel)
+      expect(document.querySelector('.wz-namensform-modal__fehler')).toBeNull()
+      expect(geschlossen).toBe(0)
+    })
+  }
+
+  // Herkunft: profil-namen-rufname-verdopplung.test.tsx „ein anderer Fehler von name.anlegen erscheint an den
+  // Vornamen, nicht am Rufnamen". Im Modal gehören die übrigen Fehler an das Modal selbst (V-130-11c-1).
+  it('11c-2: ein anderer Fehler des Befehls steht allgemein im Modal (role=alert), nicht am Rufname-Feld', () => {
+    scheitertMit.set('useNamensformUebernehmen', { code: 'NICHT_GEFUNDEN_PERSON', textSchluessel: 'NICHT_GEFUNDEN_PERSON.titel', vorgangsId: 'v' })
+    zeige([KARL_FRIEDRICH])
+    eintippen(feld('n1'), 'Gutnow')
+    klicken(knopf('Übernehmen'))
+    const titel = i18n.t('fehler:NICHT_GEFUNDEN_PERSON.titel')
+    const wasTun = i18n.t('fehler:NICHT_GEFUNDEN_PERSON.was_tun')
+    const allgemein = document.querySelector('[role="alert"].wz-namensform-modal__fehler')?.textContent ?? ''
+    expect(allgemein).toContain(titel)
+    expect(allgemein).toContain(wasTun)
+    expect(formularfeld('Rufname').textContent).not.toContain(titel)
+    expect(feld('v1').closest('.wz-formularfeld')?.textContent).not.toContain(titel)
+  })
+
+  // Herkunft: profil-namen-rufname-verdopplung.test.tsx „leert die Eingaben erst nach erfolgreichem Anlegen,
+  // nicht schon beim Absenden" (U-130-rufname-doppelt). Im Modal: scheitert Übernehmen, bleibt es offen und
+  // der Entwurf zum Korrigieren stehen.
+  it('11c-2: scheitert das Übernehmen einer neuen Form, bleiben Modal und Eingaben stehen', () => {
+    scheitertMit.set('useNamensformUebernehmen', { code: 'NICHT_GEFUNDEN_PERSON', textSchluessel: 'NICHT_GEFUNDEN_PERSON.titel', vorgangsId: 'v' })
+    zeige([], null)
+    eintippen(feld('leer-vorname'), 'Friedrich')
+    eintippen(feld('leer-nachname'), 'Gutnoff')
+    waehlen(auswahlIn('Rufname'), 'leer-vorname')
+    klicken(knopf('Übernehmen'))
+    expect(aufrufe).toEqual([
+      {
+        hook: 'useNamensformUebernehmen',
+        ein: expect.objectContaining({
+          formId: null,
+          teile: [
+            { art: 'vorname', wert: 'Friedrich', istRufname: true },
+            { art: 'nachname', wert: 'Gutnoff', istRufname: false },
+          ],
+        }),
+      },
+    ])
+    expect(geschlossen).toBe(0)
+    expect(feld('leer-vorname').value).toBe('Friedrich')
+    expect(feld('leer-nachname').value).toBe('Gutnoff')
+    expect(auswahlIn('Rufname').value).toBe('leer-vorname')
+  })
+
+  // Herkunft: profil-bearbeiten-namen.test.tsx „leeres Formular: Hinzufügen ist gesperrt" und
+  // „nur Leerzeichen zählt NICHT als Inhalt" (kein leerer Name anlegbar).
+  it('11c-2: eine neue Form ohne Inhalt (auch nur Leerraum) lässt sich nicht übernehmen', () => {
+    zeige([], null)
+    expect(knopf('Übernehmen').disabled).toBe(true)
+    eintippen(feld('leer-vorname'), '   ')
+    expect(knopf('Übernehmen').disabled).toBe(true)
+    klicken(knopf('Übernehmen'))
+    expect(aufrufe).toEqual([])
+    expect(geschlossen).toBe(0)
+    eintippen(feld('leer-nachname'), 'Gutnoff')
+    expect(knopf('Übernehmen').disabled).toBe(false)
+  })
+
+  // Herkunft: profil-namen-rufname-auswahl.test.tsx „bestehende Zeile: Rufname ist eine Auswahl aus den
+  // Vornamen, der markierte ist gewählt".
+  it('11c-2: der Rufname ist eine Auswahl aus den Vornamen + „nicht angegeben", der markierte ist gewählt', () => {
+    zeige([KARL_FRIEDRICH])
+    const rufname = auswahlIn('Rufname')
+    expect(Array.from(rufname.options).map((option) => option.textContent)).toEqual(['nicht angegeben', 'Karl', 'Friedrich'])
+    expect(rufname.value).toBe('v2')
+  })
+
+  // Herkunft: autosave-auswahl-sofort.test.tsx, describe „Reiter Namen" (Namenstyp bzw. Rufname wählen, sofort
+  // tippen, Echo kommt: der Anschlag bleibt; ohne Echo genau EIN Schreibvorgang). Im Modal gibt es keine
+  // Zwischenstände: Auswahl und Anschlag schreiben nichts, auch nach der Debounce-Frist nicht; ein Nachladen mit
+  // gleichem Inhalt verdrängt weder Auswahl noch Anschlag; Übernehmen schreibt beides in genau einem Aufruf.
+  it('11c-2: Auswahl und Anschlag schreiben keinen Zwischenstand, ein Nachladen verdrängt sie nicht, Übernehmen genau einmal', () => {
+    vi.useFakeTimers()
+    zeige([KARL_FRIEDRICH])
+    waehlen(auswahlIn('Namenstyp'), 'ehename')
+    waehlen(auswahlIn('Rufname'), 'v1')
+    eintippen(feld('n1'), 'Gutnoffx')
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS * 3)
+    })
+    expect(aufrufe).toEqual([])
+    // Fremdes Nachladen (neue Referenz, gleicher Inhalt), wie nach einem unabhängigen Schreibvorgang.
+    zeige([{ ...KARL_FRIEDRICH, teile: KARL_FRIEDRICH.teile.map((eintrag) => ({ ...eintrag })) }])
+    expect(auswahlIn('Namenstyp').value).toBe('ehename')
+    expect(auswahlIn('Rufname').value).toBe('v1')
+    expect(feld('n1').value).toBe('Gutnoffx')
+    expect(hinweis()).toBeNull()
+    klicken(knopf('Übernehmen'))
+    expect(aufrufe).toEqual([
+      {
+        hook: 'useNamensformUebernehmen',
+        ein: {
+          personId: 'p1',
+          formId: 'f1',
+          kopf: { rolle: 'ehename' },
+          teile: [
+            { id: 'v1', art: 'vorname', wert: 'Karl', istRufname: true },
+            { id: 'v2', art: 'vorname', wert: 'Friedrich', istRufname: false },
+            { id: 'n1', art: 'nachname', wert: 'Gutnoffx', istRufname: false },
+          ],
+        },
+      },
+    ])
+    expect(geschlossen).toBe(1)
   })
 })

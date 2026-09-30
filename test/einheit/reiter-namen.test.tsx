@@ -33,13 +33,15 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
     Object.keys(original).map((name) => [
       name,
       () => ({
-        mutate: (ein: unknown, optionen?: { readonly onError?: (fehler: unknown) => void }) => {
+        mutate: (ein: unknown, optionen?: { readonly onError?: (fehler: unknown) => void; readonly onSuccess?: () => void }) => {
           aufrufe.push({ hook: name, ein })
           if (gehalten.halten) {
             if (optionen?.onError !== undefined) gehalten.offen.push(optionen.onError)
             return
           }
           if (scheitert.has(name)) optionen?.onError?.({ code: 'NICHT_GEFUNDEN_NAME', textSchluessel: 'NICHT_GEFUNDEN_NAME', vorgangsId: 'v' })
+          // PR 11c-2: ein erfolgreiches Übernehmen schließt das Modal (onSuccess).
+          else optionen?.onSuccess?.()
         },
         isPending: false,
         isSuccess: false,
@@ -273,5 +275,78 @@ describe('ReiterNamen', () => {
     zeige([HAUPT])
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(document.querySelector('[role="status"]')?.textContent).toContain('gibt es nicht mehr')
+  })
+
+  // -------------------------------------------------------------------------------------------------
+  // AP-1.30 PR 11c-2 (A-02): Zusicherungen der flachen Maske `NamenBearbeitenAbschnitt`, die fachlich für
+  // den Reiter weiter gelten (Inventar docs/80 §33 V-130-11c-2). Je Test die Herkunft im Kommentar.
+  // -------------------------------------------------------------------------------------------------
+
+  // Herkunft: profil-bearbeiten-namen.test.tsx „ohne Namen: zeigt den Leerzustandstext, KEINE Liste".
+  it('11c-2: ohne Namensform zeigt der Reiter den Leerzustand und keine Liste', () => {
+    zeige([])
+    expect(document.body.textContent).toContain('Noch keine Namensform erfasst.')
+    expect(document.querySelector('.wz-reiter-namen__liste')).toBeNull()
+    expect(karten()).toHaveLength(0)
+  })
+
+  // Herkunft: profil-bearbeiten-namen.test.tsx „… Name entfernen-Schaltfläche": Löschen läuft über den Baustein
+  // `Schaltflaeche` (Trefferfläche ≥ 32×32 dort geprüft, `trefferflaeche.test.ts`), kein selbstgebauter Knopf.
+  it('11c-2: die Kartenaktionen sind der Baustein Schaltflaeche (Trefferfläche), „Entfernen" in der Variante gefährlich', () => {
+    zeige([HAUPT, RUSSISCH])
+    for (const karte of karten()) {
+      const knoepfe = Array.from(karte.querySelectorAll('button'))
+      expect(knoepfe.length).toBeGreaterThan(0)
+      for (const knopf of knoepfe) expect(knopf.classList.contains('wz-schaltflaeche')).toBe(true)
+      expect(knopfIn(karte, 'Entfernen')?.classList.contains('wz-schaltflaeche--gefaehrlich')).toBe(true)
+    }
+  })
+
+  // Herkunft: profil-bearbeiten-namen-rerender.test.tsx (Bugfix AP-1.15 PR-A): ein Rerender mit einer neuen,
+  // inhaltsgleichen namen-Liste (Nachladen nach einem unabhängigen Schreibvorgang) löst keine Render-Schleife
+  // aus und keinen Phantom-Schreibvorgang — hier mit offenem Modal, das die Form von außen vergleicht.
+  it('11c-2: neue, inhaltsgleiche namen-Liste bei offenem Modal: keine Render-Schleife, kein Schreiben, Werte bleiben', () => {
+    const frisch = (): readonly PersonDetailName[] => [{ ...HAUPT, teile: HAUPT.teile.map((eintrag) => ({ ...eintrag })) }]
+    zeige(frisch())
+    klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Bearbeiten'))
+    expect(() => zeige(frisch())).not.toThrow()
+    expect(() => zeige(frisch())).not.toThrow()
+    expect(document.querySelector<HTMLInputElement>('#namensform-teil-t3')?.value).toBe('Gutnoff')
+    expect(document.querySelector<HTMLInputElement>('#namensform-teil-t1')?.value).toBe('Karl')
+    expect(document.querySelector('.wz-namensform-modal__hinweis')).toBeNull()
+    expect(aufrufe).toEqual([])
+  })
+
+  // Herkunft: profil-bearbeiten-namen.test.tsx „kein Farbliteral im Markup (Token-Vertrag)" und „jeder sichtbare
+  // Text kommt aus i18n (Stichprobe)" — für Karten und Modal.
+  it('11c-2: Karten und Modal ohne Farbliteral; Beschriftungen kommen aus i18n', () => {
+    zeige([HAUPT, UMSCHRIFT])
+    klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Bearbeiten'))
+    const markup = document.body.innerHTML
+    expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(markup).not.toMatch(/rgb\(/)
+    expect(document.querySelector('.wz-reiter-namen__kopf h2')?.textContent).toBe('Namensformen')
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Vorname 1')
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Rufname')
+  })
+
+  // Herkunft: profil-namen-rufname-verdopplung.test.tsx „nach erfolgreichem Anlegen ist das Formular wieder leer".
+  // Im Reiter: erfolgreiches Übernehmen schließt das Modal; „+ Namensform" beginnt danach leer.
+  it('11c-2: nach erfolgreichem Übernehmen einer neuen Form ist das Modal zu, das nächste beginnt leer', () => {
+    zeige([HAUPT])
+    klicken(knopfIn(document, '+ Namensform'))
+    const vorname = document.querySelector<HTMLInputElement>('#namensform-teil-leer-vorname')
+    if (vorname === null) throw new Error('Vornamefeld fehlt')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (setter === undefined) throw new Error('kein nativer value-Setter')
+    act(() => {
+      setter.call(vorname, 'Fritz')
+      vorname.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    klicken(knopfIn(document, 'Übernehmen'))
+    expect(aufrufe).toEqual([expect.objectContaining({ hook: 'useNamensformUebernehmen' })])
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    klicken(knopfIn(document, '+ Namensform'))
+    expect(document.querySelector<HTMLInputElement>('#namensform-teil-leer-vorname')?.value).toBe('')
   })
 })
