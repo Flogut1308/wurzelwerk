@@ -260,6 +260,7 @@
   "lebensdatum_ort_datum_hinweis": "An dieser Ortsangabe steht ein Datum ({{datum}}). Es bleibt erhalten, wenn der Ort geändert wird.",
   "lebensdatum_ort_datum_entfernen": "Datum entfernen",
   "lebensdatum_fehler": "{{titel}} – {{was_tun}}",
+  "name_fehler": "{{titel}} – {{was_tun}}",
 
   "notiz_beschriftung": "Notiz",
 

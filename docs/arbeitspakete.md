@@ -1063,7 +1063,7 @@ Textfassung des Berichts (Serialisierung in `bericht.ts`, **ohne** Speicherdialo
 **Abnahme**
 - **Der Trockenlauf ist der echte Import in einer Transaktion mit `ROLLBACK`** — kein zweiter Codeweg, kein `journalAus()` (Vorentscheidung). Der Bericht entsteht aus den `aenderung`-Zeilen, die geschrieben worden wären.
 - Bericht enthält alle sieben Blöcke aus `56_Import_Vertrag.md` §6.2, in dieser Reihenfolge und mit den dort genannten Eigenschaften — insbesondere: die **Art der Rücknahme** steht oben, „wird ergänzt" listet jede einzelne Änderung, unverarbeitetes Material ist ein eigener Block (auch wenn leer), der Gesundheitsblock nennt die Exportsperre.
-- Stufe 3 (IMP-301 bis IMP-310) und Stufe 4 (IMP-401 bis IMP-404) laufen und erscheinen als Hinweise.
+- Stufe 3 (IMP-301 bis IMP-310; IMP-311 nachgetragen 30.09.2026, AP-1.30, `80` §33 U-130-rufname-doppelt) und Stufe 4 (IMP-401 bis IMP-404) laufen und erscheinen als Hinweise.
 - Prüfsumme wird gegen `import_lauf` geprüft: bekannte Prüfsumme → deutlicher Warnhinweis „schon importiert am …".
 - Der Bericht ist als **Text** erzeugbar (der Rückweg zum Skill); das Schreiben der Datei über einen Dialog ist 1.4b.
 - Das Urteil „Importieren gesperrt bei Fehlern > 0" liegt als **Feld des Berichts** vor, damit 1.4b nur noch anzeigen muss.

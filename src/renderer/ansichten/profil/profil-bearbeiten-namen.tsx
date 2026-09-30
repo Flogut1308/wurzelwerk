@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import { NameTypEnum, SchriftEnum } from '../../../shared/schemata/name'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
@@ -108,8 +109,13 @@ interface NamenFelderProps {
  * (`test/einheit/profil-bearbeiten-namen-rerender.test.tsx`). */
 function NamenFelder({ name }: NamenFelderProps) {
   const { t } = useTranslation('profil')
+  const { t: tFehler } = useTranslation('fehler')
   const nameAendern = useNameAendern()
   const nameLoeschen = useNameLoeschen()
+  // hueter #184 P2: eine abgewiesene Rufname-Verdopplung (`VALIDIERUNG_RUFNAME_VERDOPPELT`, z. B. an
+  // einer Altform nach einer Vornamen-Änderung) steht mit titel/was_tun am Rufname-Feld der Zeile.
+  // Andere Fehler zeigt die Zeile wie bisher nur über den allgemeinen Speicherstatus.
+  const zeilenFehler = namenFehler(nameAendern.error ?? null, t, tFehler).amRufnamen
 
   const wert = useMemo(() => namenEintragAusPersonDetailName(name), [name])
   // AP-1.30 PR 4: `feld` nennt das eine geänderte Feld gegenüber dem zuletzt gelesenen Stand (`wert`)
@@ -138,7 +144,7 @@ function NamenFelder({ name }: NamenFelderProps) {
       <Formularfeld beschriftung={t('name_nachname_beschriftung')}>
         <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} aufVerlassen={sofortSchreiben} />
       </Formularfeld>
-      <Formularfeld beschriftung={t('name_rufname_beschriftung')}>
+      <Formularfeld beschriftung={t('name_rufname_beschriftung')} {...zeilenFehler}>
         <Auswahlfeld
           wert={rufnameAuswahlWert(eintrag)}
           optionen={rufnameOptionen(t, eintrag)}
@@ -161,16 +167,39 @@ function NamenFelder({ name }: NamenFelderProps) {
   )
 }
 
+interface NamenFehler {
+  readonly amVornamen: { readonly fehlertext?: string }
+  readonly amRufnamen: { readonly fehlertext?: string }
+}
+
+/** Fehler von `name.anlegen`/`name.aendern` mit Titel UND Handlungsanweisung (`name_fehler` aus
+ * `.titel`/`.was_tun`; dasselbe Muster wie `reiter-person-hauptname.tsx`). Die Rufname-Verdopplung
+ * gehört ans Rufname-Feld, jeder andere Fehler an die Vornamen (erstes Namensfeld). Angezeigt wird
+ * über die `Formularfeld`-Metazeile (`aria-live="polite"`). */
+function namenFehler(
+  fehler: AppFehler | null,
+  t: (schluessel: string, werte: Readonly<Record<string, string>>) => string,
+  tFehler: (schluessel: string) => string,
+): NamenFehler {
+  if (fehler === null) return { amVornamen: {}, amRufnamen: {} }
+  const fehlertext = t('name_fehler', { titel: tFehler(`${fehler.code}.titel`), was_tun: tFehler(`${fehler.code}.was_tun`) })
+  return fehler.code === 'VALIDIERUNG_RUFNAME_VERDOPPELT' ? { amVornamen: {}, amRufnamen: { fehlertext } } : { amVornamen: { fehlertext }, amRufnamen: {} }
+}
+
 function NamenNeuFormular({ personId }: { readonly personId: string }) {
   const { t } = useTranslation('profil')
+  const { t: tFehler } = useTranslation('fehler')
   const nameAnlegen = useNameAnlegen()
   const [eintrag, setEintrag] = useState<NamenEintragWerte>(NAMEN_EINTRAG_LEER)
+  const fehler = namenFehler(nameAnlegen.error ?? null, t, tFehler)
 
+  // U-130-rufname-doppelt (docs/80 §33): geleert wird erst nach erfolgreichem Anlegen — weist
+  // `name.anlegen` die Eingabe ab (z. B. `VALIDIERUNG_RUFNAME_VERDOPPELT`), bleibt sie zum Korrigieren
+  // stehen, statt mit der Meldung zusammen zu verschwinden.
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault()
     if (!namenEintragHatInhalt(eintrag)) return
-    nameAnlegen.mutate(nameAnlegenEinAusEintrag(personId, eintrag))
-    setEintrag(NAMEN_EINTRAG_LEER)
+    nameAnlegen.mutate(nameAnlegenEinAusEintrag(personId, eintrag), { onSuccess: () => setEintrag(NAMEN_EINTRAG_LEER) })
   }
 
   return (
@@ -189,13 +218,13 @@ function NamenNeuFormular({ personId }: { readonly personId: string }) {
             aufAenderung={(wert) => setEintrag({ ...eintrag, schrift: auswahlWertZuSchrift(wert) })}
           />
         </Formularfeld>
-        <Formularfeld beschriftung={t('name_vornamen_beschriftung')}>
+        <Formularfeld beschriftung={t('name_vornamen_beschriftung')} {...fehler.amVornamen}>
           <Textfeld wert={eintrag.vornamen} aufAenderung={(wert) => setEintrag({ ...eintrag, vornamen: wert })} />
         </Formularfeld>
         <Formularfeld beschriftung={t('name_nachname_beschriftung')}>
           <Textfeld wert={eintrag.nachname} aufAenderung={(wert) => setEintrag({ ...eintrag, nachname: wert })} />
         </Formularfeld>
-        <Formularfeld beschriftung={t('name_rufname_beschriftung')}>
+        <Formularfeld beschriftung={t('name_rufname_beschriftung')} {...fehler.amRufnamen}>
           <Textfeld wert={eintrag.rufname} aufAenderung={(wert) => setEintrag({ ...eintrag, rufname: wert })} />
         </Formularfeld>
         <Formularfeld beschriftung={t('name_praefix_beschriftung')}>

@@ -8,6 +8,7 @@ import { datensatzExistiert, type Tx } from '../repositories/basis'
 import * as nameRepo from '../repositories/name-repo'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import { neueId } from '../id'
+import { rufnameWuerdeVerdoppelt } from '../../core/name/rufname-verdopplung'
 
 export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string } {
   if (!datensatzExistiert(tx, 'person', ein.personId)) {
@@ -21,6 +22,14 @@ export function nameAnlegen(tx: Tx, ein: NameAnlegenEin): { readonly id: string 
   // die flache `name`-Zeile.
   if (ein.umschriftVon !== undefined && !datensatzExistiert(tx, 'name_form', ein.umschriftVon)) {
     throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+  }
+
+  // U-130-rufname-doppelt (docs/80 §33): ein mehrwortiger Rufname, der schon als Wortfolge in den
+  // Vornamen steht, würde von `zerlegeName` (Regel 3) ein zweites Mal angehängt („Hans Peter Hans
+  // Peter"). Abgewiesen VOR jedem Schreiben — der Bus verwirft die leere Transaktion, kein Journal.
+  // Die Meldung trägt keinen Namensinhalt (CLAUDE.md §7).
+  if (rufnameWuerdeVerdoppelt({ vornamen: ein.vornamen, rufnameIndex: ein.rufnameIndex, rufnameText: ein.rufnameText })) {
+    throw new WurzelFehler('VALIDIERUNG_RUFNAME_VERDOPPELT', 'Mehrwortiger Rufname steht bereits als Wortfolge in den Vornamen (ohne gültigen rufnameIndex).')
   }
 
   const id = neueId()

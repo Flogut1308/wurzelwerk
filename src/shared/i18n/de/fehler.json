@@ -19,6 +19,10 @@
     "titel": "Hier gehört ein Ort hin",
     "was_tun": "Einen Ort aus der Ortsliste wählen oder den Ort als Text eingeben. Eine Zahl oder ein Datum ist kein Ort."
   },
+  "VALIDIERUNG_RUFNAME_VERDOPPELT": {
+    "titel": "Dieser Rufname steht schon in den Vornamen",
+    "was_tun": "Einen der Vornamen als Rufnamen wählen – einen einzelnen Vornamen eingeben oder das Feld leer lassen und den Rufnamen danach in der Namenszeile auswählen. Mehrteilige Rufnamen sind noch nicht vorgesehen."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."
