@@ -205,7 +205,7 @@ function istArray(wert: unknown): wert is readonly unknown[] {
 }
 
 // -------------------------------------------------------------------------------------------
-// Stufe 2 — Referenzen und Struktur (§4 IMP-201…IMP-209, AP-1.3b)
+// Stufe 2 — Referenzen und Struktur (§4 IMP-201…IMP-210, AP-1.3b)
 // -------------------------------------------------------------------------------------------
 
 type Segment = string | number
@@ -486,7 +486,7 @@ function pruefeDoppelteBeteiligung(datei: ImportDatei): readonly Befund[] {
 /**
  * `umschrift_von` (§3.3, A-19): der Index des Originals im `namen`-Array DERSELBEN Person. Das Schema
  * prüft nur `integer, minimum 0`; was nur mit Blick auf das ganze Array entscheidbar ist, prüft diese
- * Stufe. IMP-104 („Wert außerhalb des zulässigen Bereichs") je Verletzung, Pfad auf das Feld:
+ * Stufe. IMP-210 je Verletzung, Pfad auf das Feld:
  *  - Index außerhalb des Arrays (sonst ginge der Bezug still verloren);
  *  - Selbstbezug (eine Form ist nie ihre eigene Umschrift, wie `umschriftBezugPruefen` im Befehl);
  *  - Kreis über mehrere Formen — EIN Befund je Kreis, am kleinsten Index des Kreises. Eine Form, die
@@ -505,8 +505,10 @@ function pruefeUmschriftBezuege(personen: ImportDatei['personen']): readonly Bef
     namen.forEach((name, j) => {
       const von = name.umschrift_von
       if (von === undefined) return
+      // `von === j` steht nur der Klarheit halber hier: die Kreiserkennung unten fände den
+      // Selbstbezug als Kreis der Länge 1 ohnehin (gleicher Code, gleicher Pfad).
       if (von >= namen.length || von === j) {
-        befunde.push(befund('IMP-104', feld(j), person.id))
+        befunde.push(befund('IMP-210', feld(j), person.id))
       } else {
         gueltig.add(j)
       }
@@ -521,7 +523,7 @@ function pruefeUmschriftBezuege(personen: ImportDatei['personen']): readonly Bef
       }
       if (aktuell !== undefined && kette.includes(aktuell)) {
         const kreis = kette.slice(kette.indexOf(aktuell))
-        befunde.push(befund('IMP-104', feld(Math.min(...kreis)), person.id))
+        befunde.push(befund('IMP-210', feld(Math.min(...kreis)), person.id))
       }
       for (const j of kette) erledigt.add(j)
     }
@@ -530,7 +532,7 @@ function pruefeUmschriftBezuege(personen: ImportDatei['personen']): readonly Bef
 }
 
 /**
- * Stufe 2 des Import-Vertrags (§4 IMP-201…IMP-209): Referenz- und Strukturprüfung über die
+ * Stufe 2 des Import-Vertrags (§4 IMP-201…IMP-210): Referenz- und Strukturprüfung über die
  * TYPISIERTE Struktur (aus `pruefeStufe1` bzw. `Stufe1Ergebnis.daten`) — bewusst kein Regex auf
  * dem Rohtext (§4 „Umsetzungsdetail, das leicht falsch gemacht wird"). Läuft nur, wenn Stufe 1
  * akzeptiert hat (Aufrufer: `pruefeImport`). Dedupliziert nach `code|pfad`, damit eine einzelne

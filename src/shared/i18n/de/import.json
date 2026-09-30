@@ -80,6 +80,11 @@
       "beschreibung": "beteiligte bzw. beteiligungen verweist an der genannten Stelle zweimal auf dieselbe Person.",
       "was_tun": "Die doppelte Beteiligung entfernen, oder — falls die Person tatsächlich zwei verschiedene Rollen im selben Ereignis/derselben Partnerschaft hatte — prüfen, ob stattdessen zwei getrennte Einträge mit unterschiedlichen Rollen gemeint sind."
     },
+    "IMP_210": {
+      "titel": "umschrift_von zeigt ins Leere, auf sich selbst oder im Kreis",
+      "beschreibung": "Der Index in umschrift_von liegt außerhalb der Namen dieser Person, zeigt auf denselben Namenseintrag oder bildet mit anderen Umschriften einen Kreis (a ist Umschrift von b, b von a).",
+      "was_tun": "umschrift_von muss auf eine andere Namensform derselben Person zeigen (0-basierter Index in ihrem namen-Array); Selbstbezug und Kreise sind nicht erlaubt. Den Index prüfen und auf das Original setzen, oder umschrift_von samt umschrift_norm entfernen, wenn der Eintrag keine Umschrift ist."
+    },
     "IMP_301": {
       "titel": "Tod vor Geburt, Bestattung vor Tod oder Ehe vor Geburt",
       "beschreibung": "Die zeitliche Reihenfolge zweier Ereignisse derselben Person (oder Partnerschaft) ist nicht plausibel: ein Sterbedatum liegt vor dem Geburtsdatum, eine Bestattung vor dem Tod, oder eine Ehe beginnt vor der Geburt eines Beteiligten.",

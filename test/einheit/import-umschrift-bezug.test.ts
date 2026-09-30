@@ -7,7 +7,7 @@
 //  3. ein Vorwärtsbezug (Umschrift steht vor ihrem Original) brach den ganzen Import mit
 //     `FOREIGN KEY constraint failed` ab, obwohl der Vertrag keine Reihenfolge vorschreibt;
 //  4. ein Kreis (a→b, b→a) war über 3 unerreichbar, wird mit dem Fix von 3 erreichbar.
-// Erwartet: 1, 2 und 4 → Stufe-2-Befund IMP-104 am Pfad `personen[i].namen[j].umschrift_von`, nichts
+// Erwartet: 1, 2 und 4 → Stufe-2-Befund IMP-210 (eigener Stufe-2-Code, Review #211 H1/H2) am Pfad `personen[i].namen[j].umschrift_von`, nichts
 // geschrieben, Trockenlauf == echter Import; 3 wird importiert, Bezug und Reihenfolge wie in der Datei,
 // abgeleitete Tabellen gleich dem Neuaufbau, FTS5 `integrity-check` ok, FTS-Spaltensumme = docsize.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -35,13 +35,21 @@ import { sucheFtsInhaltAbzug, verwaisteFtsEintraegeAnzahl } from './_hilfen-abge
 type Db = ReturnType<typeof oeffnen>
 type NameEintrag = Readonly<Record<string, unknown>>
 
-function importDatei(namen: readonly NameEintrag[]): unknown {
+/** Eine Importdatei mit je einer Person `tmp:p1`, `tmp:p2`, … pro Namensliste. */
+function importDatei(...namenJePerson: readonly (readonly NameEintrag[])[]): unknown {
   return {
     vertrag: 'wurzelwerk-import/v1',
     erzeugt: { am: '2026-09-30', werkzeug: 'test' },
-    zusammenfassung: { personen: 1, notizen_unverarbeitet: 0 },
+    zusammenfassung: { personen: namenJePerson.length, notizen_unverarbeitet: 0 },
     quellen: [{ id: 'tmp:q1', typ: 'sonstiges', titel: 'Testquelle Umschrift' }],
-    personen: [{ id: 'tmp:p1', geschlecht: 'F', lebend_status: 'verstorben', namen, konfidenz: 4, belege: [{ quelle: 'tmp:q1', konfidenz: 4 }] }],
+    personen: namenJePerson.map((namen, i) => ({
+      id: `tmp:p${i + 1}`,
+      geschlecht: 'F',
+      lebend_status: 'verstorben',
+      namen,
+      konfidenz: 4,
+      belege: [{ quelle: 'tmp:q1', konfidenz: 4 }],
+    })),
     notizen_unverarbeitet: [],
   }
 }
@@ -142,9 +150,13 @@ describe('Import: Validierung und Schreibfolge von umschrift_von (A-19)', () => 
   })
 
   /** Trockenlauf auf Datenbank A, echter Import auf Datenbank B (beide frisch); `pruefe` sieht B danach. */
-  function importiere(namen: readonly NameEintrag[], pruefe: (db: Db, trocken: Trockenlaufbericht, echt: Trockenlaufbericht, vorher: string) => void): void {
+  function importiere(
+    namen: readonly NameEintrag[],
+    pruefe: (db: Db, trocken: Trockenlaufbericht, echt: Trockenlaufbericht, vorher: string) => void,
+    datei: unknown = importDatei(namen),
+  ): void {
     const pfad = join(ordnerA, 'import.json')
-    writeFileSync(pfad, JSON.stringify(importDatei(namen), null, 2), 'utf8')
+    writeFileSync(pfad, JSON.stringify(datei, null, 2), 'utf8')
     const dbA = oeffnen(join(ordnerA, 'baum.sqlite'))
     const dbB = oeffnen(join(ordnerB, 'baum.sqlite'))
     try {
@@ -160,34 +172,75 @@ describe('Import: Validierung und Schreibfolge von umschrift_von (A-19)', () => 
     }
   }
 
-  function erwarteAbgewiesen(namen: readonly NameEintrag[], pfade: readonly string[]): void {
-    importiere(namen, (db, trocken, echt) => {
-      expect(trocken.importGesperrt).toBe(true)
-      expect(trocken.fehler.map((befund) => [befund.code, befund.pfad, befund.kennung])).toEqual(pfade.map((pfad) => ['IMP-104', pfad, 'tmp:p1']))
-      for (const befund of trocken.fehler) expect(befund.zeile).toBeGreaterThan(0)
-      expect(echt).toEqual(trocken)
-      expect([zaehle(db, 'person'), zaehle(db, 'name_form'), zaehle(db, 'name_part'), zaehle(db, 'transaktion'), zaehle(db, 'aenderung')]).toEqual([0, 0, 0, 0, 0])
-    })
+  function erwarteAbgewiesen(namen: readonly NameEintrag[], pfade: readonly string[], datei?: unknown, kennung = 'tmp:p1'): void {
+    importiere(
+      namen,
+      (db, trocken, echt) => {
+        expect(trocken.importGesperrt).toBe(true)
+        expect(trocken.fehler.map((befund) => [befund.code, befund.pfad, befund.kennung])).toEqual(pfade.map((pfad) => ['IMP-210', pfad, kennung]))
+        for (const befund of trocken.fehler) expect(befund.zeile).toBeGreaterThan(0)
+        expect(echt).toEqual(trocken)
+        expect([zaehle(db, 'person'), zaehle(db, 'name_form'), zaehle(db, 'name_part'), zaehle(db, 'transaktion'), zaehle(db, 'aenderung')]).toEqual([0, 0, 0, 0, 0])
+      },
+      datei ?? importDatei(namen),
+    )
   }
 
-  it('Selbstbezug → IMP-104 an personen[0].namen[1].umschrift_von, nichts geschrieben, Trockenlauf == Import', () => {
+  it('Selbstbezug → IMP-210 an personen[0].namen[1].umschrift_von, nichts geschrieben, Trockenlauf == Import', () => {
     erwarteAbgewiesen([ORIGINAL, umschrift(1)], ['personen[0].namen[1].umschrift_von'])
   })
 
-  it('Selbstbezug an einer einzigen Form → IMP-104', () => {
+  it('Selbstbezug an einer einzigen Form → IMP-210', () => {
     erwarteAbgewiesen([{ ...umschrift(0), ist_bevorzugt: true }], ['personen[0].namen[0].umschrift_von'])
   })
 
-  it('Index außerhalb des namen-Arrays → IMP-104 statt stillem NULL', () => {
+  it('Index außerhalb des namen-Arrays → IMP-210 statt stillem NULL', () => {
     erwarteAbgewiesen([ORIGINAL, umschrift(2)], ['personen[0].namen[1].umschrift_von'])
   })
 
-  it('Kreis a→b, b→a → genau ein IMP-104 (am kleinsten Index des Kreises)', () => {
+  it('Kreis a→b, b→a → genau ein IMP-210 (am kleinsten Index des Kreises)', () => {
     erwarteAbgewiesen([{ ...ORIGINAL, umschrift_von: 1, umschrift_norm: 'manuell' }, umschrift(0)], ['personen[0].namen[0].umschrift_von'])
   })
 
-  it('Kreis über drei Formen, dazu eine Form, die in den Kreis zeigt → ein IMP-104 je Kreis', () => {
+  it('Kreis über drei Formen, dazu eine Form, die in den Kreis zeigt → ein IMP-210 je Kreis', () => {
     erwarteAbgewiesen([umschrift(1, 'A a'), umschrift(2, 'B b'), umschrift(0, 'C c'), umschrift(1, 'D d'), ORIGINAL], ['personen[0].namen[0].umschrift_von'])
+  })
+
+  it('Kreis mit Einstieg ungleich Minimum [0→3, 1→2, 2→3, 3→1] → genau ein IMP-210 an namen[1] (Kreis {1,2,3})', () => {
+    // Die Kettensuche startet bei 0 und erreicht den Kreis über 3 — der erste Kreisindex der Kette ist
+    // 3, der kleinste 1. Tötet den Mutanten `kreis[0]` statt `Math.min(...kreis)` (Review #211 H3).
+    erwarteAbgewiesen([umschrift(3, 'A a'), umschrift(2, 'B b'), umschrift(3, 'C c'), umschrift(1, 'D d')], ['personen[0].namen[1].umschrift_von'])
+  })
+
+  it('Index nur im namen-Array einer ANDEREN Person gültig → IMP-210, kein personenübergreifender Bezug', () => {
+    // tmp:p1 hat zwei Namen, Index 2 gibt es nur bei tmp:p2 (drei Namen). Review #211 H6.
+    const p1 = [ORIGINAL, umschrift(2)]
+    const p2 = [{ typ: 'geburtsname', nachname: 'Petrowa', ist_bevorzugt: true }, { typ: 'ehename', nachname: 'Iwanowa' }, { typ: 'sonstiges', nachname: 'Smirnowa' }]
+    erwarteAbgewiesen(p1, ['personen[0].namen[1].umschrift_von'], importDatei(p1, p2))
+  })
+
+  it('Index im namen-Array der zweiten Person geprüft, nicht im Array der ersten', () => {
+    // Spiegelfall zu H6: tmp:p2 verweist auf Index 2, den nur tmp:p1 hat.
+    const p1 = [{ typ: 'geburtsname', nachname: 'Petrowa', ist_bevorzugt: true }, { typ: 'ehename', nachname: 'Iwanowa' }, { typ: 'sonstiges', nachname: 'Smirnowa' }]
+    const p2 = [ORIGINAL, umschrift(2)]
+    erwarteAbgewiesen(p2, ['personen[1].namen[1].umschrift_von'], importDatei(p1, p2), 'tmp:p2')
+  })
+
+  it('Schreibfolge: jedes Original vor seiner Umschrift, sonst Dateireihenfolge (Journal-Reihenfolge gepinnt)', () => {
+    // [0]→2, [1]→0, [2]→4, [3], [4], [5]→1: Kette ab 0 ist 0→2→4 (geschrieben 4, 2, 0), dann 1, 3, 5.
+    const namen = [umschrift(2, 'A a'), umschrift(0, 'B b'), umschrift(4, 'C c'), { typ: 'ehename', nachname: 'D', original_text: 'D' }, { ...ORIGINAL, original_text: 'E' }, umschrift(1, 'F f')]
+    importiere(namen, (db, trocken) => {
+      expect(trocken.fehler).toEqual([])
+      const folge = db
+        .prepare<[], { readonly original_text: string | null }>(
+          `SELECT json_extract(wert_neu_json, '$.original_text') AS original_text FROM aenderung WHERE tabelle = 'name_form' AND operation = 'insert' ORDER BY reihenfolge`,
+        )
+        .all()
+        .map((z) => z.original_text)
+      expect(folge).toEqual(['E', 'C c', 'A a', 'B b', 'D', 'F f'])
+      expect(formen(db).map((z) => z.original_text)).toEqual(['A a', 'B b', 'C c', 'D', 'E', 'F f'])
+      erwarteIndexIntakt(db)
+    })
   })
 
   it('Vorwärtsbezug wird importiert: Bezug, Reihenfolge und sortier_index wie in der Datei, Index intakt, Undo geht', () => {
