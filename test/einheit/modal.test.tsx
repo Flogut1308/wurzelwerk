@@ -17,6 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '../../src/renderer/i18n/einrichten'
 import { Modal } from '../../src/renderer/bausteine/modal'
 import { darfKontexttasteWirken } from '../../src/renderer/ansichten/profil/kontexttaste-logik'
+import { tabImContainerHalten } from '../../src/renderer/ansichten/profil/fokusfang'
+import { Seitenschublade } from '../../src/renderer/bausteine/seitenschublade'
 
 // React-19-Schalter für `act(...)` unter Vitest+jsdom (s. `profil-bearbeiten-debounce.test.tsx`).
 // `as` erweitert nur den Testprozess-globalThis-Typ um den React-eigenen Schalter.
@@ -301,5 +303,100 @@ describe('Modal (docs/71 §2.3, T-Dialog §2.4, AP-1.30 PR 11a)', () => {
       taste(element(container, 'abbrechen'), 'Escape')
     })
     expect(darfKontexttasteWirken(editor, document)).toBe(true)
+  })
+
+  // Nachreview #199 (Mutant H1b): hängt der Auslöser noch, gewinnt er — das Ersatzziel wird dann
+  // nicht einmal gefragt.
+  it('Auslöser hängt beim Schließen noch, Ersatzziel gesetzt: Fokus auf dem Auslöser, Ersatz nicht gefragt', () => {
+    const ersatzGefragt = vi.fn((): HTMLElement | null => element(container, 'ersatz'))
+    function HuelleAusloeserBleibt() {
+      const [offen, setOffen] = useState(false)
+      return (
+        <div>
+          <button type="button" data-testid="ersatz">
+            Namensform hinzufügen
+          </button>
+          <button type="button" data-testid="ausloeser" onClick={() => setOffen(true)}>
+            Bearbeiten
+          </button>
+          <Modal titel="Namensform bearbeiten" offen={offen} beiSchliessen={() => setOffen(false)} fokusNachSchliessen={ersatzGefragt}>
+            <input data-testid="sprache" aria-label="Sprache" />
+          </Modal>
+        </div>
+      )
+    }
+    act(() => root.render(<HuelleAusloeserBleibt />))
+    const ausloeser = element(container, 'ausloeser')
+    act(() => ausloeser.focus())
+    act(() => ausloeser.click())
+    expect(document.activeElement).toBe(element(container, 'sprache'))
+    act(() => {
+      taste(element(container, 'sprache'), 'Escape')
+    })
+    expect(document.activeElement).toBe(ausloeser)
+    expect(ersatzGefragt).not.toHaveBeenCalled()
+  })
+})
+
+// Nachreview #199 (Mutant V1f): `tabImContainerHalten` greift bei Fokus auf dem Container selbst —
+// bewusst NICHT bei jedem anderen Element mit `tabIndex < 0`. Minimaler Nachbau der
+// Profilüberlagerung: äußerer Fang, darin eine echte `Seitenschublade` (Container `tabIndex=-1`).
+describe('tabImContainerHalten — verschachtelter tabIndex=-1-Container (Review #199 V1)', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  function Ueberlagerung() {
+    const ref = useRef<HTMLDivElement | null>(null)
+    return (
+      <div ref={ref} role="dialog" aria-modal="true" aria-label="Profil" tabIndex={-1} data-testid="ueberlagerung" onKeyDown={(ereignis) => tabImContainerHalten(ereignis, ref.current)}>
+        <button type="button" data-testid="aussen-erstes">
+          Bearbeiten
+        </button>
+        <Seitenschublade titel="Beleg" aufSchliessen={() => {}}>
+          <button type="button" data-testid="schublade-knopf">
+            Zur Stelle
+          </button>
+        </Seitenschublade>
+        <button type="button" data-testid="aussen-letztes">
+          Schließen
+        </button>
+      </div>
+    )
+  }
+
+  it('Fokus auf dem Schubladen-Container: Tab wird vom äußeren Fang nicht umgelenkt', () => {
+    act(() => root.render(<Ueberlagerung />))
+    const schublade = container.querySelector<HTMLElement>('.wz-seitenschublade')
+    if (schublade === null) throw new Error('Seitenschublade fehlt')
+    act(() => schublade.focus())
+    expect(document.activeElement).toBe(schublade)
+
+    const vor = taste(schublade, 'Tab')
+    expect(vor.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(schublade)
+
+    const zurueck = taste(schublade, 'Tab', true)
+    expect(zurueck.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(schublade)
+  })
+
+  it('Gegenprobe: Fokus auf dem äußeren Container selbst wird gefangen', () => {
+    act(() => root.render(<Ueberlagerung />))
+    const ueberlagerung = element(container, 'ueberlagerung')
+    act(() => ueberlagerung.focus())
+    const zurueck = taste(ueberlagerung, 'Tab', true)
+    expect(zurueck.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(element(container, 'aussen-letztes'))
   })
 })
