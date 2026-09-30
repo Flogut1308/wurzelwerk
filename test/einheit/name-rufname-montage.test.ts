@@ -8,7 +8,7 @@
 //  - „Gutnoff" / „Karl Otto Gutnoff" / „Karl Gutnoff" galten als wortgetreu und folgten der Änderung nicht.
 // Der Test spielt die Schreibfolge der Maske über den echten Befehlsbus nach (lesen → Eintrag bauen →
 // Nachname ändern → `name.aendern`) und prüft den Kern direkt (Rundreise Montage ↔ Erkennung).
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
   protokollFehler: vi.fn(),
@@ -119,15 +119,32 @@ describe('mehrwortiger angehängter Rufname: original_text folgt der Nachnamenä
   })
 })
 
-// hueter #169 H2: festgestellt, nicht entschieden (Folgepunkt U-130-rufname-noop, docs/80 §33). Die
-// Maske schickt einen angehängten mehrwortigen Rufnamen als „Vornamen ohne ihn + rufnameText" zurück
-// (profil-bearbeiten-logik.ts, Review H1 #168); der Rohvergleich `unveraendert()` (name-aendern.ts)
-// sieht darum `vornamen` „Karl" ≠ gespeichert „Karl Hans Peter" und schreibt — auch nach der ersten
-// Änderung, wenn `original_text` schon die Teile-Montage ist. Inhaltlich bleibt alles gleich; es
-// entsteht aber ein eigener Journal-/Undo-Schritt. Der `original_text`-Teil dieses Vergleichs
-// (`effektiverOriginalText`) entscheidet dabei nichts: ohne gleiche `vornamen` ist nie ein No-op.
-describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen (U-130-rufname-montage, hueter #169 H2)', () => {
-  it('festgestellt, nicht entschieden: auch nach der ersten Änderung ist ein inhaltsgleiches name.aendern KEIN No-op (Inhalt bleibt gleich)', () => {
+// U-130-rufname-noop (docs/80 §33, hueter #169 H2): ein inhaltsgleiches `name.aendern` ist ein No-op —
+// keine Transaktion, keine Journalzeile, kein Undo-Schritt (AP-0.22). Die Maske schickt einen
+// angehängten mehrwortigen Rufnamen als „Vornamen ohne ihn + rufnameText" zurück
+// (profil-bearbeiten-logik.ts, Review H1 #168); verglichen wird darum die WIRKUNG (die Teile, die
+// `zerlegeName` schreiben würde), nicht die Rohfelder. Bis #169 hielten zwei Tests hier „+1
+// Transaktion" als festgestellt, nicht entschieden fest; diese Erwartung ist mit dem Fix bewusst
+// umgedreht (Verhaltensänderung nach Entscheidung, kein Abschwächen).
+function aenderungAnzahl(db: Db): number {
+  const zeile = db.prepare<[], { readonly anzahl: number }>('SELECT COUNT(*) AS anzahl FROM aenderung').get()
+  if (zeile === undefined) throw new Error('aenderungAnzahl(): COUNT(*) lieferte keine Zeile.')
+  return zeile.anzahl
+}
+
+interface KoaleszenzZeile {
+  readonly koaleszenz_schluessel: string | null
+}
+
+function schluesselListe(db: Db): readonly (string | null)[] {
+  return db
+    .prepare<[], KoaleszenzZeile>("SELECT koaleszenz_schluessel FROM transaktion WHERE status = 'angewendet' ORDER BY lfd")
+    .all()
+    .map((zeile) => zeile.koaleszenz_schluessel)
+}
+
+describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen ist ein No-op (U-130-rufname-noop)', () => {
+  it.fails('nach der ersten Änderung: keine Transaktion, keine Journalzeile, Inhalt gleich', () => {
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
@@ -136,36 +153,135 @@ describe('inhaltsgleiches name.aendern bei angehängtem mehrwortigem Rufnamen (U
       autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
       const vorher = gespeicherterName(db, personId, id)
       expect(vorher.original_text).toBe('Karl Hans Peter Gutnow')
-      const anzahlVorher = transaktionAnzahl(db)
+      const transaktionenVorher = transaktionAnzahl(db)
+      const aenderungenVorher = aenderungAnzahl(db)
 
       unveraendertSchreiben(db, personId, id)
 
-      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
+      expect(transaktionAnzahl(db)).toBe(transaktionenVorher)
+      expect(aenderungAnzahl(db)).toBe(aenderungenVorher)
       expect(gespeicherterName(db, personId, id)).toEqual(vorher)
     } finally {
       db.close()
     }
   })
 
-  it('festgestellt, nicht entschieden: bei noch unveränderter Anlege-Montage („Karl Gutnoff") ist ein inhaltsgleiches name.aendern KEIN No-op', () => {
-    // Das Anlegen montiert ohne den angehängten Rufnamen (im Prüfpfad festgeschrieben), das Ändern die
-    // Teile: der erste inhaltsgleiche Aufruf schreibt `original_text` neu — ein eigener Undo-Schritt.
-    // Entfällt mit Folgepunkt U-130-rufname-montage-anlegen.
+  it.fails('nach der ersten Änderung, Rohaufrufe ohne Maske (Text statt Index, überzähliger Leerraum): ebenfalls No-op', () => {
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+      autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+      const transaktionenVorher = transaktionAnzahl(db)
+
+      fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnow' })
+      fuehreAus(db, 'name.aendern', { id, typ: 'geburtsname', vornamen: '  Karl ', rufnameText: 'Hans Peter', nachname: 'Gutnow' })
+
+      expect(transaktionAnzahl(db)).toBe(transaktionenVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  it.fails('bei noch unveränderter Anlege-Montage („Karl Gutnoff"): No-op, original_text bleibt (Entscheidung U-130-rufname-noop)', () => {
+    // Die Anlege-Montage lässt den angehängten Rufnamen weg (im Prüfpfad festgeschrieben); sie ist eine
+    // AUTOMATISCHE Montage (`istMontierterOriginalText`, dieselbe Erkennung wie in der Maske) und folgt
+    // den Teilen erst bei einer echten Änderung. Ein inhaltsgleicher Aufruf schreibt sie nicht still um.
     const db = oeffnen(':memory:')
     migrieren(db)
     try {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
       const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
       expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Gutnoff')
-      const anzahlVorher = transaktionAnzahl(db)
+      const transaktionenVorher = transaktionAnzahl(db)
+      const aenderungenVorher = aenderungAnzahl(db)
 
       unveraendertSchreiben(db, personId, id)
 
-      expect(transaktionAnzahl(db)).toBe(anzahlVorher + 1)
-      expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Hans Peter Gutnoff')
+      expect(transaktionAnzahl(db)).toBe(transaktionenVorher)
+      expect(aenderungAnzahl(db)).toBe(aenderungenVorher)
+      expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Gutnoff')
     } finally {
       db.close()
     }
+  })
+
+  it.fails('Anlege-Montage mit überzähligem Leerraum („Karl  Otto Gutnoff"): inhaltsgleich ist No-op', () => {
+    const db = oeffnen(':memory:')
+    migrieren(db)
+    try {
+      const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+      const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl  Otto', nachname: 'Gutnoff' })
+      expect(gespeicherterName(db, personId, id).original_text).toBe('Karl  Otto Gutnoff')
+      const transaktionenVorher = transaktionAnzahl(db)
+
+      unveraendertSchreiben(db, personId, id)
+
+      expect(transaktionAnzahl(db)).toBe(transaktionenVorher)
+    } finally {
+      db.close()
+    }
+  })
+
+  describe('Koaleszenz', () => {
+    let jetzt = 1_790_000_000_000
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      jetzt = 1_790_000_000_000
+      vi.setSystemTime(jetzt)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+    function warte(ms: number): void {
+      jetzt += ms
+      vi.setSystemTime(jetzt)
+    }
+
+    it.fails('ein inhaltsgleicher Aufruf mitten in einer Autosave-Serie unterbricht das Koaleszenzfenster nicht', () => {
+      const db = oeffnen(':memory:')
+      migrieren(db)
+      try {
+        const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+        const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+        warte(5_000)
+        autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+        warte(5_000)
+        autosaveSchritt(db, personId, id, { nachname: 'Gutnau' })
+        const transaktionenNachZweitem = transaktionAnzahl(db)
+        warte(500)
+        // Inhaltsgleich, aber mit Feldangabe — so, wie ein Blur ohne Änderung aussehen kann.
+        const gelesen = namenEintragAusPersonDetailName(gespeicherterName(db, personId, id))
+        fuehreAus(db, 'name.aendern', nameAendernEinAusEintrag(id, gelesen, 'nachname'))
+        expect(transaktionAnzahl(db)).toBe(transaktionenNachZweitem)
+        warte(500)
+        autosaveSchritt(db, personId, id, { nachname: 'Gutnau-Meier' })
+
+        // Die zwei Nachnamen-Schritte im Fenster bilden EINEN Undo-Schritt.
+        expect(transaktionAnzahl(db)).toBe(transaktionenNachZweitem)
+        expect(schluesselListe(db).at(-1)).toBe(`name.aendern:${id}:nachname`)
+        expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Hans Peter Gutnau-Meier')
+      } finally {
+        db.close()
+      }
+    })
+
+    it.fails('die erste Nachnamenänderung einer Anlege-Montage trägt den Koaleszenzschlüssel (Montage folgt den Teilen, hueter #169 H3)', () => {
+      const db = oeffnen(':memory:')
+      migrieren(db)
+      try {
+        const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
+        const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
+        warte(5_000)
+        autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
+
+        expect(schluesselListe(db).at(-1)).toBe(`name.aendern:${id}:nachname`)
+        expect(gespeicherterName(db, personId, id).original_text).toBe('Karl Hans Peter Gutnow')
+      } finally {
+        db.close()
+      }
+    })
   })
 })
 
