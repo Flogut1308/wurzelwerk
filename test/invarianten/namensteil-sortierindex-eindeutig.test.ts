@@ -85,6 +85,7 @@ type Zaehlschluessel =
   | 'undo.namensteil_geloescht'
   | 'undo.namensteil_verschoben'
   | 'undo.rufname_gesetzt'
+  | 'undo.namensform_uebernommen'
 
 /** Gemessen mit `{ seed: SEED, numRuns: NUM_RUNS }` (AP-1.30 PR 10b): geprüfte Zustände 17565, davon mit
  * einer mehrteiligen Art 5029 bzw. mit einem Rufnamen 1194; Rücknahmen 6778, davon von `namensteil.anlegen`
@@ -98,6 +99,12 @@ const MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['undo.namensteil_geloescht', 33],
   ['undo.namensteil_verschoben', 29],
   ['undo.rufname_gesetzt', 61],
+  // AP-1.30 PR 11-0b (docs/80 §33 V-130-11-0b): seit `mitUebernehmen: true` auch Rücknahmen von
+  // `namensform.uebernehmen` (gemessen 420; der Wächter ist dabei scharf wie bei den granularen Befehlen).
+  // Nebenwirkungen: geprüfte Zustände 17565 → 18654, mit mehrteiliger Art 5029 → 6979, mit Rufname
+  // 1194 → 4330; Rücknahmen 6778 → 7202, davon `namensteil.anlegen` 593 → 577, `namensform.rufnameSetzen`
+  // 123 → 122; übrige unverändert.
+  ['undo.namensform_uebernommen', 210],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
@@ -144,6 +151,8 @@ function undoArt(beschreibung: string | null): Zaehlschluessel | undefined {
       return 'undo.namensteil_verschoben'
     case 'journal.rufname_gesetzt':
       return 'undo.rufname_gesetzt'
+    case 'journal.namensform_uebernommen':
+      return 'undo.namensform_uebernommen'
     default:
       return undefined
   }
@@ -159,7 +168,9 @@ describe('Invariante: sortier_index je (Form, Art) eindeutig, höchstens ein Ruf
 
   it('Befehlsfolgen mit den granularen Namensbefehlen und ihre vollständige Rücknahme', () => {
     fc.assert(
-      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitNamensteilen: true }), (folge) => {
+      // `mitUebernehmen` (AP-1.30 PR 11-0b): zusätzlich `namensform.uebernehmen` — der Wächter sieht so auch jeden
+      // Zwischenstand seiner Schrittfolge und ihrer Rücknahme (`befehlsfolge-uebernehmen-einflechtung.test.ts`).
+      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitNamensteilen: true, mitUebernehmen: true }), (folge) => {
         const db = frischeMigrierteDatenbank()
         try {
           waechterEinbauen(db)
