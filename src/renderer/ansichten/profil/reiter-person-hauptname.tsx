@@ -171,8 +171,9 @@ interface HauptnameFelderProps {
 
 /**
  * Die Felder des Hauptnamens als EIN Entwurf (`name.aendern` ersetzt die ganze Form). `useMemo`-Pflicht
- * wie `NamenFelder` (profil-bearbeiten-namen.tsx): der Debounce-Hook erkennt „von außen geändert" an der
- * Referenz — ein bei jedem Rendern neu gebautes Objekt ergäbe eine Render-Schleife.
+ * (Bugfix AP-1.15 PR-A an der früheren flachen Maske): der Debounce-Hook erkennt „von außen geändert" an der
+ * Referenz — ein bei jedem Rendern neu gebautes Objekt ergäbe eine Render-Schleife
+ * (`reiter-person-hauptname.test.tsx`, „keine Render-Schleife").
  */
 function HauptnameFelder({ personId, name, idPraefix, kurzbeschreibung }: HauptnameFelderProps) {
   const { t } = useTranslation('profil')

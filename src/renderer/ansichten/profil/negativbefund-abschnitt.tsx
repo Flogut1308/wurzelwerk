@@ -3,7 +3,7 @@
 // Auftrag). Personengebunden (`gesuchte_person_id` NOT NULL, docs/schema/0002_kern.sql §2.7) —
 // darum ein fester Abschnitt IM Profil, kein eigener globaler Screen (analog zum „Quelle
 // bearbeiten"-Einstieg am Belegapparat, AP-1.17 PR-C1). Zustandsbasiert wie
-// `NamenBearbeitenAbschnitt`/`quelle-bearbeiten.tsx`: eine Liste bestehender Negativbefunde, jeder
+// `quelle-bearbeiten.tsx` (und die bis AP-1.30 PR 11c-2 flache Namensmaske): eine Liste bestehender Negativbefunde, jeder
 // sofort über `befehl:negativbefund.aendern`/`.loeschen` bearbeitbar (Textfelder debounced über
 // `useEntwurfMitVerzoegertemCommit`, „Entfernen" sofort), plus ein festes „Negativbefund
 // hinzufügen"-Formular. KEIN Speichern-Knopf — jede Eingabe committet automatisch. KEIN zweiter
@@ -113,7 +113,7 @@ interface NegativbefundFelderProps {
 }
 
 /** Inline-Bearbeiten EINES bestehenden Negativbefunds — dieselbe Debounce-Commit-Form wie
- * `NamenFelder`/`ZitatFelder`: `befehl:negativbefund.aendern` patcht ALLE editierbaren Spalten in
+ * `ZitatFelder`/`OrtsnameFelder`:`befehl:negativbefund.aendern` patcht ALLE editierbaren Spalten in
  * einem `UPDATE` (`negativbefund-repo.ts::negativbefundAktualisieren`), der Entwurf wird darum als
  * EIN Objekt geführt und als Ganzes debounced committet. */
 function NegativbefundFelder({ personId, eintrag }: NegativbefundFelderProps) {

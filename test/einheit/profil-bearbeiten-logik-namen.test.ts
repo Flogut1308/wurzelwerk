@@ -1,28 +1,10 @@
-// AP-1.14a (S-20, erste echte Schreibmaske): `profil-bearbeiten-logik.ts` (reine Umrechnungen,
-// wie `filterleiste-logik.ts`/`ortsfeld-logik.ts`) UND `NamenBearbeitenAbschnitt`
-// (`renderToStaticMarkup`, wie `ortsfeld.test.tsx` — vitest läuft mit `environment: 'node'`,
-// `vitest.config.ts`). `useNameAnlegen`/`useNameAendern`/`useNameLoeschen` hängen an
-// `@tanstack/react-query` (`UseMutationResult`, brauchen einen `QueryClientProvider` — s.
-// Modulkommentar `befehl-hooks.ts`) und werden darum gemockt (Auftrag AP-1.14a: „Befehl-Hooks
-// mocken"), je EIN `mutate`-Spion pro Kanal.
-import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
-// Seiteneffekt: initialisiert die einzige i18next-Instanz synchron (`initAsync: false`), sonst
-// liefert `t(...)` beim Server-Render nur den rohen Schlüssel zurück (react-i18next ohne
-// `initReactI18next`/`i18n.init()`), nicht die deutsche Beschriftung.
-import '../../src/renderer/i18n/einrichten'
-
-const nameAnlegenMutate = vi.fn()
-const nameAendernMutate = vi.fn()
-const nameLoeschenMutate = vi.fn()
-
-vi.mock('../../src/renderer/brücke/befehl-hooks', () => ({
-  useNameAnlegen: () => ({ mutate: nameAnlegenMutate }),
-  useNameAendern: () => ({ mutate: nameAendernMutate }),
-  useNameLoeschen: () => ({ mutate: nameLoeschenMutate }),
-}))
-
-import { NamenBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-namen'
+// AP-1.14a (S-20): die flache Namensbrücke in `profil-bearbeiten-logik.ts` (reine Umrechnungen, wie
+// `filterleiste-logik.ts`/`ortsfeld-logik.ts`). Sie schreibt heute den Hauptnamen im Reiter Person
+// (`reiter-person-hauptname.tsx`, `reiter-person-logik.ts`). Bis AP-1.30 PR 11c-2 stand hier auch der
+// Komponententest der flachen Maske `NamenBearbeitenAbschnitt`; die Maske ist gelöscht, ihre
+// Zusicherungen stehen an Karten und Modal (`reiter-namen.test.tsx`, `namensform-modal.test.tsx`;
+// Inventar docs/80 §33 V-130-11c-2).
+import { describe, expect, it } from 'vitest'
 import {
   NAMEN_EINTRAG_LEER,
   auswahlWertZuSchrift,
@@ -144,49 +126,5 @@ describe('profil-bearbeiten-logik: Namen (AP-1.14a)', () => {
       expect(schriftZuAuswahlWert(schrift)).toBe(schrift)
       expect(auswahlWertZuSchrift(schrift)).toBe(schrift)
     }
-  })
-})
-
-describe('NamenBearbeitenAbschnitt (AP-1.14a, S-20 Kernfelder)', () => {
-  it('ohne Namen: zeigt den Leerzustandstext, KEINE Liste', () => {
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[]} />)
-    expect(markup).not.toContain('wz-profil-bearbeiten-namen__liste')
-  })
-
-  it('mit einem Namen: zeigt eine Zeile mit den vorhandenen Werten UND einer "Name entfernen"-Schaltfläche', () => {
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[name()]} />)
-    expect(markup).toContain('wz-profil-bearbeiten-namen__zeile')
-    expect(markup).toContain('value="August"')
-    expect(markup).toContain('value="Wruck"')
-    // Löschen läuft über die bestehende `Schaltflaeche` (Trefferfläche ≥32×32 dort geprüft,
-    // `test/einheit/trefferflaeche.test.ts`) — kein selbstgebauter Klein-Button.
-    expect(markup).toContain('wz-schaltflaeche')
-  })
-
-  it('mit mehreren Namen: eine Zeile je Namenszeile', () => {
-    const markup = renderToStaticMarkup(
-      <NamenBearbeitenAbschnitt personId="person-1" namen={[name({ id: 'a' }), name({ id: 'b', vornamen: 'Erna' })]} />,
-    )
-    expect((markup.match(/wz-profil-bearbeiten-namen__zeile/g) ?? []).length).toBe(2)
-  })
-
-  it('das "neuen Namen erfassen"-Formular ist ein echtes <form> (Tastatur: Enter sendet ab)', () => {
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[]} />)
-    expect(markup).toContain('<form')
-    // Leeres Formular: "Hinzufügen" ist gesperrt (kein leerer `name`-Datensatz anlegbar, s.
-    // `namenEintragHatInhalt`).
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Name hinzufügen/)
-  })
-
-  it('kein Farbliteral im Markup (Token-Vertrag, CLAUDE.md §14)', () => {
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[name()]} />)
-    expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
-    expect(markup).not.toMatch(/rgb\(/)
-  })
-
-  it('kein JSX-Zeichenkettenliteral — jeder sichtbare Text kommt aus i18n (Stichprobe: deutsche Beschriftungen erscheinen, aber nur über t(...))', () => {
-    const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[name()]} />)
-    expect(markup).toContain('Namen')
-    expect(markup).toContain('Vorname(n)')
   })
 })

@@ -422,7 +422,7 @@ function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: 
       return <ReiterPerson personId={personId} daten={daten} idPraefix={ID_PRAEFIX} aufSprung={aufSprung} aufReiterWechsel={aufReiterWechsel} />
     case 'namen':
       // AP-1.30 PR 11c-1: Karten + Modal „Namensform bearbeiten" ersetzen die flache Maske
-      // (`profil-bearbeiten-namen.tsx` bleibt bis 11c-2 liegen, ihre Einheitstests rendern sie direkt).
+      // (in PR 11c-2 gelöscht, ihre Zusicherungen stehen an Karten und Modal, docs/80 §33 V-130-11c-2).
       return <ReiterNamen personId={personId} namen={daten.namen} istPlatzhalter={daten.kopf.ist_platzhalter} />
     case 'leben':
       return <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
