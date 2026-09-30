@@ -11,7 +11,10 @@
 // NULL bzw. je Art einen Teil); die Tests legen sie darum per direktem SQL an (Journal aus), so wie
 // es die künftigen granularen Namensbefehle (AP-1.30 PR 10) tun werden.
 //
-// Eiserne Regel §5: die ersten drei Fälle sind rot gegen den unveränderten Stand. Die übrigen sind
+// Eiserne Regel §5: die Fälle „Kopf-Felder" und die drei `it.fails` waren rot gegen den unveränderten
+// Stand. Die Kopf-Felder sind behoben; die drei `it.fails` (Teil-Abgleich statt Neuaufbau) bleiben rot,
+// bis der Prüfpfad-Vorlauf die Deckungsschwelle `koaleszenz.verdichtet` in
+// test/invarianten/undo-bitgleich.test.ts neu fasst (docs/80 §33 U-130-10a-bruecke-erhaelt). Die übrigen sind
 // Schutzgeländer, die vor UND nach dem Fix gelten müssen: Undo/Redo bitgleich (auch zusammengefasst
 // über den Koaleszenzschlüssel) und abgeleitete Tabellen gleich ihrem Neuaufbau.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -168,6 +171,22 @@ function erwarteAbgeleitetWieNeuaufbau(db: Db): void {
 }
 
 describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-bruecke-erhaelt)', () => {
+  it('Kopf-Felder außerhalb des flachen Vertrags (reihenfolge, rollen_notiz, konfidenz, sortier_index) bleiben bei jeder Maskenänderung', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = formMitGranularenFeldern(db)
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, nachname: 'Nowack' }))
+      expect(formKopf(db, formId)).toEqual(KOPF_GESETZT)
+      warte(5000)
+      maskeAendern(db, personId, formId, (eintrag) => ({ ...eintrag, vornamen: 'Karl Friedrich Wilhelm', typ: 'ehename' }))
+      expect(formKopf(db, formId)).toEqual(KOPF_GESETZT)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
   it.fails('Nachname ändern (wie die Maske): Kopf-Felder bleiben, Vorname-Teile bleiben Zeile für Zeile (ID, feminine_variante)', () => {
     const db = neueTestDatenbank()
     try {

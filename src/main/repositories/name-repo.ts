@@ -216,20 +216,28 @@ export interface NameAktualisierenEin {
 }
 
 /** Aktualisiert eine Form (Kopf-Spalten) und baut ihre Bestandteile vollständig neu auf (löschen +
- * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt. */
+ * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt.
+ *
+ * U-130-10a-bruecke-erhaelt (docs/80 §33): die Kopf-Felder AUSSERHALB des flachen Vertrags
+ * (`reihenfolge`, `rollen_notiz`, `konfidenz`, `sortier_index`) bleiben wie gespeichert — vorher setzte
+ * jedes `name.aendern` sie auf NULL. */
 export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => string): void {
+  const vorher = nameFormRepo.lesen(tx, ein.id)
+  if (vorher === undefined) {
+    throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+  }
   const flach = flachVon(ein)
   nameFormRepo.aktualisieren(tx, {
     id: ein.id,
     sprache: ein.sprache,
     schrift: ein.schrift,
-    reihenfolge: null,
+    reihenfolge: vorher.reihenfolge,
     rolle: rolleAusTyp(ein.typ),
-    rollenNotiz: null,
+    rollenNotiz: vorher.rollen_notiz,
     umschriftVon: ein.umschriftVon,
     umschriftNorm: ein.umschriftNorm,
-    konfidenz: null,
-    sortierIndex: null,
+    konfidenz: vorher.konfidenz,
+    sortierIndex: vorher.sortier_index,
     gueltigVon: ein.gueltigVon,
     gueltigBis: ein.gueltigBis,
     // U-130-rufname-montage: die Montage der neu geschriebenen Teile (inkl. angehängtem Rufnamen).
