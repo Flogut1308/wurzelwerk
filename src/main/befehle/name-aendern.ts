@@ -133,14 +133,16 @@ export function nameGeaenderteFelder(vorher: NameZeile, ein: NameAendernEin): re
  * oder einem Import, „Hans Peter Hans Peter" mit Rufname-Index 2). Die Maske schickt eine solche Form
  * genau so zurück (Vornamen ohne den angehängten Rufnamen + `rufnameText`, `rufnameFuerAenderung` in
  * profil-bearbeiten-logik.ts); eine Abweisung sperrte jede Altform gegen jede andere Änderung (auch am
- * Nachnamen). Maßstab ist die Wirkung: ergeben die neuen Felder dieselbe Vornamenkette und dieselbe
- * Rufname-Position wie gespeichert, entsteht nichts Neues — verdoppelt war die Form schon vorher.
+ * Nachnamen). Maßstab ist die Wirkung: ergeben die neuen Felder dieselbe Vornamenkette, dieselbe
+ * Rufname-Position UND denselben Rufname-Text wie gespeichert, entsteht nichts Neues — verdoppelt war
+ * die Form schon vorher. Ohne den Textvergleich ließe sich ein einwortiger Rufname an derselben
+ * Position („Hans" an Index 2 in „Hans Peter Hans Peter") still zu „Hans Peter" umdeuten (hueter #184 P1).
  */
 function rufnameVerdopplungPruefen(vorher: NameZeile, ein: NameAendernEin): void {
   const flach = flachAusEin(ein)
   if (!rufnameWuerdeVerdoppelt(flach)) return
   const wirkung = rekonstruiereFlach(zerlegeName(flach))
-  if (wirkung.vornamen === vorher.vornamen && wirkung.rufnameIndex === vorher.rufname_index) return
+  if (wirkung.vornamen === vorher.vornamen && wirkung.rufnameIndex === vorher.rufname_index && wirkung.rufnameText === vorher.rufname_text) return
   throw new WurzelFehler('VALIDIERUNG_RUFNAME_VERDOPPELT', 'Mehrwortiger Rufname steht bereits als Wortfolge in den Vornamen (ohne gültigen rufnameIndex).')
 }
 

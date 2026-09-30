@@ -168,7 +168,7 @@ describe('name.aendern: derselbe Fall darf nicht über das Ändern entstehen', (
     })
   })
 
-  it.fails('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Kette und Position, anderer Rufname-Text → abgewiesen (hueter #184 P1)', () => {
+  it('die Altform-Ausnahme gilt nur bei gleicher Wirkung: gleiche Kette und Position, anderer Rufname-Text → abgewiesen (hueter #184 P1)', () => {
     mitDb((db) => {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
       // Vier einzelne Vornamen, Rufname „Hans" an Index 2: Kette „Hans Peter Hans Peter", Text „Hans".
