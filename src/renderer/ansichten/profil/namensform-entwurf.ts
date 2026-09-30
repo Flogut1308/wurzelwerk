@@ -173,15 +173,28 @@ export function uebernehmenEin(personId: string, basis: NamensformEntwurf, entwu
  * Norm oder schon 'manuell' bleibt der Kopf, ebenso bei einer Änderung nur am Kopf. */
 function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
   if (basis.rolle !== null || (basis.umschriftNorm !== 'iso9' && basis.umschriftNorm !== 'din1460')) return false
-  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf))
+  // H2 (PR 11c-1b, entschieden): eine reine Rufname-Markierung korrigiert die Transliteration nicht.
+  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf), false)
 }
 
-function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: readonly NamensformUebernehmenTeil[]): boolean {
+/**
+ * Gleiche Zielliste? Werte werden GETRIMMT verglichen, genau wie der Handler (`teil.wert.trim() === vorher.wert`,
+ * `namensform-uebernehmen.ts`): ein angehängtes Leerzeichen ist dort keine Änderung, also auch hier keine
+ * (PR 11c-1b H1) — sonst meldete das Modal „geändert" (E9) bzw. „korrigiert" und schriebe einen Undo-Schritt,
+ * der nur die Norm setzt. `mitRufname`: ob die Rufname-Markierung mitzählt.
+ */
+function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: readonly NamensformUebernehmenTeil[], mitRufname: boolean): boolean {
   return (
     vorher.length === nachher.length &&
     vorher.every((teil, index) => {
       const gegen = nachher[index]
-      return gegen !== undefined && gegen.id === teil.id && gegen.art === teil.art && gegen.wert === teil.wert && gegen.istRufname === teil.istRufname
+      return (
+        gegen !== undefined &&
+        gegen.id === teil.id &&
+        gegen.art === teil.art &&
+        gegen.wert.trim() === teil.wert.trim() &&
+        (!mitRufname || gegen.istRufname === teil.istRufname)
+      )
     })
   )
 }
@@ -192,7 +205,7 @@ function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: 
 export function entwurfGeaendert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
   if (KOPF_FELDER.some((feld) => basis[feld] !== entwurf[feld])) return true
   if (basis.hauptname !== entwurf.hauptname) return true
-  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf))
+  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf), true)
 }
 
 /** Hat der Entwurf eine neue Form mit mindestens einem nicht leeren Teil? Eine neue Form ohne Teile legt
