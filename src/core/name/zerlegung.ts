@@ -6,8 +6,9 @@
 // 'suffix') je eine Zeile; dazu seit AP-1.30 PR 3 der Vatersname (→'vatersname', ebenfalls eine Zeile —
 // die alte flache Tabelle der Migration kannte ihn nicht, darum ist das eine reine Erweiterung). Rufname (verlustfrei, Vorrang `rufname_index`): zeigt `rufname_index` auf
 // keinen vorhandenen Token, markiert `rufname_text` GENAU den gleichlautenden vorhandenen Vorname-
-// Token — und nur wenn es keinen solchen gibt, wird `rufname_text` als zusätzlicher markierter
-// Vorname angehängt. Genutzt von `src/main/repositories/
+// Token (ein mehrwortiger `rufname_text` die gleichlautende zusammenhängende Wortfolge, als EIN
+// Bestandteil, U-130-rufname-doppelt) — und nur wenn es keinen solchen gibt, wird `rufname_text` als
+// zusätzlicher markierter Vorname angehängt. Genutzt von `src/main/repositories/
 // name-repo.ts` (flache Schreib-/Leseschnittstelle über name_form + name_part) und — als Prüfmaterial
 // über die Schichtgrenze — von `test/hilfsmittel/fixture-bauen.ts`.
 import type { NamePartArt } from './typen'
@@ -57,23 +58,43 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
   //     Vorname-Token -> GENAU dieser Token wird markiert (statt gar keiner — sonst geht die
   //     Rufname-Angabe verloren, hueter-Auflage AP-1.33).
   //  3. Sonst, wenn `rufname_text` KEIN vorhandener Token ist -> als zusätzlicher Vorname anlegen.
+  // U-130-rufname-doppelt: ein MEHRWORTIGER `rufname_text` gleicht nie einem einzelnen Token. Gleicht
+  // er einer zusammenhängenden Wortfolge der Vornamen („Hans Peter" in „Karl Hans Peter"), wird diese
+  // Folge zu EINEM markierten Bestandteil zusammengefasst (Regel 2), statt ihn per Regel 3 ein zweites
+  // Mal anzuhängen. Dieselbe Abbildung wie ein angehängter mehrwortiger Rufname (Regel 3): das Modell
+  // kennt nur einen markierten Bestandteil je Form. Zeigt ein gültiger `rufname_index` auf das erste
+  // Wort einer solchen Folge (die Rekonstruktion liefert genau das, `rekonstruiereFlach`), gilt
+  // dasselbe (Regel 1) — sonst zerfiele die Folge beim Zurückschreiben der flachen Sicht wieder.
+  // Einwortige Rufnamen bleiben wortgleich zu Migration 0006 (roher Vergleich, kein Normieren).
   const rufnameIndex = flach.rufnameIndex ?? -1
   let rufnamePos = rufnameIndex >= 0 && rufnameIndex < vornamen.length ? rufnameIndex : -1
+  let rufnameLaenge = 1
   let zusatzRufname: string | null = null
   const rufnameText = flach.rufnameText
-  if (rufnamePos < 0 && rufnameText !== null && rufnameText !== undefined && rufnameText !== '') {
-    const vorhandenerPos = vornamen.indexOf(rufnameText)
+  const rufnameWoerter = tokens(rufnameText)
+  const folgeAb = (pos: number): boolean => rufnameWoerter.every((wort, i) => vornamen[pos + i] === wort)
+  const mehrwortig = rufnameWoerter.length > 1
+  if (rufnamePos >= 0) {
+    if (mehrwortig && folgeAb(rufnamePos)) rufnameLaenge = rufnameWoerter.length
+  } else if (rufnameText !== null && rufnameText !== undefined && rufnameText !== '') {
+    const vorhandenerPos = mehrwortig ? vornamen.findIndex((_, pos) => folgeAb(pos)) : vornamen.indexOf(rufnameText)
     if (vorhandenerPos >= 0) {
       rufnamePos = vorhandenerPos
+      rufnameLaenge = mehrwortig ? rufnameWoerter.length : 1
     } else {
       zusatzRufname = rufnameText
     }
   }
 
   const teile: ZerlegterTeil[] = []
-  vornamen.forEach((wert, index) => {
-    teile.push({ art: 'vorname', wert, istRufname: index === rufnamePos, sortierIndex: index })
-  })
+  let sortierIndex = 0
+  for (let index = 0; index < vornamen.length; ) {
+    const laenge = index === rufnamePos ? rufnameLaenge : 1
+    const wert = vornamen.slice(index, index + laenge).join(' ')
+    teile.push({ art: 'vorname', wert, istRufname: index === rufnamePos, sortierIndex })
+    sortierIndex += 1
+    index += laenge
+  }
 
   const einzeln: readonly (readonly [NamePartArt, string | null | undefined])[] = [
     ['nachname', flach.nachname],
@@ -89,7 +110,7 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
   }
 
   if (zusatzRufname !== null) {
-    teile.push({ art: 'vorname', wert: zusatzRufname, istRufname: true, sortierIndex: vornamen.length })
+    teile.push({ art: 'vorname', wert: zusatzRufname, istRufname: true, sortierIndex })
   }
 
   return teile

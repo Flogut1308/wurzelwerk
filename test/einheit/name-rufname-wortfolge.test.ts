@@ -73,25 +73,25 @@ function mitDb(pruefung: (db: Db, personId: string) => void): void {
 }
 
 describe('zerlegeName: mehrwortiger Rufname gleich einer Wortfolge der Vornamen (U-130-rufname-doppelt)', () => {
-  it.fails('„Hans Peter" + Rufname „Hans Peter": EIN markierter Bestandteil, nichts angehängt', () => {
+  it('„Hans Peter" + Rufname „Hans Peter": EIN markierter Bestandteil, nichts angehängt', () => {
     expect(vornamenTeile({ vornamen: 'Hans Peter', rufnameText: 'Hans Peter' })).toEqual([['Hans Peter', true, 0]])
   })
 
-  it.fails('Wortfolge am Ende („Karl Hans Peter")', () => {
+  it('Wortfolge am Ende („Karl Hans Peter")', () => {
     expect(vornamenTeile({ vornamen: 'Karl Hans Peter', rufnameText: 'Hans Peter' })).toEqual([
       ['Karl', false, 0],
       ['Hans Peter', true, 1],
     ])
   })
 
-  it.fails('Wortfolge am Anfang („Hans Peter Karl")', () => {
+  it('Wortfolge am Anfang („Hans Peter Karl")', () => {
     expect(vornamenTeile({ vornamen: 'Hans Peter Karl', rufnameText: 'Hans Peter' })).toEqual([
       ['Hans Peter', true, 0],
       ['Karl', false, 1],
     ])
   })
 
-  it.fails('Wortfolge in der Mitte, Leerraum im Rufnamen normiert („Karl  Hans Peter Otto", „ Hans  Peter ")', () => {
+  it('Wortfolge in der Mitte, Leerraum im Rufnamen normiert („Karl  Hans Peter Otto", „ Hans  Peter ")', () => {
     expect(vornamenTeile({ vornamen: 'Karl  Hans Peter Otto', rufnameText: ' Hans  Peter ' })).toEqual([
       ['Karl', false, 0],
       ['Hans Peter', true, 1],
@@ -99,7 +99,7 @@ describe('zerlegeName: mehrwortiger Rufname gleich einer Wortfolge der Vornamen 
     ])
   })
 
-  it.fails('rufnameIndex auf dem ersten Wort der Folge + gleicher mehrwortiger Text: dieselbe Folge (Rundreise der flachen Sicht)', () => {
+  it('rufnameIndex auf dem ersten Wort der Folge + gleicher mehrwortiger Text: dieselbe Folge (Rundreise der flachen Sicht)', () => {
     expect(vornamenTeile({ vornamen: 'Hans Peter Karl Hans Peter', rufnameIndex: 3, rufnameText: 'Hans Peter' })).toEqual([
       ['Hans', false, 0],
       ['Peter', false, 1],
@@ -108,7 +108,7 @@ describe('zerlegeName: mehrwortiger Rufname gleich einer Wortfolge der Vornamen 
     ])
   })
 
-  it.fails('die flache Sicht ist unverändert und zerlegt sich stabil wieder (rekonstruiereFlach ∘ zerlegeName)', () => {
+  it('die flache Sicht ist unverändert und zerlegt sich stabil wieder (rekonstruiereFlach ∘ zerlegeName)', () => {
     for (const eingabe of [
       { vornamen: 'Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnoff' },
       { vornamen: 'Karl Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnoff' },
@@ -150,7 +150,7 @@ describe('zerlegeName: mehrwortiger Rufname gleich einer Wortfolge der Vornamen 
 })
 
 describe('name.anlegen über den Befehlsbus (U-130-rufname-doppelt)', () => {
-  it.fails('Neu-Formular „Hans Peter" + Rufname „Hans Peter": keine doppelten Vornamen', () => {
+  it('Neu-Formular „Hans Peter" + Rufname „Hans Peter": keine doppelten Vornamen', () => {
     mitDb((db, personId) => {
       const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
       const name = gespeicherterName(db, personId, id)
@@ -177,7 +177,7 @@ describe('name.anlegen über den Befehlsbus (U-130-rufname-doppelt)', () => {
     })
   })
 
-  it.fails('Wortfolge am Ende: Nachnamenänderung über die Maske ändert die Vornamen nicht', () => {
+  it('Wortfolge am Ende: Nachnamenänderung über die Maske ändert die Vornamen nicht', () => {
     mitDb((db, personId) => {
       const { id } = fuehreAus(db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl Hans Peter', rufnameText: 'Hans Peter', nachname: 'Gutnoff' })
       autosaveSchritt(db, personId, id, { nachname: 'Gutnow' })
