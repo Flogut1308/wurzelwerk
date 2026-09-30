@@ -100,15 +100,18 @@ export function zerlegeName(flach: FlacherName): readonly ZerlegterTeil[] {
  * `Titel Vornamen Vatersname Präfix Nachname Zusatz`, leerzeichengetrennt, leere Segmente ausgelassen
  * — dieselbe Reihenfolge wie `anzeigetextVon` (anzeigename.ts). `null`, wenn nichts übrig bleibt.
  *
- * Warum das gebraucht wird (AP-1.33): der abgeleitete Trigger `abl_name_form_ai`
- * (0006_namensformen.sql) indiziert die FTS-Normalform aus `COALESCE(original_text, …aus name_part…)`
- * — er läuft aber beim Einfügen der Form, BEVOR ihre (per FK an die Form gebundenen) `name_part`-
- * Zeilen existieren können, und würde ohne `original_text` eine leere Normalform indizieren. Ein
- * späteres `abl_name_form_au`/`_bd`-`delete` rekonstruiert dann aus den DANN vorhandenen Teilen einen
- * nie indizierten Wert (contentless-FTS5 → „database disk image is malformed"). Ein gesetzter
- * `original_text` macht Index und Löschung parteinunabhängig deckungsgleich. Der flache Schreibpfad
- * (src/main/repositories/name-repo.ts, Fixtures, Import) füllt `original_text` darum hiermit, wenn
- * der Aufrufer keinen mitbringt.
+ * Wozu (AP-1.33): der flache Schreibpfad (src/main/repositories/name-repo.ts, Fixtures, Import) füllt
+ * `original_text` hiermit, wenn der Aufrufer keinen mitbringt — so trägt jede Form einen Anzeigetext und
+ * die FTS-Spalte `original` (`COALESCE(original_text, '')`) ist nicht leer.
+ *
+ * Korrektur (AP-1.30 PR 10a, docs/80 §33 U-130-10a-bruecke-erhaelt): hier stand, eine Form mit
+ * `original_text = NULL` beschädige den contentless-FTS5-Index, wenn ihre Teile erst nach ihr eingefügt
+ * werden (`abl_name_form_ai` indiziere eine leere Normalform, ein späteres `delete` rekonstruiere einen
+ * nie indizierten Wert). Das trifft nicht zu: `abl_name_part_ai/_au/_ad` löschen die FTS-Zeile der Form
+ * bei JEDEM Teil mit der Rekonstruktion des Vorher-Stands und indizieren sie neu — der Index folgt den
+ * Teilen Schritt für Schritt. Belegt in test/einheit/befehl-name-erhaelt-granular.test.ts (Neuaufbau-
+ * Vergleich über Einfügen, Ändern und Löschen). Voraussetzung dieser Rekonstruktion ist ein je (Form,
+ * Art) eindeutiger `sortier_index` (`ORDER BY sortier_index`).
  */
 export function montiereOriginalText(flach: FlacherName): string | null {
   const segmente = [flach.titelVor, flach.vornamen, flach.vatersname, flach.praefix, flach.nachname, flach.zusatzNach].filter(

@@ -72,10 +72,9 @@ export function einfuegen(tx: Tx, ein: NameEinfuegenEin, neueId: () => string): 
   // Form ZUERST (Eltern), Teile DANACH (Kinder) — die Journal-Reihenfolge (die Rücknahme löscht in
   // umgekehrter Reihenfolge, `src/main/journal/undo.ts`) verlangt, dass die Kinder eine höhere
   // `reihenfolge` tragen als ihr Elternteil, sonst kaskadiert das Löschen der Form beim Undo die
-  // Teile weg, bevor deren eigene Rücknahme sie erreicht. Damit `abl_name_form_ai` (das die
-  // FTS-Normalform beim Einfügen indiziert, BEVOR die Teile existieren) einen konsistenten Wert
-  // indiziert, wird `original_text` gesetzt (montiert, wenn der Aufrufer keinen mitbringt) — s.
-  // `montiereOriginalText` für die FTS-Begründung.
+  // Teile weg, bevor deren eigene Rücknahme sie erreicht. `original_text` wird gesetzt (montiert,
+  // wenn der Aufrufer keinen mitbringt) — s. `montiereOriginalText` (dort auch die Korrektur der
+  // früheren FTS-Begründung, AP-1.30 PR 10a).
   const flach = flachVon(ein)
   nameFormRepo.einfuegen(tx, {
     id: ein.id,
