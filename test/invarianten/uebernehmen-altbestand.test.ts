@@ -12,7 +12,8 @@
 // BEFUND U-130-11-0b-selbstbezug-fts (festgehalten als `it.fails`, Fix in eigenem PR mit `src/`): an genau
 // dieser Altbestand-Form bricht eine Änderung des `original_text` auf eine längere wortgetreue Schreibung
 // („Joh. Georg Müller alias Miller") mit `SQLITE_CORRUPT_VTAB` ab — gleich ob über `namensform.aendern` oder
-// `namensform.uebernehmen`; an einer Form ohne Selbstbezug geht dieselbe Änderung durch (Gegenprobe unten).
+// `namensform.uebernehmen`; an einer transliterierten Form mit gültigem Ursprung geht dieselbe Änderung durch
+// (Gegenprobe unten). Diagnose und Entscheidung des Eigentümers: docs/80 §33 U-130-11-0b-selbstbezug-fts.
 // Gefunden mit einer Befehlsfolge-Invariante über diesem Altbestand (Seed 20261001); diese wird nach dem Fix
 // eingecheckt (bis dahin wäre sie rot).
 import { describe, expect, it, vi } from 'vitest'
@@ -43,13 +44,18 @@ interface Altbestand {
   readonly formId: string
 }
 
-/** Eine Person mit einer Form, deren `umschrift_von` auf sie selbst zeigt (`selbstbezug`), sonst ohne Bezug. */
+/** Eine Person mit einer transliterierten Form: `selbstbezug` — sie zeigt auf sich selbst (Altbestand);
+ * sonst — sie zeigt gültig auf eine Ursprungsform derselben Person (trennscharfe Gegenprobe: gleicher `typ`,
+ * gleiche Umschrift-Trigger, nur der Selbstbezug fehlt). `formId` ist die transliterierte Form. */
 function altbestand(selbstbezug: boolean): Altbestand {
   const db = frischeMigrierteDatenbank()
   journalAus(db, 'Testaufbau: Altbestand über schreibeImport, ohne Befehlsbus.')
-  const name = selbstbezug
-    ? { typ: 'transliteriert', vornamen: 'Olga', nachname: 'Scherbakowa', umschrift_von: 0, umschrift_norm: 'iso9', ist_bevorzugt: true }
-    : { typ: 'geburtsname', vornamen: 'Olga', nachname: 'Scherbakowa', ist_bevorzugt: true }
+  const namen = selbstbezug
+    ? [{ typ: 'transliteriert', vornamen: 'Olga', nachname: 'Scherbakowa', umschrift_von: 0, umschrift_norm: 'iso9', ist_bevorzugt: true }]
+    : [
+        { typ: 'geburtsname', vornamen: 'Ольга', nachname: 'Щербакова', ist_bevorzugt: true },
+        { typ: 'transliteriert', vornamen: 'Olga', nachname: 'Scherbakowa', umschrift_von: 0, umschrift_norm: 'iso9' },
+      ]
   const ergebnis = schreibeImport(
     db,
     importDateiSchema.parse({
@@ -58,7 +64,7 @@ function altbestand(selbstbezug: boolean): Altbestand {
       zusammenfassung: { personen: 1, orte: 0, medien: 0, notizen_unverarbeitet: 0 },
       quellen: [{ id: 'tmp:q1', typ: 'sonstiges', titel: 'Testquelle' }],
       orte: [],
-      personen: [{ id: 'tmp:p1', namen: [name], konfidenz: 3, belege: [{ quelle: 'tmp:q1', seite: '1', konfidenz: 3 }] }],
+      personen: [{ id: 'tmp:p1', namen, konfidenz: 3, belege: [{ quelle: 'tmp:q1', seite: '1', konfidenz: 3 }] }],
       ereignisse: [],
       notizen_unverarbeitet: [],
     }),
@@ -67,7 +73,9 @@ function altbestand(selbstbezug: boolean): Altbestand {
   journalAn(db)
   const personId = ergebnis.kennungen.get('tmp:p1')
   if (personId === undefined) throw new Error('Kennung tmp:p1 fehlt im Schreibergebnis')
-  const formId = db.prepare<{ readonly personId: string }, { readonly id: string }>('SELECT id FROM name_form WHERE person_id = @personId').get({ personId })?.id
+  const formId = db
+    .prepare<{ readonly personId: string }, { readonly id: string }>('SELECT id FROM name_form WHERE person_id = @personId AND umschrift_von IS NOT NULL')
+    .get({ personId })?.id
   if (formId === undefined) throw new Error('Importierte Namensform fehlt')
   return { db, personId, formId }
 }
@@ -82,6 +90,13 @@ function teile(db: Database.Database, formId: string): readonly { readonly id: s
       'SELECT id, art, wert FROM name_part WHERE name_form_id = @formId ORDER BY art, sortier_index',
     )
     .all({ formId })
+}
+
+/** Genau der Befund: SQLite meldet einen verdorbenen FTS-Index (`SQLITE_CORRUPT_VTAB`, „malformed“). */
+function istIndexKaputt(fehler: unknown): boolean {
+  if (!(fehler instanceof Error)) return false
+  const code = 'code' in fehler ? fehler.code : undefined
+  return code === 'SQLITE_CORRUPT_VTAB' || /malformed/u.test(fehler.message)
 }
 
 function indexIntakt(db: Database.Database): void {
@@ -122,18 +137,26 @@ describe('Altbestand mit Selbstbezug bleibt bearbeitbar (E4, Mutante A2, V-130-1
     }
   })
 
+  // Der Rumpf wirft NUR beim Befund selbst (`SQLITE_CORRUPT_VTAB` bzw. „malformed“). Jeder andere Ausgang — Erfolg
+  // nach dem Fix, aber auch ein anderer Fehler wie eine `VALIDIERUNG_*` — lässt ihn durchlaufen, und `it.fails`
+  // wird rot: dann ist aus dem Befund etwas anderes geworden, das hingesehen werden muss.
   it.fails('U-130-11-0b-selbstbezug-fts: eine wortgetreue Schreibung an der Altbestand-Form lässt den Suchindex heil', () => {
     const { db, formId } = altbestand(true)
     try {
-      fuehreAus(db, 'namensform.aendern', { id: formId, originalText: WORTGETREU })
-      expect(kopf(db, formId)).toMatchObject({ original_text: WORTGETREU })
-      indexIntakt(db)
+      let fehler: unknown
+      try {
+        fuehreAus(db, 'namensform.aendern', { id: formId, originalText: WORTGETREU })
+        db.exec("INSERT INTO suche_fts (suche_fts, rank) VALUES ('integrity-check', 0)")
+      } catch (e) {
+        fehler = e
+      }
+      if (istIndexKaputt(fehler)) throw fehler
     } finally {
       db.close()
     }
   })
 
-  it('Gegenprobe zum Befund: dieselbe Änderung an einer importierten Form ohne Selbstbezug geht durch', () => {
+  it('Gegenprobe zum Befund: dieselbe Änderung an einer importierten Umschrift mit gültigem Ursprung geht durch', () => {
     const { db, formId } = altbestand(false)
     try {
       fuehreAus(db, 'namensform.aendern', { id: formId, originalText: WORTGETREU })
