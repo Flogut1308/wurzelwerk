@@ -10,6 +10,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '../../src/renderer/i18n/einrichten'
+import type { AppFehler } from '../../src/shared/fehler/app-fehler'
 import type { PersonDetailAus, PersonDetailAussage, PersonDetailBeleg, PersonDetailGrunddatenFeld, PersonDetailLebensdatum } from '../../src/shared/schemata/person-detail'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -22,6 +23,9 @@ interface Aufruf {
 const aufrufe: Aufruf[] = []
 /** Antworten von `mutateAsync` je Hook (steuerbar, z. B. ein noch offenes Verknüpfen). */
 const antworten = new Map<string, () => Promise<unknown>>()
+/** Fehlerzustand je Hook (`error` der Mutation) — wie bei `useMutation` bleibt er stehen, bis dieselbe
+ * Mutation erneut läuft. */
+const fehler = new Map<string, AppFehler>()
 
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
@@ -37,7 +41,7 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
           return antworten.get(name)?.() ?? Promise.resolve(name === 'useAussageZitatAnlegen' ? null : { id: `neu-${name}` })
         },
         isPending: false,
-        error: null,
+        error: fehler.get(name) ?? null,
       }),
     ]),
   )
@@ -195,6 +199,7 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
   beforeEach(() => {
     aufrufe.length = 0
     antworten.clear()
+    fehler.clear()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -337,5 +342,26 @@ describe('ReiterPerson — Beleg-Zeile und Beleg-Wähler (AP-1.30 PR 9d)', () =>
     act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
     expect(document.activeElement).toBe(schublade())
     expect(aufrufeVon('useAussageAendern')).toHaveLength(1)
+  })
+
+  // hueter #176 H1: ein alter Fehler einer ANDEREN Mutation (hier `zitat.anlegen`) blieb im Wähler
+  // stehen und verdeckte die Erfolgsmeldung einer späteren, gelungenen Verknüpfung.
+  it.fails('nach einem gescheiterten „neues Zitat" zeigt eine spätere Verknüpfung „Beleg verknüpft." statt des alten Fehlers (H1, rot)', async () => {
+    zeigen(detail({ grunddaten: [feld('geburtsdatum', aussage('g-1', '1901'))], lebensdaten: [ausAussage('geburtsdatum', 'g-1'), leer('geburtsort'), leer('todesdatum'), leer('todesort')] }))
+    act(() => knopf(gruppe(container, 'Geburt'), 'Beleg verknüpfen').click())
+    const wurzel = schublade()
+    act(() => eintippen(eingabe('wz-beleg-waehler-suche'), 'Tauf'))
+    act(() => knopfMit(wurzel, 'Taufregister Marienwerder').click())
+    const zitatFehler: AppFehler = { code: 'NICHT_GEFUNDEN_QUELLE', textSchluessel: 'NICHT_GEFUNDEN_QUELLE', vorgangsId: 'v-1' }
+    antworten.set('useZitatAnlegen', () => Promise.reject(zitatFehler))
+    fehler.set('useZitatAnlegen', zitatFehler)
+    act(() => knopf(wurzel, 'Zitat anlegen und verknüpfen').click())
+    await kettenende()
+    // Späterer Erfolg über ein bestehendes Zitat; der Fehler von `zitat.anlegen` steht weiter im Hook.
+    act(() => knopf(wurzel, 'Seite 42').click())
+    await kettenende()
+    expect(aufrufeVon('useAussageZitatAnlegen')).toEqual([{ aussageId: 'g-1', zitatId: 'z-1' }])
+    expect(wurzel.textContent).toContain('Beleg verknüpft.')
+    expect(wurzel.textContent).not.toContain('Quelle nicht gefunden')
   })
 })
