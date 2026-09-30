@@ -7,6 +7,7 @@
 // Leerraum in einem Vornamen weist der Befehl ab (E4); dieses Modul ordnet einen solchen Fehler nur dem Feld
 // zu (`vornamenMitLeerraum`). Die Live-Vorschau geht über `anzeigetextVon` (keine zweite Regel).
 import { anzeigetextVon } from '../../../core/name/anzeigename'
+import { teilWertUnveraendert } from '../../../core/name/teilwert'
 import type { NameFormReihenfolge, NameFormRolle, NamePartArt, Schrift, UmschriftNorm } from '../../../core/name/typen'
 import type { GeladenerTeil } from '../../../core/name/zerlegung'
 import type { NamensformUebernehmenEin, NamensformUebernehmenKopf, NamensformUebernehmenTeil } from '../../../shared/schemata/befehle'
@@ -182,22 +183,8 @@ function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwur
 }
 
 /**
- * Ist der Entwurfswert eines Teils gleich dem gespeicherten (`vorher`)? Gleich bei gleichem Rohwert, oder wenn
- * die getrimmten Werte gleich sind UND der Entwurf selbst Randleerraum trägt (Review #208 H4):
- * - ein angehängtes Leerzeichen an einem Wert ist keine Änderung (PR 11c-1b H1; der Handler trimmt neue Werte);
- * - die Bereinigung von ungetrimmtem Altbestand („Gutnoff " aus der flachen Brücke → „Gutnoff") IST eine
- *   Änderung — der Handler vergleicht `teil.wert.trim() === vorher.wert` mit dem UNGETRIMMTEN gespeicherten
- *   Wert und schreibt sie; ein beidseitiger Trim hätte sie still verworfen;
- * - unberührter ungetrimmter Altbestand ist gleich (Rohwert), löst also keine Nachfrage aus;
- * - beide leer bzw. nur Leerraum ist gleich: einen Leerraum-Teil (`' '`) zu leeren schreibt der Handler nicht
- *   (U-130-11-0b-leerraum-teil), also ist es auch keine Änderung (E9) und keine Korrektur.
- */
-function wertGleich(vorher: string, entwurf: string): boolean {
-  return entwurf === vorher || (entwurf.trim() === vorher.trim() && (entwurf !== entwurf.trim() || entwurf.trim() === ''))
-}
-
-/**
- * Gleiche Zielliste? Werte nach `wertGleich`, abgestimmt auf den Handler (`namensform-uebernehmen.ts`): sonst
+ * Gleiche Zielliste? Werte nach `teilWertUnveraendert` — DIESELBE Kernfunktion wie im Handler
+ * (`namensform-uebernehmen.ts`, U-130-randleerraum-altbestand): sonst
  * meldete das Modal „geändert" (E9) bzw. „korrigiert" für etwas, das der Handler nicht schreibt, oder verwürfe
  * etwas, das er schreiben würde. `mitRufname`: ob die Rufname-Markierung mitzählt.
  */
@@ -210,7 +197,7 @@ function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: 
         gegen !== undefined &&
         gegen.id === teil.id &&
         gegen.art === teil.art &&
-        wertGleich(teil.wert, gegen.wert) &&
+        teilWertUnveraendert(teil.wert, gegen.wert) &&
         (!mitRufname || gegen.istRufname === teil.istRufname)
       )
     })
