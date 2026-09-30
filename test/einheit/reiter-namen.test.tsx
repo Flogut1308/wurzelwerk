@@ -24,6 +24,8 @@ interface Aufruf {
 const aufrufe: Aufruf[] = []
 /** Hooks, deren `mutate` sofort über `onError` scheitert (PR 11c-1b H3). */
 const scheitert = new Set<string>()
+/** Review #208 P6: ist `halten` gesetzt, bleibt `mutate` offen; `offen` sammelt die `onError`-Rückrufe. */
+const gehalten: { halten: boolean; offen: ((fehler: unknown) => void)[] } = { halten: false, offen: [] }
 
 vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
   const original: Readonly<Record<string, unknown>> = await importOriginal()
@@ -33,6 +35,10 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
       () => ({
         mutate: (ein: unknown, optionen?: { readonly onError?: (fehler: unknown) => void }) => {
           aufrufe.push({ hook: name, ein })
+          if (gehalten.halten) {
+            if (optionen?.onError !== undefined) gehalten.offen.push(optionen.onError)
+            return
+          }
           if (scheitert.has(name)) optionen?.onError?.({ code: 'NICHT_GEFUNDEN_NAME', textSchluessel: 'NICHT_GEFUNDEN_NAME', vorgangsId: 'v' })
         },
         isPending: false,
@@ -128,6 +134,8 @@ describe('ReiterNamen', () => {
   beforeEach(() => {
     aufrufe.length = 0
     scheitert.clear()
+    gehalten.halten = false
+    gehalten.offen = []
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -203,6 +211,20 @@ describe('ReiterNamen', () => {
     // Später verschwindet die Form auf anderem Weg: der Fokus bleibt, wo der Nutzer ihn hingesetzt hat.
     zeige([HAUPT, RUSSISCH])
     expect(document.activeElement).toBe(neu)
+  })
+
+  // Review #208 P6: Karte A ist noch im Löschen, der Nutzer entfernt Karte B; scheitert danach A, bleibt der
+  // Merker von B stehen — B verschwindet, und der Fokus geht auf den Nachbarn von B.
+  it('P6: scheitert ein älteres Entfernen, bleibt der Merker des jüngeren', () => {
+    gehalten.halten = true
+    zeige([HAUPT, OSSETISCH, RUSSISCH])
+    klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Entfernen'))
+    klicken(knopfIn(karteMit('Гуытнаты Карл'), 'Entfernen'))
+    const [fehlerA] = gehalten.offen
+    if (fehlerA === undefined) throw new Error('kein gehaltenes Entfernen')
+    act(() => fehlerA({ code: 'NICHT_GEFUNDEN_NAME', textSchluessel: 'NICHT_GEFUNDEN_NAME', vorgangsId: 'v' }))
+    zeige([HAUPT, RUSSISCH])
+    expect(document.activeElement?.closest('article')?.querySelector('.wz-namensform-karte__titel')?.textContent).toBe('Карл Гутнов')
   })
 
   it('„Entfernen" ruft name.loeschen (E7: auch die letzte Form)', () => {
