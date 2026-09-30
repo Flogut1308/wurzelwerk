@@ -45,7 +45,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Vergleichsbasis für Prüfpfad ermitteln
-        # Bei pull_request ist base.sha bereits main-relativ. Der push-Zweig greift seit dem
+        # Bei pull_request dient der erste Elternteil des Merge-Commits als Basis (s. u.). Der push-Zweig greift seit dem
         # Trigger-Umbau nur noch für `main` selbst (Nachlauf nach einem Merge, Diff dann leer);
         # er bleibt als Rückfall stehen. Bei push (auch über mehrere
         # Pushes hinweg gewachsene Branches) ist github.event.before nur der vorherige
@@ -62,7 +62,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EREIGNIS" = "pull_request" ]; then
-            echo "basis=$PR_BASIS" >> "$GITHUB_OUTPUT"
+            # github.sha ist bei pull_request der Merge-Commit refs/pull/N/merge (PR in den
+            # AKTUELLEN main gemergt). base.sha kann älter sein: Ist main seit dem Abzweigen
+            # weitergelaufen, lägen dessen Änderungen (z. B. test/invarianten aus einem anderen
+            # PR) im Diff base.sha..merge und das Gate schlüge fälschlich an (#181, #185, #189).
+            # Der erste Elternteil des Merge-Commits ist genau der main-Stand, gegen den gemergt
+            # wurde — der Diff merge^1..merge enthält dann nur die Änderungen des PR.
+            if [ "$(git rev-list --parents -n 1 "$GITHUB_SHA" | wc -w)" -eq 3 ]; then
+              echo "basis=$(git rev-parse "$GITHUB_SHA^1")" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::github.sha ist kein Merge-Commit — Rückfall auf pull_request.base.sha."
+              echo "basis=$PR_BASIS" >> "$GITHUB_OUTPUT"
+            fi
           else
             git fetch --no-tags --quiet origin main:refs/remotes/origin/main || true
             merge_base=""
