@@ -343,6 +343,11 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['uebernehmen.rufname.entfernt', 6],
   ['ablehnung.uebernehmen.flachAendernFremdePerson', 1],
   ['ablehnung.uebernehmen.fremdePersonForm', 1],
+  // Nach #212 (V-130-fix-uebernehmen-leerraum): jede zweite Leer-Aktion an einer flachen Form mit Leerraum-Teil
+  // (Vatersname ' '), der unverändert bzw. „geleert" erhalten bleiben muss (16, Schwelle 8). Dadurch verschoben
+  // (alle über ihrer Schwelle): `name.anlegen` 217 → 229, `leer.entfallen` 33 → 29, `noop` 26 → 30,
+  // `originalText.geglaettet` 36 → 34, `originalText.wortgetreuBleibt` 15 → 14.
+  ['uebernehmen.leerraumTeil.bleibt', 8],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()

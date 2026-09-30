@@ -28,11 +28,11 @@
 // - Ein Altbestand mit verbotenem Umschrift-Bezug (Mutante A2, U-130-10b-folge) ist über Befehle seit
 //   V-130-fix-umschrift-selbstbezug nicht mehr erreichbar; ihn prüft `uebernehmen-altbestand.test.ts` (per Import
 //   geschrieben). Trifft ein Weg hier doch auf einen Selbstbezug, wirft er „unerreichbar“.
-// - LEERRAUM-ALTBESTAND (Befund U-130-11-0b-leerraum-teil, Fix #212, Regressionstest in `uebernehmen-befunde.test.ts`
-//   nach dessen Merge): ein gespeicherter Teil aus reinem Leerraum (etwa ein Vatersname ' ' aus `name.anlegen`)
-//   wurde bei unverändert zurückgeschicktem Eintrag gelöscht. Bis der Fix auf main ist, schicken die Wege solche Teile nie zurück
-//   (`teileDerForm` lässt sie aus — sie entfallen durch Weglassen, das ist eindeutig), und das Orakel wirft, falls
-//   ein Eintrag doch einen gespeicherten Leerraum-Teil nennt: es legt das heutige Verhalten nicht als Soll fest.
+// - LEERRAUM-ALTBESTAND (U-130-11-0b-leerraum-teil, behoben in #212, Regressionstest in `uebernehmen-befunde.test.ts`):
+//   ein gespeicherter Teil aus reinem Leerraum (etwa ein Vatersname ' ' aus `name.anlegen`, den die Hauptfolge
+//   erzeugt) geht wie jeder Teil in die Zielliste. Das Orakel verlangt: unverändert (auch ungleicher Leerraum, etwa
+//   „Rand" oder „geleert") bleibt er mit seinem gespeicherten Wert; ein Wert mit Inhalt ändert ihn; nur Weglassen
+//   löscht ihn (Zweig `uebernehmen.leerraumTeil.bleibt`).
 // - ABLEHNUNGEN (Grundsatz E-B2-2): Art-Wechsel bei gleicher ID (`VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND`),
 //   Leerraum in einem geänderten Vornamen (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`), fremde bzw. unbekannte Teil-ID
 //   (`NICHT_GEFUNDEN_NAMENSTEIL`), Rufname an einem Nicht-Vornamen (`VALIDIERUNG_RUFNAME_KEIN_VORNAME`),
@@ -307,11 +307,10 @@ function alleFormenLesen(db: Tx): readonly FormZeile[] {
     .all()
 }
 
-/** Teile einer Form in Zielfolge: nach Art (Reihenfolge von `NamePartArtEnum`), dann Stelle — OHNE Teile aus
- * reinem Leerraum (s. Modul-Kommentar LEERRAUM-ALTBESTAND): die Wege bauen ihre Zielliste hieraus, ein solcher
- * Teil entfällt damit durch Weglassen. */
+/** Teile einer Form in Zielfolge: nach Art (Reihenfolge von `NamePartArtEnum`), dann Stelle — auch Teile aus
+ * reinem Leerraum (s. Modul-Kommentar LEERRAUM-ALTBESTAND). */
 function teileDerForm(db: Tx, formId: string): readonly TeilZeile[] {
-  const teile = alleTeile(db).filter((t) => t.name_form_id === formId && t.wert.trim() !== '')
+  const teile = alleTeile(db).filter((t) => t.name_form_id === formId)
   const rang = (art: string): number => NamePartArtEnum.options.findIndex((a) => a === art)
   return [...teile].sort((a, b) => rang(a.art) - rang(b.art) || a.sortier_index - b.sortier_index)
 }
@@ -389,24 +388,19 @@ interface SollTeil {
 function sollTeile(ein: NamensformUebernehmenEin, gespeichert: readonly TeilZeile[]): readonly SollTeil[] {
   const soll: SollTeil[] = []
   for (const t of ein.teile) {
-    const gespeicherterTeil = t.id === undefined ? undefined : gespeichert.find((g) => g.id === t.id)
-    if (t.wert.trim() === '' && t.id !== undefined && (gespeicherterTeil === undefined || gespeicherterTeil.wert.trim() === '' || gespeicherterTeil.art !== t.art)) {
-      throw new Error('uebernehmen: leerer Eintrag mit unbekannter ID, Leerraum-Altbestand oder anderer Art (U-130-11-0b-leerraum-teil, Generatorfehler).')
+    const alt = t.id === undefined ? undefined : gespeichert.find((g) => g.id === t.id)
+    if (t.id !== undefined && (alt === undefined || alt.art !== t.art)) {
+      // Unbekannte/fremde ID bzw. andere Art (auch bei leerem Wert) sind Ablehnungen — nur über `ablehnungVerlangen`.
+      throw new Error('uebernehmen: Zielliste nennt eine unbekannte Teil-ID bzw. eine andere Art (Generatorfehler).')
     }
-    if (t.wert.trim() === '') continue
-    const alt = gespeicherterTeil
-    if (t.id !== undefined && alt === undefined) {
-      throw new Error('uebernehmen: Zielliste nennt eine unbekannte Teil-ID (Generatorfehler).')
-    }
-    if (alt !== undefined && (alt.wert.trim() === '' || alt.art !== t.art)) {
-      // U-130-11-0b-leerraum-teil: das heutige Verhalten (Leerraum-Teil entfällt, leerer Eintrag anderer Art wird
-      // ohne Fehler verworfen) ist Befund, kein Soll — die Wege senden solche Einträge nicht.
-      throw new Error('uebernehmen: Zielliste nennt einen Leerraum-Altbestand-Teil bzw. einen leeren Eintrag anderer Art (Generatorfehler).')
-    }
+    // Leer: ein neuer Eintrag wird verworfen, ein geleerter Teil mit Inhalt entfällt — ein Leerraum-Teil, der
+    // leer bleibt, ist unverändert und bleibt mit seinem gespeicherten Wert (#212).
+    const leerraumBleibt = alt !== undefined && t.wert.trim() === '' && alt.wert.trim() === ''
+    if (t.wert.trim() === '' && !leerraumBleibt) continue
     soll.push({
       id: t.id,
       art: t.art,
-      wert: alt !== undefined && t.wert.trim() === alt.wert ? alt.wert : t.wert.trim(),
+      wert: alt !== undefined && (t.wert.trim() === alt.wert || leerraumBleibt) ? alt.wert : t.wert.trim(),
       feminineVariante: t.feminineVariante === undefined ? (alt?.feminine_variante ?? null) : t.feminineVariante,
       istRufname: t.istRufname,
     })
@@ -622,7 +616,11 @@ function uebernehmen(db: Tx, zweige: Zweig[], ein: NamensformUebernehmenEin, wo:
   if (text.zweig !== undefined) zweige.push(text.zweig)
   if (hauptnameWechsel) zweige.push('uebernehmen.hauptname.gewechselt')
   if (ein.teile.some((t) => t.id === undefined && t.wert.trim() === '')) zweige.push('uebernehmen.leer.verworfen')
-  if (ein.teile.some((t) => t.id !== undefined && t.wert.trim() === '')) zweige.push('uebernehmen.leer.entfallen')
+  const gespeicherterWert = (id: string | undefined): string | undefined => gespeichert.find((g) => g.id === id)?.wert
+  if (ein.teile.some((t) => t.id !== undefined && t.wert.trim() === '' && (gespeicherterWert(t.id) ?? '').trim() !== '')) zweige.push('uebernehmen.leer.entfallen')
+  if (soll.some((e) => e.id !== undefined && (gespeicherterWert(e.id) ?? 'x').trim() === '' && eigene.some((t) => t.id === e.id && t.wert === gespeicherterWert(e.id)))) {
+    zweige.push('uebernehmen.leerraumTeil.bleibt')
+  }
   if (vorher !== undefined && KOPF_FELDER.some(([, spalte]) => sollKopf.get(spalte) !== vorher[spalte]) && KOPF_FELDER.some(([feld]) => wert(ein.kopf, feld) === undefined)) {
     zweige.push('uebernehmen.kopf.fehltBleibt')
   }
@@ -942,8 +940,24 @@ function noop(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: Akti
   )
 }
 
+/** Vorlauf: eine flache Form mit einem Leerraum-Teil (Vatersname ' ', wie ihn `name.anlegen` speichert). */
+function leerraumFormAnlegen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): FormInfo | undefined {
+  const personId = zielAus(zustand.personIds, aktion.zielRoh)
+  if (personId === undefined) return undefined
+  const { id } = befehl(zweige, db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Nowak', vatersname: ' ' })
+  zustand.uebernahmeFormen.push({ id, personId })
+  zweige.push('uebernehmen.vorlauf')
+  zustand.zwischenSchritt()
+  if (!teileDerForm(db, id).some((t) => t.wert.trim() === '')) {
+    throw new Error('uebernehmen (leer): Vorbedingung — name.anlegen mit vatersname \' \' schreibt keinen Leerraum-Teil mehr.')
+  }
+  return { id, personId }
+}
+
 function leer(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): void {
-  const form = formSicherstellen(db, zustand, zweige, aktion)
+  // Jede zweite Leer-Aktion an einer Form mit Leerraum-Teil (U-130-11-0b-leerraum-teil, #212): er geht unverändert
+  // bzw. „geleert" mit und muss bleiben.
+  const form = wahl(aktion, 4) % 2 === 0 ? leerraumFormAnlegen(db, zustand, zweige, aktion) : formSicherstellen(db, zustand, zweige, aktion)
   if (form === undefined) return
   const teile = teileSicherstellen(db, zustand, zweige, form, { vornamen: 1, andere: 1, rufname: false, wortgetreu: false })
   const geleert = wahl(aktion, 0) % teile.length

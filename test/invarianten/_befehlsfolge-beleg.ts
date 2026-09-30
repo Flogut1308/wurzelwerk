@@ -188,6 +188,8 @@ export type Zweig =
   | 'uebernehmen.hauptname.gewechselt'
   | 'uebernehmen.leer.verworfen'
   | 'uebernehmen.leer.entfallen'
+  /** Ein gespeicherter Leerraum-Teil blieb unverändert erhalten (U-130-11-0b-leerraum-teil, #212). */
+  | 'uebernehmen.leerraumTeil.bleibt'
   | 'uebernehmen.originalText.neueForm'
   | 'uebernehmen.originalText.praefixMontage'
   | 'uebernehmen.originalText.leer'
