@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AppFehler } from '../../../shared/fehler/app-fehler'
 import type { PersonDetailName } from '../../../shared/schemata/person-detail'
@@ -73,6 +73,26 @@ export function ReiterNamen({ personId, namen, istPlatzhalter }: ReiterNamenProp
   const karten = kartenFolge(namen)
   const hauptnameId = namen.find((name) => name.ist_bevorzugt)?.id ?? null
 
+  // Review #207 H5: „Entfernen" hängt die Karte samt fokussiertem Knopf aus, der Fokus fiele auf `body`.
+  // Vor dem Löschen wird das Ziel gemerkt (nächste Karte, bei der letzten die vorige, sonst „+ Namensform");
+  // sobald die Form aus dem Lesemodell verschwunden ist, bekommt es den Fokus. Ein Ref, kein Zustand: der
+  // Merker löst kein Rendern aus und wird nur im Effekt gelesen.
+  const fokusNachEntfernen = useRef<{ readonly entfernt: string; readonly ziel: string | null } | null>(null)
+  useEffect(() => {
+    const merker = fokusNachEntfernen.current
+    if (merker === null || namen.some((name) => name.id === merker.entfernt)) return
+    fokusNachEntfernen.current = null
+    const karte = merker.ziel === null ? null : document.querySelector(`[data-namensform-id="${CSS.escape(merker.ziel)}"]`)
+    const ziel = karte?.querySelector('button') ?? neuKnopf.current?.querySelector('button') ?? null
+    if (ziel instanceof HTMLElement) ziel.focus()
+  }, [namen])
+
+  function entfernenVorgemerkt(id: string): void {
+    const index = karten.findIndex((name) => name.id === id)
+    const ziel = karten[index + 1] ?? karten[index - 1]
+    fokusNachEntfernen.current = { entfernt: id, ziel: ziel?.id ?? null }
+  }
+
   return (
     <section className="wz-reiter-namen" aria-labelledby={titelId}>
       <div className="wz-reiter-namen__kopf">
@@ -105,7 +125,14 @@ export function ReiterNamen({ personId, namen, istPlatzhalter }: ReiterNamenProp
         <ul className="wz-reiter-namen__liste">
           {karten.map((name) => (
             <li key={name.id}>
-              <NamensformKarte personId={personId} name={name} namen={namen} hauptnameId={hauptnameId} aufBearbeiten={() => oeffnen(name.id)} />
+              <NamensformKarte
+                personId={personId}
+                name={name}
+                namen={namen}
+                hauptnameId={hauptnameId}
+                aufBearbeiten={() => oeffnen(name.id)}
+                aufEntfernen={() => entfernenVorgemerkt(name.id)}
+              />
             </li>
           ))}
         </ul>
@@ -131,6 +158,8 @@ interface NamensformKarteProps {
   readonly namen: readonly PersonDetailName[]
   readonly hauptnameId: string | null
   readonly aufBearbeiten: () => void
+  /** Vor dem Löschen: das Fokusziel danach vormerken (Review #207 H5). */
+  readonly aufEntfernen: () => void
 }
 
 /** Fehler einer Kartenaktion mit Titel und Handlungsanweisung (Muster `name_fehler`). */
@@ -140,7 +169,7 @@ function aktionsFehler(fehler: AppFehler | null, t: (schluessel: string, werte: 
 
 /** Eine Karte je Namensform (Artboard 2a): Kopf mit Sprache, Schrift, Reihenfolge, Hauptname und Aktionen;
  * Teile in Anzeigefolge mit markiertem Rufnamen; Rolle mit Notiz, Gültigkeit, Genusform, „Sortiert unter". */
-function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten }: NamensformKarteProps) {
+function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten, aufEntfernen }: NamensformKarteProps) {
   const { t } = useTranslation('profil')
   const { t: tFehler } = useTranslation('fehler')
   const titelId = useId()
@@ -156,7 +185,7 @@ function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten }: 
   const fehler = aktionsFehler(hauptnameWechseln.error ?? nameLoeschen.error ?? null, t, tFehler)
 
   return (
-    <article className={`wz-namensform-karte${name.ist_bevorzugt ? ' wz-namensform-karte--hauptname' : ''}`} aria-labelledby={titelId}>
+    <article className={`wz-namensform-karte${name.ist_bevorzugt ? ' wz-namensform-karte--hauptname' : ''}`} aria-labelledby={titelId} data-namensform-id={name.id}>
       <div className="wz-namensform-karte__kopf">
         <span className="wz-namensform-karte__titel" id={titelId} lang={name.sprache ?? undefined}>
           {text === '' ? t('namensform_ohne_text') : text}
@@ -174,7 +203,14 @@ function NamensformKarte({ personId, name, namen, hauptnameId, aufBearbeiten }: 
               {t('namensform_als_hauptname')}
             </Schaltflaeche>
           )}
-          <Schaltflaeche variante="gefaehrlich" gesperrt={nameLoeschen.isPending} aufKlick={() => nameLoeschen.mutate({ id: name.id })}>
+          <Schaltflaeche
+            variante="gefaehrlich"
+            gesperrt={nameLoeschen.isPending}
+            aufKlick={() => {
+              aufEntfernen()
+              nameLoeschen.mutate({ id: name.id })
+            }}
+          >
             {t('namensform_entfernen')}
           </Schaltflaeche>
         </span>

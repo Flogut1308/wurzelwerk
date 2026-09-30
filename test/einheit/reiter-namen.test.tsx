@@ -167,6 +167,27 @@ describe('ReiterNamen', () => {
     expect(aufrufe).toEqual([{ hook: 'useHauptnameWechseln', ein: { personId: 'p1', alt: 'f1', neu: 'f2' } }])
   })
 
+  // Review #207 H5: nach „Entfernen" hängt die Karte samt fokussiertem Knopf aus; der Fokus fiele auf `body`.
+  it('nach „Entfernen" liegt der Fokus auf der nächsten Karte, bei der letzten auf der vorigen, sonst auf „+ Namensform"', () => {
+    zeige([HAUPT, OSSETISCH, RUSSISCH])
+    const fokusName = (): string | null | undefined => document.activeElement?.closest('article')?.querySelector('.wz-namensform-karte__titel')?.textContent
+    // Mittlere Karte (Folge: Karl Friedrich Gutnoff, Гуытнаты Карл, Карл Гутнов) → die nächste.
+    const mitte = knopfIn(karteMit('Гуытнаты Карл'), 'Entfernen')
+    mitte?.focus()
+    klicken(mitte)
+    zeige([HAUPT, RUSSISCH])
+    expect(fokusName()).toBe('Карл Гутнов')
+    expect(document.activeElement?.textContent).toBe('Bearbeiten')
+    // Letzte Karte → die vorige.
+    klicken(knopfIn(karteMit('Карл Гутнов'), 'Entfernen'))
+    zeige([HAUPT])
+    expect(fokusName()).toBe('Karl Friedrich Gutnoff')
+    // Einzige Karte → „+ Namensform".
+    klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Entfernen'))
+    zeige([])
+    expect(document.activeElement?.textContent).toBe('+ Namensform')
+  })
+
   it('„Entfernen" ruft name.loeschen (E7: auch die letzte Form)', () => {
     zeige([HAUPT])
     klicken(knopfIn(karteMit('Karl Friedrich Gutnoff'), 'Entfernen'))
