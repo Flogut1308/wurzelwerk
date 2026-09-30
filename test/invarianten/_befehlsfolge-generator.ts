@@ -293,6 +293,7 @@ import {
 
 import { datumswertAktionArbitrary, datumswertAusfuehren, type AktionDatumswert } from './_befehlsfolge-datumswert'
 import { kurzbeschreibungAktionArbitrary, kurzbeschreibungAusfuehren, type AktionKurzbeschreibung } from './_befehlsfolge-kurzbeschreibung'
+import { namensteileAktionArbitrary, namensteileAusfuehren, type AktionNamensteile } from './_befehlsfolge-namensteile'
 import {
   befehlBeobachtet,
   feldAusRoh,
@@ -826,6 +827,7 @@ export type Aktion =
   | AktionSerie
   | AktionDatumswert
   | AktionKurzbeschreibung
+  | AktionNamensteile
 
 /** Arbitrary für eine schema-konforme `PersonAnlegenEin`-Nutzlast (`personAnlegenEinSchema`, `src/shared/schemata/befehle.ts`). */
 function personAnlegenEinArbitrary(): fc.Arbitrary<PersonAnlegenEin> {
@@ -1526,9 +1528,38 @@ function aktionArbitrary(profil: GeneratorProfil): fc.Arbitrary<Aktion> {
  * Tupelelement, eingeflochten NACH den Kurzbeschreibungs-Aktionen. Ohne die Option ist die Folge
  * unverändert (alle übrigen Aufrufer und `befehlsfolge-einflechtung.test.ts` sehen dieselben Folgen
  * wie vorher); mit ihr ist sie ohne die Teilwechsel-Serien Zug um Zug dieselbe wie ohne die Option —
- * nachgewiesen in `befehlsfolge-teilwechsel-einflechtung.test.ts`. */
+ * nachgewiesen in `befehlsfolge-teilwechsel-einflechtung.test.ts`.
+ *
+ * AP-1.30 PR 10b (NAMENSTEIL-EINFLECHTUNG, docs/80 §33 V-130-10b, `_befehlsfolge-namensteile.ts`): nur mit
+ * `mitNamensteilen: true` (`undo-bitgleich`, `namensteil-sortierindex-eindeutig`) als LETZTES
+ * Tupelelement, eingeflochten NACH allen übrigen Einschüben (auch nach den Teilwechsel-Serien, falls
+ * `mitTeilWechsel`). Ohne die Option ist die Folge unverändert; mit ihr ist sie ohne die
+ * `namensteile`-Aktionen Zug um Zug dieselbe wie ohne die Option — nachgewiesen in
+ * `befehlsfolge-namensteile-einflechtung.test.ts` (samt Gegenprobe: dasselbe Tupel an ERSTER Stelle
+ * gezogen verschiebt die Hauptfolge). */
 export function befehlsfolgeArbitrary(
-  optionen: { readonly profil: GeneratorProfil; readonly mitKurzbeschreibung?: boolean; readonly mitTeilWechsel?: boolean } = { profil: 'bestand' },
+  optionen: {
+    readonly profil: GeneratorProfil
+    readonly mitKurzbeschreibung?: boolean
+    readonly mitTeilWechsel?: boolean
+    readonly mitNamensteilen?: boolean
+  } = { profil: 'bestand' },
+): fc.Arbitrary<readonly Aktion[]> {
+  const ohneNamensteile = befehlsfolgeOhneNamensteile(optionen)
+  if (optionen.mitNamensteilen !== true) {
+    return ohneNamensteile
+  }
+  return fc.tuple(ohneNamensteile, namensteileEinschuebeArbitrary()).map(([folge, namensteile]) => einflechtenVonHinten(folge, namensteile))
+}
+
+/** Die eingeflochtenen `namensteile`-Aktionen samt Stelle (s. „NAMENSTEIL-EINFLECHTUNG"); exportiert für
+ * die Gegenprobe in `befehlsfolge-namensteile-einflechtung.test.ts`. */
+export function namensteileEinschuebeArbitrary(): fc.Arbitrary<readonly (readonly [number, Aktion])[]> {
+  return fc.array(fc.tuple(fc.nat(), namensteileAktionArbitrary()), { minLength: NAMENSTEILE_EINSCHUEBE_MIN, maxLength: NAMENSTEILE_EINSCHUEBE_MAX })
+}
+
+function befehlsfolgeOhneNamensteile(
+  optionen: { readonly profil: GeneratorProfil; readonly mitKurzbeschreibung?: boolean; readonly mitTeilWechsel?: boolean },
 ): fc.Arbitrary<readonly Aktion[]> {
   const hauptfolge = fc.array(aktionArbitrary(optionen.profil), { minLength: 30, maxLength: 52 })
   if (optionen.profil === 'beleg') {
@@ -1554,6 +1585,10 @@ export function befehlsfolgeArbitrary(
     .map(([folge, datums, kurzbeschreibungen, serien]) => einflechten(einflechten(einflechten(folge, datums), kurzbeschreibungen), serien))
 }
 
+/** Anzahl eingeflochtener Namensteil-Aktionen je Folge (s. „NAMENSTEIL-EINFLECHTUNG"). */
+const NAMENSTEILE_EINSCHUEBE_MIN = 3
+const NAMENSTEILE_EINSCHUEBE_MAX = 6
+
 /** Anzahl eingeflochtener Teilwechsel-Serien je Folge (s. „TEILWECHSEL-EINFLECHTUNG"). */
 const TEILWECHSEL_EINSCHUEBE_MIN = 1
 const TEILWECHSEL_EINSCHUEBE_MAX = 2
@@ -1572,6 +1607,20 @@ function einflechten(folge: readonly Aktion[], einschuebe: readonly (readonly [n
   const ergebnis: Aktion[] = [...folge]
   for (const [stelle, aktion] of einschuebe) {
     ergebnis.splice(stelle % (ergebnis.length + 1), 0, aktion)
+  }
+  return ergebnis
+}
+
+/** Wie `einflechten()`, aber die Stelle vom ENDE der wachsenden Folge gezählt (`Länge − stelle % (Länge + 1)`).
+ * Für die Namensteil-Aktionen (s. „NAMENSTEIL-EINFLECHTUNG"): fast-check zieht `fc.nat()` in einem Teil der
+ * Läufe klein (Bias) — von vorn gezählt landeten sie dann vor der ersten `name.anlegen`-Aktion und blieben
+ * No-ops (gemessen mit `undo-bitgleich`: `namensteil.loeschen` 18, Rufname-Wechsel 0). Die relative
+ * Reihenfolge der Folge bleibt wie bei `einflechten()` erhalten. Exportiert für die Gegenprobe in
+ * `befehlsfolge-namensteile-einflechtung.test.ts`. */
+export function einflechtenVonHinten(folge: readonly Aktion[], einschuebe: readonly (readonly [number, Aktion])[]): readonly Aktion[] {
+  const ergebnis: Aktion[] = [...folge]
+  for (const [stelle, aktion] of einschuebe) {
+    ergebnis.splice(ergebnis.length - (stelle % (ergebnis.length + 1)), 0, aktion)
   }
   return ergebnis
 }
@@ -1684,6 +1733,9 @@ interface AussageZitatVerknuepfungInfo {
 export interface Zustand {
   personIds: string[]
   namen: NameInfo[]
+  /** AP-1.30 PR 10b: die per `namensform.anlegen` angelegten Formen (`_befehlsfolge-namensteile.ts`,
+   * `NamensteileZustand.namensformen`) — getrennt von `namen`, damit die Hauptfolge sie nicht als Ziel sieht. */
+  namensformen: NameInfo[]
   elternschaften: ElternschaftInfo[]
   partnerschaften: PartnerschaftInfo[]
   ereignisse: EreignisInfo[]
@@ -1715,6 +1767,7 @@ export function neuerZustand(): Zustand {
   return {
     personIds: [],
     namen: [],
+    namensformen: [],
     elternschaften: [],
     partnerschaften: [],
     ereignisse: [],
@@ -2008,32 +2061,44 @@ export function aktionAusfuehren(db: Tx, zustand: Zustand, aktion: Aktion, zwisc
  * vatersname). Ein Verlust, den Anlegen/Ändern gleichmäßig machen, bliebe sonst undo-bitgleich und
  * unbemerkt (Gegenprobe: `aktualisieren` ohne Vatersname). Gibt zurück, ob die Form einen trägt
  * (Deckungszweige `name.vatersname.*`).
+ *
+ * AP-1.30 PR 10b (docs/80 §33 V-130-10b): seit `namensteil.anlegen` kann eine Form MEHRERE
+ * Vatersname-Teile tragen („Petrowitsch" + „Sidorow"), die flache Sicht verkettet sie (`rohKette` in
+ * `name-repo.ts`). Geprüft wird darum gegen die flache Sicht VOR dem Befehl (`vorher`, die Teile in
+ * `sortier_index`-Reihenfolge; beim Anlegen leer):
+ * - bleibt die flache Sicht gleich (Eingabe = verkettete Teile vorher), müssen die Teile GENAU die
+ *   vorherigen bleiben — der Teil-Abgleich erhält eine feinere Zerlegung (U-130-10a-bruecke-erhaelt);
+ * - sonst gilt die bisherige Zusicherung unverändert: kein Teil bzw. genau einer mit `wert` = Eingabe.
+ * Keine Abschwächung: ohne die granularen Befehle trägt eine Form höchstens EINEN Vatersname-Teil
+ * (`name.*` schreibt nie mehr), `vorher` ist also `[]` oder `[x]` — und für beide Fälle verlangen beide
+ * Zweige genau `[]` bzw. `[Eingabe]`, wie vorher. Nur für die neu erreichbaren Zustände mit zwei und
+ * mehr Teilen unterscheidet sich die Prüfung, und dort verlangt sie MEHR als die flache Gleichheit
+ * (die Teile selbst bleiben). „Der Vatersname bleibt bei `name.aendern` erhalten" gilt weiter in beide
+ * Richtungen: die flache Sicht nach dem Befehl ist immer die Eingabe.
  */
-function vatersnamePruefen(db: Tx, nameFormId: string, erwartet: string | undefined): boolean {
-  const teile = db
-    .prepare<{ readonly nameFormId: string }, { readonly wert: string }>(
-      "SELECT wert FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname' ORDER BY id",
-    )
-    .all({ nameFormId })
-    .map((t) => t.wert)
-  const soll = erwartet === undefined || erwartet === '' ? [] : [erwartet]
+function vatersnamePruefen(db: Tx, nameFormId: string, erwartet: string | undefined, vorher: readonly string[]): boolean {
+  const teile = vatersnameTeile(db, nameFormId)
+  const sollFlach = erwartet === undefined || erwartet === '' ? null : erwartet
+  const vorherFlach = vorher.length === 0 ? null : vorher.join(' ')
+  const soll = sollFlach === vorherFlach ? vorher : sollFlach === null ? [] : [sollFlach]
   if (teile.length !== soll.length || teile.some((wert, i) => wert !== soll[i])) {
     throw new Error(
-      `Vatersname-Rundreise verletzt (name_form ${nameFormId}): erwartet ${JSON.stringify(soll)}, gespeichert ${JSON.stringify(teile)}.`,
+      `Vatersname-Rundreise verletzt (name_form ${nameFormId}): erwartet ${JSON.stringify(soll)}, gespeichert ${JSON.stringify(teile)} ` +
+        `(vorher ${JSON.stringify(vorher)}).`,
     )
   }
   return teile.length > 0
 }
 
-/** Trägt die Form VOR `name.aendern` einen Vatersnamen-Teil? (Zweig `name.vatersname.entfernt`). */
-function vatersnameTeilVorhanden(db: Tx, nameFormId: string): boolean {
-  return (
-    db
-      .prepare<{ readonly nameFormId: string }, { readonly id: string }>(
-        "SELECT id FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname'",
-      )
-      .get({ nameFormId }) !== undefined
-  )
+/** Die Vatersname-Teile einer Form in `sortier_index`-Reihenfolge (für `vatersnamePruefen` und den Zweig
+ * `name.vatersname.entfernt`). */
+function vatersnameTeile(db: Tx, nameFormId: string): readonly string[] {
+  return db
+    .prepare<{ readonly nameFormId: string }, { readonly wert: string }>(
+      "SELECT wert FROM name_part WHERE name_form_id = @nameFormId AND art = 'vatersname' ORDER BY sortier_index, id",
+    )
+    .all({ nameFormId })
+    .map((t) => t.wert)
 }
 
 /** Bevorzugte Aussage desselben (Subjekt, Prädikat) vorhanden? — dann demoted ein weiteres
@@ -2117,6 +2182,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       const kaskadiertGeloeschteNamenIds = zustand.namen.filter((n) => n.personId === id).map((n) => n.id)
       zustand.personIds = zustand.personIds.filter((vorhandeneId) => vorhandeneId !== id)
       zustand.namen = zustand.namen.filter((n) => n.personId !== id) // CASCADE (name.person_id)
+      zustand.namensformen = zustand.namensformen.filter((n) => n.personId !== id) // ebenso
       // Kein FK-`CASCADE` auf `aussage` (s. Modul-Kommentar) — eine bereits vorhandene `aussage`-
       // ZEILE über die gelöschte Person (oder ihre kaskadiert gelöschten Namen) bleibt bestehen,
       // aber der (subjektTyp, subjektId, praedikat)-Dreiklang darf NICHT mehr für eine neue
@@ -2148,7 +2214,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vornamen: aktion.vornamen,
         vatersname: aktion.vatersname,
       })
-      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, id, aktion.vatersname, [])) {
         zweige.push('name.vatersname.gesetzt')
       }
       zustand.namen.push({ id, personId })
@@ -2160,7 +2226,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (ziel === undefined) {
         return
       }
-      const vorherMitVatersname = vatersnameTeilVorhanden(db, ziel.id)
+      const vatersnameVorher = vatersnameTeile(db, ziel.id)
       befehlBeobachtet(zweige, db, 'name.aendern', {
         id: ziel.id,
         typ: aktion.typ,
@@ -2169,9 +2235,9 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vatersname: aktion.vatersname,
         feld: feldAusRoh(aktion.feldRoh, ['typ', 'nachname', 'vornamen', 'vatersname'], NameAendernFeldEnum.options),
       })
-      if (vatersnamePruefen(db, ziel.id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, ziel.id, aktion.vatersname, vatersnameVorher)) {
         zweige.push('name.vatersname.gesetzt')
-      } else if (vorherMitVatersname) {
+      } else if (vatersnameVorher.length > 0) {
         zweige.push('name.vatersname.entfernt')
       }
       return
@@ -2204,7 +2270,7 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
         vornamen: aktion.vornamen,
         vatersname: aktion.vatersname,
       })
-      if (vatersnamePruefen(db, id, aktion.vatersname)) {
+      if (vatersnamePruefen(db, id, aktion.vatersname, [])) {
         zweige.push('name.vatersname.gesetzt')
       }
       zustand.namen.push({ id, personId: vorhandene.personId })
@@ -2489,6 +2555,13 @@ function aktionAusfuehrenIn(db: Tx, zustand: Zustand, aktion: Aktion, zweige: Zw
       if (angelegt !== undefined) {
         zustand.aussagen.push({ id: angelegt.id, subjektTyp: 'person', subjektId: angelegt.subjektId, istExistenz: false })
       }
+      return
+    }
+
+    case 'namensteile': {
+      // AP-1.30 PR 10b: s. `_befehlsfolge-namensteile.ts`. Neue Formen trägt das Modul selbst in
+      // `zustand.namensformen` ein.
+      namensteileAusfuehren(db, zustand, aktion, zweige)
       return
     }
 

@@ -240,6 +240,44 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['kurzbeschreibung.aendern.zusammengefasst', 60],
   ['kurzbeschreibung.aendern.neuerSchritt', 103],
   ['kurzbeschreibung.loeschen', 70],
+  // AP-1.30 PR 10b (Prüfpfad-Folge zu #189/#193/#194, docs/80 §33 V-130-10b), `mitNamensteilen: true`
+  // (`_befehlsfolge-namensteile.ts`), am Datenbankergebnis bzw. am Journal gemessen: die sieben granularen
+  // Namensbefehle (Branch-Werte `namensform.anlegen` 275, `.aendern` 156, `.rufnameSetzen` 170,
+  // `namensteil.anlegen` 610 — auch als Vorlauf —, `.loeschen` 68, `.aendern` 147, `.verschieben` 74);
+  // Umschrift-Form (17); `namensform.aendern`/`namensteil.aendern` zusammengefasst (64/54) bzw. neuer
+  // Schritt (90/81); Teil mitten in die Art eingefügt (20); Löschen mit Nachnummerieren (23); Verschieben
+  // über den Parkwert (74); Rufname neu gesetzt (80), gewechselt (57), entfernt (33); Ablehnungen mit
+  // bitgleichem Bestand: leerer Wert (26), Leerraum im Vornamen (29), Position außerhalb (32), Rufname auf
+  // Nicht-Vorname (39), Teil einer fremden Form (35) — Schwelle je die Hälfte. Nebenwirkungen auf die
+  // übrigen Zähler (Einschübe zuletzt gezogen, die Hauptfolge bleibt Zug um Zug dieselbe,
+  // `befehlsfolge-namensteile-einflechtung.test.ts`): `hauptname.wechseln` 12 → 23 (eine per
+  // `namensform.anlegen` angelegte erste Form ist bevorzugt), `nachruecken` 4 → 5,
+  // `koaleszenz.zusammengefasst` 263 → 260 und `koaleszenz.verdichtet` 63 → 62 (eine dazwischen
+  // eingeflochtene Namensteil-Aktion wird oberste Transaktion und trennt zwei sonst zusammengefasste
+  // Aufrufe); alle übrigen unverändert.
+  ['befehl:namensform.anlegen', 137],
+  ['befehl:namensform.aendern', 78],
+  ['befehl:namensform.rufnameSetzen', 85],
+  ['befehl:namensteil.anlegen', 305],
+  ['befehl:namensteil.loeschen', 34],
+  ['befehl:namensteil.aendern', 73],
+  ['befehl:namensteil.verschieben', 37],
+  ['namensteile.formAnlegen.umschrift', 8],
+  ['namensteile.formAendern.zusammengefasst', 32],
+  ['namensteile.formAendern.neuerSchritt', 45],
+  ['namensteile.teilAendern.zusammengefasst', 27],
+  ['namensteile.teilAendern.neuerSchritt', 40],
+  ['namensteile.teilAnlegen.eingeschoben', 10],
+  ['namensteile.teilLoeschen.nachnummeriert', 11],
+  ['namensteile.verschieben.geparkt', 37],
+  ['namensteile.rufname.gesetzt', 40],
+  ['namensteile.rufname.wechsel', 28],
+  ['namensteile.rufname.null', 16],
+  ['ablehnung.namensteile.leer', 13],
+  ['ablehnung.namensteile.leerraum', 14],
+  ['ablehnung.namensteile.position', 16],
+  ['ablehnung.namensteile.keinVorname', 19],
+  ['ablehnung.namensteile.fremdeForm', 17],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
@@ -262,7 +300,9 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
     fc.assert(
       // `mitTeilWechsel` (AP-1.30 PR 10a-b): Hauptfolge und Einschübe Zug um Zug wie ohne die Option,
       // zusätzlich 1–2 Teilwechsel-Serien je Folge (`befehlsfolge-teilwechsel-einflechtung.test.ts`).
-      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitTeilWechsel: true }), (folge) => {
+      // `mitNamensteilen` (AP-1.30 PR 10b): ebenso, zuletzt eingeflochten 3–6 Aktionen der granularen
+      // Namensbefehle (`befehlsfolge-namensteile-einflechtung.test.ts`).
+      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitTeilWechsel: true, mitNamensteilen: true }), (folge) => {
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
