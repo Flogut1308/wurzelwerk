@@ -32,7 +32,9 @@
 //   ein gespeicherter Teil aus reinem Leerraum (etwa ein Vatersname ' ' aus `name.anlegen`, den die Hauptfolge
 //   erzeugt) geht wie jeder Teil in die Zielliste. Das Orakel verlangt: unverändert (auch ungleicher Leerraum, etwa
 //   „Rand" oder „geleert") bleibt er mit seinem gespeicherten Wert; ein Wert mit Inhalt ändert ihn; nur Weglassen
-//   löscht ihn (Zweig `uebernehmen.leerraumTeil.bleibt`).
+//   löscht ihn (Zweig `uebernehmen.leerraumTeil.bleibt`). Ebenso ungetrimmter Altbestand („Nowak “, #213): mit
+//   zusätzlichem Randleerraum zurückgeschickt bleibt er (Zweig `uebernehmen.randleerraumAltbestand.bleibt`), nur
+//   getrimmt zurückgeschickt wird er bereinigt.
 // - ABLEHNUNGEN (Grundsatz E-B2-2): Art-Wechsel bei gleicher ID (`VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND`),
 //   Leerraum in einem geänderten Vornamen (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`), fremde bzw. unbekannte Teil-ID
 //   (`NICHT_GEFUNDEN_NAMENSTEIL`), Rufname an einem Nicht-Vornamen (`VALIDIERUNG_RUFNAME_KEIN_VORNAME`),
@@ -385,6 +387,12 @@ interface SollTeil {
   readonly istRufname: boolean
 }
 
+/** Gleichheitsregel des Orakels (s. `sollTeile`), bewusst hier formuliert und nicht aus dem Produkt importiert. */
+function wertUnveraendert(gespeichert: string, eintrag: string): boolean {
+  const e = eintrag.trim()
+  return eintrag === gespeichert || (e === '' && gespeichert.trim() === '') || (e === gespeichert.trim() && eintrag !== e)
+}
+
 function sollTeile(ein: NamensformUebernehmenEin, gespeichert: readonly TeilZeile[]): readonly SollTeil[] {
   const soll: SollTeil[] = []
   for (const t of ein.teile) {
@@ -393,14 +401,15 @@ function sollTeile(ein: NamensformUebernehmenEin, gespeichert: readonly TeilZeil
       // Unbekannte/fremde ID bzw. andere Art (auch bei leerem Wert) sind Ablehnungen — nur über `ablehnungVerlangen`.
       throw new Error('uebernehmen: Zielliste nennt eine unbekannte Teil-ID bzw. eine andere Art (Generatorfehler).')
     }
-    // Leer: ein neuer Eintrag wird verworfen, ein geleerter Teil mit Inhalt entfällt — ein Leerraum-Teil, der
-    // leer bleibt, ist unverändert und bleibt mit seinem gespeicherten Wert (#212).
-    const leerraumBleibt = alt !== undefined && t.wert.trim() === '' && alt.wert.trim() === ''
-    if (t.wert.trim() === '' && !leerraumBleibt) continue
+    // Unverändert (der gespeicherte Wert bleibt) genau dann, wenn: gleicher Rohwert, ODER beide leer bzw. nur
+    // Leerraum (#212), ODER gleicher getrimmter Wert und der Eintrag trägt selbst Randleerraum (#213). Sonst gilt
+    // der getrimmte Eintrag; ist er leer, wird ein neuer verworfen und ein bestehender entfällt.
+    const unveraendert = alt !== undefined && wertUnveraendert(alt.wert, t.wert)
+    if (!unveraendert && t.wert.trim() === '') continue
     soll.push({
       id: t.id,
       art: t.art,
-      wert: alt !== undefined && (t.wert.trim() === alt.wert || leerraumBleibt) ? alt.wert : t.wert.trim(),
+      wert: unveraendert ? alt.wert : t.wert.trim(),
       feminineVariante: t.feminineVariante === undefined ? (alt?.feminine_variante ?? null) : t.feminineVariante,
       istRufname: t.istRufname,
     })
@@ -617,7 +626,26 @@ function uebernehmen(db: Tx, zweige: Zweig[], ein: NamensformUebernehmenEin, wo:
   if (hauptnameWechsel) zweige.push('uebernehmen.hauptname.gewechselt')
   if (ein.teile.some((t) => t.id === undefined && t.wert.trim() === '')) zweige.push('uebernehmen.leer.verworfen')
   const gespeicherterWert = (id: string | undefined): string | undefined => gespeichert.find((g) => g.id === id)?.wert
-  if (ein.teile.some((t) => t.id !== undefined && t.wert.trim() === '' && (gespeicherterWert(t.id) ?? '').trim() !== '')) zweige.push('uebernehmen.leer.entfallen')
+  if (ein.teile.some((t) => t.id !== undefined && t.wert.trim() === '' && !wertUnveraendert(gespeicherterWert(t.id) ?? '', t.wert))) zweige.push('uebernehmen.leer.entfallen')
+  if (
+    ein.teile.some((t) => {
+      const g = gespeicherterWert(t.id)
+      return g !== undefined && g.trim() !== '' && g !== g.trim() && t.wert !== g && wertUnveraendert(g, t.wert)
+    })
+  ) {
+    zweige.push('uebernehmen.randleerraumAltbestand.bleibt')
+  }
+  if (
+    ein.teile.some((t) => {
+      const g = gespeicherterWert(t.id)
+      return g !== undefined && g.trim() !== '' && g !== g.trim() && t.wert === g.trim()
+    })
+  ) {
+    zweige.push('uebernehmen.randleerraumAltbestand.bereinigt')
+  }
+  if (soll.some((e) => e.art === 'vorname' && /\s/u.test(e.wert.trim()) && e.id !== undefined && e.wert === gespeicherterWert(e.id))) {
+    zweige.push('uebernehmen.mehrwortVorname.bleibt')
+  }
   if (soll.some((e) => e.id !== undefined && (gespeicherterWert(e.id) ?? 'x').trim() === '' && eigene.some((t) => t.id === e.id && t.wert === gespeicherterWert(e.id)))) {
     zweige.push('uebernehmen.leerraumTeil.bleibt')
   }
@@ -940,28 +968,35 @@ function noop(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: Akti
   )
 }
 
-/** Vorlauf: eine flache Form mit einem Leerraum-Teil (Vatersname ' ', wie ihn `name.anlegen` speichert). */
-function leerraumFormAnlegen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): FormInfo | undefined {
+/** Vorlauf: eine flache Form mit einem Vatersnamen, den `name.anlegen` roh speichert — ein Leerraum-Teil (`' '`,
+ * #212) bzw. ungetrimmter Altbestand (`'Iwanowitsch '`, #213). */
+function leerraumFormAnlegen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen, vatersname: ' ' | 'Iwanowitsch '): FormInfo | undefined {
   const personId = zielAus(zustand.personIds, aktion.zielRoh)
   if (personId === undefined) return undefined
-  const { id } = befehl(zweige, db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', nachname: 'Nowak', vatersname: ' ' })
+  // Dazu ein angehängter mehrwortiger Rufname („Hans Peter“, `zerlegeName` Regel 3): ein Vorname-Teil mit innerem
+  // Leerraum, den nur die Regel „gleicher Rohwert = unverändert“ (#213 Regel 1) unverändert durchlässt.
+  const { id } = befehl(zweige, db, 'name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Karl', rufnameText: 'Hans Peter', nachname: 'Nowak', vatersname })
   zustand.uebernahmeFormen.push({ id, personId })
   zweige.push('uebernehmen.vorlauf')
   zustand.zwischenSchritt()
-  if (!teileDerForm(db, id).some((t) => t.wert.trim() === '')) {
-    throw new Error('uebernehmen (leer): Vorbedingung — name.anlegen mit vatersname \' \' schreibt keinen Leerraum-Teil mehr.')
+  if (!teileDerForm(db, id).some((t) => t.wert === vatersname) || !teileDerForm(db, id).some((t) => t.art === 'vorname' && t.wert === 'Hans Peter')) {
+    throw new Error('uebernehmen (leer): Vorbedingung — name.anlegen speichert Vatersname bzw. angehängten Rufnamen nicht mehr roh.')
   }
   return { id, personId }
 }
 
 function leer(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: AktionUebernehmen): void {
-  // Jede zweite Leer-Aktion an einer Form mit Leerraum-Teil (U-130-11-0b-leerraum-teil, #212): er geht unverändert
-  // bzw. „geleert" mit und muss bleiben.
-  const form = wahl(aktion, 4) % 2 === 0 ? leerraumFormAnlegen(db, zustand, zweige, aktion) : formSicherstellen(db, zustand, zweige, aktion)
+  // Jede Leer-Aktion an einer frischen flachen Form: zur Hälfte mit Leerraum-Teil (U-130-11-0b-leerraum-teil, #212 —
+  // er geht unverändert bzw. „geleert" mit und muss bleiben), zur Hälfte mit ungetrimmtem Vatersnamen (#213).
+  const form = leerraumFormAnlegen(db, zustand, zweige, aktion, wahl(aktion, 4) % 2 === 0 ? ' ' : 'Iwanowitsch ')
   if (form === undefined) return
   const teile = teileSicherstellen(db, zustand, zweige, form, { vornamen: 1, andere: 1, rufname: false, wortgetreu: false })
   const geleert = wahl(aktion, 0) % teile.length
-  const ziel = teile.map((t, i) => (i === geleert ? { ...unveraendert(t), wert: wahl(aktion, 1) % 2 === 0 ? '' : ' \t ' } : unveraendert(t)))
+  // Ungetrimmter Altbestand („Nowak “, #213) kommt mit zusätzlichem Randleerraum (bleibt) oder getrimmt (wird
+  // bereinigt) zurück — je nach `wahl(5)`.
+  const randleerraum = (t: TeilZeile): NamensformUebernehmenTeil =>
+    t.wert.trim() !== '' && t.wert !== t.wert.trim() ? { ...unveraendert(t), wert: wahl(aktion, 5) % 2 === 0 ? ` ${t.wert}\t` : t.wert.trim() } : unveraendert(t)
+  const ziel = teile.map((t, i) => (i === geleert ? { ...unveraendert(t), wert: wahl(aktion, 1) % 2 === 0 ? '' : ' \t ' } : randleerraum(t)))
   const leere: readonly NeuerTeilRoh[] = [
     { art: 'vorname', wert: '', feminineVariante: undefined, stelle: wahl(aktion, 2) },
     { art: 'suffix', wert: '   ', feminineVariante: 'Petrowa', stelle: wahl(aktion, 3) },
@@ -1093,20 +1128,18 @@ function ablehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: 
   }
   switch (aktion.weg) {
     case 'ablehnungArt': {
-      // Nur ein Teil mit nicht leerem Wert (ein leerer Eintrag würde vor jeder Prüfung verworfen); Vornamen
-      // sind nie leer, der Vorlauf hat einen angelegt.
-      const kandidat = zielAus(
-        teile.filter((t) => t.wert.trim() !== ''),
-        wahl(aktion, 0),
-      )
-      if (kandidat === undefined) throw new Error('uebernehmen (ablehnungArt): unerreichbar — der Vorlauf hat einen Vornamen angelegt.')
-      const teil = kandidat
-      const i = teile.indexOf(kandidat)
+      // Jeder Teil, auch ein Leerraum-Teil; jede zweite Ablehnung schickt den Eintrag zusätzlich LEER (#212 Fall c:
+      // ein leerer Eintrag mit eigener ID und anderer Art wird abgewiesen, nicht als „geleert" verworfen).
+      const leer = wahl(aktion, 5) % 2 === 0
+      const i = wahl(aktion, 0) % teile.length
+      const teil = teile[i]
+      if (teil === undefined) throw new Error('uebernehmen (ablehnungArt): unerreichbar — der Vorlauf hat Teile angelegt.')
       const kandidaten = NamePartArtEnum.options.filter((a) => a !== teil.art && (a !== 'vorname' || !/\s/u.test(teil.wert)))
       const neueArt = zielAus(kandidaten, wahl(aktion, 1)) ?? 'suffix'
-      const ziel = ohneRuf.map((t, j) => (j === i ? { ...t, art: neueArt } : t))
+      const ziel = ohneRuf.map((t, j) => (j === i ? { ...t, art: neueArt, ...(leer ? { wert: ' ' } : {}) } : t))
       ablehnungVerlangen(db, 'uebernehmen.ablehnungArt', 'VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND', aufruf(ziel))
       zweige.push('ablehnung.uebernehmen.art')
+      if (leer || teil.wert.trim() === '') zweige.push('ablehnung.uebernehmen.artLeer')
       return
     }
     case 'ablehnungLeerraum': {
@@ -1132,28 +1165,29 @@ function ablehnen(db: Tx, zustand: UebernehmenZustand, zweige: Zweig[], aktion: 
         zweige.push('ablehnung.uebernehmen.fremdePersonForm')
         return
       }
-      // Nur Teile mit nicht leerem Wert: ein gespeicherter Leerraum-Teil (etwa ein Vatersname ' ' aus
-      // `name.aendern`) wäre in der Zielliste ein leerer Eintrag und würde vor jeder Prüfung verworfen.
-      const fremdeTeile = alleTeile(db).filter((t) => t.name_form_id !== form.id && t.wert.trim() !== '')
+      // Jeder fremde Teil, auch ein Leerraum-Teil; jede zweite Ablehnung schickt den Eintrag LEER (#212 Fall b: ein
+      // leerer Eintrag mit fremder bzw. unbekannter ID wird abgewiesen, nicht still übersprungen).
+      const leer = wahl(aktion, 5) % 2 === 0
+      const fremdeTeile = alleTeile(db).filter((t) => t.name_form_id !== form.id)
       const fremd = zielAus(fremdeTeile, wahl(aktion, 0))
-      const eintrag: NamensformUebernehmenTeil =
+      const roh: NamensformUebernehmenTeil =
         fremd === undefined ? { id: 'unbekannte-teil-id', art: 'nachname', wert: 'Nowak', istRufname: false } : { id: fremd.id, art: artVon(fremd.art), wert: fremd.wert, istRufname: false }
+      const eintrag: NamensformUebernehmenTeil = leer ? { ...roh, wert: '\t' } : roh
       const ziel = [...ohneRuf]
       ziel.splice(wahl(aktion, 1) % (ziel.length + 1), 0, eintrag)
       ablehnungVerlangen(db, 'uebernehmen.ablehnungFremd', 'NICHT_GEFUNDEN_NAMENSTEIL', aufruf(ziel))
       zweige.push(fremd === undefined ? 'ablehnung.uebernehmen.unbekannt' : 'ablehnung.uebernehmen.fremd')
+      if (eintrag.wert.trim() === '') zweige.push('ablehnung.uebernehmen.fremdLeer')
       return
     }
     case 'ablehnungKeinVorname': {
-      // Ein Nicht-Vorname mit nicht leerem Wert; fehlt er (nur Leerraum-Teile), ein neuer Nachname als Rufname.
+      // Jeder Nicht-Vorname, auch ein Leerraum-Teil; der Vorlauf hat einen angelegt.
       const teil = zielAus(
-        teile.filter((t) => t.art !== 'vorname' && t.wert.trim() !== ''),
+        teile.filter((t) => t.art !== 'vorname'),
         wahl(aktion, 0),
       )
-      const ziel =
-        teil === undefined
-          ? [...ohneRuf, { art: 'nachname' as const, wert: 'Nowak', istRufname: true }]
-          : ohneRuf.map((t) => (t.id === teil.id ? { ...t, istRufname: true } : t))
+      if (teil === undefined) throw new Error('uebernehmen (ablehnungKeinVorname): unerreichbar — der Vorlauf hat einen Nicht-Vornamen angelegt.')
+      const ziel = ohneRuf.map((t) => (t.id === teil.id ? { ...t, istRufname: true } : t))
       ablehnungVerlangen(db, 'uebernehmen.ablehnungKeinVorname', 'VALIDIERUNG_RUFNAME_KEIN_VORNAME', aufruf(ziel))
       zweige.push('ablehnung.uebernehmen.keinVorname')
       return

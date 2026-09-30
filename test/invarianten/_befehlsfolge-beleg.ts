@@ -190,6 +190,12 @@ export type Zweig =
   | 'uebernehmen.leer.entfallen'
   /** Ein gespeicherter Leerraum-Teil blieb unverändert erhalten (U-130-11-0b-leerraum-teil, #212). */
   | 'uebernehmen.leerraumTeil.bleibt'
+  /** Ungetrimmter Altbestand kam mit zusätzlichem Randleerraum zurück und blieb (#213, Regel 3). */
+  | 'uebernehmen.randleerraumAltbestand.bleibt'
+  /** … bzw. kam getrimmt zurück und wurde bereinigt. */
+  | 'uebernehmen.randleerraumAltbestand.bereinigt'
+  /** Ein mehrwortiger Vorname-Teil (Altbestand, angehängter Rufname) blieb unverändert (#213 Regel 1). */
+  | 'uebernehmen.mehrwortVorname.bleibt'
   | 'uebernehmen.originalText.neueForm'
   | 'uebernehmen.originalText.praefixMontage'
   | 'uebernehmen.originalText.leer'
@@ -216,6 +222,9 @@ export type Zweig =
   | 'ablehnung.uebernehmen.flachKreis'
   | 'ablehnung.uebernehmen.flachAendernFremdePerson'
   | 'ablehnung.uebernehmen.fremdePersonForm'
+  /** Leerer Eintrag mit anderer Art bzw. fremder/unbekannter ID abgewiesen (#212 Fälle c/b). */
+  | 'ablehnung.uebernehmen.artLeer'
+  | 'ablehnung.uebernehmen.fremdLeer'
 
 /** Beleg-Pflichtzweige (E-B2-1 (c)): über `{ seed, numRuns }` von `textanker-gueltig.test.ts`
  * (Profil `beleg`) je mehr als 0 Treffer. `undo-bitgleich.test.ts` (Profil `bestand`) prüft seit

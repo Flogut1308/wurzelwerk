@@ -348,6 +348,17 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   // (alle über ihrer Schwelle): `name.anlegen` 217 → 229, `leer.entfallen` 33 → 29, `noop` 26 → 30,
   // `originalText.geglaettet` 36 → 34, `originalText.wortgetreuBleibt` 15 → 14.
   ['uebernehmen.leerraumTeil.bleibt', 8],
+  // Nach #213 (V-130-fix-randleerraum, Regel 3): jede Leer-Aktion arbeitet an einer frischen flachen Form, zur Hälfte
+  // mit ungetrimmtem Vatersnamen `'Iwanowitsch '`; mit zusätzlichem Randleerraum zurückgeschickt bleibt er (3),
+  // getrimmt wird er bereinigt (3); jede trägt einen angehängten mehrwortigen Rufnamen „Hans Peter“, der
+  // unverändert bleibt (Regel 1, 21). Nachtrag hueter #209 H6: leere Einträge mit anderer Art bzw. fremder oder
+  // unbekannter ID werden unter Last abgewiesen (je 8). Schwelle je die Hälfte (mindestens 1). Dadurch verschoben
+  // (alle über ihrer Schwelle): `name.anlegen` 229 → 237, `hauptname.gewechselt` 57 → 58, `leer.entfallen` 29 → 30.
+  ['uebernehmen.randleerraumAltbestand.bleibt', 1],
+  ['uebernehmen.mehrwortVorname.bleibt', 10],
+  ['uebernehmen.randleerraumAltbestand.bereinigt', 1],
+  ['ablehnung.uebernehmen.artLeer', 4],
+  ['ablehnung.uebernehmen.fremdLeer', 4],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
