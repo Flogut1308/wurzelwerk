@@ -129,10 +129,16 @@ test.describe('Ablauf 13 — Menü-Undo vor dem Echo des eigenen Schreibens (Not
       const eintrag = menue.items.flatMap((oben) => oben.submenu?.items ?? []).find((unten) => unten.accelerator === gesucht)
       if (eintrag === undefined) throw new Error(`Menüpunkt ${gesucht} fehlt`)
       if (!eintrag.enabled) throw new Error(`Menüpunkt ${gesucht} ist deaktiviert`)
-      return new Promise<void>((fertig) => {
+      return new Promise<void>((fertig, fehlgeschlagen) => {
         setImmediate(() => {
-          eintrag.click()
-          fertig()
+          // Wirft click() doch einmal, scheitert der Test sofort mit diesem Fehler statt am 60-s-Timeout
+          // (hueter #203 H2); ein bloßes finally würde den Fehler ungefangen im Hauptprozess lassen.
+          try {
+            eintrag.click()
+            fertig()
+          } catch (fehler: unknown) {
+            fehlgeschlagen(fehler)
+          }
         })
       })
     }, kuerzel)
