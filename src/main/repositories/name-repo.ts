@@ -7,11 +7,20 @@
 // zerlegung.ts). SQL läuft über `name-form-repo`/`name-part-repo` (dort liegt das eigentliche SQL);
 // hier nur Orchestrierung + Rollen-/Bestandteil-Zuordnung. Kein `BEGIN`/`COMMIT` (armierte
 // Bus-Transaktion).
-import { montiereOriginalText, montiereOriginalTextDerTeile, rekonstruiereFlach, zerlegeName, type FlacherName, type GeladenerTeil } from '../../core/name/zerlegung'
+import {
+  montiereOriginalText,
+  montiereOriginalTextDerTeile,
+  rekonstruiereFlach,
+  zerlegeName,
+  type FlacherName,
+  type GeladenerTeil,
+  type ZerlegterTeil,
+} from '../../core/name/zerlegung'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from './basis'
 import * as nameFormRepo from './name-form-repo'
 import * as namePartRepo from './name-part-repo'
+import type { NamePartAktualisierenEin, NamePartEinfuegenEin, NamePartZeile } from './name-part-repo'
 
 /** `typ` (flach, inkl. `'transliteriert'`) -> `name_form.rolle` (Umschrift -> `rolle IS NULL`). */
 function rolleAusTyp(typ: string): string | null {
@@ -135,13 +144,17 @@ export interface NameZeile {
   readonly gueltig_bis: number | null
 }
 
-function geladeneTeile(tx: Tx, formId: string): readonly GeladenerTeil[] {
-  return namePartRepo.teileFuerForm(tx, formId).map((teil) => ({
+function geladenerTeilVon(teil: NamePartZeile): GeladenerTeil {
+  return {
     art: alsArt(teil.art),
     wert: teil.wert,
     istRufname: teil.ist_rufname === 1,
     sortierIndex: teil.sortier_index,
-  }))
+  }
+}
+
+function geladeneTeile(tx: Tx, formId: string): readonly GeladenerTeil[] {
+  return namePartRepo.teileFuerForm(tx, formId).map(geladenerTeilVon)
 }
 
 /** Verengt `name_part.art` (roher DB-String) auf den Kern-Literaltyp — die Spalte ist per CHECK
@@ -204,8 +217,7 @@ export interface NameAktualisierenEin {
   readonly praefix: string | null
   readonly titelVor: string | null
   readonly zusatzNach: string | null
-  /** Wie in `NameEinfuegenEin`: `null` entfernt einen vorhandenen Vatersname-Teil (die Bestandteile
-   * werden vollständig neu aufgebaut). */
+  /** Wie in `NameEinfuegenEin`: `null` entfernt einen vorhandenen Vatersname-Teil. */
   readonly vatersname: string | null
   readonly originalText: string | null
   readonly sprache: string | null
@@ -214,12 +226,15 @@ export interface NameAktualisierenEin {
   readonly geaendertAm: number
 }
 
-/** Aktualisiert eine Form (Kopf-Spalten) und baut ihre Bestandteile vollständig neu auf (löschen +
- * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt.
+/**
+ * Aktualisiert eine Form über die flache Brücke. `ist_bevorzugt` bleibt unberührt.
  *
- * U-130-10a-bruecke-erhaelt (docs/80 §33): die Kopf-Felder AUSSERHALB des flachen Vertrags
- * (`reihenfolge`, `rollen_notiz`, `konfidenz`, `sortier_index`) bleiben wie gespeichert — vorher setzte
- * jedes `name.aendern` sie auf NULL. */
+ * U-130-10a-bruecke-erhaelt (docs/80 §33): die Brücke überschreibt nur, was sie trägt. Die Kopf-Felder
+ * AUSSERHALB des flachen Vertrags (`reihenfolge`, `rollen_notiz`, `konfidenz`, `sortier_index`) bleiben
+ * wie gespeichert, und die Bestandteile werden abgeglichen statt neu aufgebaut (`teileAbgleichen`) —
+ * vorher setzte jedes `name.aendern` diese Felder auf NULL und legte alle Teile neu an (neue IDs,
+ * `feminine_variante` NULL, getrennte Nachnamen-Teile zusammengezogen).
+ */
 export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => string): void {
   const vorher = nameFormRepo.lesen(tx, ein.id)
   if (vorher === undefined) {
@@ -243,20 +258,122 @@ export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => s
     originalText: ein.originalText ?? montiereOriginalTextDerTeile(flach),
     geaendertAm: ein.geaendertAm,
   })
-  namePartRepo.loescheFuerForm(tx, ein.id)
-  for (const teil of zerlegeName(flach)) {
-    namePartRepo.einfuegen(tx, {
-      id: neueId(),
-      nameFormId: ein.id,
-      art: teil.art,
-      wert: teil.wert,
-      istRufname: teil.istRufname ? 1 : 0,
-      sortierIndex: teil.sortierIndex,
-      feminineVariante: null,
-      erstelltAm: ein.geaendertAm,
-      geaendertAm: ein.geaendertAm,
-    })
+  teileAbgleichen(tx, ein.id, flach, ein.geaendertAm, neueId)
+}
+
+const ARTEN: readonly GeladenerTeil['art'][] = ['vorname', 'nachname', 'vatersname', 'praefix', 'titel', 'suffix']
+
+/** Die Werte einer Art in `sortier_index`-Reihenfolge, leerzeichengetrennt und ROH (anders als
+ * `rekonstruiereFlach` zählen hier auch Teile aus reinem Leerraum: ein gespeicherter „ "-Teil ist ein
+ * Unterschied zu „kein Teil" und wird vom Abgleich entfernt, wie vorher vom Neuaufbau). */
+function rohKette(teile: readonly { readonly wert: string; readonly sortierIndex: number }[]): string | null {
+  if (teile.length === 0) return null
+  return [...teile]
+    .sort((a, b) => a.sortierIndex - b.sortierIndex)
+    .map((teil) => teil.wert)
+    .join(' ')
+}
+
+/** Ist die flache Sicht einer Art unverändert? Dann bleiben ALLE ihre Teile, wie sie sind — auch eine
+ * feinere Zerlegung, die die flache Form nicht ausdrücken kann (zwei Nachnamen-Teile zu „Müller
+ * Lüdenscheidt", ein mehrwortiger Vorname-Teil). Für die Einzelarten vergleicht `rohKette` die
+ * gespeicherten mit den zu schreibenden Teilen. Für den Vornamen zählt die Wirkung (`rekonstruiereFlach
+ * ∘ zerlegeName`: Kette, Rufname-Position, Rufname-Text) und zusätzlich die rohe Eingabe — dieselbe
+ * Doppelregel wie der No-op-Vergleich in `name-aendern.ts` (die Kern-Rundreise ist bei einem angehängten
+ * mehrwortigen Rufnamen keine Identität, U-130-rufname-mehrteilig). */
+function artUnveraendert(art: GeladenerTeil['art'], alt: readonly GeladenerTeil[], neu: readonly ZerlegterTeil[], roh: FlacherName): boolean {
+  if (art !== 'vorname') {
+    return rohKette(alt.filter((teil) => teil.art === art)) === rohKette(neu.filter((teil) => teil.art === art))
   }
+  const altFlach = rekonstruiereFlach(alt)
+  const neuFlach = rekonstruiereFlach(neu)
+  return (
+    (altFlach.vornamen === neuFlach.vornamen && altFlach.rufnameIndex === neuFlach.rufnameIndex && altFlach.rufnameText === neuFlach.rufnameText) ||
+    (altFlach.vornamen === (roh.vornamen ?? null) && altFlach.rufnameIndex === (roh.rufnameIndex ?? null) && altFlach.rufnameText === (roh.rufnameText ?? null))
+  )
+}
+
+/**
+ * Gleicht die gespeicherten Bestandteile einer Form mit `zerlegeName(flach)` ab — Diff statt Löschen +
+ * Neuanlegen (U-130-10a-bruecke-erhaelt). Je Art:
+ *  - flache Sicht unverändert (`artUnveraendert`) -> kein Schreibvorgang;
+ *  - sonst behält ein Teil Zeile und ID, wenn ein neuer Teil dieselbe Stelle (`sortier_index`) und
+ *    dieselbe Rufname-Markierung hat; nur ein abweichender Wert wird per UPDATE geschrieben. Übrige
+ *    alte Teile werden gelöscht, übrige neue eingefügt.
+ * `feminine_variante` folgt dem Wert: ein Teil trägt die Variante des gespeicherten Teils derselben Art
+ * mit gleichem Wert (auch wenn er an eine andere Stelle rückt), ein neuer Wert hat keine.
+ *
+ * Warum Stelle und Markierung nie per UPDATE wandern: `sortier_index` ist je (Form, Art) eindeutig zu
+ * halten (die FTS-Trigger `abl_name_part_*` rekonstruieren den zuletzt indizierten Text per
+ * `ORDER BY sortier_index`; ein Doppel macht die Folge unbestimmt und beschädigt den contentless-FTS5-
+ * Index), `ist_rufname` höchstens einmal je Form (`idx_name_part_ein_rufname`). Mit der Reihenfolge
+ * Löschen -> UPDATE (nur Wert/Variante) -> Einfügen verletzt kein Zwischenzustand eine der beiden Regeln.
+ * Und weil ein UPDATE nie Stelle oder Markierung ändert, gilt das auch für die Rücknahme eines per
+ * Koaleszenz zusammengefassten Journals, das die Zeilen in Erst-Sicht-Reihenfolge statt in
+ * Schreibreihenfolge zurückspielt (`verdichteAenderungen`): zurückgeschrieben werden dann nur
+ * gelöschte Ausgangsteile, deren Stelle kein bleibender Teil belegt.
+ */
+function teileAbgleichen(tx: Tx, formId: string, flach: FlacherName, geaendertAm: number, neueId: () => string): void {
+  const alt = namePartRepo.teileFuerForm(tx, formId)
+  const altGeladen = alt.map(geladenerTeilVon)
+  const neu = zerlegeName(flach)
+
+  const loeschen: string[] = []
+  const aendern: NamePartAktualisierenEin[] = []
+  const einfuegen: NamePartEinfuegenEin[] = []
+
+  for (const art of ARTEN) {
+    if (artUnveraendert(art, altGeladen, neu, flach)) continue
+    const altArt = alt.filter((teil) => teil.art === art)
+    const neuArt = neu.filter((teil) => teil.art === art)
+    const varianteNachWert = new Map<string, string | null>()
+    for (const teil of altArt) {
+      if (!varianteNachWert.has(teil.wert)) varianteNachWert.set(teil.wert, teil.feminine_variante)
+    }
+    const vergeben = new Set<string>()
+    const offen: ZerlegterTeil[] = []
+    // 1. Gleiche Stelle, gleiche Markierung, gleicher Wert: bleibt unberührt.
+    for (const teil of neuArt) {
+      const gleich = altArt.find((a) => !vergeben.has(a.id) && a.sortier_index === teil.sortierIndex && a.ist_rufname === (teil.istRufname ? 1 : 0) && a.wert === teil.wert)
+      if (gleich === undefined) offen.push(teil)
+      else vergeben.add(gleich.id)
+    }
+    // 2. Gleiche Stelle, gleiche Markierung, anderer Wert: Wert (und Variante) per UPDATE.
+    for (const teil of offen) {
+      const stelle = altArt.find((a) => !vergeben.has(a.id) && a.sortier_index === teil.sortierIndex && a.ist_rufname === (teil.istRufname ? 1 : 0))
+      if (stelle !== undefined) {
+        vergeben.add(stelle.id)
+        aendern.push({
+          id: stelle.id,
+          art,
+          wert: teil.wert,
+          istRufname: stelle.ist_rufname === 1 ? 1 : 0,
+          sortierIndex: stelle.sortier_index,
+          feminineVariante: varianteNachWert.get(teil.wert) ?? null,
+          geaendertAm,
+        })
+      } else {
+        einfuegen.push({
+          id: neueId(),
+          nameFormId: formId,
+          art,
+          wert: teil.wert,
+          istRufname: teil.istRufname ? 1 : 0,
+          sortierIndex: teil.sortierIndex,
+          feminineVariante: varianteNachWert.get(teil.wert) ?? null,
+          erstelltAm: geaendertAm,
+          geaendertAm,
+        })
+      }
+    }
+    for (const teil of altArt) {
+      if (!vergeben.has(teil.id)) loeschen.push(teil.id)
+    }
+  }
+
+  for (const id of loeschen) namePartRepo.loeschen(tx, id)
+  for (const teil of aendern) namePartRepo.aktualisieren(tx, teil)
+  for (const teil of einfuegen) namePartRepo.einfuegen(tx, teil)
 }
 
 /** Löscht eine Form (name_part räumt sich per ON DELETE CASCADE ab). War es die bevorzugte Form einer

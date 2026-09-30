@@ -11,12 +11,14 @@
 // NULL bzw. je Art einen Teil); die Tests legen sie darum per direktem SQL an (Journal aus), so wie
 // es die künftigen granularen Namensbefehle (AP-1.30 PR 10) tun werden.
 //
-// Eiserne Regel §5: die Fälle „Kopf-Felder" und die drei `it.fails` waren rot gegen den unveränderten
-// Stand. Die Kopf-Felder sind behoben; die drei `it.fails` (Teil-Abgleich statt Neuaufbau) bleiben rot,
-// bis der Prüfpfad-Vorlauf die Deckungsschwelle `koaleszenz.verdichtet` in
-// test/invarianten/undo-bitgleich.test.ts neu fasst (docs/80 §33 U-130-10a-bruecke-erhaelt). Die übrigen sind
-// Schutzgeländer, die vor UND nach dem Fix gelten müssen: Undo/Redo bitgleich (auch zusammengefasst
-// über den Koaleszenzschlüssel) und abgeleitete Tabellen gleich ihrem Neuaufbau.
+// Eiserne Regel §5: die Fälle „Kopf-Felder" und die drei Teil-Fälle (bis AP-1.30 PR 10a-2 `it.fails`)
+// waren rot gegen den unveränderten Stand. Die Kopf-Felder sind seit PR 10a behoben, die Teil-Fälle seit
+// dem Teil-Abgleich (`name-repo.ts::teileAbgleichen`, PR 10a-2, nach dem Prüfpfad-Vorlauf #188 zur
+// Deckungsschwelle `koaleszenz.verdichtet`). Die übrigen sind Schutzgeländer, die vor UND nach dem Fix
+// gelten müssen: Undo/Redo bitgleich (auch zusammengefasst über den Koaleszenzschlüssel), abgeleitete
+// Tabellen gleich ihrem Neuaufbau und — für die FTS-Trigger `abl_name_part_*`, die den Vorher-Stand per
+// `ORDER BY sortier_index` rekonstruieren — kein doppelter `sortier_index` je (Form, Art) in irgendeinem
+// Zwischenzustand.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -187,7 +189,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('Nachname ändern (wie die Maske): Kopf-Felder bleiben, Vorname-Teile bleiben Zeile für Zeile (ID, feminine_variante)', () => {
+  it('Nachname ändern (wie die Maske): Kopf-Felder bleiben, Vorname-Teile bleiben Zeile für Zeile (ID, feminine_variante)', () => {
     const db = neueTestDatenbank()
     try {
       const { personId, formId } = formMitGranularenFeldern(db)
@@ -205,7 +207,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('Vornamen ändern: der Nachname-Teil bleibt Zeile für Zeile (ID, feminine_variante „Nowakowa")', () => {
+  it('Vornamen ändern: der Nachname-Teil bleibt Zeile für Zeile (ID, feminine_variante „Nowakowa")', () => {
     const db = neueTestDatenbank()
     try {
       const { personId, formId } = formMitGranularenFeldern(db)
@@ -226,7 +228,7 @@ describe('name.aendern erhält Felder außerhalb der flachen Brücke (U-130-10a-
     }
   })
 
-  it.fails('zwei getrennte Nachnamen-Teile bleiben getrennt, wenn der flache Nachname gleich bleibt', () => {
+  it('zwei getrennte Nachnamen-Teile bleiben getrennt, wenn der flache Nachname gleich bleibt', () => {
     const db = neueTestDatenbank()
     try {
       const personId = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id

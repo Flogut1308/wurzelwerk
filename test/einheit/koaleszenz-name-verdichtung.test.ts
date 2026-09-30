@@ -1,9 +1,11 @@
-// AP-1.30 (PR 4), Verdichtungspfad: `name.aendern` löscht die Bestandteile einer Form und legt sie
-// mit NEUEN ids wieder an (`name-repo.ts::aktualisieren`). Mit einem Koaleszenzschlüssel landen darum
-// erstmals insert+delete-Paare im zusammengefassten Journal (`verdichteAenderungen`, Tabelle §4.8:
-// „insert + delete → beide entfallen") — die Zwischenstände verschwinden, übrig bleiben die
-// Löschung der Ausgangsteile und das Einfügen der Endteile. Undo und Redo müssen dabei bitgleich
-// bleiben, auch über den partiellen UNIQUE-Index „höchstens ein Rufname je Form" (`ein_rufname`).
+// AP-1.30 (PR 4), Verdichtungspfad: `name.aendern` über einen Koaleszenzschlüssel. Seit dem
+// Teil-Abgleich (AP-1.30 PR 10a-2, docs/80 §33 U-130-10a-bruecke-erhaelt) gleicht
+// `name-repo.ts::aktualisieren` die Bestandteile ab, statt sie neu anzulegen: ein Teil an gleicher Stelle
+// mit gleicher Rufname-Markierung behält Zeile und ID, nur ein geänderter Wert wird geschrieben.
+// Reine Wertänderungen verdichten darum zu update+update; insert+delete-Paare (Tabelle §4.8:
+// „insert + delete → beide entfallen") entstehen, wenn eine Serie die Rufname-Markierung verschiebt
+// oder einen Teil anlegt und wieder entfernt. Undo und Redo müssen dabei bitgleich bleiben, auch über
+// den partiellen UNIQUE-Index „höchstens ein Rufname je Form" (`ein_rufname`).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src/main/protokoll/logger', () => ({
@@ -88,8 +90,8 @@ function rufnamen(db: ReturnType<typeof oeffnen>, formId: string): readonly stri
     .map((zeile) => zeile.wert)
 }
 
-describe('Koaleszenz über name.aendern: insert+delete-Paare der Bestandteile (AP-1.30 PR 4)', () => {
-  it('drei name.aendern (Nachname) in Folge → EINE Transaktion; Journal hält nur Ausgangs-Löschungen + End-Einfügungen; Undo und Redo bitgleich', () => {
+describe('Koaleszenz über name.aendern: Verdichtung der Bestandteile (AP-1.30 PR 4, Teil-Abgleich PR 10a-2)', () => {
+  it('drei name.aendern (Nachname) in Folge → EINE Transaktion; Journal hält genau EIN update am Nachnamen-Teil, Teil-IDs unverändert; Undo und Redo bitgleich', () => {
     const db = neueTestDatenbank()
     try {
       const p = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 }).id
@@ -97,6 +99,11 @@ describe('Koaleszenz über name.aendern: insert+delete-Paare der Bestandteile (A
       warte(5000)
       const ausgang = kanonischerAbzug(db)
       const ausgangsTeile = teilIds(db, form)
+      const nachnameTeil = db
+        .prepare<{ readonly formId: string }, TeilZeile>("SELECT id FROM name_part WHERE name_form_id = @formId AND art = 'nachname'")
+        .all({ formId: form })
+        .map((zeile) => zeile.id)
+      expect(nachnameTeil).toHaveLength(1)
       const schritteVorher = schritte(db)
 
       for (const [i, nachname] of ['Meier', 'Maier', 'Mayer'].entries()) {
@@ -106,16 +113,13 @@ describe('Koaleszenz über name.aendern: insert+delete-Paare der Bestandteile (A
 
       expect(schritte(db) - schritteVorher).toBe(1)
       const nachher = kanonischerAbzug(db)
-      const endTeile = teilIds(db, form)
+      // Teil-Abgleich: keine Zeile neu angelegt, keine gelöscht — dieselben IDs wie vorher.
+      expect(teilIds(db, form)).toEqual(ausgangsTeile)
       const ziel = undoZiel(db)
       if (ziel === undefined) throw new Error('kein Undo-Ziel')
 
       const teilZeilen = journal(db, ziel.id).filter((zeile) => zeile.tabelle === 'name_part')
-      const geloescht = teilZeilen.filter((z) => z.operation === 'delete').map((z) => z.datensatz_id).sort()
-      const eingefuegt = teilZeilen.filter((z) => z.operation === 'insert').map((z) => z.datensatz_id).sort()
-      expect(geloescht).toEqual([...ausgangsTeile].sort())
-      expect(eingefuegt).toEqual([...endTeile].sort())
-      expect(teilZeilen).toHaveLength(ausgangsTeile.length + endTeile.length)
+      expect(teilZeilen).toEqual([{ tabelle: 'name_part', datensatz_id: nachnameTeil[0], operation: 'update' }])
 
       undo(db)
       expect(kanonischerAbzug(db)).toBe(ausgang)
@@ -135,6 +139,7 @@ describe('Koaleszenz über name.aendern: insert+delete-Paare der Bestandteile (A
       const form = nameAnlegenMitRufname(db, p, 'geburtsname')
       warte(5000)
       const ausgang = kanonischerAbzug(db)
+      const ausgangsTeile = teilIds(db, form)
       const schritteVorher = schritte(db)
 
       for (const [i, rufnameIndex] of [0, 1, 0].entries()) {
@@ -145,6 +150,21 @@ describe('Koaleszenz über name.aendern: insert+delete-Paare der Bestandteile (A
       expect(schritte(db) - schritteVorher).toBe(1)
       expect(rufnamen(db, form)).toEqual(['Karl'])
       const nachher = kanonischerAbzug(db)
+
+      // Die Rufname-Markierung wandert nie per UPDATE (Teil-Abgleich): beide Vorname-Teile werden je
+      // Aufruf gelöscht und neu angelegt, die Zwischenstände heben sich als insert+delete auf — übrig
+      // bleiben die Löschung der Ausgangsteile und das Einfügen der Endteile; der Nachname bleibt.
+      const endTeile = teilIds(db, form)
+      const ziel = undoZiel(db)
+      if (ziel === undefined) throw new Error('kein Undo-Ziel')
+      const teilZeilen = journal(db, ziel.id).filter((zeile) => zeile.tabelle === 'name_part')
+      const geloescht = teilZeilen.filter((z) => z.operation === 'delete').map((z) => z.datensatz_id)
+      const eingefuegt = teilZeilen.filter((z) => z.operation === 'insert').map((z) => z.datensatz_id)
+      expect(geloescht).toHaveLength(2)
+      expect(eingefuegt).toHaveLength(2)
+      expect(teilZeilen).toHaveLength(4)
+      expect(geloescht.every((id) => ausgangsTeile.includes(id) && !endTeile.includes(id))).toBe(true)
+      expect(eingefuegt.every((id) => endTeile.includes(id) && !ausgangsTeile.includes(id))).toBe(true)
 
       undo(db)
       expect(kanonischerAbzug(db)).toBe(ausgang)
