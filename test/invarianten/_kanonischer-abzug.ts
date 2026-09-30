@@ -134,11 +134,22 @@ interface AbzugPlan {
  * Plan-Cache je Verbindung (Folgepunkt U-130-undo-bitgleich-laufzeit, docs/80 §33). Tabellenliste,
  * Spaltenplan und vorbereitete `SELECT`s hängen NUR am Schema, nicht an den Daten — sie wurden
  * früher bei jedem Abzug neu erfragt und neu vorbereitet (`undo-bitgleich.test.ts` ruft den Abzug
- * ~19 000-mal auf). FAIL-CLOSED: der Plan gilt nur, solange `PRAGMA schema_version` gleich ist;
- * `CREATE`/`ALTER`/`DROP` erhöhen ihn, der Plan wird dann vollständig neu gebaut — eine neue Tabelle
- * oder Spalte wird also genauso automatisch verglichen wie ohne Cache (B-T6 in
- * `undo-bitgleich-ausnahmen.test.ts`, R3/R4 in `kanonischer-abzug-referenz.test.ts`). `WeakMap`:
- * eine geschlossene Verbindung hält keinen Plan am Leben; eine neu geöffnete bekommt einen eigenen.
+ * ~19 000-mal auf).
+ *
+ * WANN DER CACHE GILT (genau zwei Bedingungen, sonst wird der Plan frisch gebaut):
+ * 1. Die Verbindung steht NICHT in einer offenen Transaktion (`db.inTransaction`). Innerhalb einer
+ *    Transaktion wird der Plan weder gelesen noch gespeichert. Grund (hueter PR #185 H1, R6/R7 in
+ *    `kanonischer-abzug-referenz.test.ts`): `ROLLBACK` setzt `PRAGMA schema_version` zurück — ein in
+ *    einer zurückgerollten Transaktion gebauter Plan trüge sonst dieselbe Zahl wie ein späteres,
+ *    ANDERES Schema, und eine neue Tabelle fehlte still im Abzug.
+ * 2. `PRAGMA schema_version` ist gleich dem Wert beim Bau. Außerhalb von Transaktionen ist das der
+ *    committete Wert, und der steigt mit jedem `CREATE`/`ALTER`/`DROP` streng monoton — ein
+ *    gespeicherter Plan gehört damit eindeutig zu genau einem Schema (B-T6 in
+ *    `undo-bitgleich-ausnahmen.test.ts`, R3/R4/R6/R7 in `kanonischer-abzug-referenz.test.ts`).
+ * Nicht abgedeckt: ein explizites Setzen von `PRAGMA schema_version = n` (laut SQLite-Doku ein Weg,
+ * die Datenbank zu beschädigen; kommt weder im Produktivcode noch in den Tests vor).
+ * `WeakMap`: eine geschlossene Verbindung hält keinen Plan am Leben; eine neu geöffnete bekommt einen
+ * eigenen.
  */
 const PLAENE = new WeakMap<Database.Database, AbzugPlan>()
 
@@ -166,6 +177,10 @@ function planBauen(db: Database.Database, schemaVersion: number): AbzugPlan {
 /** Gültiger Plan für den aktuellen Schemastand dieser Verbindung (s. `PLAENE`). */
 function abzugPlan(db: Database.Database): AbzugPlan {
   const schemaVersion = aktuelleSchemaVersion(db)
+  if (db.inTransaction) {
+    // Bedingung 1 (s. `PLAENE`): in einer Transaktion kann `schema_version` durch ROLLBACK zurückfallen.
+    return planBauen(db, schemaVersion)
+  }
   const vorhanden = PLAENE.get(db)
   if (vorhanden !== undefined && vorhanden.schemaVersion === schemaVersion) {
     return vorhanden

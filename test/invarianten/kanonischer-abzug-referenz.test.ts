@@ -310,7 +310,7 @@ describe('kanonischerAbzug: neue Umsetzung ist zeichengleich der Referenz (ADR-0
       db.close()
     }
   })
-  it.fails('R6: ein in einer zurückgerollten Transaktion gebauter Plan wird bei gleicher schema_version nicht wiederverwendet', () => {
+  it('R6: ein in einer zurückgerollten Transaktion gebauter Plan wird bei gleicher schema_version nicht wiederverwendet', () => {
     const db = neueTestDatenbank()
     try {
       const version = (): unknown => db.pragma('schema_version', { simple: true })
@@ -338,7 +338,7 @@ describe('kanonischerAbzug: neue Umsetzung ist zeichengleich der Referenz (ADR-0
       db.close()
     }
   })
-  it.fails('R7: ein in einer zurückgerollten Transaktion gebauter Plan trifft auch eine spätere Autocommit-Änderung nicht', () => {
+  it('R7: ein in einer zurückgerollten Transaktion gebauter Plan trifft auch eine spätere Autocommit-Änderung nicht', () => {
     const db = neueTestDatenbank()
     try {
       const version = (): unknown => db.pragma('schema_version', { simple: true })
