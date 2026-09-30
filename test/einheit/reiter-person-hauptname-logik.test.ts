@@ -9,6 +9,7 @@ import type { PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailName 
 import {
   NAMEN_EINTRAG_LEER,
   mitRufnameAusAuswahl,
+  mitVornamen,
   nameAendernEinAusEintrag,
   namenEintragAusPersonDetailName,
 } from '../../src/renderer/ansichten/profil/profil-bearbeiten-logik'
@@ -116,6 +117,14 @@ describe('hauptnameAnlegenEin (E1/E2)', () => {
     const ein = hauptnameAnlegenEin('p-1', eintrag)
     expect(ein.rufnameText).toBeUndefined()
     expect(ein.vornamen).toBe('Karl')
+  })
+
+  // V-130-11e-1 (Review #215): der Entwurf folgt `mitVornamen` — beim Umschreiben des markierten Worts
+  // führt er den neuen Text mit („Friedric"). Angelegt wird mit genau diesem Vornamen, nie mit dem alten
+  // Text („Friedrich"), den `zerlegeName` sonst als dritten Vornamen anhinge.
+  it('nach dem Umschreiben des markierten Worts geht der umgeschriebene Vorname mit, nichts wird angehängt', () => {
+    const eintrag = mitVornamen(mitRufnameAusAuswahl({ ...NAMEN_EINTRAG_LEER, vornamen: 'Karl Friedrich', nachname: 'Gutnoff' }, '1'), 'Karl Friedric')
+    expect(hauptnameAnlegenEin('p-1', eintrag)).toMatchObject({ vornamen: 'Karl Friedric', rufnameText: 'Friedric' })
   })
 })
 

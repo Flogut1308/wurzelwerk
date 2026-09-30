@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   NAMEN_EINTRAG_LEER,
   mitRufnameAusAuswahl,
+  mitVornamen,
   nameAendernEinAusEintrag,
   nameAnlegenEinAusEintrag,
   rufnameAuswahlVornamen,
@@ -77,5 +78,66 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
     const eintrag = { ...KARL_FRIEDRICH, vornamen: 'Karl Hans  Peter', rufname: 'Hans  Peter', rufnameIndex: 1 }
     expect(rufnameAuswahlWert(eintrag)).toBe('1')
     expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl', rufnameText: 'Hans Peter' })
+  })
+})
+
+// U-130-11c2-rufname-verlust (docs/80 §33, V-130-11e-1, Review #215): Schreibt der Nutzer den markierten
+// Vornamen um, gleicht der Rufname schon im ersten Zwischenstand keinem Vornamen mehr. `mitVornamen`
+// (vorheriger Entwurf → neue Vornamen) führt den Rufname-Text im Entwurf mit, solange die Stelle des
+// markierten Worts eindeutig ist, und nimmt die Markierung sonst weg — nie auf ein anderes Wort.
+// Weitere Gegenbeispiele: `profil-namen-rufname-ausrichtung.test.tsx`.
+describe('Rufname-Stelle über Zwischenstände (U-130-11c2-rufname-verlust)', () => {
+  const GELESEN: NamenEintragWerte = { ...KARL_FRIEDRICH, rufname: 'Friedrich', rufnameIndex: 1 }
+  const JOHANN: NamenEintragWerte = { ...KARL_FRIEDRICH, vornamen: 'Johann Georg Johann', rufname: 'Johann', rufnameIndex: 2 }
+
+  it('Review #215 B2: kein Hilfsfeld im Entwurf — Auswahl und Vornamen-Änderung behalten die Felder des Lesemodells', () => {
+    const felder = Object.keys(NAMEN_EINTRAG_LEER).sort()
+    expect(Object.keys(mitRufnameAusAuswahl(KARL_FRIEDRICH, '1')).sort()).toEqual(felder)
+    expect(Object.keys(mitVornamen(GELESEN, 'Karl Friedric')).sort()).toEqual(felder)
+  })
+
+  it('„Karl Friedric": genau das markierte Wort geändert, die Markierung bleibt an Position 1 und wandert mit', () => {
+    const eintrag = mitVornamen(GELESEN, 'Karl Friedric')
+    expect(eintrag).toMatchObject({ vornamen: 'Karl Friedric', rufname: 'Friedric', rufnameIndex: 1 })
+    expect(rufnameAuswahlWert(eintrag)).toBe('1')
+    expect(nameAendernEinAusEintrag('name-1', eintrag)).toMatchObject({ vornamen: 'Karl Friedric', rufnameText: 'Friedric', rufnameIndex: 1 })
+    expect(nameAendernEinAusEintrag('name-1', mitVornamen(GELESEN, 'Karl Fritz'))).toMatchObject({ vornamen: 'Karl Fritz', rufnameText: 'Fritz', rufnameIndex: 1 })
+  })
+
+  it('vorne eingefügt: das markierte Wort und alles dahinter unverändert, die Stelle verschiebt sich mit', () => {
+    expect(rufnameAuswahlWert(mitVornamen(GELESEN, 'H Karl Friedrich'))).toBe('2')
+    // Die Textsuche fände das erste „Friedrich" (Position 0).
+    expect(rufnameAuswahlWert(mitVornamen(GELESEN, 'Friedrich Karl Friedrich'))).toBe('2')
+    expect(rufnameAuswahlWert(mitVornamen(JOHANN, 'H Johann Georg Johann'))).toBe('3')
+  })
+
+  it('„Johann Georg Jo…": das markierte letzte „Johann" bleibt an Position 2, auch wieder vollständig', () => {
+    const jo = mitVornamen(JOHANN, 'Johann Georg Jo')
+    expect(nameAendernEinAusEintrag('name-1', jo)).toMatchObject({ rufnameText: 'Jo', rufnameIndex: 2 })
+    expect(rufnameAuswahlWert(mitVornamen(jo, 'Johann Georg Johann'))).toBe('2')
+  })
+
+  it('das markierte Wort gelöscht: die Markierung entfällt, sie springt auf kein anderes Wort', () => {
+    expect(mitVornamen(GELESEN, 'Karl')).toMatchObject({ vornamen: 'Karl', rufname: '', rufnameIndex: null })
+    expect(nameAendernEinAusEintrag('name-1', mitVornamen(GELESEN, 'Karl'))).toMatchObject({ vornamen: 'Karl', rufnameText: undefined, rufnameIndex: undefined })
+    const vorne = { ...GELESEN, vornamen: 'l Friedrich', rufname: 'l', rufnameIndex: 0 }
+    expect(rufnameAuswahlWert(mitVornamen(vorne, ' Friedrich'))).toBe('')
+  })
+
+  it('ein neu gesetzter Rufname-Text wird gesucht, der alte Index richtet ihn nicht aus (wie main)', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, rufname: 'Karl' })).toBe('0')
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric', rufname: 'Karl' })).toBe('0')
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric', rufname: 'Fritz' })).toBe('')
+  })
+
+  it('ohne `mitVornamen` (Eintrag von Hand gespreizt) gelten Index und Textsuche wie auf main', () => {
+    expect(rufnameAuswahlWert({ ...GELESEN, vornamen: 'Karl Friedric' })).toBe('')
+  })
+
+  it('nichts wird angehängt: der gesendete Rufname ist immer ein vorhandener Vorname', () => {
+    for (const vornamen of ['Karl Friedric', 'Karl F', 'Karl', 'H Karl Friedrich', 'Hans Peter', 'Anna', 'Friedrich Karl']) {
+      const ein = nameAendernEinAusEintrag('name-1', mitVornamen(GELESEN, vornamen))
+      if (ein.rufnameText !== undefined) expect(vornamen.split(' ')).toContain(ein.rufnameText)
+    }
   })
 })

@@ -13,6 +13,7 @@ import {
   NAMEN_EINTRAG_LEER,
   geaendertesNamensFeld,
   mitRufnameAusAuswahl,
+  mitVornamen,
   nameAendernEinAusEintrag,
   namenEintragAusPersonDetailName,
   rufnameAuswahlVornamen,
@@ -196,7 +197,8 @@ function HauptnameFelder({ personId, name, idPraefix, kurzbeschreibung }: Hauptn
             <Textfeld
               id={hauptnameFeldId(idPraefix, 'vornamen')}
               wert={eintrag.vornamen}
-              aufAenderung={(vornamen) => setEintrag({ ...eintrag, vornamen })}
+              // V-130-11e-1: der Rufname folgt dem umgeschriebenen markierten Wort oder entfällt (`mitVornamen`).
+              aufAenderung={(vornamen) => setEintrag(mitVornamen(eintrag, vornamen))}
               aufVerlassen={verlassen}
             />
           </Formularfeld>
