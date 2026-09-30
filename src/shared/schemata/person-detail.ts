@@ -32,7 +32,7 @@ import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
 import { BeteiligungRolleEnum } from './beteiligung'
 import { ElternschaftTypEnum } from './elternschaft'
 import { EreignisTypEnum } from './ereignis'
-import { NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
+import { NameFormReihenfolgeEnum, NameFormRolleEnum, NamePartArtEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
 import { PartnerschaftTypEnum } from './partnerschaft'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
 import type { PersonListeDatumsgruppe } from './person-liste'
@@ -109,6 +109,29 @@ export interface PersonDetailName {
   readonly gueltig_von: number | null
   readonly gueltig_bis: number | null
   readonly original_text: string | null
+  /** AP-1.30 PR 10-4 (docs/80 §33 V-130-10-4): die übrigen Kopf-Felder von `name_form`, NUR LESEND —
+   * Vorbereitung für den Reiter „Namen" (PR 11), der sie über `befehl:namensform.aendern` bearbeitet.
+   * `rolle` ist die gespeicherte Spalte (`null` = Umschrift, 0006 ohne 'transliteriert'); `typ` oben
+   * bleibt die abgeleitete flache Sicht für die bestehenden Leser. */
+  readonly rolle: z.infer<typeof NameFormRolleEnum> | null
+  readonly rollen_notiz: string | null
+  readonly reihenfolge: z.infer<typeof NameFormReihenfolgeEnum> | null
+  readonly konfidenz: number | null
+  readonly sortier_index: number | null
+  /** Die Bestandteile der Form (`name_part`), sortiert nach Art (`NAME_PART_ART_REIHENFOLGE`,
+   * src/core/name/zerlegung.ts), dann `sortier_index`, dann `id`. Leer bei einer Form ohne Teile. */
+  readonly teile: readonly PersonDetailNamensteil[]
+}
+
+/** Ein Bestandteil einer Namensform — read-only Spiegel einer `name_part`-Zeile (docs/schema/
+ * 0006_namensformen.sql), AP-1.30 PR 10-4. Schlüssel `id` für die granularen `befehl:namensteil.*`. */
+export interface PersonDetailNamensteil {
+  readonly id: string
+  readonly art: z.infer<typeof NamePartArtEnum>
+  readonly wert: string
+  readonly ist_rufname: boolean
+  readonly sortier_index: number
+  readonly feminine_variante: string | null
 }
 
 /** Stufe 1 eines Belegs (S-08): die Quelle selbst — `docs/schema/0002_kern.sql` §2.7/§2.15.

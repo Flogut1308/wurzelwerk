@@ -43,6 +43,12 @@ function name(id: string, ueberschreibung: Partial<PersonDetailName> = {}): Pers
     gueltig_von: null,
     gueltig_bis: null,
     original_text: 'Karl Friedrich Gutnoff',
+    rolle: 'geburtsname',
+    rollen_notiz: null,
+    reihenfolge: null,
+    konfidenz: null,
+    sortier_index: null,
+    teile: [],
     ...ueberschreibung,
   }
 }

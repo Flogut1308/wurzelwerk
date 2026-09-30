@@ -109,6 +109,12 @@ describe('Rufname-Auswahl (A-02, AP-1.30)', () => {
       gueltig_von: null,
       gueltig_bis: null,
       original_text: 'Karl Friedrich Gutnoff',
+      rolle: 'geburtsname',
+      rollen_notiz: null,
+      reihenfolge: null,
+      konfidenz: null,
+      sortier_index: null,
+      teile: [],
     }
     const markup = renderToStaticMarkup(<NamenBearbeitenAbschnitt personId="person-1" namen={[name]} />)
     const zeile = markup.slice(markup.indexOf('wz-profil-bearbeiten-namen__zeile'), markup.indexOf('wz-profil-bearbeiten-namen__neu'))

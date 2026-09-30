@@ -46,6 +46,12 @@ const ALTFORM: PersonDetailName = {
   gueltig_von: null,
   gueltig_bis: null,
   original_text: 'Hans Peter Gutnow',
+  rolle: 'geburtsname',
+  rollen_notiz: null,
+  reihenfolge: null,
+  konfidenz: null,
+  sortier_index: null,
+  teile: [],
 }
 
 describe('Bestehende Namenszeile: Rufname-Verdopplung wird an der Zeile angezeigt (hueter #184 P2)', () => {

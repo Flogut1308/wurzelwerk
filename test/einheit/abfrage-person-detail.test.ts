@@ -226,6 +226,16 @@ describe('abfrage:person.detail (AP-1.7 PR-A)', () => {
           gueltig_von: null,
           gueltig_bis: null,
           original_text: 'August Wruck',
+          // AP-1.30 PR 10-4 (V-130-10-4): übrige Kopf-Felder und Teile, nur lesend.
+          rolle: 'geburtsname',
+          rollen_notiz: null,
+          reihenfolge: null,
+          konfidenz: null,
+          sortier_index: null,
+          teile: [
+            { id: expect.any(String), art: 'vorname', wert: 'August', ist_rufname: false, sortier_index: 0, feminine_variante: null },
+            { id: expect.any(String), art: 'nachname', wert: 'Wruck', ist_rufname: false, sortier_index: 0, feminine_variante: null },
+          ],
         },
       ])
       expect(ergebnis.kopf.geschlecht).toBeNull()

@@ -86,6 +86,12 @@ function name(id: string, vornamen: string): PersonDetailName {
     gueltig_von: null,
     gueltig_bis: null,
     original_text: null,
+    rolle: 'geburtsname',
+    rollen_notiz: null,
+    reihenfolge: null,
+    konfidenz: null,
+    sortier_index: null,
+    teile: [],
   }
 }
 
