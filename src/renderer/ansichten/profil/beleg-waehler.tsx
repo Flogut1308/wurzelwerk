@@ -11,12 +11,14 @@ import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
 import { Textfeld } from '../../bausteine/textfeld'
 import { useQuelleDetail, useQuelleSuche } from '../../brücke/abfrage-hooks'
-import { useAussageZitatAnlegen, useQuelleAnlegen, useZitatAnlegen } from '../../brücke/befehl-hooks'
+import { useAussageZitatAendern, useAussageZitatAnlegen, useQuelleAnlegen, useZitatAnlegen } from '../../brücke/befehl-hooks'
 import { QuelleBearbeitenAnsicht } from '../quellen/quelle-bearbeiten'
 import { quelleNeuAnlegenEin } from '../quellen/quelle-bearbeiten-logik'
 import {
   aktiveZiele,
   chipAngabenZeigen,
+  ereignisZielAngaben,
+  erweiterungsBefehle,
   neuesZitatEin,
   verknuepfungsBefehle,
   zitatBeschriftung,
@@ -82,8 +84,9 @@ export interface BelegZeileProps {
 /**
  * Beleg-Zeile einer Gruppe (Artboard 1a „Beleg (Chip mit Typ + Titel, ‚Beleg verknüpfen')",
  * AP-1.30 PR 9d): die Belege der Ziel-Aussagen als Chips (Klick öffnet die Belegschublade) und
- * „Beleg verknüpfen". Ohne Wert gesperrt mit Hinweis (E4); stammt jeder Wert aus einem Ereignis,
- * steht statt des Knopfs „am Ereignis belegen" (E3).
+ * „Beleg verknüpfen". Ohne Wert gesperrt mit Hinweis (E4); stammt jeder Wert aus einem Ereignis
+ * OHNE Existenz-Aussage, steht statt des Knopfs „am Ereignis belegen" (E3; mit Existenz-Aussage ist
+ * der Ereigniswert seit PR 9d-2 ein Ziel).
  *
  * §14 [Design-Review]: das Chip-Etikett ist der Quellentyp statt „PDF" (Medien erst mit AP-1.31);
  * der Entwurf zeigt die Zeile nur an „Geburt", hier steht sie an „Tod" genauso.
@@ -132,7 +135,7 @@ export function BelegZeile({ zustand, chips, aufOeffnen }: BelegZeileProps) {
 /** Ergebnis der letzten Aktion im Wähler: verknüpft oder der Schritt, der gescheitert ist. */
 const SUCHE_ID = 'wz-beleg-waehler-suche'
 
-type Meldung = 'verknuepft' | 'fehler_verknuepfen' | 'fehler_zitat' | 'fehler_quelle'
+type Meldung = 'verknuepft' | 'fehler_verknuepfen' | 'fehler_erweitern' | 'fehler_zitat' | 'fehler_quelle'
 
 export interface BelegWaehlerProps {
   readonly zustand: Extract<BelegZeileZustand, { readonly art: 'waehlbar' }>
@@ -147,8 +150,13 @@ export interface BelegWaehlerProps {
  * verwendet"), bestehendes Zitat wählen oder ein neues mit Seite/Eintragsnummer anlegen.
  *
  * - Ein Klick auf ein Zitat schreibt sofort, ohne Bestätigen (E9); je angekreuztem Ziel ein eigener
- *   `aussage_zitat.anlegen` (E2). „Neues Zitat" = `zitat.anlegen` + Verknüpfung = zwei Undo-Schritte
- *   (dokumentiert wie Entscheidung K). Kein Sammelbefehl, `src/main`/`src/shared` unverändert.
+ *   `aussage_zitat.anlegen` (E2). PR 9d-2 (V-130-9d2): ein Ziel aus einem Ereignis ist dessen
+ *   Existenz-Aussage (`feld` datum/ort, Datum+Ort desselben Ereignisses = eine Verknüpfung ohne
+ *   `feld`); hängt das Zitat dort schon mit dem anderen Feld, erweitert `aussage_zitat.aendern` es
+ *   auf NULL (je ein Undo-Schritt). Ein Hinweis nennt die Angaben, die am Ereignis belegt werden.
+ *   „Neues Zitat" = `zitat.anlegen` + Verknüpfung = zwei Undo-Schritte (dokumentiert wie
+ *   Entscheidung K). Kein Sammelbefehl und kein neuer Befehl; PR 9d-2 ergänzt nur lesend
+ *   `person.detail.ereignis_existenz` (`src/shared`/`src/main/abfragen`).
  * - Die Verknüpfung ist kein Autosave-Wert eines Felds, sondern eine Mutation. Ein laufender
  *   Datums-Debounce ist beim Klick schon geschrieben: „Beleg verknüpfen" nimmt dem Datumsfeld den
  *   Fokus, und die Schublade holt ihn beim Öffnen zu sich (`Seitenschublade`) — beides ist das
@@ -203,6 +211,7 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
   })
 
   const verknuepfen = useAussageZitatAnlegen()
+  const erweitern = useAussageZitatAendern()
   const zitatAnlegen = useZitatAnlegen()
   const quelleAnlegen = useQuelleAnlegen()
 
@@ -219,6 +228,8 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
     switch (schritt) {
       case 'fehler_verknuepfen':
         return verknuepfen.error
+      case 'fehler_erweitern':
+        return erweitern.error
       case 'fehler_zitat':
         return zitatAnlegen.error
       case 'fehler_quelle':
@@ -243,8 +254,18 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
     let schritt: Exclude<Meldung, 'verknuepft'> = 'fehler_zitat'
     try {
       const zitatId = await zitatIdHolen()
+      // Beide Listen aus demselben Stand berechnen, bevor geschrieben wird (sie schließen sich aus:
+      // erweitert wird nur, wo schon eine Verknüpfung steht, angelegt nur, wo keine steht).
+      const erweiterungen = erweiterungsBefehle(zitatId, ziele, paareUnterwegs)
+      const anlagen = verknuepfungsBefehle(zitatId, ziele, paareUnterwegs)
+      schritt = 'fehler_erweitern'
+      for (const ein of erweiterungen) {
+        await erweitern.mutateAsync(ein)
+        // Erweitert auf NULL: als Paar ohne `feld` merken (der letzte Eintrag gilt).
+        geschrieben.push({ aussageId: ein.aussageId, zitatId: ein.zitatId })
+      }
       schritt = 'fehler_verknuepfen'
-      for (const ein of verknuepfungsBefehle(zitatId, ziele, paareUnterwegs)) {
+      for (const ein of anlagen) {
         await verknuepfen.mutateAsync(ein)
         geschrieben.push(ein)
       }
@@ -322,6 +343,11 @@ export function BelegWaehler({ zustand, stand }: BelegWaehlerProps) {
           ))
         )}
       </div>
+      {ereignisZielAngaben(ziele).map((angabe) => (
+        <Text key={angabe} rolle="hilfe" als="p">
+          {t('beleg_waehler_ziel_existenz', { angabe: angabeText(angabe, t) })}
+        </Text>
+      ))}
       {zustand.ereignisAngaben.map((angabe) => (
         <Text key={angabe} rolle="hilfe" als="p">
           {t('beleg_waehler_ziel_ereignis', { angabe: angabeText(angabe, t) })}

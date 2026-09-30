@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { PersonDetailBeleg, PersonDetailGrunddatenFeld } from '../../../shared/schemata/person-detail'
+import type { PersonDetailAussage, PersonDetailBeleg } from '../../../shared/schemata/person-detail'
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
 import { useQuelleAnlegen } from '../../brücke/befehl-hooks'
@@ -9,8 +9,15 @@ import { quelleNeuAnlegenEin } from '../quellen/quelle-bearbeiten-logik'
 import { quelleTypSchluessel, unmittelbarkeitSchluessel } from './profil-schluessel'
 import './beleg-liste.css'
 
+/** Was die Liste von einem Feld braucht: je Aussage Kennung, Anzeigewert und Belege. Ein
+ * `PersonDetailGrunddatenFeld` passt; der Reiter Person zeigt so auch die Belege der Existenz-Aussage
+ * eines Ereignisses (AP-1.30 PR 9d-2), die kein Grunddatenfeld ist. */
+export interface BelegListeFeld {
+  readonly aussagen: readonly Pick<PersonDetailAussage, 'aussage_id' | 'wert' | 'belege'>[]
+}
+
 export interface BelegListeProps {
-  readonly feld: PersonDetailGrunddatenFeld
+  readonly feld: BelegListeFeld
   /** AP-1.30 PR 9d (V-130-9d E10): „Verknüpfung entfernen" je Beleg — nur im Editor (Reiter Person),
    * nie in der Lesesicht. Entfernt NUR die Verknüpfung (`aussage_zitat.loeschen`), das Zitat bleibt. */
   readonly aufVerknuepfungEntfernen?: (aussageId: string, zitatId: string) => void
@@ -19,6 +26,10 @@ export interface BelegListeProps {
   /** Der feste „Quelle anlegen"-Fuß (Standard: ja). Der Reiter Person zeigt ihn im Beleg-Wähler
    * statt einmal je Liste (PR 9d). */
   readonly mitQuelleAnlegen?: boolean
+  /** Hinweis unter einem Beleg, `null` = keiner (AP-1.30 PR 9d-2, hueter #178 H3: ein Beleg mit
+   * `feld` NULL an der Existenz-Aussage gilt für Datum UND Ort — „Verknüpfung entfernen" nimmt ihn an
+   * beiden weg, das steht dann daneben). */
+  readonly belegHinweis?: (beleg: PersonDetailBeleg) => string | null
 }
 
 export interface BelegEintragProps {
@@ -128,7 +139,16 @@ export function BelegEintrag({ beleg }: BelegEintragProps) {
  * Schublade; dort steht auch „Quelle anlegen" (`mitQuelleAnlegen = false`) und je Beleg
  * „Verknüpfung entfernen". Die Lesesicht bleibt unverändert.
  */
-export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt = false, mitQuelleAnlegen = true }: BelegListeProps) {
+function belegHinweisText(beleg: PersonDetailBeleg, belegHinweis: BelegListeProps['belegHinweis']) {
+  const text = belegHinweis?.(beleg) ?? null
+  return text === null ? null : (
+    <Text rolle="hilfe" als="p">
+      {text}
+    </Text>
+  )
+}
+
+export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt = false, mitQuelleAnlegen = true, belegHinweis }: BelegListeProps) {
   const { t } = useTranslation('profil')
   const quelleAnlegen = useQuelleAnlegen()
   const [neueQuelleId, setNeueQuelleId] = useState<string | null>(null)
@@ -155,6 +175,7 @@ export function BelegListe({ feld, aufVerknuepfungEntfernen, entfernenGesperrt =
                 {aussage.belege.map((beleg, index) => (
                   <li key={index} className="wz-beleg-liste__beleg">
                     <BelegEintrag beleg={beleg} />
+                    {belegHinweisText(beleg, belegHinweis)}
                     {aufVerknuepfungEntfernen === undefined ? null : (
                       <div>
                         <Schaltflaeche variante="unauffaellig" gesperrt={entfernenGesperrt} aufKlick={() => aufVerknuepfungEntfernen(aussage.aussage_id, beleg.zitat_id)}>

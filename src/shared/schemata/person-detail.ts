@@ -314,6 +314,22 @@ export interface PersonDetailLebensdatum {
   readonly ort_name: string | null
 }
 
+/** Die Existenz-Aussage eines Ereignisses, aus dem ein Lebensdatum kommt (AP-1.30 PR 9d-2, docs/80 §33
+ * V-130-9d2, ADR-026): Ziel von „Beleg verknüpfen" an einem Ereigniswert. NUR lesend — dieselbe
+ * `aussage_zitat`-Tabelle, derselbe Befehl `aussage_zitat.anlegen`, `feld` = `datum`/`ort` bzw. NULL.
+ * - Ein Eintrag je Ereignis, das in `lebensdaten` als Herkunft (`herkunft = 'ereignis'`) steht und
+ *   eine Existenz-Aussage hat; ohne Existenz-Aussage kein Eintrag.
+ * - Hat ein Ereignis mehrere Existenz-Aussagen (Altbestand), gilt die mit kleinster `id` (UUID v7 =
+ *   älteste; `ereignis.anlegen` und der Import schreiben genau eine).
+ * - `belege` = ALLE Verknüpfungen dieser Aussage mit ihrem `feld`, auch `beschreibung` oder ein
+ *   unbekannter Wert — welche davon ein Datum bzw. einen Ort belegen (`feld` NULL oder gleich), prüft
+ *   die Anzeige, dieselbe Regel wie die Kernangaben (`kernBelegeLaden`). */
+export interface PersonDetailEreignisExistenz {
+  readonly ereignis_id: string
+  readonly aussage_id: string
+  readonly belege: readonly PersonDetailBeleg[]
+}
+
 /** Eine Feldwarnung (AP-1.34 PR-C2b, F-07, docs/80_Offene_Fragen.md §31 U-1.34-C2-O1): ein
  * Bestandshinweis aus AP-1.8 an DIESER Person, mit Sprungziel (Entwicklungsvorgaben §3.1 Reiter,
  * §5.5 `tab`/`field`). Zuordnung im Kern (`feldZielFuer`, `src/core/plausibilitaet/feldwarnungen.ts`),
@@ -388,6 +404,10 @@ export interface PersonDetailAus {
   readonly sterbeort: PersonDetailSterbeort | null
   /** AP-1.30 PR 1 (V-D9-anzeige): immer vier Einträge in `LEBENSDATUM_ANGABEN`-Reihenfolge. */
   readonly lebensdaten: readonly PersonDetailLebensdatum[]
+  /** AP-1.30 PR 9d-2: Existenz-Aussagen der Ereignisse, aus denen `lebensdaten` Werte beziehen, mit
+   * ihren Belegen — höchstens ein Eintrag je Ereignis, nach `ereignis_id` sortiert. Bewusst NICHT in
+   * `PersonDetailLebensdatum`: dessen Form ist fest gepinnt (Invariante Kernangaben-Konsistenz). */
+  readonly ereignis_existenz: readonly PersonDetailEreignisExistenz[]
   /** AP-1.34 PR-C2b: Feldwarnungen dieser Person, geordnet nach der Regelreihenfolge
    * (`BESTAND_HINWEIS_CODES`); Mehrfachfunde bleiben erhalten. Leer für Platzhalter (A-17). */
   readonly warnungen: readonly PersonDetailWarnung[]

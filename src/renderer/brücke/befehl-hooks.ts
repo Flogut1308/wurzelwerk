@@ -291,6 +291,15 @@ export function useAussageZitatAnlegen(): UseMutationResult<null, AppFehler, Ein
   })
 }
 
+/** `befehl:aussage_zitat.aendern` (AP-1.34 PR-C1b; Hook AP-1.30 PR 9d-2) — im Beleg-Wähler nur, um eine
+ * Verknüpfung an der Existenz-Aussage eines Ereignisses von `datum`/`ort` auf NULL zu erweitern
+ * (V-130-9d2 F3). Einzelschritt ohne `SchreibBeobachter` wie `useAussageZitatAnlegen`. */
+export function useAussageZitatAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage_zitat.aendern'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:aussage_zitat.aendern'>) => ergebnisEntpacken(aufrufen('befehl:aussage_zitat.aendern', ein)),
+  })
+}
+
 /** `befehl:aussage_zitat.loeschen` (AP-1.29 PR-A; Hook AP-1.30 PR 9d) — „Verknüpfung entfernen": nur
  * die Verknüpfung, das Zitat bleibt (V-130-9d E10). Einzelschritt ohne `SchreibBeobachter`. */
 export function useAussageZitatLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:aussage_zitat.loeschen'>> {

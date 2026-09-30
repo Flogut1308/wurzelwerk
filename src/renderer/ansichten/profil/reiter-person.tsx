@@ -7,12 +7,15 @@ import type { EditorFeld } from '../../../core/person/offene-punkte'
 import type { ReiterId } from '../../../core/person/reiter'
 import type { BestandHinweisCode } from '../../../core/plausibilitaet/regeln'
 import type { AppFehler } from '../../../shared/fehler/app-fehler'
-import type { PersonDetailAus, PersonDetailAussage, PersonDetailGrunddatenFeld, PersonDetailKopf } from '../../../shared/schemata/person-detail'
+import type { PersonDetailAus, PersonDetailAussage, PersonDetailEreignisExistenz, PersonDetailGrunddatenFeld, PersonDetailKopf } from '../../../shared/schemata/person-detail'
 import {
   GRUPPEN_ANGABEN,
   belegChips,
   belegZeileZustand,
   belegZiel,
+  ereignisBelegeFuer,
+  existenzFuer,
+  existenzOhneEntfernte,
   gruppeVon,
   ohneEntfernte,
   verknuepfungEntfernenEin,
@@ -37,7 +40,7 @@ import { Textfeld } from '../../bausteine/textfeld'
 import { useOrtSuche } from '../../brücke/abfrage-hooks'
 import { useAussageAendern, useAussageAnlegen, useAussageLoeschen, useAussageZitatLoeschen, useOrtAnlegen, usePersonFeldSetzen } from '../../brücke/befehl-hooks'
 import { pruefhinweisCodeSchluessel } from '../liste/pruefhinweis-schluessel'
-import { BelegListe } from './beleg-liste'
+import { BelegListe, type BelegListeFeld } from './beleg-liste'
 import { editorFeldId } from './editor-feld-id'
 import { aussageAendernEinAus, type AussageAenderung } from './profil-aussage-logik'
 import { useEntwurfMitVerzoegertemCommit } from './profil-bearbeiten-debounce'
@@ -137,6 +140,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
       <LebensdatumAngabeFeld
         personId={personId}
         zustand={lebensdatumFeld(angabeId, daten.grunddaten, daten.lebensdaten)}
+        existenzen={daten.ereignis_existenz}
         warnungen={warnungen[angabeId]}
         idPraefix={idPraefix}
         aufSprung={aufSprung}
@@ -153,7 +157,13 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
 
   function belegZeile(gruppe: BelegGruppe) {
     const felder = gruppenFelder(GRUPPEN_ANGABEN[gruppe])
-    return <BelegZeile zustand={belegZeileZustand(felder.map(belegZiel))} chips={belegChips(felder)} aufOeffnen={() => setSchublade({ gruppe, angabe: null })} />
+    return (
+      <BelegZeile
+        zustand={belegZeileZustand(felder.map((feld) => belegZiel(feld, daten.ereignis_existenz)))}
+        chips={belegChips(felder, daten.ereignis_existenz)}
+        aufOeffnen={() => setSchublade({ gruppe, angabe: null })}
+      />
+    )
   }
 
   function todAusblenden(): void {
@@ -242,6 +252,7 @@ export function ReiterPerson({ personId, daten, idPraefix, aufSprung, aufReiterW
             angaben={schublade.angabe === null ? GRUPPEN_ANGABEN[schublade.gruppe] : [schublade.angabe]}
             felder={gruppenFelder(schublade.angabe === null ? GRUPPEN_ANGABEN[schublade.gruppe] : [schublade.angabe])}
             grunddaten={daten.grunddaten}
+            existenzen={daten.ereignis_existenz}
             stand={daten}
           />
         </Seitenschublade>
@@ -268,6 +279,7 @@ interface BelegSchubladeInhaltProps {
   readonly angaben: readonly LebensdatumAngabe[]
   readonly felder: readonly LebensdatumFeld[]
   readonly grunddaten: PersonDetailAus['grunddaten']
+  readonly existenzen: readonly PersonDetailEreignisExistenz[]
   readonly stand: PersonDetailAus
 }
 
@@ -277,8 +289,9 @@ interface BelegSchubladeInhaltProps {
  * das Zitat bleibt). `zitat.loeschen` bietet die Schublade selbst nicht an; erreichbar ist es nur über
  * den vorhandenen Weg „Quelle bearbeiten" → Pflege-Ansicht → „Entfernen" (hueter #176 H5).
  */
-function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchubladeInhaltProps) {
+function BelegSchubladeInhalt({ angaben, felder, grunddaten, existenzen, stand }: BelegSchubladeInhaltProps) {
   const { t } = useTranslation('profil')
+  const { t: tDatum } = useTranslation('datum')
   const { t: tFehler } = useTranslation('fehler')
   const entfernen = useAussageZitatLoeschen()
   // hueter #176 H3: eben entfernte Paare bleiben bis zum nächsten Lesestand ausgeblendet (wie
@@ -286,7 +299,7 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
   const [entfernt, setEntfernt] = useState<{ readonly stand: unknown; readonly paare: readonly VerknuepfungsPaar[] }>({ stand: null, paare: [] })
   const paareEntfernt = entfernt.stand === stand ? entfernt.paare : []
   const abschnitte = useRef(new Map<LebensdatumAngabe, HTMLElement>())
-  const zustand = belegZeileZustand(felder.map(belegZiel))
+  const zustand = belegZeileZustand(felder.map((feld) => belegZiel(feld, existenzen)))
   const fehler = fehlerText(entfernen.error ?? null, t, tFehler)
 
   function verknuepfungEntfernen(angabeId: LebensdatumAngabe, aussageId: string, zitatId: string): void {
@@ -299,6 +312,18 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
       // Gescheitert: der Beleg ist noch da und erscheint wieder (der Fehler steht darüber).
       onError: () => setEntfernt((vorher) => ({ stand: vorher.stand, paare: vorher.paare.filter((kandidat) => kandidat !== paar) })),
     })
+  }
+
+  /** PR 9d-2: stammt der Wert der Angabe aus einem Ereignis mit Existenz-Aussage, listet die Schublade
+   * deren Belege, die diese Angabe belegen (`feld` NULL oder passend) — dieselben, die Chip und
+   * Zähler zählen; „Verknüpfung entfernen" löscht die Verknüpfung an der Existenz-Aussage. */
+  function ereignisListe(angabeId: LebensdatumAngabe): BelegListeFeld | null {
+    const feldZustand = felder.find((kandidat) => kandidat.angabe === angabeId)
+    if (feldZustand?.art !== 'ereignis') return null
+    const existenz = existenzFuer(feldZustand, existenzen)
+    if (existenz === undefined) return null
+    const wert = t('beleg_ereignis_wert', { wert: ereignisWertText(feldZustand.wert, t, tDatum), herkunft: t(feldZustand.herkunftSchluessel) })
+    return { aussagen: [{ aussage_id: existenz.aussage_id, wert, belege: ereignisBelegeFuer(angabeId, existenzOhneEntfernte(existenz, paareEntfernt)) }] }
   }
 
   return (
@@ -321,6 +346,7 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
       {angaben.map((angabeId) => {
         const gelesen = grunddaten.find((kandidat) => kandidat.praedikat === angabeId)
         const feld = gelesen === undefined ? undefined : ohneEntfernte(gelesen, paareEntfernt)
+        const ausEreignis = ereignisListe(angabeId)
         return (
           <section
             key={angabeId}
@@ -337,11 +363,21 @@ function BelegSchubladeInhalt({ angaben, felder, grunddaten, stand }: BelegSchub
                 {angabeBeschriftung(angabeId, t)}
               </Text>
             ) : null}
-            {feld === undefined ? (
+            {feld === undefined && ausEreignis === null ? (
               <Text rolle="hilfe" als="p">
                 {t('beleg_schublade_keine_belege')}
               </Text>
-            ) : (
+            ) : null}
+            {ausEreignis === null ? null : (
+              <BelegListe
+                feld={ausEreignis}
+                mitQuelleAnlegen={false}
+                belegHinweis={(beleg) => (beleg.feld === null ? t('beleg_ereignis_datum_und_ort') : null)}
+                entfernenGesperrt={entfernen.isPending}
+                aufVerknuepfungEntfernen={(aussageId, zitatId) => verknuepfungEntfernen(angabeId, aussageId, zitatId)}
+              />
+            )}
+            {feld === undefined ? null : (
               <BelegListe
                 feld={feld}
                 mitQuelleAnlegen={false}
@@ -537,6 +573,8 @@ function useAngabeSchreiben(personId: string, praedikat: ReiterPersonPraedikat, 
 interface LebensdatumAngabeFeldProps {
   readonly personId: string
   readonly zustand: LebensdatumFeld
+  /** `person.detail.ereignis_existenz` — für den Belegzähler eines Ereigniswerts (PR 9d-2). */
+  readonly existenzen: readonly PersonDetailEreignisExistenz[]
   readonly warnungen: readonly BestandHinweisCode[]
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
@@ -549,9 +587,20 @@ interface LebensdatumAngabeFeldProps {
 /** Ein Lebensdatum: gesperrter Ereigniswert oder bearbeitbares Datum/Ort. Leer und Aussage teilen
  * dieselbe Komponente (kein Neueinhängen beim ersten Anlegen — sonst schriebe der Unmount-Flush
  * des Debounce einen ausstehenden Entwurf ein zweites Mal als Anlage). */
-function LebensdatumAngabeFeld({ personId, zustand, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufOffenHalten }: LebensdatumAngabeFeldProps) {
+function LebensdatumAngabeFeld({ personId, zustand, existenzen, warnungen, idPraefix, aufSprung, aufBelegeOeffnen, aufOffenHalten }: LebensdatumAngabeFeldProps) {
   if (zustand.art === 'ereignis') {
-    return <GesperrterWert personId={personId} zustand={zustand} warnungen={warnungen} idPraefix={idPraefix} aufSprung={aufSprung} />
+    const existenz = existenzFuer(zustand, existenzen)
+    return (
+      <GesperrterWert
+        personId={personId}
+        zustand={zustand}
+        belegzahl={existenz === undefined ? null : ereignisBelegeFuer(zustand.angabe, existenz).length}
+        warnungen={warnungen}
+        idPraefix={idPraefix}
+        aufSprung={aufSprung}
+        aufBelegeOeffnen={aufBelegeOeffnen}
+      />
+    )
   }
   const aussage = zustand.art === 'aussage' ? zustand.aussage : null
   const feld = zustand.art === 'aussage' ? zustand.feld : null
@@ -897,9 +946,13 @@ function Sicherheit({ angabe, aussage, feld, schreiber, aufBelegeOeffnen }: Sich
 interface GesperrterWertProps {
   readonly personId: string
   readonly zustand: Extract<LebensdatumFeld, { readonly art: 'ereignis' }>
+  /** Belege an der Existenz-Aussage des Ereignisses, die diese Angabe belegen (PR 9d-2); `null` = das
+   * Ereignis hat keine Existenz-Aussage (kein Zähler). */
+  readonly belegzahl: number | null
   readonly warnungen: readonly BestandHinweisCode[]
   readonly idPraefix: string
   readonly aufSprung: (reiter: ReiterId, feld: EditorFeld) => void
+  readonly aufBelegeOeffnen: (angabe: LebensdatumAngabe) => void
 }
 
 function ereignisWertText(wert: EreignisWert, t: Uebersetzer, tDatum: Uebersetzer): string {
@@ -918,10 +971,12 @@ function ereignisWertText(wert: EreignisWert, t: Uebersetzer, tDatum: Uebersetze
 /**
  * Wert aus einem Ereignis (Abnahme „Abgeleitete Werte sichtbar, gesperrt, beschriftet"): nur lesbar
  * (fokussierbar für den Sprung aus der rechten Spalte), beschriftet „aus dem Ereignis Geburt/Tod",
- * mit zwei Aktionen am Feld (D3). Sicherheit und Belege des Ereignisses liefert das Lesemodell nicht
- * (U-130-1-ereignis-konfidenz) — darum hier keine.
+ * mit zwei Aktionen am Feld (D3). Die Sicherheit des Ereignisses liefert das Lesemodell nicht
+ * (U-130-1-ereignis-konfidenz) — darum hier keine. PR 9d-2 (V-130-9d2): der Belegzähler zählt die
+ * Belege der Existenz-Aussage, die diese Angabe belegen (was die Schublade für die Angabe listet),
+ * und öffnet sie; ohne Existenz-Aussage kein Zähler.
  */
-function GesperrterWert({ personId, zustand, warnungen, idPraefix, aufSprung }: GesperrterWertProps) {
+function GesperrterWert({ personId, zustand, belegzahl, warnungen, idPraefix, aufSprung, aufBelegeOeffnen }: GesperrterWertProps) {
   const { t } = useTranslation('profil')
   const { t: tDatum } = useTranslation('datum')
   const { t: tFehler } = useTranslation('fehler')
@@ -956,6 +1011,7 @@ function GesperrterWert({ personId, zustand, warnungen, idPraefix, aufSprung }: 
         <Schaltflaeche variante="unauffaellig" aufKlick={() => aufSprung('leben', 'ereignisse')}>
           {t('lebensdatum_ereignis_bearbeiten')}
         </Schaltflaeche>
+        {belegzahl === null ? null : <BelegAbzeichen anzahl={belegzahl} aufKlick={() => aufBelegeOeffnen(zustand.angabe)} />}
       </div>
     </div>
   )

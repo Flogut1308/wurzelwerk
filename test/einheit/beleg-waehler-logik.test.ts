@@ -73,14 +73,14 @@ describe('belegZiel / belegZeileZustand (E1/E3/E4)', () => {
   it('Ziel ist dieselbe Aussage, die der Reiter für Sicherheit und Zähler nutzt (E1)', () => {
     const grunddaten = [feld('geburtsdatum', [aussage('a-alt'), aussage('a-fuehrt', [beleg('z-1')])])]
     const lebensdaten = [lebensdatum('geburtsdatum', { herkunft: 'aussage', aussage_id: 'a-fuehrt' })]
-    const ziel = belegZiel(lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten))
+    const ziel = belegZiel(lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten), [])
     expect(ziel).toEqual({ art: 'aussage', angabe: 'geburtsdatum', aussageId: 'a-fuehrt', zitatIds: ['z-1'] })
   })
 
   it('ein Wert aus dem Ereignis ist kein Ziel (E3), ohne Wert gibt es nichts zu belegen (E4)', () => {
     const lebensdaten = [lebensdatum('geburtsort', { herkunft: 'ereignis', ereignis_id: 'e-1', ort_id: 'o-1', ort_name: 'Danzig' })]
-    const ereignis = belegZiel(lebensdatumFeld('geburtsort', [], lebensdaten))
-    const leer = belegZiel(lebensdatumFeld('geburtsdatum', [], lebensdaten))
+    const ereignis = belegZiel(lebensdatumFeld('geburtsort', [], lebensdaten), [])
+    const leer = belegZiel(lebensdatumFeld('geburtsdatum', [], lebensdaten), [])
     expect(ereignis).toEqual({ art: 'ereignis', angabe: 'geburtsort' })
     expect(leer).toEqual({ art: 'leer', angabe: 'geburtsdatum' })
     expect(belegZeileZustand([leer, ereignis])).toEqual({ art: 'nur_ereignis' })
@@ -175,7 +175,7 @@ describe('belegChips / zitatBeschriftung', () => {
   it('je Zitat ein Chip über die Ziel-Aussagen der Gruppe, Reihenfolge Datum vor Ort', () => {
     const grunddaten = [feld('geburtsdatum', [aussage('a-1', [beleg('z-1'), beleg('z-2')])]), feld('geburtsort', [aussage('a-2', [beleg('z-2'), beleg('z-3')])])]
     const lebensdaten = [lebensdatum('geburtsdatum', { herkunft: 'aussage', aussage_id: 'a-1' }), lebensdatum('geburtsort', { herkunft: 'aussage', aussage_id: 'a-2' })]
-    const chips = belegChips([lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten), lebensdatumFeld('geburtsort', grunddaten, lebensdaten)])
+    const chips = belegChips([lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten), lebensdatumFeld('geburtsort', grunddaten, lebensdaten)], [])
     expect(chips.map((chip) => [chip.zitatId, chip.angaben])).toEqual([
       ['z-1', ['geburtsdatum']],
       ['z-2', ['geburtsdatum', 'geburtsort']],
@@ -188,7 +188,7 @@ describe('belegChips / zitatBeschriftung', () => {
   it('Belege nicht führender Aussagen und aus Ereignissen erscheinen nicht als Chip', () => {
     const grunddaten = [feld('geburtsdatum', [aussage('a-alt', [beleg('z-alt')]), aussage('a-fuehrt')])]
     const lebensdaten = [lebensdatum('geburtsdatum', { herkunft: 'aussage', aussage_id: 'a-fuehrt' })]
-    expect(belegChips([lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten)])).toEqual([])
+    expect(belegChips([lebensdatumFeld('geburtsdatum', grunddaten, lebensdaten)], [])).toEqual([])
   })
 
   it('Beschriftung nennt Seite und Eintragsnummer nur, wenn gepflegt', () => {
