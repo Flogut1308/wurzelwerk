@@ -7,7 +7,7 @@
 // Leerraum in einem Vornamen weist der Befehl ab (E4); dieses Modul ordnet einen solchen Fehler nur dem Feld
 // zu (`vornamenMitLeerraum`). Die Live-Vorschau geht über `anzeigetextVon` (keine zweite Regel).
 import { anzeigetextVon } from '../../../core/name/anzeigename'
-import type { NameFormReihenfolge, NameFormRolle, NamePartArt, Schrift } from '../../../core/name/typen'
+import type { NameFormReihenfolge, NameFormRolle, NamePartArt, Schrift, UmschriftNorm } from '../../../core/name/typen'
 import type { GeladenerTeil } from '../../../core/name/zerlegung'
 import type { NamensformUebernehmenEin, NamensformUebernehmenKopf, NamensformUebernehmenTeil } from '../../../shared/schemata/befehle'
 import type { PersonDetailName, PersonDetailNamensteil } from '../../../shared/schemata/person-detail'
@@ -30,6 +30,8 @@ export interface NamensformEntwurf {
   readonly formId: string | null
   readonly rolle: NameFormRolle | null
   readonly umschriftVon: string | null
+  /** Nur gelesen: eine automatische Norm wird beim Korrigieren der Teile zu 'manuell' (`uebernehmenEin`). */
+  readonly umschriftNorm: UmschriftNorm | null
   readonly sprache: string | null
   readonly schrift: Schrift | null
   readonly reihenfolge: NameFormReihenfolge | null
@@ -67,6 +69,7 @@ export function entwurfAusForm(name: PersonDetailName): NamensformEntwurf | null
     formId: name.id,
     rolle: name.rolle,
     umschriftVon: name.umschrift_von,
+    umschriftNorm: name.umschrift_norm,
     sprache: name.sprache,
     schrift: name.schrift,
     reihenfolge: name.reihenfolge,
@@ -84,6 +87,7 @@ export function neuerEntwurf(istErsteForm: boolean): NamensformEntwurf {
     formId: null,
     rolle: NEUE_FORM_ROLLE,
     umschriftVon: null,
+    umschriftNorm: null,
     sprache: null,
     schrift: null,
     reihenfolge: null,
@@ -153,7 +157,7 @@ export function uebernehmenEin(personId: string, basis: NamensformEntwurf, entwu
   const kopf: NamensformUebernehmenKopf =
     entwurf.formId === null
       ? { rolle: entwurf.rolle, sprache: entwurf.sprache, schrift: entwurf.schrift, reihenfolge: entwurf.reihenfolge }
-      : kopfDifferenz(basis, entwurf)
+      : { ...kopfDifferenz(basis, entwurf), ...(umschriftKorrigiert(basis, entwurf) ? { umschriftNorm: 'manuell' as const } : {}) }
   return {
     personId,
     formId: entwurf.formId,
@@ -163,21 +167,32 @@ export function uebernehmenEin(personId: string, basis: NamensformEntwurf, entwu
   }
 }
 
+/** Review #207 3b (A-19): werden die Teile einer AUTOMATISCH erzeugten Umschrift (`iso9`, `din1460`) geändert,
+ * ist sie von Hand korrigiert — docs/datenmodell.md kennzeichnet das mit `umschrift_norm = 'manuell'`, damit
+ * eine spätere automatische Umschrift sie nicht überschreibt und die Karte nicht mehr „automatisch" sagt. Ohne
+ * Norm oder schon 'manuell' bleibt der Kopf, ebenso bei einer Änderung nur am Kopf. */
+function umschriftKorrigiert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
+  if (basis.rolle !== null || (basis.umschriftNorm !== 'iso9' && basis.umschriftNorm !== 'din1460')) return false
+  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf))
+}
+
+function zielTeileGleich(vorher: readonly NamensformUebernehmenTeil[], nachher: readonly NamensformUebernehmenTeil[]): boolean {
+  return (
+    vorher.length === nachher.length &&
+    vorher.every((teil, index) => {
+      const gegen = nachher[index]
+      return gegen !== undefined && gegen.id === teil.id && gegen.art === teil.art && gegen.wert === teil.wert && gegen.istRufname === teil.istRufname
+    })
+  )
+}
+
 /** Hat der Entwurf etwas, das „Übernehmen" schreiben würde? Vergleicht die Zielliste, den Kopf und den
  * Hauptnamen — ein leer angelegter Teil oder ein zurückgetippter Wert ändert nichts (E9: nur dann die
  * Nachfrage beim Abbrechen). */
 export function entwurfGeaendert(basis: NamensformEntwurf, entwurf: NamensformEntwurf): boolean {
   if (KOPF_FELDER.some((feld) => basis[feld] !== entwurf[feld])) return true
   if (basis.hauptname !== entwurf.hauptname) return true
-  const vorher = zielTeile(basis)
-  const nachher = zielTeile(entwurf)
-  return (
-    vorher.length !== nachher.length ||
-    vorher.some((teil, index) => {
-      const gegen = nachher[index]
-      return gegen === undefined || gegen.id !== teil.id || gegen.art !== teil.art || gegen.wert !== teil.wert || gegen.istRufname !== teil.istRufname
-    })
-  )
+  return !zielTeileGleich(zielTeile(basis), zielTeile(entwurf))
 }
 
 /** Hat der Entwurf eine neue Form mit mindestens einem nicht leeren Teil? Eine neue Form ohne Teile legt

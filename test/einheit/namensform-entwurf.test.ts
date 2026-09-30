@@ -106,7 +106,8 @@ describe('Entwurf aus der Form und leer', () => {
   // Koordinator-Entscheidung zu PR 11c-1: E6 betrifft das Erzeugen einer Umschrift, nicht das Bearbeiten einer
   // vorhandenen — die flache Maske konnte jede Form bearbeiten, das Modal kann es auch.
   it('eine Umschrift ist bearbeitbar: Rolle bleibt NULL, der Bezug wird nur angezeigt', () => {
-    const umschrift = form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'iso9', schrift: 'latn', teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Guytnaty')] })
+    // Norm schon „manuell": dann ändert Übernehmen am Kopf nichts (Review #207 3b trifft nur automatische Normen).
+    const umschrift = form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: 'manuell', schrift: 'latn', teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Guytnaty')] })
     const basis = entwurfAusForm(umschrift)
     if (basis === null) throw new Error('Umschrift nicht bearbeitbar')
     expect(basis).toMatchObject({ formId: 'u', rolle: null, umschriftVon: 'f1', hauptname: false })
@@ -122,6 +123,27 @@ describe('Entwurf aus der Form und leer', () => {
     })
     expect(ein.kopf).not.toHaveProperty('rolle')
     expect(ein.kopf).not.toHaveProperty('umschriftVon')
+  })
+
+  // Review #207 3b (A-19, docs/datenmodell.md: 'manuell' kennzeichnet eine korrigierte Umschrift): wer die
+  // Teile einer automatisch erzeugten Umschrift ändert, korrigiert sie von Hand — die Norm wird 'manuell',
+  // damit eine spätere automatische Umschrift sie nicht überschreibt und die Karte nicht mehr „ISO 9" sagt.
+  it('geänderte Teile einer automatischen Umschrift (iso9, din1460) setzen umschriftNorm auf manuell', () => {
+    for (const norm of ['iso9', 'din1460'] as const) {
+      const basis = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: norm, teile: [teil('a', 'vorname', 'Karl'), teil('b', 'nachname', 'Guytnaty')] }))
+      expect(uebernehmenEin('p1', basis, teilWertSetzen(basis, 'b', 'Gutnaty')).kopf).toEqual({ umschriftNorm: 'manuell' })
+      // Nur ein Kopf-Feld geändert, Teile gleich: die Umschrift ist nicht korrigiert, die Norm bleibt.
+      expect(uebernehmenEin('p1', basis, { ...basis, sprache: 'de' }).kopf).toEqual({ sprache: 'de' })
+      // Ein leer angelegter Teil ändert die Zielliste nicht.
+      expect(uebernehmenEin('p1', basis, teilHinzufuegen(basis, 'titel', 'neu-1')).kopf).toEqual({})
+    }
+  })
+
+  it('keine Umschrift oder ohne Norm: umschriftNorm wird nie gesetzt', () => {
+    const ohneNorm = basisVon(form('u', { rolle: null, umschrift_von: 'f1', umschrift_norm: null, teile: [teil('b', 'nachname', 'Guytnaty')] }))
+    expect(uebernehmenEin('p1', ohneNorm, teilWertSetzen(ohneNorm, 'b', 'X')).kopf).toEqual({})
+    const basis = basisVon(KARL)
+    expect(uebernehmenEin('p1', basis, teilWertSetzen(basis, 'n1', 'X')).kopf).toEqual({})
   })
 
   it('leerer Entwurf: Vorname und Nachname leer, Hauptname nur für die erste Form', () => {

@@ -284,7 +284,9 @@ test.describe('Ablauf 18 — Reiter Namen: Karten und Modal', () => {
     await bearbeiten.getByRole('button', { name: 'Übernehmen', exact: true }).click()
     await expect(bearbeiten).toHaveCount(0)
     await expect(karte('Karl Gutnow')).toBeVisible()
-    expect(await umschrift()).toEqual({ id: umschriftId, rolle: null, umschrift_von: haupt.id, umschrift_norm: 'iso9' })
+    // Review #207 3b: von Hand korrigiert — die Norm wird 'manuell', Bezug und Rolle bleiben.
+    expect(await umschrift()).toEqual({ id: umschriftId, rolle: null, umschrift_von: haupt.id, umschrift_norm: 'manuell' })
+    await expect(karte('Karl Gutnow')).toContainText('selbst eingetragen')
     expect(await verlaufAnzahl()).toBe(verlaufVorher + 1)
 
     await menuepunktKlicken('CmdOrCtrl+Z')
