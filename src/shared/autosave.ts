@@ -27,6 +27,8 @@ export const AUTOSAVE_BEFEHLE = [
   'aussage.aendern',
   // AP-1.30 PR 10-1: der Reiter Namen (PR 11) schreibt die Kopf-Felder einer Namensform per Autosave.
   'namensform.aendern',
+  // AP-1.30 PR 10-3: Wert und feminine Variante eines Bestandteils (Reiter Namen, PR 11).
+  'namensteil.aendern',
 ] as const
 
 export type AutosaveBefehl = (typeof AUTOSAVE_BEFEHLE)[number]

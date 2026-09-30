@@ -19,6 +19,7 @@ import {
   type EreignisAendernEin,
   type NameAendernEin,
   type NamensformAendernEin,
+  type NamensteilAendernEin,
   type PartnerschaftAendernEin,
   type PersonFeldSetzenEin,
 } from '../../src/shared/schemata/befehle'
@@ -388,6 +389,40 @@ const namensformAendern: AutosaveSzenario = {
   },
 }
 
+/** AP-1.30 PR 10-3: `namensteil.aendern` hat Teil-Semantik wie `namensform.aendern`. Subjekte sind zwei
+ * Nachname-Teile derselben Form (mehrwortig erlaubt, E2 gilt nur für Vornamen). */
+const namensteilAendern: AutosaveSzenario = {
+  befehl: 'namensteil.aendern',
+  zweiSpaltenMoeglich: true,
+  ohneFeldMoeglich: true,
+  schritteAnderesFeld: 1,
+  aufbauen: (db) => {
+    const p = neuePerson(db)
+    const form = fuehreAus(db, 'namensform.anlegen', { personId: p, rolle: 'geburtsname' }).id
+    const a = fuehreAus(db, 'namensteil.anlegen', { namensformId: form, art: 'nachname', wert: 'Nowak' }).id
+    const b = fuehreAus(db, 'namensteil.anlegen', { namensformId: form, art: 'nachname', wert: 'Schulz' }).id
+    const ein = (i: number, ziel: Ziel): NamensteilAendernEin => {
+      switch (ziel) {
+        case 'feld':
+          return { id: a, wert: `Nowak ${i}`, feld: 'wert' }
+        case 'ohneFeld':
+          return { id: a, wert: `Nowak ${i}` }
+        case 'anderesFeld':
+          return { id: a, feminineVariante: `Nowakowa ${i}`, feld: 'feminineVariante' }
+        case 'anderesSubjekt':
+          return { id: b, wert: `Schulz ${i}`, feld: 'wert' }
+        case 'zweiSpalten':
+          return { id: a, wert: `Nowak ${i}`, feminineVariante: `Nowakowa ${i}`, feld: 'wert' }
+      }
+    }
+    return {
+      schreiben: (i, ziel) => fuehreAus(db, 'namensteil.aendern', ein(i, ziel)),
+      schluessel: (i, ziel) => schluesselVon(db, 'namensteil.aendern', ein(i, ziel)),
+      erwarteterSchluessel: `namensteil.aendern:${a}:wert`,
+    }
+  },
+}
+
 export const SZENARIEN: { readonly [N in AutosaveBefehl]: AutosaveSzenario } = {
   'person.feldSetzen': personFeldSetzen,
   'name.aendern': nameAendern,
@@ -396,4 +431,5 @@ export const SZENARIEN: { readonly [N in AutosaveBefehl]: AutosaveSzenario } = {
   'elternschaft.aendern': elternschaftAendern,
   'aussage.aendern': aussageAendern,
   'namensform.aendern': namensformAendern,
+  'namensteil.aendern': namensteilAendern,
 }

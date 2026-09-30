@@ -21,7 +21,7 @@ import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
 import * as nameFormRepo from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
-import { mitOriginalTextNachfuehrung } from './namensteil-anlegen'
+import { mitOriginalTextNachfuehrung } from './namensteil-hilfen'
 
 export function namensteilLoeschen(tx: Tx, ein: NamensteilLoeschenEin): null {
   const teil = namePartRepo.lesen(tx, ein.id)

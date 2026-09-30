@@ -21,6 +21,7 @@ import type {
   NameAendernEin,
   NameAendernFeld,
   NamensformAendernEin,
+  NamensteilAendernEin,
   PartnerschaftAendernEin,
   PersonFeldSetzenEin,
 } from '../../shared/schemata/befehle'
@@ -30,11 +31,13 @@ import * as beziehungRepo from '../repositories/beziehung-repo'
 import * as ereignisRepo from '../repositories/ereignis-repo'
 import * as nameRepo from '../repositories/name-repo'
 import * as nameFormRepo from '../repositories/name-form-repo'
+import * as namePartRepo from '../repositories/name-part-repo'
 import { aussageGeaenderteFelder } from './aussage-aendern'
 import { elternschaftGeaenderteFelder } from './elternschaft-aendern'
 import { ereignisGeaenderteFelder } from './ereignis-aendern'
 import { nameGeaenderteFelder } from './name-aendern'
 import { namensformGeaenderteFelder } from './namensform-aendern'
+import { namensteilGeaenderteFelder } from './namensteil-aendern'
 import { partnerschaftGeaenderteFelder } from './partnerschaft-aendern'
 
 /**
@@ -86,6 +89,14 @@ export function namensformAendernSchluessel(tx: Tx, ein: NamensformAendernEin): 
   if (ein.feld === undefined) return null
   const vorher = nameFormRepo.lesen(tx, ein.id)
   return schluesselBeiEinemFeld('namensform.aendern', ein.id, ein.feld, vorher === undefined ? undefined : namensformGeaenderteFelder(vorher, ein))
+}
+
+/** AP-1.30 PR 10-3: `namensteil.aendern:<id>:<feld>` — `wert` und `feminineVariante` stehen je für sich.
+ * Der Vergleich kommt aus dem Handler (`namensteilGeaenderteFelder`, Teil-Semantik, `wert` getrimmt). */
+export function namensteilAendernSchluessel(tx: Tx, ein: NamensteilAendernEin): string | null {
+  if (ein.feld === undefined) return null
+  const vorher = namePartRepo.lesen(tx, ein.id)
+  return schluesselBeiEinemFeld('namensteil.aendern', ein.id, ein.feld, vorher === undefined ? undefined : namensteilGeaenderteFelder(vorher, ein))
 }
 
 export function ereignisAendernSchluessel(tx: Tx, ein: EreignisAendernEin): string | null {

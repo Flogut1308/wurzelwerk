@@ -35,6 +35,12 @@ import {
   type NamensteilAnlegenEin,
   namensteilLoeschenEinSchema,
   type NamensteilLoeschenEin,
+  namensteilAendernEinSchema,
+  type NamensteilAendernEin,
+  namensteilVerschiebenEinSchema,
+  type NamensteilVerschiebenEin,
+  namensformRufnameSetzenEinSchema,
+  type NamensformRufnameSetzenEin,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -119,6 +125,9 @@ import { namensformAnlegen } from './namensform-anlegen'
 import { namensformAendern } from './namensform-aendern'
 import { namensteilAnlegen } from './namensteil-anlegen'
 import { namensteilLoeschen } from './namensteil-loeschen'
+import { namensteilAendern } from './namensteil-aendern'
+import { namensteilVerschieben } from './namensteil-verschieben'
+import { namensformRufnameSetzen } from './namensform-rufname-setzen'
 import { elternschaftAnlegen } from './elternschaft-anlegen'
 import { elternschaftAendern } from './elternschaft-aendern'
 import { elternschaftLoeschen } from './elternschaft-loeschen'
@@ -161,6 +170,7 @@ import {
   ereignisAendernSchluessel,
   nameAendernSchluessel,
   namensformAendernSchluessel,
+  namensteilAendernSchluessel,
   partnerschaftAendernSchluessel,
   personFeldSetzenSchluessel,
 } from './koaleszenz-schluessel'
@@ -198,6 +208,9 @@ interface BefehlKarte {
   'namensform.aendern': { ein: NamensformAendernEin; aus: null }
   'namensteil.anlegen': { ein: NamensteilAnlegenEin; aus: { readonly id: string } }
   'namensteil.loeschen': { ein: NamensteilLoeschenEin; aus: null }
+  'namensteil.aendern': { ein: NamensteilAendernEin; aus: null }
+  'namensteil.verschieben': { ein: NamensteilVerschiebenEin; aus: null }
+  'namensform.rufnameSetzen': { ein: NamensformRufnameSetzenEin; aus: null }
   'elternschaft.anlegen': { ein: ElternschaftAnlegenEin; aus: { readonly id: string } }
   'elternschaft.aendern': { ein: ElternschaftAendernEin; aus: null }
   'elternschaft.loeschen': { ein: ElternschaftLoeschenEin; aus: null }
@@ -314,6 +327,28 @@ export const REGISTRIERUNG: { readonly [N in BefehlName]: BefehlDef<BefehlEin<N>
     art: 'nutzer',
     beschreibung: () => 'journal.namensteil_geloescht',
     handler: namensteilLoeschen,
+  },
+  // AP-1.30 PR 10-3: Autosave-Befehl (Reiter Namen) — Schlüssel `namensteil.aendern:<id>:<feld>`.
+  'namensteil.aendern': {
+    schema: namensteilAendernEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.namensteil_geaendert',
+    handler: namensteilAendern,
+    koaleszenzSchluessel: namensteilAendernSchluessel,
+  },
+  // AP-1.30 PR 10-3: ohne Koaleszenzschlüssel — jedes Verschieben ist ein eigener Undo-Schritt.
+  'namensteil.verschieben': {
+    schema: namensteilVerschiebenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.namensteil_verschoben',
+    handler: namensteilVerschieben,
+  },
+  // AP-1.30 PR 10-3: ohne Koaleszenzschlüssel — jeder Rufname-Wechsel ist ein eigener Undo-Schritt.
+  'namensform.rufnameSetzen': {
+    schema: namensformRufnameSetzenEinSchema,
+    art: 'nutzer',
+    beschreibung: () => 'journal.rufname_gesetzt',
+    handler: namensformRufnameSetzen,
   },
   'elternschaft.anlegen': {
     schema: elternschaftAnlegenEinSchema,
