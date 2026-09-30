@@ -19,7 +19,10 @@
 //       fängt einen Plan-/Anweisungs-Cache, der eine Schemaänderung übersieht (fail-closed);
 // - R4: Schließen und Neuöffnen derselben Datei (neue Verbindung, gleicher Inhalt, danach Schemaänderung);
 // - R5: Textwerte mit Apostroph, Emoji, Anführungszeichen, Backslash, Zeilen-/Absatztrennern, NULL,
-//       Zahlen, BLOB, zusammengesetztem Primärschlüssel und einer Tabelle ohne Primärschlüssel.
+//       Zahlen, BLOB, zusammengesetztem Primärschlüssel und einer Tabelle ohne Primärschlüssel;
+// - R6: `ROLLBACK` setzt `PRAGMA schema_version` zurück — dieselbe Zahl kann danach auf derselben
+//       Verbindung für ein ANDERES Schema stehen (hueter PR #185 H1). Ein Plan, der in einer
+//       zurückgerollten Transaktion gebaut wurde, darf später nicht wiederverwendet werden.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -301,6 +304,34 @@ describe('kanonischerAbzug: neue Umsetzung ist zeichengleich der Referenz (ADR-0
       expect(abzug).toContain("O'Brien")
       expect(abzug).toContain('👨‍👩‍👧')
       expect(abzug).toContain('"text":null')
+    } finally {
+      db.close()
+    }
+  })
+  it.fails('R6: ein in einer zurückgerollten Transaktion gebauter Plan wird bei gleicher schema_version nicht wiederverwendet', () => {
+    const db = neueTestDatenbank()
+    try {
+      const version = (): unknown => db.pragma('schema_version', { simple: true })
+      db.prepare('CREATE TABLE probe_a (id TEXT PRIMARY KEY) STRICT').run()
+      gleich(db, 'nach CREATE TABLE probe_a')
+      const v1 = version()
+
+      db.prepare('BEGIN').run()
+      db.prepare('CREATE INDEX probe_a_idx ON probe_a (id)').run()
+      gleich(db, 'in Transaktion 1, nach CREATE INDEX')
+      const v2 = version()
+      db.prepare('ROLLBACK').run()
+      // Gegenprobe des Mechanismus: nach ROLLBACK steht wieder v1.
+      expect(version()).toBe(v1)
+
+      db.prepare('BEGIN').run()
+      db.prepare('CREATE TABLE probe_b (id TEXT PRIMARY KEY) STRICT').run()
+      db.prepare("INSERT INTO probe_b (id) VALUES ('b-1')").run()
+      // Gleiche Zahl wie in Transaktion 1, aber ein anderes Schema.
+      expect(version()).toBe(v2)
+      const abzug = gleich(db, 'in Transaktion 2, nach CREATE TABLE probe_b')
+      expect(abzug).toContain('## probe_b (1)')
+      db.prepare('ROLLBACK').run()
     } finally {
       db.close()
     }
