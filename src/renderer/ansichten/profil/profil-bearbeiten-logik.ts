@@ -40,12 +40,6 @@ export interface NamenEintragWerte {
    * mitgetragen und zurückgereicht. `rufnameIndex` gilt nur, solange er noch auf den Rufnamen zeigt
    * (s. `nameAendernEinAusEintrag`). */
   readonly rufnameIndex: number | null
-  /** V-130-11e-1 (U-130-11c2-rufname-verlust): die Vornamen-Einheiten (`vornamenEinheiten`), auf die
-   * sich `rufnameIndex` bezieht — festgehalten beim Lesen und bei der Rufname-Auswahl. Schreibt der
-   * Nutzer danach die Vornamen um, richtet `rufnamePosition` die Markierung an dieser Basis aus, statt
-   * sie zu verlieren, sobald der Rufname-Text keinem Vornamen mehr gleicht. `null` = keine Basis (das
-   * Neu-Formular): dann gilt nur die Textsuche. */
-  readonly rufnameBasis: readonly string[] | null
   /** AP-1.30 PR 3 (V-3-flache-bruecke-vatersname): die Maske zeigt ihn noch nicht (kommt mit dem
    * Namen-Reiter) — `''` bedeutet „kein Vatersname" wie bei den sichtbaren Feldern. */
   readonly vatersname: string
@@ -73,7 +67,6 @@ export const NAMEN_EINTRAG_LEER: NamenEintragWerte = {
   zusatzNach: '',
   rufname: '',
   rufnameIndex: null,
-  rufnameBasis: null,
   vatersname: '',
   umschriftVon: null,
   umschriftNorm: null,
@@ -103,7 +96,7 @@ function wortgetreuerOriginalText(name: PersonDetailName): string | null {
 }
 
 export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEintragWerte {
-  const ohneBasis: NamenEintragWerte = {
+  return {
     typ: name.typ,
     schrift: name.schrift,
     vornamen: name.vornamen ?? '',
@@ -113,7 +106,6 @@ export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEi
     zusatzNach: name.zusatz_nach ?? '',
     rufname: name.rufname_text ?? '',
     rufnameIndex: name.rufname_index,
-    rufnameBasis: null,
     vatersname: name.vatersname ?? '',
     umschriftVon: name.umschrift_von,
     umschriftNorm: name.umschrift_norm,
@@ -122,7 +114,6 @@ export function namenEintragAusPersonDetailName(name: PersonDetailName): NamenEi
     gueltigBis: name.gueltig_bis,
     originalTextWortgetreu: wortgetreuerOriginalText(name),
   }
-  return { ...ohneBasis, rufnameBasis: vornamenEinheiten(ohneBasis).einheiten }
 }
 
 function vornamenTokens(vornamen: string): readonly string[] {
@@ -150,50 +141,14 @@ function vornamenEinheiten(eintrag: NamenEintragWerte): { readonly einheiten: re
  * Vornamen gleicht. Vorrang wie `zerlegeName`: der mitgetragene `rufnameIndex`, solange er auf einen
  * Vornamen zeigt, der dem (evtl. geänderten) Rufnamen gleicht (sonst gewönne der alte Index gegen einen
  * neu gewählten Rufnamen bzw. markierte nach geänderten Vornamen den falschen; nötig, wo der Text allein
- * mehrdeutig ist, „Johann Georg Johann"), sonst — V-130-11e-1 — die Ausrichtung an der Basis
- * (`ausgerichtetePosition`), sonst der erste gleichlautende Vorname. */
+ * mehrdeutig ist, „Johann Georg Johann"), sonst der erste gleichlautende Vorname. */
 function rufnamePosition(eintrag: NamenEintragWerte): number | undefined {
   const text = vornamenTokens(eintrag.rufname).join(' ')
   if (text === '') return undefined
   const { einheiten } = vornamenEinheiten(eintrag)
   if (eintrag.rufnameIndex !== null && einheiten[eintrag.rufnameIndex] === text) return eintrag.rufnameIndex
-  // Ausgerichtet wird nur, solange der Rufname-Text noch der ist, auf den Index und Basis zeigen — ein
-  // neu gesetzter Rufname („Georg" → „Johann") wird über den Text gesucht, der alte Index gewinnt nicht.
-  if (eintrag.rufnameIndex !== null && eintrag.rufnameBasis !== null && eintrag.rufnameBasis[eintrag.rufnameIndex] === text) {
-    const ausgerichtet = ausgerichtetePosition(einheiten, eintrag.rufnameBasis, eintrag.rufnameIndex)
-    if (ausgerichtet !== 'keine_ausrichtung') return ausgerichtet
-  }
   const position = einheiten.indexOf(text)
   return position >= 0 ? position : undefined
-}
-
-function gleicheWoerter(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((wort, i) => wort === b[i])
-}
-
-/** V-130-11e-1 (U-130-11c2-rufname-verlust): Wohin ist der Vorname gewandert, den `index` in der `basis`
- * (den zuletzt gelesenen/gewählten Einheiten) markierte? Der Autosave schreibt Zwischenstände; beim
- * Umschreiben des markierten Worts („Karl Friedrich" → „Karl Friedric") gleicht der Rufname-Text schon
- * im ersten keinem Vornamen mehr, die Stelle selbst ist aber eindeutig:
- *  - Wörter VOR der Stelle unverändert → die Stelle bleibt (das markierte Wort oder etwas dahinter wurde
- *    bearbeitet). Ist sie nicht mehr gedeckt (weniger Wörter), wurde das markierte Wort gelöscht.
- *  - sonst Wörter HINTER der Stelle unverändert → vom Ende her gezählt (vorne eingefügt/gelöscht).
- *  - sind BEIDE Seiten unverändert und es gibt weniger Wörter, fehlt genau das markierte Wort: gelöscht
- *    (sonst spränge die Markierung beim Löschen des ersten Vornamens auf den nächsten).
- * `undefined` = die Markierung entfällt; `'keine_ausrichtung'` = keine Seite passt, die Textsuche
- * entscheidet. Gegenposition „Index im Bereich gewinnt" s. docs/80 §33 V-130-11e-1. */
-function ausgerichtetePosition(einheiten: readonly string[], basis: readonly string[], index: number): number | undefined | 'keine_ausrichtung' {
-  if (index < 0 || index >= basis.length) return 'keine_ausrichtung'
-  const hintenAnzahl = basis.length - index - 1
-  const vorneGleich = index <= einheiten.length && gleicheWoerter(einheiten.slice(0, index), basis.slice(0, index))
-  const hintenGleich = hintenAnzahl <= einheiten.length && gleicheWoerter(einheiten.slice(einheiten.length - hintenAnzahl), basis.slice(index + 1))
-  if (vorneGleich && hintenGleich && einheiten.length < basis.length) return undefined
-  if (vorneGleich) return index < einheiten.length ? index : undefined
-  if (hintenGleich) {
-    const vonHinten = einheiten.length - hintenAnzahl - 1
-    return vonHinten >= 0 ? vonHinten : undefined
-  }
-  return 'keine_ausrichtung'
 }
 
 /** A-02, AP-1.30 (Fix Rufname-Anhängen): Beim Bearbeiten einer bestehenden Zeile MARKIERT der Rufname
@@ -235,24 +190,87 @@ export function rufnameAuswahlVornamen(eintrag: NamenEintragWerte): readonly { r
 }
 
 /** Übernimmt eine Rufname-Auswahl (`rufnameAuswahlWert`) in den Eintrag: Position und Text zugleich,
- * damit auch bei gleichlautenden Vornamen („Johann Georg Johann") genau der gewählte markiert wird. Die
- * Einheiten, aus denen gewählt wurde, werden die neue Basis der Ausrichtung (V-130-11e-1). */
+ * damit auch bei gleichlautenden Vornamen („Johann Georg Johann") genau der gewählte markiert wird. */
 export function mitRufnameAusAuswahl(eintrag: NamenEintragWerte, wert: string): NamenEintragWerte {
   const position = Number(wert)
-  const { einheiten } = vornamenEinheiten(eintrag)
-  const vorname = wert === '' ? undefined : einheiten[position]
-  return vorname === undefined
-    ? { ...eintrag, rufname: '', rufnameIndex: null, rufnameBasis: einheiten }
-    : { ...eintrag, rufname: vorname, rufnameIndex: position, rufnameBasis: einheiten }
+  const vorname = wert === '' ? undefined : vornamenEinheiten(eintrag).einheiten[position]
+  return vorname === undefined ? { ...eintrag, rufname: '', rufnameIndex: null } : { ...eintrag, rufname: vorname, rufnameIndex: position }
 }
 
-/** Der Vorname, den der Rufname markiert (Text an der Stelle aus `rufnamePosition`), sonst `''`. Der
- * mitgetragene `rufname` kann nach der Ausrichtung an der Basis veraltet sein („Friedrich" zu „Karl
- * Friedric"); wer anlegt, schickt darum diesen Text, sonst hinge `zerlegeName` den alten als weiteren
- * Vornamen an (V-130-11e-1). */
-export function markierterRufname(eintrag: NamenEintragWerte): string {
+function gleicheWoerter(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((wort, i) => wort === b[i])
+}
+
+/** Länge des gemeinsamen Anfangs von `a` und `b`, höchstens `grenze` Wörter. */
+function gemeinsamerAnfang(a: readonly string[], b: readonly string[], grenze: number): number {
+  let laenge = 0
+  while (laenge < grenze && a[laenge] === b[laenge]) laenge += 1
+  return laenge
+}
+
+/** Länge des gemeinsamen Endes von `a` und `b`, höchstens `grenze` Wörter. */
+function gemeinsamesEnde(a: readonly string[], b: readonly string[], grenze: number): number {
+  let laenge = 0
+  while (laenge < grenze && a[a.length - 1 - laenge] === b[b.length - 1 - laenge]) laenge += 1
+  return laenge
+}
+
+/** Wohin wandert das Wort an `position` von `vorher` nach `nachher`, wenn die Änderung zwischen einem
+ * gemeinsamen Anfang (`anfang` Wörter) und einem gemeinsamen Ende (`ende` Wörter) liegt? `'weg'` = das
+ * Wort liegt im geänderten Bereich und ist nicht genau EIN umgeschriebenes Wort. */
+function neueStelle(vorher: readonly string[], nachher: readonly string[], position: number, anfang: number, ende: number): number | 'weg' {
+  if (position < anfang) return position
+  if (position >= vorher.length - ende) return position + nachher.length - vorher.length
+  const einWortUmgeschrieben = vorher.length === nachher.length && vorher.length - ende - anfang === 1
+  return einWortUmgeschrieben ? position : 'weg'
+}
+
+/** V-130-11e-1 (U-130-11c2-rufname-verlust, Review #215 B1): die Stelle des markierten Worts nach der
+ * Vornamen-Änderung `vorher` → `nachher` — oder `undefined`, wenn sie nicht eindeutig ist. Der geänderte
+ * Bereich liegt zwischen gemeinsamem Anfang und gemeinsamem Ende; die Aufteilung ist bei wiederholten
+ * Wörtern mehrdeutig („Johann Johann" → „Johann Johann Johann"), darum wird sie beidseitig gebildet
+ * (Anfang zuerst gierig, Ende zuerst gierig). Nur wenn beide Aufteilungen dieselbe Stelle ergeben, gilt
+ * sie. Per Konstruktion markiert das nie ein anderes Wort: entweder liegt das markierte Wort in einem
+ * unveränderten Teil (dann ist es dasselbe Wort, verschoben um die Einfügung/Löschung davor), oder es ist
+ * genau das eine umgeschriebene Wort bei gleicher Wortzahl — sonst entfällt die Markierung. */
+function stelleNachAenderung(vorher: readonly string[], nachher: readonly string[], position: number): number | undefined {
+  const kuerzere = Math.min(vorher.length, nachher.length)
+  const anfangZuerst = gemeinsamerAnfang(vorher, nachher, kuerzere)
+  const stelleA = neueStelle(vorher, nachher, position, anfangZuerst, gemeinsamesEnde(vorher, nachher, kuerzere - anfangZuerst))
+  const endeZuerst = gemeinsamesEnde(vorher, nachher, kuerzere)
+  const stelleB = neueStelle(vorher, nachher, position, gemeinsamerAnfang(vorher, nachher, kuerzere - endeZuerst), endeZuerst)
+  return stelleA !== 'weg' && stelleA === stelleB ? stelleA : undefined
+}
+
+/**
+ * V-130-11e-1 (U-130-11c2-rufname-verlust, Review #215): neue Vornamen in den Entwurf übernehmen. Der
+ * Reiter Person schreibt jeden Zwischenstand; schreibt der Nutzer das markierte Wort um („Karl Friedrich"
+ * → „Karl Friedric"), gliche der mitgetragene Rufname keinem Vornamen mehr und die Markierung ginge
+ * verloren. Darum folgt der Rufname-Text im Entwurf dem markierten Wort (`stelleNachAenderung`), oder die
+ * Markierung entfällt sichtbar (`''`/`null`), wenn die Stelle nicht eindeutig ist — sie springt nie auf ein
+ * anderes Wort. Verglichen wird mit dem VORHERIGEN Entwurf, also Anschlag für Anschlag, nicht mit dem
+ * zuletzt gelesenen Stand: der Entwurf trägt kein Hilfsfeld (Review #215 B2 — ein solches Feld ließe das
+ * Echo des eigenen Schreibens „fremd" aussehen, `profil-bearbeiten-debounce.ts`), und er gleicht nach dem
+ * Schreiben genau dem, was das Nachladen liefert (Rufname „Friedric" an Stelle 1).
+ *
+ * Ohne Markierung im vorherigen Entwurf ändert sich am Rufnamen nichts (kein Rufname wird erfunden); bleibt
+ * das markierte Wort an seiner Stelle unverändert, bleibt der Rufname-Text wortgleich.
+ */
+export function mitVornamen(eintrag: NamenEintragWerte, vornamen: string): NamenEintragWerte {
+  const naechster = { ...eintrag, vornamen }
   const position = rufnamePosition(eintrag)
-  return position === undefined ? '' : (vornamenEinheiten(eintrag).einheiten[position] ?? '')
+  if (position === undefined) return naechster
+  const vorher = vornamenEinheiten(eintrag).einheiten
+  const nachher = vornamenEinheiten(naechster).einheiten
+  if (gleicheWoerter(vorher, nachher)) return naechster
+  const stelle = stelleNachAenderung(vorher, nachher, position)
+  const vorname = stelle === undefined ? undefined : nachher[stelle]
+  if (stelle === undefined || vorname === undefined) return { ...naechster, rufname: '', rufnameIndex: null }
+  // Unverändertes Wort an unveränderter Stelle: den Rufname-Text wortgleich lassen (roher Leerraum), aber
+  // den Index setzen — sonst entschiede ohne Index die Textsuche, und ein davor gleich umgeschriebenes Wort
+  // („Karl Friedrich" → „Friedrich Friedrich") zöge die Markierung auf sich.
+  const rufname = stelle === position && vorname === vorher[position] ? eintrag.rufname : vorname
+  return { ...naechster, rufname, rufnameIndex: stelle }
 }
 
 /** `''` → `undefined` (Befehlsnutzlast kennt optionale Felder, keinen leeren String, s.
