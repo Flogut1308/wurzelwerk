@@ -72,10 +72,9 @@ export function einfuegen(tx: Tx, ein: NameEinfuegenEin, neueId: () => string): 
   // Form ZUERST (Eltern), Teile DANACH (Kinder) — die Journal-Reihenfolge (die Rücknahme löscht in
   // umgekehrter Reihenfolge, `src/main/journal/undo.ts`) verlangt, dass die Kinder eine höhere
   // `reihenfolge` tragen als ihr Elternteil, sonst kaskadiert das Löschen der Form beim Undo die
-  // Teile weg, bevor deren eigene Rücknahme sie erreicht. Damit `abl_name_form_ai` (das die
-  // FTS-Normalform beim Einfügen indiziert, BEVOR die Teile existieren) einen konsistenten Wert
-  // indiziert, wird `original_text` gesetzt (montiert, wenn der Aufrufer keinen mitbringt) — s.
-  // `montiereOriginalText` für die FTS-Begründung.
+  // Teile weg, bevor deren eigene Rücknahme sie erreicht. `original_text` wird gesetzt (montiert,
+  // wenn der Aufrufer keinen mitbringt) — s. `montiereOriginalText` (dort auch die Korrektur der
+  // früheren FTS-Begründung, AP-1.30 PR 10a).
   const flach = flachVon(ein)
   nameFormRepo.einfuegen(tx, {
     id: ein.id,
@@ -216,20 +215,28 @@ export interface NameAktualisierenEin {
 }
 
 /** Aktualisiert eine Form (Kopf-Spalten) und baut ihre Bestandteile vollständig neu auf (löschen +
- * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt. */
+ * neu einfügen — die flache Form kennt keine stabilen Teil-IDs). `ist_bevorzugt` bleibt unberührt.
+ *
+ * U-130-10a-bruecke-erhaelt (docs/80 §33): die Kopf-Felder AUSSERHALB des flachen Vertrags
+ * (`reihenfolge`, `rollen_notiz`, `konfidenz`, `sortier_index`) bleiben wie gespeichert — vorher setzte
+ * jedes `name.aendern` sie auf NULL. */
 export function aktualisieren(tx: Tx, ein: NameAktualisierenEin, neueId: () => string): void {
+  const vorher = nameFormRepo.lesen(tx, ein.id)
+  if (vorher === undefined) {
+    throw new WurzelFehler('NICHT_GEFUNDEN_NAME')
+  }
   const flach = flachVon(ein)
   nameFormRepo.aktualisieren(tx, {
     id: ein.id,
     sprache: ein.sprache,
     schrift: ein.schrift,
-    reihenfolge: null,
+    reihenfolge: vorher.reihenfolge,
     rolle: rolleAusTyp(ein.typ),
-    rollenNotiz: null,
+    rollenNotiz: vorher.rollen_notiz,
     umschriftVon: ein.umschriftVon,
     umschriftNorm: ein.umschriftNorm,
-    konfidenz: null,
-    sortierIndex: null,
+    konfidenz: vorher.konfidenz,
+    sortierIndex: vorher.sortier_index,
     gueltigVon: ein.gueltigVon,
     gueltigBis: ein.gueltigBis,
     // U-130-rufname-montage: die Montage der neu geschriebenen Teile (inkl. angehängtem Rufnamen).
