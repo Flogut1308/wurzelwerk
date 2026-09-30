@@ -10,6 +10,11 @@ function fokussierbareElemente(container: HTMLElement): readonly HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOKUSSIERBAR_SELEKTOR))
 }
 
+/** Das erste per Tab erreichbare Element in `container` (AP-1.30 PR 11a: Anfangsfokus im `Modal`). */
+export function erstesFokussierbares(container: HTMLElement): HTMLElement | null {
+  return fokussierbareElemente(container)[0] ?? null
+}
+
 /** Hält `Tab`/`Shift+Tab` zyklisch innerhalb von `container`. Andere Tasten bleiben unberührt. */
 export function tabImContainerHalten(ereignis: KeyboardEvent<HTMLElement>, container: HTMLElement | null): void {
   if (ereignis.key !== 'Tab' || container === null) return

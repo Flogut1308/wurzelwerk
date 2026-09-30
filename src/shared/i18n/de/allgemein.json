@@ -31,6 +31,8 @@
 
   "reiter_offener_punkt": "offene Punkte in diesem Bereich",
 
+  "modal_schliessen": "Schließen",
+
   "speicherstatus_gespeichert": "Gespeichert · {{zeit}}",
   "speicherstatus_zeit_gerade_eben": "gerade eben",
   "speicherstatus_zeit_minuten_one": "vor {{count}} Minute",

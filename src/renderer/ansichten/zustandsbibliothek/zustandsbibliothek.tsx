@@ -27,6 +27,7 @@ import { Ladeschimmer, type LadeschimmerForm } from '../../bausteine/ladeschimme
 import { Langtextfeld } from '../../bausteine/langtextfeld'
 import { LeerzustandBlock } from '../../bausteine/leerzustand-block'
 import { Optionsfeld } from '../../bausteine/optionsfeld'
+import { Modal } from '../../bausteine/modal'
 import { Ortsfeld } from '../../bausteine/ortsfeld'
 import { Personenwaehler } from '../../bausteine/personenwaehler'
 import { Reiterleiste, reiterElementId, reiterInhaltId, type ReiterleisteReiter } from '../../bausteine/reiterleiste'
@@ -865,6 +866,31 @@ export function Zustandsbibliothek({ aufSchliessen }: ZustandsbibliothekProps) {
         <Speicherstatus zustand="gespeichert" gespeichertUm={BEISPIEL_JETZT_MS - 5 * 60_000} jetzt={BEISPIEL_JETZT_MS} />
         <Speicherstatus zustand="speichert" />
         <Speicherstatus zustand="fehler" aufErneutVersuchen={() => {}} />
+      </Abschnitt>
+
+      {/* AP-1.30 PR 11a: `Modal` offen, mit Abdunkelung, Inhalt und Fußaktionen — in einer Probe
+          eingefasst wie die `Seitenschublade` (sonst läge die feste Abdunkelung über der ganzen
+          Seite). Das Modal fokussiert sich beim Öffnen selbst, ohne die Seite zu scrollen. */}
+      <Abschnitt name="modal">
+        <div className="wz-zb__modalProbe">
+          <Modal
+            titel={t('beispiel_modal_titel')}
+            offen
+            beiSchliessen={() => {}}
+            fussaktionen={
+              <>
+                <Schaltflaeche variante="sekundaer" aufKlick={() => {}}>
+                  {t('beispiel_modal_abbrechen')}
+                </Schaltflaeche>
+                <Schaltflaeche variante="primaer" aufKlick={() => {}}>
+                  {t('beispiel_modal_uebernehmen')}
+                </Schaltflaeche>
+              </>
+            }
+          >
+            <Text rolle="koerper">{t('beispiel_modal_inhalt')}</Text>
+          </Modal>
+        </div>
       </Abschnitt>
 
       <Text rolle="titel-klein" als="h2" id="wz-zb-leerzustaende">

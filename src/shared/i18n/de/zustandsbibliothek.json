@@ -49,7 +49,8 @@
     "ortsfeld": "Ortsfeld",
     "archivfeld": "Archivfeld",
     "reiterleiste": "Reiterleiste",
-    "speicherstatus": "Speicherstatus"
+    "speicherstatus": "Speicherstatus",
+    "modal": "Modal"
   },
   "variante_primaer": "primär",
   "variante_sekundaer": "sekundär",
@@ -103,6 +104,10 @@
   "beispiel_schritt_3": "Ausführen",
   "beispiel_seitenschublade_titel": "Beispiel-Beleg",
   "beispiel_seitenschublade_inhalt": "Inhalt der Seitenschublade — ein Formular oder eine Detailansicht käme hier hin.",
+  "beispiel_modal_titel": "Namensform bearbeiten",
+  "beispiel_modal_inhalt": "Inhalt des Modals — hier stünden Sprache, Schrift, Reihenfolge und die Bestandteile der Namensform.",
+  "beispiel_modal_abbrechen": "Abbrechen",
+  "beispiel_modal_uebernehmen": "Übernehmen",
   "beispiel_fehlerliste_kennung": "db:example-1",
   "leer_keinInhalt_titel": "Noch keine Personen",
   "leer_keinInhalt_text": "Importiere eine Datei oder lege die erste Person an.",
