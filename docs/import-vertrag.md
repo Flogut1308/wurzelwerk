@@ -207,10 +207,11 @@ Person geraten hat, kann diesen Satz nicht plausibel füllen, ohne das Raten zuz
 `ist_bevorzugt`, `gueltig_von`/`gueltig_bis`, sowie `umschrift_von` (Index des Originals im
 gleichen Array) + `umschrift_norm` (`iso9`/`din1460`/`manuell`).
 
-Zwei Regeln dazu:
+Drei Regeln dazu:
 
 - **`nachname` ist Pflicht, außer `nachname_unbekannt: true`.** Ein leerer Nachname ist mehrdeutig — hat die Quelle keinen genannt, oder hat der Erzeuger ihn übersehen? Das explizite Flag entscheidet.
 - **Eine Umschrift ist ein zusätzlicher Namenseintrag, niemals ein Ersatz** (E20, ADR-014). Sie hat `typ: transliteriert`, `umschrift_von` auf das Original und ist nie `ist_bevorzugt`. Wer ein kyrillisches Original durch die Umschrift ersetzt, verstößt gegen ADR-014 und der Trockenlauf meldet es (IMP-305).
+- **`umschrift_von` zeigt auf einen anderen Eintrag desselben `namen`-Arrays; die Reihenfolge ist frei.** Die Umschrift darf vor oder hinter ihrem Original stehen, Wurzelwerk schreibt das Original zuerst und behält die Reihenfolge der Datei. Ein Index außerhalb des Arrays, ein Verweis auf den eigenen Eintrag und ein Kreis (a → b → a) sind Fehler der Stufe 2 und werden als IMP-104 am Feld `umschrift_von` gemeldet (bei einem Kreis einmal, am kleinsten Index). Das JSON-Schema kann diese Regel nicht ausdrücken, sie steht nur in der Prüfung.
 
 ### 3.4 `orte[]`
 
