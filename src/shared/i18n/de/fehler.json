@@ -21,7 +21,7 @@
   },
   "VALIDIERUNG_RUFNAME_VERDOPPELT": {
     "titel": "Dieser Rufname steht schon in den Vornamen",
-    "was_tun": "Den Rufnamen aus den Vornamen wählen (einen einzelnen Vornamen als Rufnamen eingeben oder das Feld leer lassen und ihn danach in der Namenszeile auswählen) oder den mehrteiligen Rufnamen als eigene Namensform erfassen."
+    "was_tun": "Einen der Vornamen als Rufnamen wählen – einen einzelnen Vornamen eingeben oder das Feld leer lassen und den Rufnamen danach in der Namenszeile auswählen. Mehrteilige Rufnamen sind noch nicht vorgesehen."
   },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",

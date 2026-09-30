@@ -133,7 +133,7 @@
     "IMP_311": {
       "titel": "Rufname steht schon in den Vornamen",
       "beschreibung": "rufname_text besteht aus mehreren Wörtern, die genau so schon in vornamen stehen, und rufname_index fehlt. Wurzelwerk hängt einen solchen Rufnamen als zusätzlichen Vornamen an — der Name enthielte die Wörter danach zweimal.",
-      "was_tun": "In der Datei rufname_index auf den gemeinten Vornamen setzen oder rufname_text entfernen und den Rufnamen nach dem Import aus den Vornamen wählen. Ist der mehrteilige Rufname eine eigene Namensform, ihn als eigenen Namenseintrag erfassen."
+      "was_tun": "In der Datei rufname_index auf den gemeinten Vornamen setzen oder rufname_text entfernen und den Rufnamen nach dem Import aus den Vornamen wählen. Mehrteilige Rufnamen sind noch nicht vorgesehen."
     },
     "IMP_401": {
       "titel": "Mögliche Dublette",
