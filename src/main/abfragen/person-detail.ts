@@ -989,8 +989,9 @@ interface KernBelege {
  * - jede Elternkante zur Person als Kind (jede Aussage an der Kante, D7),
  * - jedes Geburts-/Tod-Ereignis der Person, dessen Existenz-Aussage einen Beleg mit `feld` NULL (ganze
  *   Aussage), `datum` oder `ort` trägt (D6; Nachtrag ADR-031: belegt Datum bzw. Ort des Rückfalls).
- * Bewusst ein einziger Durchlauf über `aussage` statt drei EXISTS-Unterabfragen: es gibt keinen
- * Index auf `aussage(subjekt_typ, subjekt_id)` (§31 U-1.34-C2b-aussage-index). Welche Ereignisse
+ * Eine einzige Anweisung statt drei EXISTS-Unterabfragen; entstanden, als es noch keinen Index auf
+ * `aussage(subjekt_typ, subjekt_id)` gab (§31 U-1.34-C2b-aussage-index) — seit Migration 0008 gibt
+ * es `idx_aussage_subjekt_praedikat` (subjekt_typ, subjekt_id, praedikat). Welche Ereignisse
  * überhaupt Rückfall sind (Rolle), entscheidet der Kern (`istRueckfallEreignis`); die Karte wird nur
  * für die dort gewählten Ereignisse abgefragt, ein Beleg an einem anderen Ereignis wirkt also nie. */
 function kernBelegeLaden(db: Database.Database, personId: string): KernBelege {

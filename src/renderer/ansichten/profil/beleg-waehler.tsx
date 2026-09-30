@@ -153,8 +153,10 @@ export interface BelegWaehlerProps {
  *   `aussage_zitat.anlegen` (E2). PR 9d-2 (V-130-9d2): ein Ziel aus einem Ereignis ist dessen
  *   Existenz-Aussage (`feld` datum/ort, Datum+Ort desselben Ereignisses = eine Verknüpfung ohne
  *   `feld`); hängt das Zitat dort schon mit dem anderen Feld, erweitert `aussage_zitat.aendern` es
- *   auf NULL (je ein Undo-Schritt). Ein Hinweis nennt die Angaben, die am Ereignis belegt werden. „Neues Zitat" = `zitat.anlegen` + Verknüpfung = zwei Undo-Schritte
- *   (dokumentiert wie Entscheidung K). Kein Sammelbefehl, `src/main`/`src/shared` unverändert.
+ *   auf NULL (je ein Undo-Schritt). Ein Hinweis nennt die Angaben, die am Ereignis belegt werden.
+ *   „Neues Zitat" = `zitat.anlegen` + Verknüpfung = zwei Undo-Schritte (dokumentiert wie
+ *   Entscheidung K). Kein Sammelbefehl und kein neuer Befehl; PR 9d-2 ergänzt nur lesend
+ *   `person.detail.ereignis_existenz` (`src/shared`/`src/main/abfragen`).
  * - Die Verknüpfung ist kein Autosave-Wert eines Felds, sondern eine Mutation. Ein laufender
  *   Datums-Debounce ist beim Klick schon geschrieben: „Beleg verknüpfen" nimmt dem Datumsfeld den
  *   Fokus, und die Schublade holt ihn beim Öffnen zu sich (`Seitenschublade`) — beides ist das
