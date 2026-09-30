@@ -12,7 +12,7 @@
 import { z } from 'zod'
 import { GeschlechtEnum, LebendStatusEnum, PlatzhalterGrundEnum } from './person'
 import { BoolWert, KonfidenzSchema, SubjektTypEnum } from './gemeinsam'
-import { NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
+import { NameFormReihenfolgeEnum, NameFormRolleEnum, NameTypEnum, SchriftEnum, UmschriftNormEnum } from './name'
 import { ElternschaftTypEnum } from './elternschaft'
 import { PartnerschaftTypEnum, EndeGrundEnum } from './partnerschaft'
 import { EreignisTypEnum } from './ereignis'
@@ -230,6 +230,58 @@ export const hauptnameWechselnEinSchema: z.ZodType<HauptnameWechselnEin> = z.obj
   alt: z.string(),
   neu: z.string(),
 })
+
+// -----------------------------------------------------------------------------------------------
+// namensform.anlegen / namensform.aendern (AP-1.30 PR 10-1; A-02, A-19; docs/schema/0006_namensformen.sql
+// `name_form`) — granulare Befehle für den KOPF einer Namensform, ohne Bestandteile (`name_part`
+// folgt mit `namensteil.*`, PR 10-2). Löschen und Hauptname laufen über `name.loeschen` und
+// `hauptname.wechseln` (E5, docs/80 §33 V-130-10-1) — beide arbeiten schon heute auf `name_form`.
+// -----------------------------------------------------------------------------------------------
+
+/** E7 (docs/80 §33 V-130-10-1): eine Form ohne Rolle ist eine Umschrift (0006: `rolle IS NULL` statt
+ * 'transliteriert') und braucht darum eine Ursprungsform. */
+const ROLLE_NULL_NUR_MIT_UMSCHRIFT = 'rolle = null ist nur zusammen mit umschriftVon zulässig (eine Form ohne Rolle ist eine Umschrift).'
+
+/** Nutzlast von `befehl:namensform.anlegen`. `rolle` ist Pflicht, aber `null`-fähig: `null` heißt
+ * „Umschrift" und verlangt `umschriftVon` (E7). `ist_bevorzugt` steht bewusst nicht im Vertrag — die
+ * erste Form einer Person wird bevorzugt, jede weitere nicht (wie `name.anlegen`); umgestellt wird
+ * über `hauptname.wechseln`. Die Form entsteht OHNE Bestandteile; fehlt `originalText`, bleibt er
+ * `NULL` (nichts zu montieren). */
+export interface NamensformAnlegenEin {
+  readonly personId: string
+  readonly rolle: z.infer<typeof NameFormRolleEnum> | null
+  readonly rollenNotiz?: string | undefined
+  readonly sprache?: string | undefined
+  readonly schrift?: z.infer<typeof SchriftEnum> | undefined
+  readonly reihenfolge?: z.infer<typeof NameFormReihenfolgeEnum> | undefined
+  readonly umschriftVon?: string | undefined
+  readonly umschriftNorm?: z.infer<typeof UmschriftNormEnum> | undefined
+  readonly konfidenz?: number | undefined
+  readonly gueltigVon?: number | undefined
+  readonly gueltigBis?: number | undefined
+  readonly originalText?: string | undefined
+}
+
+export const namensformAnlegenEinSchema: z.ZodType<NamensformAnlegenEin> = z
+  .object({
+    personId: z.string(),
+    rolle: NameFormRolleEnum.nullable(),
+    rollenNotiz: z.string().optional(),
+    sprache: z.string().optional(),
+    schrift: SchriftEnum.optional(),
+    reihenfolge: NameFormReihenfolgeEnum.optional(),
+    umschriftVon: z.string().optional(),
+    umschriftNorm: UmschriftNormEnum.optional(),
+    konfidenz: KonfidenzSchema.optional(),
+    gueltigVon: z.number().int().optional(),
+    gueltigBis: z.number().int().optional(),
+    originalText: z.string().optional(),
+  })
+  .superRefine((ein, ctx) => {
+    if (ein.rolle === null && ein.umschriftVon === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['rolle'], message: ROLLE_NULL_NUR_MIT_UMSCHRIFT })
+    }
+  })
 
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)

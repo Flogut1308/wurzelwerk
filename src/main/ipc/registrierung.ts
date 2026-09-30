@@ -10,6 +10,7 @@ import {
   nameAendernEinSchema,
   nameLoeschenEinSchema,
   hauptnameWechselnEinSchema,
+  namensformAnlegenEinSchema,
   elternschaftAnlegenEinSchema,
   elternschaftAendernEinSchema,
   elternschaftLoeschenEinSchema,
@@ -182,6 +183,9 @@ export function ipcRegistrierung(): void {
   // AP-1.33: bevorzugte Namensform umstellen (0006_namensformen.sql) — eigener Befehl, weil ein
   // In-Place-Tausch am „genau ein Hauptname"-Constraint scheitert (s. `hauptname-wechseln.ts`).
   registriere('befehl:hauptname.wechseln', hauptnameWechselnEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'hauptname.wechseln', ein))
+  // AP-1.30 PR 10-1: granularer Kopf einer Namensform (ohne Bestandteile); Löschen/Hauptname über
+  // `name.loeschen`/`hauptname.wechseln` (E5, docs/80 §33 V-130-10-1).
+  registriere('befehl:namensform.anlegen', namensformAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'namensform.anlegen', ein))
 
   registriere('befehl:elternschaft.anlegen', elternschaftAnlegenEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.anlegen', ein))
   registriere('befehl:elternschaft.aendern', elternschaftAendernEinSchema, (ein) => fuehreAus(offenesProjektDatenbank(), 'elternschaft.aendern', ein))

@@ -23,6 +23,10 @@
     "titel": "Dieser Rufname steht schon in den Vornamen",
     "was_tun": "Einen der Vornamen als Rufnamen wählen – einen einzelnen Vornamen eingeben oder das Feld leer lassen und den Rufnamen danach in der Namenszeile auswählen. Mehrteilige Rufnamen sind noch nicht vorgesehen."
   },
+  "VALIDIERUNG_UMSCHRIFT_BEZUG": {
+    "titel": "Diese Umschrift passt nicht zu ihrer Ursprungsform",
+    "was_tun": "Als Ursprung eine andere Namensform derselben Person wählen. Eine Form ohne Rolle ist eine Umschrift und braucht immer eine Ursprungsform – sonst eine Rolle wie Geburtsname oder Ehename wählen."
+  },
   "VALIDIERUNG_DATUM_UNLESBAR": {
     "titel": "Datum nicht lesbar",
     "was_tun": "Das Datum in einem erkennbaren Format eingeben, zum Beispiel als Jahr oder als Zeitraum."
