@@ -12,13 +12,17 @@
 // wird nur bei einem tatsächlichen Unterschied aufgerufen (bzw. ist selbst ein No-op) — ein unveränderter
 // Aufruf schreibt nichts, und der Bus verwirft die leere Transaktion.
 //
-// Prüfen VOR dem ersten Schreiben (fremde/unbekannte Teil-ID, leerer bzw. Vorname mit Leerraum in einem
-// NEUEN oder GEÄNDERTEN Wert, Rufname an einem Nicht-Vornamen). Ein unveränderter Altbestandswert (etwa ein
-// mehrwortiger Vorname aus Migration 0006) wird nicht geprüft und bleibt (E4). Wirft eine Funktion später
-// doch, rollt der Bus die ganze Transaktion zurück.
+// Prüfen VOR dem ersten Schreiben: fremde/unbekannte Teil-ID, bestehende Teil-ID mit anderer Art
+// (`VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND` — `namensteil.aendern` ändert die Art nie, im Modal ist sie je Zeile
+// fest), leerer bzw. Vorname mit Leerraum in einem NEUEN oder GEÄNDERTEN Wert, Rufname an einem
+// Nicht-Vornamen, und der Kopf einer bestehenden Form (`namensformAenderungPruefen`, dieselbe Prüfung wie in
+// `namensform.aendern`: Umschrift-Bezug, E7). Den Kopf einer NEUEN Form prüft `namensformAnlegen` in Schritt 1,
+// ebenfalls vor jedem anderen Schreibvorgang. Ein unveränderter Altbestandswert (etwa ein mehrwortiger
+// Vorname aus Migration 0006) wird nicht geprüft und bleibt (E4). Wirft eine Funktion später doch (nur noch
+// Unerreichbares oder ein Datenbankfehler), rollt der Bus die ganze Transaktion zurück.
 //
 // Schrittfolge (in keinem Zwischenzustand ein doppelter `sortier_index` je (Form, Art), nie zwei Rufnamen):
-//   1. neue Form anlegen (nur `formId: null`; der Kopf geht direkt in `namensformAnlegen`);
+//   1. neue Form anlegen (nur `formId: null`; der Kopf OHNE `originalText` geht direkt in `namensformAnlegen`);
 //   2. entfallene Teile löschen (`namensteilLoeschen`: DELETE, dann Nachnummerieren von vorn — doppelfrei);
 //   3. geänderte Werte/Varianten (`namensteilAendern`: Stelle und Rufname bleiben unberührt);
 //   4. je Art Rang für Rang einordnen: Rang 0 … k−1 stehen schon richtig; ein neuer Teil wird mit
@@ -28,15 +32,13 @@
 //   5. Rufname zuletzt (`namensformRufnameSetzen`: erst alte Markierung weg, dann neue). Kein früherer
 //      Schritt setzt `ist_rufname = 1` (Anlegen schreibt 0, Ändern/Verschieben lassen die Markierung) —
 //      so sieht der Index `idx_name_part_ein_rufname` nie zwei;
-//   6. Kopf einer bestehenden Form NACH den Teilen: übergeben werden nur die Felder, die sich gegenüber dem
-//      Stand VOR dem Befehl ändern. So gewinnt ein ausdrücklich geänderter `originalText` über die
-//      Nachführung aus Schritt 2–5, ein unverändert mitgeschickter setzt sie nicht zurück;
+//   6. Kopf NACH den Teilen: bei einer bestehenden Form nur die Felder, die sich gegenüber dem Stand VOR dem
+//      Befehl ändern, bei einer neuen Form nur ein gesetzter `originalText`. So gewinnt ein ausdrücklich
+//      gesetzter bzw. geänderter `originalText` über die Nachführung aus Schritt 2–5 (auch wenn er zufällig
+//      wie eine Montage der ersten Teile aussieht), ein unverändert mitgeschickter setzt sie nicht zurück;
 //   7. Hauptname (`hauptnameWechseln`), falls verlangt und die Form es noch nicht ist.
 // Undo spielt das Journal der ganzen Transaktion rückwärts und durchläuft so dieselben Zwischenstände in
 // umgekehrter Folge, Redo vorwärts — beide ebenfalls doppelfrei.
-//
-// Ändert ein Eintrag mit `id` die Art, wird er wie ein neuer Teil behandelt (der alte Teil entfällt):
-// `namensteil.aendern` ändert die Art nie, eine Stelle gibt es nur je Art.
 import type { NamensformAnlegenEin, NamensformUebernehmenEin, NamensformUebernehmenKopf, NamensformUebernehmenTeil } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import type { Tx } from '../repositories/basis'
@@ -45,7 +47,7 @@ import type { NameFormZeile } from '../repositories/name-form-repo'
 import * as namePartRepo from '../repositories/name-part-repo'
 import type { NamePartZeile } from '../repositories/name-part-repo'
 import { hauptnameWechseln } from './hauptname-wechseln'
-import { namensformAendern, namensformGeaenderteFelder } from './namensform-aendern'
+import { namensformAendern, namensformAenderungPruefen, namensformGeaenderteFelder } from './namensform-aendern'
 import { namensformAnlegen } from './namensform-anlegen'
 import { namensformRufnameSetzen } from './namensform-rufname-setzen'
 import { namensteilAendern, namensteilGeaenderteFelder } from './namensteil-aendern'
@@ -81,7 +83,9 @@ function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePa
       if (vorher === undefined) {
         throw new WurzelFehler('NICHT_GEFUNDEN_NAMENSTEIL')
       }
-      if (vorher.art !== teil.art) vorher = undefined
+      if (vorher.art !== teil.art) {
+        throw new WurzelFehler('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
+      }
     }
     // E2/E4: geprüft wird nur ein neuer oder geänderter Wert; ein unveränderter Altbestandswert bleibt.
     const wert = vorher !== undefined && teil.wert.trim() === vorher.wert ? vorher.wert : namensteilWertPruefen(teil.art, teil.wert)
@@ -93,7 +97,8 @@ function zieleBilden(ein: NamensformUebernehmenEin, gespeichert: readonly NamePa
   return ziele
 }
 
-/** Kopf einer NEUEN Form: `null` heißt dort „nicht gesetzt". `rolle` ist per Schema vorhanden. */
+/** Kopf einer NEUEN Form: `null` heißt dort „nicht gesetzt". `rolle` ist per Schema vorhanden. `originalText`
+ * fehlt bewusst — er kommt erst in Schritt 6, nach den Teilen (sonst montierte ihn die Nachführung neu). */
 function anlegenEin(personId: string, kopf: NamensformUebernehmenKopf): NamensformAnlegenEin {
   return {
     personId,
@@ -107,11 +112,11 @@ function anlegenEin(personId: string, kopf: NamensformUebernehmenKopf): Namensfo
     konfidenz: kopf.konfidenz ?? undefined,
     gueltigVon: kopf.gueltigVon ?? undefined,
     gueltigBis: kopf.gueltigBis ?? undefined,
-    originalText: kopf.originalText ?? undefined,
   }
 }
 
-/** Schritt 6: nur die gegenüber `vorher` (Stand vor dem Befehl) geänderten Kopf-Felder an `namensformAendern`. */
+/** Schritt 6: nur die gegenüber `vorher` (Stand vor dem Befehl bzw. nach den Teilen bei einer neuen Form)
+ * geänderten Kopf-Felder an `namensformAendern`. */
 function kopfUebernehmen(tx: Tx, vorher: NameFormZeile, kopf: NamensformUebernehmenKopf): void {
   const felder = namensformGeaenderteFelder(vorher, { id: vorher.id, ...kopf })
   if (felder.length === 0) return
@@ -160,6 +165,7 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   }
   const gespeichert = vorher === undefined ? [] : namePartRepo.teileFuerForm(tx, vorher.id)
   const ziele = zieleBilden(ein, gespeichert)
+  if (vorher !== undefined) namensformAenderungPruefen(tx, vorher, { id: vorher.id, ...ein.kopf })
 
   // 1. neue Form
   const formId = vorher?.id ?? namensformAnlegen(tx, anlegenEin(ein.personId, ein.kopf)).id
@@ -194,8 +200,17 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   const alterRufname = namePartRepo.teileDerArt(tx, formId, 'vorname').find((teil) => teil.ist_rufname === 1)?.id ?? null
   if (neuerRufname !== alterRufname) namensformRufnameSetzen(tx, { namensformId: formId, namensteilId: neuerRufname })
 
-  // 6. Kopf einer bestehenden Form
-  if (vorher !== undefined) kopfUebernehmen(tx, vorher, ein.kopf)
+  // 6. Kopf nach den Teilen
+  if (vorher !== undefined) {
+    kopfUebernehmen(tx, vorher, ein.kopf)
+  } else if (ein.kopf.originalText !== undefined && ein.kopf.originalText !== null) {
+    const neu = nameFormRepo.lesen(tx, formId)
+    if (neu === undefined) {
+      // Unerreichbar: die Form wurde in Schritt 1 in dieser Transaktion angelegt.
+      throw new WurzelFehler('INTERN_UNERWARTET', 'namensform.uebernehmen: neue Form fehlt.')
+    }
+    kopfUebernehmen(tx, neu, { originalText: ein.kopf.originalText })
+  }
 
   // 7. Hauptname
   if (ein.hauptname === true && nameFormRepo.lesen(tx, formId)?.ist_bevorzugt !== 1) {

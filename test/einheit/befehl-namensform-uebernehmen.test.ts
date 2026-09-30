@@ -411,3 +411,137 @@ describe('namensform.uebernehmen (AP-1.30 PR 11-0)', () => {
     }
   })
 })
+
+describe('namensform.uebernehmen — Nachbesserung Review #200', () => {
+  it('V1: ein ausdrücklich gesetzter originalText gewinnt auch bei einer NEUEN Form', () => {
+    const db = neueTestDatenbank()
+    try {
+      const personId = neuePerson(db)
+      const erste = uebernehmen(db, {
+        personId,
+        formId: null,
+        kopf: { rolle: 'geburtsname', originalText: 'Nowak' },
+        teile: [
+          { art: 'nachname', wert: 'Nowak', istRufname: false },
+          { art: 'vorname', wert: 'Karl', istRufname: false },
+        ],
+      })
+      expect(originalText(db, erste)).toBe('Nowak')
+      const zweite = uebernehmen(db, {
+        personId,
+        formId: null,
+        kopf: { rolle: 'ehename', originalText: 'Karl' },
+        teile: [
+          { art: 'vorname', wert: 'Karl', istRufname: false },
+          { art: 'nachname', wert: 'Nowak', istRufname: false },
+        ],
+      })
+      expect(originalText(db, zweite)).toBe('Karl')
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('Art-Wechsel einer bestehenden Teil-ID wird abgewiesen — nichts geschrieben, keine Transaktion', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const karl = teilId(db, formId, 'vorname', 'Karl')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      const teileMitArtwechsel = zielliste(db, formId).map((t) => (t.id === karl ? { ...t, art: artVon('nachname') } : t))
+      expect(fehlerCode(() => uebernehmen(db, { personId, formId, kopf: { sprache: 'de' }, teile: teileMitArtwechsel }))).toBe('VALIDIERUNG_NAMENSTEIL_ART_ABWEICHEND')
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('V3a: ein unverändert mitgeschickter originalText (alte Montage) setzt die Nachführung nicht zurück', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowak')
+      uebernehmen(db, {
+        personId,
+        formId,
+        kopf: { originalText: 'Karl Friedrich Nowak', sprache: 'de' },
+        teile: zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert: 'Nowack' } : t)),
+      })
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowack')
+      expect(kopf(db, formId)).toMatchObject({ sprache: 'de' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('V3b: der Kopf kommt nach den Teilen — ein geänderter originalText gleich der alten Montage bleibt stehen', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      fuehreAus(db, 'namensform.aendern', { id: formId, originalText: 'Carolus' })
+      uebernehmen(db, {
+        personId,
+        formId,
+        kopf: { originalText: 'Karl Friedrich Nowak' },
+        teile: zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert: 'Nowack' } : t)),
+      })
+      expect(originalText(db, formId)).toBe('Karl Friedrich Nowak')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('H2: der Kopf wird VOR dem ersten Schreibvorgang geprüft (Umschrift-Bezug, E7)', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const fremd = karlNowak(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      const teileGeaendert = zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert: 'Nowack' } : t))
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      // Jeder Schreibvorgang an name_part bricht ab: käme die Kopfprüfung erst danach, meldete sich dieser Abbruch statt ihres Codes.
+      db.exec(`
+        CREATE TEMP TRIGGER u110_teil_ai BEFORE INSERT ON main.name_part BEGIN SELECT RAISE(ABORT, 'u110: Teil geschrieben'); END;
+        CREATE TEMP TRIGGER u110_teil_au BEFORE UPDATE ON main.name_part BEGIN SELECT RAISE(ABORT, 'u110: Teil geschrieben'); END;
+        CREATE TEMP TRIGGER u110_teil_ad BEFORE DELETE ON main.name_part BEGIN SELECT RAISE(ABORT, 'u110: Teil geschrieben'); END;
+      `)
+      expect(fehlerCode(() => uebernehmen(db, { personId, formId, kopf: { umschriftVon: fremd.formId }, teile: teileGeaendert }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      expect(fehlerCode(() => uebernehmen(db, { personId, formId, kopf: { rolle: null }, teile: teileGeaendert }))).toBe('VALIDIERUNG_UMSCHRIFT_BEZUG')
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('H2: ein Wurf mitten im Ablauf (nach geschriebenen Teilen) lässt nichts zurück', () => {
+    const db = neueTestDatenbank()
+    try {
+      const { personId, formId } = karlNowak(db)
+      const nowak = teilId(db, formId, 'nachname', 'Nowak')
+      const abzug = kanonischerAbzug(db)
+      const transaktionen = transaktionAnzahl(db)
+      db.exec("CREATE TEMP TRIGGER u110_form_au BEFORE UPDATE ON main.name_form BEGIN SELECT RAISE(ABORT, 'u110: Kopf geschrieben'); END;")
+      expect(() =>
+        uebernehmen(db, {
+          personId,
+          formId,
+          kopf: { sprache: 'de' },
+          teile: [...zielliste(db, formId).map((t) => (t.id === nowak ? { ...t, wert: 'Nowack' } : t)), { art: 'suffix', wert: 'jun.', istRufname: false }],
+        }),
+      ).toThrow('u110: Kopf geschrieben')
+      db.exec('DROP TRIGGER temp.u110_form_au')
+      expect(transaktionAnzahl(db)).toBe(transaktionen)
+      expect(kanonischerAbzug(db)).toBe(abzug)
+      erwarteAbgeleitetWieNeuaufbau(db)
+    } finally {
+      db.close()
+    }
+  })
+})
