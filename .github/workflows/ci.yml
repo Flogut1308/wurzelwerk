@@ -111,7 +111,65 @@ jobs:
           retention-days: 5
 
       - name: Test
-        run: pnpm test
+        # U-130-undo-bitgleich-laufzeit (PR A, nur Messung): derselbe `pnpm test` wie lokal, nur in
+        # der CI zusätzlich mit JSON-Reporter, damit die Laufzeit je Testdatei je OS sichtbar wird.
+        # `pnpm run test …` statt `pnpm test -- …`: pnpm 12 reicht nach `run <script>` jedes Token
+        # unverändert durch; `pnpm test -- …` gäbe `--` an Vitest weiter, und Vitest ignorierte die
+        # Reporter-Argumente dahinter stillschweigend (lokal geprüft). Lokal (`pnpm test`/`pnpm pruefe`)
+        # ändert sich nichts — kein Reporter in vitest.config.ts.
+        run: pnpm run test --reporter=default --reporter=json --outputFile.json=artefakte/vitest-laufzeiten.json
+
+      - name: Testlaufzeiten als Artefakt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-laufzeiten-${{ matrix.os }}
+          path: artefakte/vitest-laufzeiten.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Testlaufzeiten auswerten
+        # Kein Gate: schreibt die zehn langsamsten Testdateien ins Log und in die Job-Übersicht und
+        # warnt, wenn `undo-bitgleich` die Beobachtungsgrenze von 120 s überschreitet (Timeout 180 s).
+        # Endet immer mit 0 — die Messung darf den Lauf nicht rot machen (U-130-undo-bitgleich-laufzeit).
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          node <<'SKRIPT' || echo "::warning::Testlaufzeiten konnten nicht ausgewertet werden."
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const datei = 'artefakte/vitest-laufzeiten.json'
+          if (!fs.existsSync(datei)) {
+            console.log(`::warning::${datei} fehlt — keine Laufzeiten.`)
+            process.exit(0)
+          }
+          const bericht = JSON.parse(fs.readFileSync(datei, 'utf8'))
+          const zeilen = bericht.testResults
+            .map((t) => ({
+              datei: path.relative(process.cwd(), t.name).split(path.sep).join('/'),
+              sekunden: (t.endTime - t.startTime) / 1000,
+              status: t.status,
+            }))
+            .sort((a, b) => b.sekunden - a.sekunden)
+          const top = zeilen.slice(0, 10)
+          const os = process.env.RUNNER_OS ?? 'lokal'
+          console.log(`Die zehn langsamsten Testdateien (${os}):`)
+          for (const z of top) console.log(`${z.sekunden.toFixed(1).padStart(8)} s  ${z.datei}`)
+          const md = [
+            `### Langsamste Testdateien (${os})`,
+            '',
+            '| Datei | Dauer (s) | Status |',
+            '|---|---:|---|',
+            ...top.map((z) => `| \`${z.datei}\` | ${z.sekunden.toFixed(1)} | ${z.status} |`),
+            '',
+          ].join('\n')
+          if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n')
+          const ziel = 'test/invarianten/undo-bitgleich.test.ts'
+          const undo = zeilen.find((z) => z.datei === ziel)
+          if (undo === undefined) console.log(`::warning::${ziel} nicht im Bericht gefunden.`)
+          else if (undo.sekunden > 120)
+            console.log(`::warning file=${ziel}::${ziel} lief ${undo.sekunden.toFixed(1)} s (> 120 s, Timeout 180 s) — U-130-undo-bitgleich-laufzeit`)
+          SKRIPT
 
       - name: Bauen
         run: pnpm build
