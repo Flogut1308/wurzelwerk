@@ -1,0 +1,19 @@
+{
+  "vertrag": "wurzelwerk-import/v1",
+  "erzeugt": { "am": "2026-09-30", "werkzeug": "handarbeit" },
+  "zusammenfassung": { "personen": 1, "notizen_unverarbeitet": 0 },
+  "quellen": [
+    { "id": "tmp:q1", "typ": "familienbesitz", "titel": "Testquelle" }
+  ],
+  "personen": [
+    {
+      "id": "tmp:person1",
+      "konfidenz": 4,
+      "namen": [
+        { "typ": "geburtsname", "schrift": "cyrl", "nachname": "Мустер", "ist_bevorzugt": true },
+        { "typ": "transliteriert", "schrift": "latn", "nachname": "Muster", "umschrift_von": 1, "umschrift_norm": "iso9" }
+      ],
+      "belege": [ { "quelle": "tmp:q1", "konfidenz": 4 } ]
+    }
+  ]
+}

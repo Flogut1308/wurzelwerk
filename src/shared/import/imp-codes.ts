@@ -1,7 +1,7 @@
 /**
  * Prüfbefunde des Import-Vertrags `wurzelwerk-import/v1` (56_Import_Vertrag.md §4, AP-1.3a +
  * AP-1.3b + AP-1.4a). `ALLE_IMP_CODES` ist die einzige Quelle der Wahrheit für IMP-101…IMP-107
- * (Stufe 1, Schema), IMP-201…IMP-209 (Stufe 2, Referenzen/Struktur), IMP-301…IMP-311 (Stufe 3,
+ * (Stufe 1, Schema), IMP-201…IMP-210 (Stufe 2, Referenzen/Struktur), IMP-301…IMP-311 (Stufe 3,
  * Plausibilität — Hinweis) und IMP-401…IMP-404 (Stufe 4, Kollisionen mit dem Bestand — Hinweis);
  * `ImpCode` wird daraus abgeleitet.
  *
@@ -28,6 +28,7 @@ export const ALLE_IMP_CODES = [
   'IMP-207',
   'IMP-208',
   'IMP-209',
+  'IMP-210',
   'IMP-301',
   'IMP-302',
   'IMP-303',

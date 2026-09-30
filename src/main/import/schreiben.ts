@@ -290,7 +290,18 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
       // markierte, sonst (keine markiert) die erste Namenszeile überhaupt.
       const bevorzugtIndex = namen.findIndex((n) => n.ist_bevorzugt === true)
       const hauptnameIndex = bevorzugtIndex >= 0 ? bevorzugtIndex : 0
-      namen.forEach((n, index) => {
+      // A-19 (U-130-import-umschrift-vorwaerts): `umschrift_von` darf auf einen SPÄTEREN Index
+      // zeigen (der Vertrag schreibt keine Reihenfolge vor), `name_form.umschrift_von` ist aber ein
+      // sofort geprüfter Fremdschlüssel. Darum wird jedes Original vor seiner Umschrift geschrieben:
+      // je Startindex (Dateireihenfolge) die Kette der noch ungeschriebenen Originale sammeln und
+      // rückwärts schreiben — iterativ, damit eine lange Kette keinen Stack-Überlauf auslöst. Die IDs
+      // sind oben in DATEIREIHENFOLGE vergeben — die Lesereihenfolge (`ORDER BY id`) bleibt damit die
+      // der Datei, egal in welcher Folge die Zeilen entstehen; `sortier_index` setzt der Import nicht.
+      // Selbstbezug, Index außerhalb und Kreis weist Stufe 2 ab (`pruefeUmschriftBezuege`, IMP-210),
+      // bevor dieser Weg läuft; der `geschrieben`-Merker hält die Kettensuche auch ohne diese Prüfung
+      // endlich.
+      const geschrieben = new Set<number>()
+      const schreibeName = (index: number, n: (typeof namen)[number]): void => {
         const nameId = namenIds[index]
         if (nameId === undefined) {
           // Defensiv (CLAUDE.md §4: kein `!`) — `namenIds` hat laut Konstruktion genau
@@ -327,6 +338,23 @@ export function schreibeImport(tx: Tx, datei: ImportDatei, opt: SchreibOptionen)
           neueId,
         )
         zaehle('name')
+      }
+      namen.forEach((_n, start) => {
+        const kette: number[] = []
+        let aktuell: number | undefined = start
+        while (aktuell !== undefined && !geschrieben.has(aktuell)) {
+          const n: (typeof namen)[number] | undefined = namen[aktuell]
+          if (n === undefined) break
+          geschrieben.add(aktuell)
+          kette.push(aktuell)
+          aktuell = n.umschrift_von
+        }
+        for (let k = kette.length - 1; k >= 0; k -= 1) {
+          const index = kette[k]
+          const n = index === undefined ? undefined : namen[index]
+          if (index === undefined || n === undefined) continue
+          schreibeName(index, n)
+        }
       })
     }
 
