@@ -2,7 +2,6 @@
 // `namensteil.*`-Befehle und von `namensform.rufnameSetzen` (hueter #193 H4: vorher in
 // `namensteil-anlegen.ts`, von den übrigen Befehlen quer importiert). Kein `BEGIN`/`COMMIT` (CLAUDE.md
 // §2), kein SQL (nur über die Repositories).
-import type { NamensteilAnlegenEin } from '../../shared/schemata/befehle'
 import { WurzelFehler } from '../../shared/fehler/wurzel-fehler'
 import { istMontierterOriginalText, montiereOriginalText, rekonstruiereFlach } from '../../core/name/zerlegung'
 import type { Tx } from '../repositories/basis'
@@ -14,9 +13,10 @@ import { geladeneTeile } from '../repositories/name-repo'
  * Prüft und normiert den Wert eines Namensteils: getrimmt, nicht leer (`VALIDIERUNG_NAMENSTEIL_LEER`);
  * ein Vorname-Teil ohne Leerraum (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`, E2 — was „Hans Peter" als EIN
  * Vorname-Teil bedeutet, ist die offene Modellfrage U-130-rufname-mehrteilig). Andere Arten dürfen
- * mehrwortig sein („von der", „Lüdenscheidt-Meyer genannt Schulte").
+ * mehrwortig sein („von der", „Lüdenscheidt-Meyer genannt Schulte"). `art` darf der rohe Spaltenwert
+ * sein (`namensteil.aendern` liest ihn aus `name_part`); geprüft wird nur auf `'vorname'`.
  */
-export function namensteilWertPruefen(art: NamensteilAnlegenEin['art'], roh: string): string {
+export function namensteilWertPruefen(art: string, roh: string): string {
   const wert = roh.trim()
   if (wert === '') {
     throw new WurzelFehler('VALIDIERUNG_NAMENSTEIL_LEER')

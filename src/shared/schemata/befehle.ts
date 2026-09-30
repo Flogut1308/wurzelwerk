@@ -356,7 +356,7 @@ export const namensformAendernEinSchema: z.ZodType<NamensformAendernEin> = z
 // namensteil.anlegen / namensteil.loeschen (AP-1.30 PR 10-2; A-02, A-19; docs/schema/0006_namensformen.sql `name_part`) —
 // granularer Befehl für EINEN Bestandteil einer Namensform. `sortier_index` ist je (Form, Art)
 // eindeutig; der Befehl hält das in jedem Zwischenzustand (E1, docs/80 §33 V-130-10-2). Die
-// Rufname-Markierung setzt dieser Befehl nie (→ `namensteil.rufnameSetzen`, PR 10-3).
+// Rufname-Markierung setzt dieser Befehl nie (→ `namensform.rufnameSetzen`, PR 10-3).
 // -----------------------------------------------------------------------------------------------
 
 /** Nutzlast von `befehl:namensteil.anlegen`. `wert` wird getrimmt und darf nicht leer sein
@@ -389,6 +389,32 @@ export interface NamensteilLoeschenEin {
 
 export const namensteilLoeschenEinSchema: z.ZodType<NamensteilLoeschenEin> = z.object({
   id: z.string(),
+})
+
+/** Die änderbaren Felder von `namensteil.aendern` (Vertragsnamen) — zugleich die Werte des optionalen
+ * Koaleszenz-Felds `feld`. `art`, Stelle (→ `namensteil.verschieben`) und Rufname-Markierung
+ * (→ `namensform.rufnameSetzen`) ändert der Befehl nie. */
+export const NamensteilAendernFeldEnum = z.enum(['wert', 'feminineVariante'])
+export type NamensteilAendernFeld = z.infer<typeof NamensteilAendernFeldEnum>
+
+/** Nutzlast von `befehl:namensteil.aendern` (AP-1.30 PR 10-3). Teil-Semantik je Feld wie
+ * `namensform.aendern` (E6): fehlt ein Feld, bleibt der gespeicherte Wert; `feminineVariante: null`
+ * leert. `wert` ist nie `null` und wird wie beim Anlegen getrimmt, darf nicht leer werden
+ * (`VALIDIERUNG_NAMENSTEIL_LEER`) und ist bei einem Vornamen ohne Leerraum (`VALIDIERUNG_NAMENSTEIL_LEERRAUM`,
+ * E2). `feld` wie bei den übrigen Autosave-Befehlen: Schlüssel `namensteil.aendern:<id>:<feld>` nur,
+ * wenn sich genau dieses Feld ändert. */
+export interface NamensteilAendernEin {
+  readonly id: string
+  readonly wert?: string | undefined
+  readonly feminineVariante?: string | null | undefined
+  readonly feld?: NamensteilAendernFeld | undefined
+}
+
+export const namensteilAendernEinSchema: z.ZodType<NamensteilAendernEin> = z.object({
+  id: z.string(),
+  wert: z.string().optional(),
+  feminineVariante: z.string().nullable().optional(),
+  feld: NamensteilAendernFeldEnum.optional(),
 })
 
 // -----------------------------------------------------------------------------------------------
