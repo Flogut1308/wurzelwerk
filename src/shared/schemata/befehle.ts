@@ -328,20 +328,27 @@ export interface NamensformAendernEin {
   readonly feld?: NamensformAendernFeld | undefined
 }
 
+/** Die Kopf-Felder von `namensform.aendern` mit Teil-Semantik (fehlt = bleibt, `null` = leeren) — geteilt
+ * mit dem `kopf` von `namensform.uebernehmen` (AP-1.30 PR 11-0), damit beide Vertragsformen nicht
+ * auseinanderlaufen. */
+const namensformKopfFelder = {
+  rolle: NameFormRolleEnum.nullable().optional(),
+  rollenNotiz: z.string().nullable().optional(),
+  sprache: z.string().nullable().optional(),
+  schrift: SchriftEnum.nullable().optional(),
+  reihenfolge: NameFormReihenfolgeEnum.nullable().optional(),
+  umschriftVon: z.string().nullable().optional(),
+  umschriftNorm: UmschriftNormEnum.nullable().optional(),
+  konfidenz: KonfidenzSchema.nullable().optional(),
+  gueltigVon: z.number().int().nullable().optional(),
+  gueltigBis: z.number().int().nullable().optional(),
+  originalText: z.string().nullable().optional(),
+}
+
 export const namensformAendernEinSchema: z.ZodType<NamensformAendernEin> = z
   .object({
     id: z.string(),
-    rolle: NameFormRolleEnum.nullable().optional(),
-    rollenNotiz: z.string().nullable().optional(),
-    sprache: z.string().nullable().optional(),
-    schrift: SchriftEnum.nullable().optional(),
-    reihenfolge: NameFormReihenfolgeEnum.nullable().optional(),
-    umschriftVon: z.string().nullable().optional(),
-    umschriftNorm: UmschriftNormEnum.nullable().optional(),
-    konfidenz: KonfidenzSchema.nullable().optional(),
-    gueltigVon: z.number().int().nullable().optional(),
-    gueltigBis: z.number().int().nullable().optional(),
-    originalText: z.string().nullable().optional(),
+    ...namensformKopfFelder,
     feld: NamensformAendernFeldEnum.optional(),
   })
   .superRefine((ein, ctx) => {
@@ -443,6 +450,76 @@ export const namensformRufnameSetzenEinSchema: z.ZodType<NamensformRufnameSetzen
   namensformId: z.string(),
   namensteilId: z.string().nullable(),
 })
+
+// -----------------------------------------------------------------------------------------------
+// namensform.uebernehmen (AP-1.30 PR 11-0; A-02, A-19; docs/80 §33 V-130-11-E1, V-130-11-0) — schreibt das
+// Modal „Namensform bearbeiten" beim Übernehmen in EINER Transaktion als EINEN Undo-Schritt. Der Handler
+// vergleicht mit dem gespeicherten Stand und ruft nur die granularen Befehlsfunktionen auf.
+// -----------------------------------------------------------------------------------------------
+
+/** Ein Eintrag der Zielliste von `namensform.uebernehmen`. Mit `id`: ein bestehender Teil DIESER Form (sonst
+ * `NICHT_GEFUNDEN_NAMENSTEIL`); ohne `id`: ein neuer Teil. `wert` wird getrimmt, ein leerer Eintrag
+ * verworfen. `feminineVariante`: fehlt = bleibt (neuer Teil: keine), `null` = leeren. `istRufname` nur an
+ * einem Vornamen (`VALIDIERUNG_RUFNAME_KEIN_VORNAME`), höchstens einmal je Liste. */
+export interface NamensformUebernehmenTeil {
+  readonly id?: string | undefined
+  readonly art: z.infer<typeof NamePartArtEnum>
+  readonly wert: string
+  readonly feminineVariante?: string | null | undefined
+  readonly istRufname: boolean
+}
+
+/** Der Kopf von `namensform.uebernehmen`: dieselben Felder und dieselbe Teil-Semantik wie
+ * `namensform.aendern` (fehlt = bleibt, `null` = leeren). Bei einer neuen Form ist `rolle` Pflicht
+ * (`null` nur mit `umschriftVon`, E7), ein `null` heißt dort „nicht gesetzt". */
+export type NamensformUebernehmenKopf = Omit<NamensformAendernEin, 'id' | 'feld'>
+
+/** Nutzlast von `befehl:namensform.uebernehmen`. `formId: null` legt eine neue Form an. `teile` ist die
+ * VOLLSTÄNDIGE Zielliste in Zielfolge (je Art zählt die Reihenfolge der Einträge dieser Art): ein fehlender
+ * bestehender Teil wird gelöscht, ein Eintrag ohne `id` angelegt. `hauptname: true` macht die Form zum
+ * Hauptnamen (`false`/fehlt ändert nichts — der Hauptname wechselt nur zu einer anderen Form hin). */
+export interface NamensformUebernehmenEin {
+  readonly personId: string
+  readonly formId: string | null
+  readonly kopf: NamensformUebernehmenKopf
+  readonly teile: readonly NamensformUebernehmenTeil[]
+  readonly hauptname?: boolean | undefined
+}
+
+const namensformUebernehmenTeilSchema: z.ZodType<NamensformUebernehmenTeil> = z.object({
+  id: z.string().optional(),
+  art: NamePartArtEnum,
+  wert: z.string(),
+  feminineVariante: z.string().nullable().optional(),
+  istRufname: z.boolean(),
+})
+
+export const namensformUebernehmenEinSchema: z.ZodType<NamensformUebernehmenEin> = z
+  .object({
+    personId: z.string(),
+    formId: z.string().nullable(),
+    kopf: z.object(namensformKopfFelder),
+    teile: z.array(namensformUebernehmenTeilSchema),
+    hauptname: z.boolean().optional(),
+  })
+  .superRefine((ein, ctx) => {
+    if (ein.kopf.rolle === null && ein.kopf.umschriftVon === null) {
+      ctx.addIssue({ code: 'custom', path: ['kopf', 'rolle'], message: ROLLE_NULL_NUR_MIT_UMSCHRIFT })
+    }
+    if (ein.formId === null && ein.kopf.rolle === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['kopf', 'rolle'], message: 'Eine neue Namensform braucht eine Rolle (null nur mit umschriftVon).' })
+    }
+    if (ein.formId === null && ein.kopf.rolle === null && (ein.kopf.umschriftVon === undefined || ein.kopf.umschriftVon === null)) {
+      ctx.addIssue({ code: 'custom', path: ['kopf', 'rolle'], message: ROLLE_NULL_NUR_MIT_UMSCHRIFT })
+    }
+    if (ein.teile.filter((teil) => teil.istRufname).length > 1) {
+      ctx.addIssue({ code: 'custom', path: ['teile'], message: 'Höchstens ein Teil ist der Rufname.' })
+    }
+    const ids = ein.teile.flatMap((teil) => (teil.id === undefined ? [] : [teil.id]))
+    if (new Set(ids).size !== ids.length) {
+      ctx.addIssue({ code: 'custom', path: ['teile'], message: 'Jede Teil-ID steht höchstens einmal in der Zielliste.' })
+    }
+  })
 
 // -----------------------------------------------------------------------------------------------
 // elternschaft.anlegen / elternschaft.aendern / elternschaft.loeschen (AP-1.12)
