@@ -278,6 +278,63 @@ const NEUE_MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['ablehnung.namensteile.position', 16],
   ['ablehnung.namensteile.keinVorname', 19],
   ['ablehnung.namensteile.fremdeForm', 17],
+  // AP-1.30 PR 11-0b (Prüfpfad-Folge zu #200/#205/#206, docs/80 §33 V-130-11-0b), `mitUebernehmen: true`
+  // (`_befehlsfolge-uebernehmen.ts`), an Zielliste und Stand vorher gemessen (Messwert in Klammern, Schwelle
+  // je die Hälfte, abgerundet, mindestens 1): `namensform.uebernehmen` (477, davon Vorlauf 229); Wege gemischt
+  // (75), neue Form mit `hauptname: true` (51), Kopf (35), No-op ohne Transaktion (26), E3-Grenzfälle geglättet
+  // bzw. dritte Bedingung (13/9); Kopf mit fehlenden Feldern (95), `originalText: ''` an anderem Text (7);
+  // umgeordnet (75), Rufname gewechselt (84), Hauptname gewechselt (59); leere Einträge verworfen (91), geleerter
+  // Teil entfallen (35); `original_text` (E3 je Aufruf, V-130-fix-uebernehmen-e3): neue Form wortgetreu (57),
+  // davon Montage nur der ersten Art (3), `''` (26), bestehende ausdrücklich ohne/mit Teiländerung (7/42),
+  // unverändert mitgeschickt und nachgeführt (14), wortgetreu trotz Teiländerung geblieben (13), geglättet bei
+  // geänderter Montage (35), neu montiert nach der dritten Bedingung (9); Ablehnungen mit bitgleichem Bestand:
+  // Art-Wechsel (18), Leerraum (19), fremde/unbekannte Teil-ID (7/17), Rufname an Nicht-Vorname (23),
+  // Umschrift-Bezug selbst/fremde Person/`rolle: null` ohne Ursprung (27/3/15), über die flache Brücke
+  // fremde Person/Selbstbezug/Kreis (7/24/17).
+  // Entfallen (#206): `uebernehmen.altbestand` — ein verbotener Bezug ist über Befehle nicht mehr herstellbar;
+  // der Altbestand steht jetzt in `uebernehmen-altbestand.test.ts` (per Import geschrieben).
+  // Nebenwirkungen auf die übrigen Zähler (Einschübe zuletzt gezogen, die übrige Folge bleibt Zug um Zug
+  // dieselbe, `befehlsfolge-uebernehmen-einflechtung.test.ts`), gegenüber dem Stand vor diesem PR:
+  // `hauptname.wechseln` 23 → 27, `name.anlegen` 200 → 217 (Kreis-Vorstufe), `namensteil.anlegen` 610 → 587,
+  // `namensform.rufnameSetzen` 170 → 166, `namensteile.rufname.gesetzt` 80 → 76,
+  // `namensteile.teilAendern.zusammengefasst` 54 → 55, `koaleszenz.zusammengefasst` 260 → 256,
+  // `koaleszenz.fensterAbgelaufen` 60 → 59, `name.vatersname.entfernt` 6 → 5 (Schwelle 2), `nachruecken` 5 → 4
+  // (Schwelle 3); alle übrigen unverändert, alle über ihrer Schwelle.
+  ['befehl:namensform.uebernehmen', 238],
+  ['uebernehmen.vorlauf', 114],
+  ['uebernehmen.gemischt', 37],
+  ['uebernehmen.neueForm', 25],
+  ['uebernehmen.kopf', 17],
+  ['uebernehmen.noop', 13],
+  ['uebernehmen.kopf.fehltBleibt', 47],
+  ['uebernehmen.kopf.originalTextLeer', 3],
+  ['uebernehmen.umgeordnet', 37],
+  ['uebernehmen.rufname.wechsel', 42],
+  ['uebernehmen.hauptname.gewechselt', 29],
+  ['uebernehmen.leer.verworfen', 45],
+  ['uebernehmen.leer.entfallen', 17],
+  ['uebernehmen.originalText.neueForm', 28],
+  ['uebernehmen.originalText.praefixMontage', 1],
+  ['uebernehmen.originalText.leer', 13],
+  ['uebernehmen.originalText.explizit', 3],
+  ['uebernehmen.originalText.explizitMitTeilen', 21],
+  ['uebernehmen.originalText.mitgeschicktNachgefuehrt', 7],
+  ['uebernehmen.originalText.wortgetreuBleibt', 6],
+  ['uebernehmen.originalText.geglaettet', 17],
+  ['uebernehmen.originalText.dritteBedingung', 4],
+  ['uebernehmen.e3Grenzfall.geglaettet', 6],
+  ['uebernehmen.e3Grenzfall.dritteBedingung', 4],
+  ['ablehnung.uebernehmen.art', 9],
+  ['ablehnung.uebernehmen.leerraum', 9],
+  ['ablehnung.uebernehmen.fremd', 3],
+  ['ablehnung.uebernehmen.unbekannt', 8],
+  ['ablehnung.uebernehmen.keinVorname', 11],
+  ['ablehnung.uebernehmen.umschriftSelbst', 13],
+  ['ablehnung.uebernehmen.umschriftFremdePerson', 1],
+  ['ablehnung.uebernehmen.umschriftOhneUrsprung', 7],
+  ['ablehnung.uebernehmen.flachFremdePerson', 3],
+  ['ablehnung.uebernehmen.flachSelbst', 12],
+  ['ablehnung.uebernehmen.flachKreis', 8],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
@@ -302,7 +359,9 @@ describe('Invariante: Undo(Aktion) stellt den Datenbestand bitgleich wieder her 
       // zusätzlich 1–2 Teilwechsel-Serien je Folge (`befehlsfolge-teilwechsel-einflechtung.test.ts`).
       // `mitNamensteilen` (AP-1.30 PR 10b): ebenso, zuletzt eingeflochten 3–6 Aktionen der granularen
       // Namensbefehle (`befehlsfolge-namensteile-einflechtung.test.ts`).
-      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitTeilWechsel: true, mitNamensteilen: true }), (folge) => {
+      // `mitUebernehmen` (AP-1.30 PR 11-0b): ebenso, danach eingeflochten 2–4 Aufrufe von
+      // `namensform.uebernehmen` (`befehlsfolge-uebernehmen-einflechtung.test.ts`).
+      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitTeilWechsel: true, mitNamensteilen: true, mitUebernehmen: true }), (folge) => {
         const db = neueTestDatenbank()
         try {
           const schnappschuesse: string[] = [kanonischerAbzug(db)]
