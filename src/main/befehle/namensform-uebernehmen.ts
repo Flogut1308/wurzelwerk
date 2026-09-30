@@ -12,11 +12,13 @@
 // folgt). Die Teilfunktionen laufen darum mit `OHNE_NACHFUEHRUNG` — je Einzelschritt entschieden, würde eine
 // wortgetreue Schreibung, die einem ZWISCHENSTAND der Montage gleicht („Anna" nach dem Anlegen von „Anna" auf
 // dem Weg zu [Anna, Nowak]), ab dort überschrieben. Am Ende (Schritt 6) wird genau einmal aus den Zielteilen
-// montiert, wenn der Text folgt UND die Montage der Zielteile von der Montage vor dem Befehl abweicht; ein
-// wortgetreuer bleibt, wie auch immer die Zwischenstände aussehen. Ohne Montage-Änderung wird der Text nie
-// angefasst (Review #205): `istMontierterOriginalText` erkennt auch nicht bitgleiche Texte als automatisch
-// (normierter Leerraum „Anna  Nowak", Anlege-Montage ohne angehängten Rufnamen „Karl Gutnow") — ein No-op
-// oder eine reine Kopfänderung darf sie nicht still „glätten".
+// montiert, wenn der Text folgt UND (die Montage der Zielteile von der Montage vor dem Befehl abweicht ODER der
+// Text nach den Teilen nicht mehr als Montage erkannt würde — etwa „Karl Gutnow", wenn der angehängte Rufname
+// „Hans Peter" verschoben oder entfernt wird; sonst gälte er fortan als wortgetreu, Nachreview #205); ein
+// wortgetreuer bleibt, wie auch immer die Zwischenstände aussehen. Sonst wird der Text nicht angefasst
+// (Review #205): `istMontierterOriginalText` erkennt auch nicht bitgleiche Texte als automatisch (normierter
+// Leerraum „Anna  Nowak", Anlege-Montage ohne angehängten Rufnamen „Karl Gutnow") — ein No-op oder eine
+// reine Kopfänderung darf sie nicht still „glätten".
 // Grenze von E3: gleicht ein wortgetreu gemeinter Text zufällig der Montage VOR dem Befehl, ist er von einer
 // automatischen Montage nicht zu unterscheiden und folgt den Teilen (wie in den Einzelbefehlen).
 //
@@ -230,7 +232,10 @@ export function namensformUebernehmen(tx: Tx, ein: NamensformUebernehmenEin): { 
   const mitgeschickt = ein.kopf.originalText
   const montageNachher = montageDerTeile(tx, formId)
   // Neue Form: `montageVorher` ist `undefined`, also immer „geändert" (montiert wie bisher; No-op über `kopfUebernehmen`).
-  const neuMontieren = folgtDenTeilen && montageNachher !== montageVorher
+  // Zweite Bedingung (Nachreview #205): `basis` trägt noch den alten Text, `tx` liest die neuen Teile — würde der
+  // Text nach den Teilen nicht mehr als Montage erkannt (Rufname verschoben/entfernt bei gleicher Montage), gälte
+  // er fortan als wortgetreu und folgte nie wieder; dann wird ebenfalls neu montiert.
+  const neuMontieren = folgtDenTeilen && (montageNachher !== montageVorher || !originalTextFolgtDenTeilen(tx, basis))
   const originalText = mitgeschickt !== undefined && mitgeschickt !== basis.original_text ? mitgeschickt : neuMontieren ? montageNachher : undefined
   kopfUebernehmen(tx, basis, vorher === undefined ? { originalText } : { ...ein.kopf, originalText })
 
