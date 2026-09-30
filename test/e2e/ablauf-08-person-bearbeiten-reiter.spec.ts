@@ -127,7 +127,8 @@ test.describe('Ablauf 08 — Person bearbeiten: Reiter', () => {
     await expect(namenReiter).toHaveAttribute('aria-selected', 'true')
     await expect(personReiter).toHaveAttribute('aria-selected', 'false')
     await expect(editor.getByRole('tabpanel')).toHaveCount(1)
-    await expect(editor.getByRole('tabpanel').locator('input[value="Wilhelmine"]')).toBeVisible()
+    // AP-1.30 PR 11c-1: je Namensform eine Karte (statt der flachen Maske mit Eingabefeldern).
+    await expect(editor.getByRole('tabpanel').getByRole('article', { name: 'Wilhelmine Muster', exact: true })).toBeVisible()
 
     await editor.getByRole('tab', { name: /^Leben/ }).click()
     await expect(editor.getByRole('tabpanel').getByText('Neues Ereignis erfassen', { exact: true })).toBeVisible()
