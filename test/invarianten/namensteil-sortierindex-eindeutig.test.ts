@@ -85,6 +85,7 @@ type Zaehlschluessel =
   | 'undo.namensteil_geloescht'
   | 'undo.namensteil_verschoben'
   | 'undo.rufname_gesetzt'
+  | 'undo.namensform_uebernommen'
 
 /** Gemessen mit `{ seed: SEED, numRuns: NUM_RUNS }` (AP-1.30 PR 10b): geprüfte Zustände 17565, davon mit
  * einer mehrteiligen Art 5029 bzw. mit einem Rufnamen 1194; Rücknahmen 6778, davon von `namensteil.anlegen`
@@ -98,6 +99,12 @@ const MINDESTTREFFER: readonly (readonly [Zaehlschluessel, number])[] = [
   ['undo.namensteil_geloescht', 33],
   ['undo.namensteil_verschoben', 29],
   ['undo.rufname_gesetzt', 61],
+  // AP-1.30 PR 11-0b (docs/80 §33 V-130-11-0b): seit `mitUebernehmen: true` auch Rücknahmen von
+  // `namensform.uebernehmen` (gemessen 420; der Wächter ist dabei scharf wie bei den granularen Befehlen).
+  // Nebenwirkungen: geprüfte Zustände 17565 → 18654, mit mehrteiliger Art 5029 → 6979, mit Rufname
+  // 1194 → 4330; Rücknahmen 6778 → 7202, davon `namensteil.anlegen` 593 → 577, `namensform.rufnameSetzen`
+  // 123 → 122; übrige unverändert.
+  ['undo.namensform_uebernommen', 210],
 ]
 
 const zaehler = new Map<Zaehlschluessel, number>()
@@ -144,6 +151,8 @@ function undoArt(beschreibung: string | null): Zaehlschluessel | undefined {
       return 'undo.namensteil_verschoben'
     case 'journal.rufname_gesetzt':
       return 'undo.rufname_gesetzt'
+    case 'journal.namensform_uebernommen':
+      return 'undo.namensform_uebernommen'
     default:
       return undefined
   }
@@ -159,7 +168,9 @@ describe('Invariante: sortier_index je (Form, Art) eindeutig, höchstens ein Ruf
 
   it('Befehlsfolgen mit den granularen Namensbefehlen und ihre vollständige Rücknahme', () => {
     fc.assert(
-      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitNamensteilen: true }), (folge) => {
+      // `mitUebernehmen` (AP-1.30 PR 11-0b): zusätzlich `namensform.uebernehmen` — der Wächter sieht so auch jeden
+      // Zwischenstand seiner Schrittfolge und ihrer Rücknahme (`befehlsfolge-uebernehmen-einflechtung.test.ts`).
+      fc.property(befehlsfolgeArbitrary({ profil: 'bestand', mitNamensteilen: true, mitUebernehmen: true }), (folge) => {
         const db = frischeMigrierteDatenbank()
         try {
           waechterEinbauen(db)
@@ -207,6 +218,37 @@ describe('Invariante: sortier_index je (Form, Art) eindeutig, höchstens ein Ruf
       // Eine andere Art derselben Form darf dieselbe Stelle tragen.
       fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'nachname', wert: 'Müller' })
       orakel(db, 'Gegenprobe')
+    } finally {
+      db.close()
+    }
+  })
+
+  // AP-1.30 PR 11-0b (hueter #198 H4): die Gegenprobe oben trifft nur den UPDATE-Wächter. Ein neuer Teil auf
+  // einer besetzten Stelle (der Zwischenzustand eines Anlegens ohne vorheriges Aufrücken) muss schon beim
+  // INSERT abbrechen — und nur dort: dieselbe Stelle in einer anderen Art bzw. Form geht durch (über den
+  // Befehl; ein rohes INSERT außerhalb des Busses scheitert sonst an den Journal-Triggern).
+  it('Gegenprobe: der Wächter bricht auch ein INSERT auf einer besetzten Stelle ab', () => {
+    const db = frischeMigrierteDatenbank()
+    try {
+      waechterEinbauen(db)
+      const { id: personId } = fuehreAus(db, 'person.anlegen', { privat: 0, ist_platzhalter: 0 })
+      const { id: formId } = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'geburtsname' })
+      const { id: andereForm } = fuehreAus(db, 'namensform.anlegen', { personId, rolle: 'ehename' })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'vorname', wert: 'Anna' })
+      // Roh (ohne Befehl): genau der Zwischenzustand, den ein Anlegen an Stelle 0 ohne Aufrücken erzeugte.
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO name_part (id, name_form_id, art, wert, ist_rufname, sortier_index, feminine_variante, erstellt_am, geaendert_am)
+             VALUES ('waechter-insert', @formId, 'vorname', 'Maria', 0, 0, NULL, 0, 0)`,
+          )
+          .run({ formId }),
+      ).toThrow(WAECHTER_MELDUNG)
+      expect(db.prepare(`SELECT COUNT(*) AS anzahl FROM name_part WHERE id = 'waechter-insert'`).get()).toEqual({ anzahl: 0 })
+      // Andere Art derselben Form bzw. dieselbe Art einer anderen Form: Stelle 0 ist dort frei.
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: formId, art: 'nachname', wert: 'Müller', position: 0 })
+      fuehreAus(db, 'namensteil.anlegen', { namensformId: andereForm, art: 'vorname', wert: 'Maria', position: 0 })
+      orakel(db, 'Gegenprobe INSERT')
     } finally {
       db.close()
     }
