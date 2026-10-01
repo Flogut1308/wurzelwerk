@@ -47,7 +47,7 @@ vi.mock('../../src/renderer/brücke/befehl-hooks', async (importOriginal) => {
 })
 
 import { ListenAnsicht } from '../../src/renderer/ansichten/liste/listen-ansicht'
-import { EreignisseBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-ereignisse'
+import { EreignisNeuFormular } from '../../src/renderer/ansichten/profil/profil-bearbeiten-ereignisse'
 
 function listenZeile(ueberschreibung: Partial<PersonListeZeile> = {}): PersonListeZeile {
   return {
@@ -113,7 +113,7 @@ describe('Aufrufstellen nach Interaktion zeigen „(ohne Namen)" (hueter #152, �
 
   it('weiterer Beteiligter: ein gewählter Treffer mit leerem Anzeigenamen zeigt „(ohne Namen)"', () => {
     daten.treffer = [{ ...listenZeile({ person_id: 'p-7', anzeigename: '' }), quelle: 'volltext' }]
-    act(() => root.render(<EreignisseBearbeitenAbschnitt personId="p-1" ereignisse={[]} />))
+    act(() => root.render(<EreignisNeuFormular personId="p-1" />))
 
     act(() => knopfMitText(container, i18n.t('profil:ereignis_neu_weiterer_beteiligter_hinzufuegen')).click())
     const beteiligter = container.querySelector('.wz-profil-bearbeiten-ereignisse__beteiligter')

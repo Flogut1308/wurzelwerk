@@ -2,7 +2,6 @@ import { useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeteiligungRolleEnum } from '../../../shared/schemata/beteiligung'
 import { EreignisTypEnum } from '../../../shared/schemata/ereignis'
-import type { PersonDetailEreignis } from '../../../shared/schemata/person-detail'
 import { Auswahlfeld, type AuswahlfeldOption } from '../../bausteine/auswahlfeld'
 import { Datumsfeld } from '../../bausteine/datumsfeld'
 import { Formularfeld } from '../../bausteine/formularfeld'
@@ -15,7 +14,7 @@ import { personenwaehlerNeuAnlegenEin, personenwaehlerPlatzhalterAnlegenEin } fr
 import { Schaltflaeche } from '../../bausteine/schaltflaeche'
 import { Text } from '../../bausteine/text'
 import { useOrtSuche, useSuche } from '../../brücke/abfrage-hooks'
-import { useBeteiligungLoeschen, useEreignisAnlegen, useEreignisLoeschen, useOrtAnlegen, usePersonAnlegen } from '../../brücke/befehl-hooks'
+import { useEreignisAnlegen, useOrtAnlegen, usePersonAnlegen } from '../../brücke/befehl-hooks'
 import { OrtBearbeitenAnsicht } from '../orte/ort-bearbeiten'
 import {
   EREIGNIS_ENTWURF_LEER,
@@ -29,78 +28,6 @@ import {
 } from './profil-bearbeiten-logik'
 import { beteiligungRolleSchluessel, ereignisTypSchluessel } from './profil-schluessel'
 import './profil-bearbeiten-ereignisse.css'
-
-export interface EreignisseBearbeitenAbschnittProps {
-  readonly personId: string
-  readonly ereignisse: readonly PersonDetailEreignis[]
-}
-
-/**
- * `EreignisseBearbeitenAbschnitt` (AP-1.15 PR-A, Variante A): Liste bestehender Ereignis-
- * Teilnahmen dieser Person (jede mit „Beteiligung entfernen" — nur die eigene Teilnahme,
- * `befehl:beteiligung.loeschen` — UND, klar davon abgesetzt, „Ereignis löschen" — das GESAMTE
- * Ereignis samt aller Beteiligten, `befehl:ereignis.loeschen`) plus ein festes Formular für ein
- * NEUES Ereignis (`befehl:ereignis.anlegen`, MIT allen gesammelten Beteiligten in einem Aufruf).
- * KEIN `beteiligung.anlegen`/`ereignis.aendern` in diesem Arbeitspaket — nachträgliches Ergänzen
- * eines bestehenden Ereignisses bleibt zurückgestellt (`docs/80_Offene_Fragen.md` §27).
- */
-export function EreignisseBearbeitenAbschnitt({ personId, ereignisse }: EreignisseBearbeitenAbschnittProps) {
-  const { t } = useTranslation('profil')
-
-  return (
-    <section className="wz-profil-ansicht__abschnitt" aria-labelledby="wz-profil-bearbeiten-ereignisse-titel">
-      <Text rolle="titel-klein" als="h2" id="wz-profil-bearbeiten-ereignisse-titel">
-        {t('abschnitt_ereignisse_bearbeiten')}
-      </Text>
-
-      {ereignisse.length === 0 ? (
-        <Text rolle="hilfe" als="p">
-          {t('ereignisse_liste_leer')}
-        </Text>
-      ) : (
-        <ul className="wz-profil-bearbeiten-ereignisse__liste">
-          {ereignisse.map((ereignis) => (
-            <li key={ereignis.beteiligung_id} className="wz-profil-bearbeiten-ereignisse__zeile">
-              <EreignisZeile ereignis={ereignis} />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <EreignisNeuFormular personId={personId} />
-    </section>
-  )
-}
-
-function EreignisZeile({ ereignis }: { readonly ereignis: PersonDetailEreignis }) {
-  const { t } = useTranslation('profil')
-  const beteiligungLoeschen = useBeteiligungLoeschen()
-  const ereignisLoeschen = useEreignisLoeschen()
-
-  return (
-    <div className="wz-profil-bearbeiten-ereignisse__zeile-inhalt">
-      <div className="wz-profil-bearbeiten-ereignisse__zeile-text">
-        <Text rolle="koerper" als="span">
-          {t(ereignisTypSchluessel(ereignis.typ))}
-        </Text>
-        <Text rolle="beschriftung" als="span">
-          {t(beteiligungRolleSchluessel(ereignis.rolle))}
-        </Text>
-        <Text rolle="koerper-klein" als="span">
-          {ereignis.datum_wert1 ?? t('wert_unbekannt')}
-        </Text>
-      </div>
-      <div className="wz-profil-bearbeiten-ereignisse__zeile-aktionen">
-        <Schaltflaeche variante="unauffaellig" aufKlick={() => beteiligungLoeschen.mutate({ id: ereignis.beteiligung_id })}>
-          {t('ereignis_zeile_beteiligung_entfernen')}
-        </Schaltflaeche>
-        <Schaltflaeche variante="gefaehrlich" aufKlick={() => ereignisLoeschen.mutate({ id: ereignis.ereignis_id })}>
-          {t('ereignis_zeile_loeschen')}
-        </Schaltflaeche>
-      </div>
-    </div>
-  )
-}
 
 function ereignisTypOptionen(t: (schluessel: string) => string): readonly AuswahlfeldOption<(typeof EreignisTypEnum.options)[number]>[] {
   return EreignisTypEnum.options.map((typ) => ({ wert: typ, beschriftung: t(ereignisTypSchluessel(typ)) }))
@@ -182,7 +109,15 @@ function WeitererBeteiligterZeile({ eintrag, aufAenderung, aufEntfernen }: Weite
   )
 }
 
-function EreignisNeuFormular({ personId }: { readonly personId: string }) {
+/**
+ * Formular „Neues Ereignis erfassen" (AP-1.15 PR-A, Variante A): ein NEUES Ereignis mit allen gesammelten
+ * Beteiligten in einem Aufruf (`befehl:ereignis.anlegen`, ein Undo-Schritt, kein Autosave). Die Liste der
+ * bestehenden Ereignisse ist seit AP-1.30 PR 13c der Reiter „Leben" (`reiter-leben.tsx`): „Beteiligung
+ * entfernen" (`befehl:beteiligung.loeschen`, nur die eigene Teilnahme) und „Ereignis löschen"
+ * (`befehl:ereignis.loeschen`, das GESAMTE Ereignis) stehen dort in der Stationszeile. Kein
+ * `beteiligung.anlegen`/`ereignis.aendern` (docs/80_Offene_Fragen.md §27, §33 U-130-13-ereignis-bearbeiten).
+ */
+export function EreignisNeuFormular({ personId }: { readonly personId: string }) {
   const { t } = useTranslation('profil')
   const ereignisAnlegen = useEreignisAnlegen()
   const ortAnlegen = useOrtAnlegen()

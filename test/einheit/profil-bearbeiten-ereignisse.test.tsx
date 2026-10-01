@@ -27,7 +27,8 @@ vi.mock('../../src/renderer/brücke/abfrage-hooks', () => ({
   useOrtSuche: () => ({ data: undefined, isPending: false }),
 }))
 
-import { EreignisseBearbeitenAbschnitt } from '../../src/renderer/ansichten/profil/profil-bearbeiten-ereignisse'
+import { EreignisNeuFormular } from '../../src/renderer/ansichten/profil/profil-bearbeiten-ereignisse'
+import { ReiterLeben } from '../../src/renderer/ansichten/profil/reiter-leben'
 import {
   EREIGNIS_ENTWURF_LEER,
   ereignisAnlegenEinAusEntwurf,
@@ -39,6 +40,11 @@ import {
   type EreignisEntwurfWerte,
 } from '../../src/renderer/ansichten/profil/profil-bearbeiten-logik'
 import type { PersonDetailEreignis } from '../../src/shared/schemata/person-detail'
+
+/** Seit AP-1.30 PR 13c steht die Liste im Reiter „Leben“ (`ReiterLeben`), das Formular unter ihr (`EreignisNeuFormular`). */
+function reiter(ereignisse: readonly PersonDetailEreignis[]) {
+  return <ReiterLeben personId="person-1" daten={{ ereignisse, grunddaten: [], lebensdaten: [] }} idPraefix="person-bearbeiten" />
+}
 
 function ereignis(ueberschreibung: Partial<PersonDetailEreignis> = {}): PersonDetailEreignis {
   return {
@@ -156,45 +162,46 @@ describe('profil-bearbeiten-logik: Ereignisse (AP-1.15 PR-A)', () => {
   })
 })
 
-describe('EreignisseBearbeitenAbschnitt (AP-1.15 PR-A)', () => {
+describe('Ereignisse im Reiter Leben (AP-1.15 PR-A, seit AP-1.30 PR 13c)', () => {
   it('ohne Ereignisse: zeigt den Leerzustandstext, KEINE Liste', () => {
-    const markup = renderToStaticMarkup(<EreignisseBearbeitenAbschnitt personId="person-1" ereignisse={[]} />)
-    expect(markup).not.toContain('wz-profil-bearbeiten-ereignisse__liste')
-    expect(markup).toContain('Noch kein Ereignis erfasst.')
+    const markup = renderToStaticMarkup(reiter([]))
+    expect(markup).not.toContain('wz-reiter-leben__liste')
+    expect(markup).toContain('Noch keine Lebensstationen erfasst.')
   })
 
-  it('mit einem Ereignis: zeigt eine Zeile MIT "Beteiligung entfernen" UND "Ereignis löschen"', () => {
-    const markup = renderToStaticMarkup(<EreignisseBearbeitenAbschnitt personId="person-1" ereignisse={[ereignis()]} />)
-    expect(markup).toContain('wz-profil-bearbeiten-ereignisse__zeile')
+  it('mit einem Ereignis: zeigt eine Station MIT "Beteiligung entfernen" UND "Ereignis löschen"', () => {
+    const markup = renderToStaticMarkup(reiter([ereignis()]))
+    expect(markup).toContain('wz-reiter-leben__station')
     expect(markup).toContain('Beteiligung entfernen')
     expect(markup).toContain('Ereignis löschen')
   })
 
-  it('mit mehreren Ereignissen: eine Zeile je Beteiligung', () => {
-    const markup = renderToStaticMarkup(
-      <EreignisseBearbeitenAbschnitt
-        personId="person-1"
-        ereignisse={[ereignis({ beteiligung_id: 'a' }), ereignis({ beteiligung_id: 'b', typ: 'geburt' })]}
-      />,
-    )
-    expect((markup.match(/wz-profil-bearbeiten-ereignisse__zeile"/g) ?? []).length).toBe(2)
+  it('mit mehreren Ereignissen: eine Station je Beteiligung', () => {
+    const markup = renderToStaticMarkup(reiter([ereignis({ beteiligung_id: 'a' }), ereignis({ beteiligung_id: 'b', typ: 'geburt' })]))
+    expect((markup.match(/wz-reiter-leben__station"/g) ?? []).length).toBe(2)
   })
 
   it('das "neues Ereignis erfassen"-Formular ist ein echtes <form>, ohne gewählte Konfidenz gesperrt', () => {
-    const markup = renderToStaticMarkup(<EreignisseBearbeitenAbschnitt personId="person-1" ereignisse={[]} />)
+    const markup = renderToStaticMarkup(<EreignisNeuFormular personId="person-1" />)
     expect(markup).toContain('<form')
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Ereignis anlegen</)
   })
 
+  it('der Reiter trägt das Formular unter der Liste, mit der Feldklasse der Orte-Bildsetups', () => {
+    const markup = renderToStaticMarkup(reiter([ereignis()]))
+    expect(markup.indexOf('wz-reiter-leben__liste')).toBeLessThan(markup.indexOf('<form'))
+    expect(markup).toContain('wz-profil-bearbeiten-ereignisse__felder')
+  })
+
   it('kein Farbliteral im Markup (Token-Vertrag, CLAUDE.md §14)', () => {
-    const markup = renderToStaticMarkup(<EreignisseBearbeitenAbschnitt personId="person-1" ereignisse={[ereignis()]} />)
+    const markup = renderToStaticMarkup(reiter([ereignis()]))
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(markup).not.toMatch(/rgb\(/)
   })
 
   it('kein JSX-Zeichenkettenliteral — jeder sichtbare Text kommt aus i18n (Stichprobe)', () => {
-    const markup = renderToStaticMarkup(<EreignisseBearbeitenAbschnitt personId="person-1" ereignisse={[ereignis()]} />)
-    expect(markup).toContain('Ereignisse')
+    const markup = renderToStaticMarkup(reiter([ereignis()]))
+    expect(markup).toContain('Lebensstationen')
     expect(markup).toContain('Taufe')
   })
 })
