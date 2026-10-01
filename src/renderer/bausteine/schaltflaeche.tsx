@@ -13,6 +13,11 @@ export interface SchaltflaecheProps {
    * zu zeigen (§1.5 verbietet einen Fortschritt, der keinen echten Fortschritt kennt). */
   readonly ladend?: boolean
   readonly aufKlick?: () => void
+  /** Zugänglicher Name, wenn er mehr sagen muss als der sichtbare Text (z. B. „Trennen: Anna" in einer Liste
+   * gleicher Knöpfe). Beginnt mit dem sichtbaren Text (WCAG 2.5.3 „Beschriftung im Namen"). */
+  readonly ariaLabel?: string
+  /** `id` eines Elements, das die Schaltfläche beschreibt (z. B. der Grund einer Sperre). */
+  readonly ariaBeschriebenDurch?: string
   /** Sichtbarer Text — immer über i18n vom Aufrufer befüllt (ADR-011), nie hier. */
   readonly children: ReactNode
 }
@@ -21,13 +26,15 @@ export interface SchaltflaecheProps {
  * `Schaltflaeche` — Atom (§2.1). „hover"/„aktiv"/„fokus" sind reine CSS-Pseudoklassen
  * (Fokusring global in `basis.css`), „gesperrt"/„ladend" steuern `disabled`/`aria-busy`.
  */
-export function Schaltflaeche({ variante = 'sekundaer', typ = 'button', gesperrt = false, ladend = false, aufKlick, children }: SchaltflaecheProps) {
+export function Schaltflaeche({ variante = 'sekundaer', typ = 'button', gesperrt = false, ladend = false, aufKlick, ariaLabel, ariaBeschriebenDurch, children }: SchaltflaecheProps) {
   return (
     <button
       type={typ}
       className={`wz-schaltflaeche wz-schaltflaeche--${variante}`}
       disabled={gesperrt || ladend}
       aria-busy={ladend}
+      aria-label={ariaLabel}
+      aria-describedby={ariaBeschriebenDurch}
       onClick={aufKlick}
     >
       {children}
