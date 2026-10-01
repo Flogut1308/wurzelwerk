@@ -12,6 +12,7 @@
 // dieselbe Eingabe liefert dieselben Punkte in derselben Reihenfolge.
 import type { FeldwarnungFeld } from '../plausibilitaet/feldwarnungen'
 import { elternPlaetze, type ElternPlatzOffen, type ElternteilEintrag } from './eltern-plaetze'
+import { kindHatPartnerElternteil } from './kinder-zuordnung'
 import { REITER, type ReiterId } from './reiter'
 
 /** Felder der Bearbeitungsansicht, an denen ein offener Punkt hängen kann (Vorgaben §5.5 `field`).
@@ -151,8 +152,7 @@ function kindOhnePartnerschaft(eingabe: OffenePunkteEingabe): readonly OffenerPu
   for (const kind of kinder) {
     if (kind.istPlatzhalter || gesehen.has(kind.id)) continue
     gesehen.add(kind.id)
-    const zugeordnet = kind.elternIds.some((elternId) => elternId !== eingabe.personId && partner.has(elternId))
-    if (!zugeordnet) funde.push({ bezugId: kind.id })
+    if (!kindHatPartnerElternteil(eingabe.personId, kind, partner)) funde.push({ bezugId: kind.id })
   }
   return funde
 }
