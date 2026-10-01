@@ -1104,8 +1104,9 @@ function hatTitelbild(db: Database.Database, personId: string): boolean {
 }
 
 /** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5): Auswertung im Kern (`offenePunkteAuswerten`),
- * hier nur die Eingabe aus bereits geladenen Teilen plus zwei gezielte Nachladungen (Elternkanten
- * der Kinder, Titelbild). Platzhalter: keine Punkte, darum auch kein Nachladen (O4). */
+ * hier nur die Eingabe aus bereits geladenen Teilen. Die Elternkanten der Kinder werden immer
+ * geladen (auch für Platzhalter, AP-1.30 PR 12b) und von außen übergeben; nur das Titelbild
+ * (`hatPortraet`, lazy) entfällt bei Platzhaltern: keine Punkte, darum kein Nachladen (O4). */
 function offenePunkteBauen(
   kopfZeile: KopfZeile,
   beziehungen: BeziehungsZeilen,

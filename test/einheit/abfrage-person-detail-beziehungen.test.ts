@@ -180,11 +180,45 @@ describe('person.detail — Reiter Beziehungen (AP-1.30 PR 12b)', () => {
       eltern(db, vater, p)
       eltern(db, vater, bruder)
       eltern(db, p, kind)
+      const q = person(db)
+      const gemeinsamesKind = person(db)
+      eltern(db, p, gemeinsamesKind)
+      eltern(db, q, gemeinsamesKind)
+      partnerschaft(db, [p, q])
 
       const aus = personDetail(db, { personId: p })
       expect(aus.offene_punkte).toEqual([])
       expect(aus.geschwister.map((g) => [g.person_id, g.art])).toEqual([[bruder, 'offen']])
+      expect(aus.partnerschaften[0]?.kind_ids).toEqual([gemeinsamesKind])
       expect(aus.kinder_ohne_partnerschaft).toEqual([kind])
+    })
+  })
+
+  it('Partnerschaften: Reihenfolge nach reihenfolge, beginn_sort_von (NULL jeweils zuletzt), id', () => {
+    mitDb((db) => {
+      const p = person(db)
+      const ids = ['a', 'b', 'c', 'd', 'e'].map(() => partnerschaft(db, [p, person(db)]))
+      const [a, b, c, d, e] = ids
+      const werte: readonly (readonly [string | undefined, number | null, number | null])[] = [
+        [a, 2, null],
+        [b, 1, 500],
+        [c, null, 100],
+        [d, null, null],
+        [e, null, 50],
+      ]
+      const txId = neueId()
+      db.transaction((): void => {
+        transaktionAnlegen(db, { id: txId, zeitpunkt: 1, art: 'nutzer', beschreibung: 'test.roh', lfd: naechsteLfd(db) })
+        armieren(db, txId)
+        try {
+          for (const [id, reihenfolge, beginn] of werte) {
+            db.prepare(`UPDATE partnerschaft SET reihenfolge = @reihenfolge, beginn_sort_von = @beginn WHERE id = @id`).run({ id, reihenfolge, beginn })
+          }
+        } finally {
+          entwaffnen(db)
+        }
+      })()
+      expect(personDetail(db, { personId: p }).partnerschaften.map((x) => x.id)).toEqual([b, a, e, c, d])
     })
   })
 })
