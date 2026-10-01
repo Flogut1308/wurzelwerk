@@ -22,6 +22,7 @@ import { journalAn, journalAus } from '../../src/main/journal/kontext'
 import { personDetail } from '../../src/main/abfragen/person-detail'
 import { REITER } from '../../src/core/person/reiter'
 import { reiterZaehler } from '../../src/core/person/reiter-zaehler'
+import { lebenAnsicht } from '../../src/renderer/ansichten/profil/reiter-leben-logik'
 import { reiterZaehlerEingabeAus } from '../../src/shared/schemata/person-detail'
 
 type Db = ReturnType<typeof oeffnen>
@@ -231,7 +232,11 @@ describe('Reiterzähler stimmen mit den Daten (AP-1.30 PR 7a)', () => {
       // gemeinsam (Name + Person, einmal), zweites Personen-Zitat, Partnerschafts-Zitat; ohne Gesundheit
       expect(z.belege_medien.anzahl).toBe(3)
       expect(z.gesundheit.anzahl).toBe(2)
-      for (const reiter of ['person', 'leben', 'notizen', 'verwaltung'] as const) expect(z[reiter].anzahl).toBeUndefined()
+      // Leben zählt die Stationszeilen (V-130-13-zaehler ersetzt V-130-7-zaehler): hier die eine Beruf-Aussage,
+      // und genau so viele Zeilen, wie der Reiter aus demselben Lesemodell aufbaut.
+      expect(z.leben.anzahl).toBe(1)
+      expect(z.leben.anzahl).toBe(lebenAnsicht(detail).stationen.length)
+      for (const reiter of ['person', 'notizen', 'verwaltung'] as const) expect(z[reiter].anzahl).toBeUndefined()
 
       // verstorben ohne Sterbeort → Punkt an „Person"; Kind ohne Partnerschaft → Punkt an „Beziehungen".
       expect(z.person.offenerPunkt).toBe(true)

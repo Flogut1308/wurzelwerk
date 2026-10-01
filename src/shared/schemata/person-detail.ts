@@ -26,6 +26,7 @@ import { LEBENSDATUM_ANGABEN, LEBENSDATUM_HERKUNFT } from '../../core/person/leb
 import { STERBEORT_HERKUNFT } from '../../core/person/sterbeort'
 import { EDITOR_FELDER, OFFENE_PUNKTE_REGEL_IDS, OFFENE_PUNKTE_SCHLUESSEL } from '../../core/person/offene-punkte'
 import { REITER, type ReiterId } from '../../core/person/reiter'
+import { stationenAnzahl } from '../../core/person/stationen'
 import type { ReiterZaehlerEingabe } from '../../core/person/reiter-zaehler'
 import type { FeldwarnungFeld } from '../../core/plausibilitaet/feldwarnungen'
 import type { BestandHinweisCode } from '../../core/plausibilitaet/regeln'
@@ -493,6 +494,10 @@ export interface PersonDetailAus {
 export function reiterZaehlerEingabeAus(detail: PersonDetailAus): ReiterZaehlerEingabe {
   return {
     namenAnzahl: detail.namen.length,
+    stationenAnzahl: stationenAnzahl(
+      detail.ereignisse.length,
+      detail.grunddaten.map((feld) => ({ praedikat: feld.praedikat, aussagen: feld.aussagen.length })),
+    ),
     beziehungen: detail.beziehungen.map((b) => ({ personId: b.person_id, richtung: b.richtung })),
     zitatAnzahl: detail.belege_anzahl,
     medienAnzahl: 0,
