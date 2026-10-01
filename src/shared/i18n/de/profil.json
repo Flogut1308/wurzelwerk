@@ -229,7 +229,7 @@
   "reiter_leben_zeitspur_hilfe": "Die Zeitspur unter jeder Zeile ist Anzeige, kein Eingabefeld. Sie macht Lücken und Überschneidungen sichtbar.",
   "reiter_leben_achse": "{{von}} – {{bis}}",
   "reiter_leben_achse_aus_stationen": "{{von}} – {{bis}} · mindestens ein Rand stammt aus den Stationen, nicht aus Geburt oder Tod",
-  "reiter_leben_achse_fehlt": "Ohne Geburts- und Todesdatum und mit weniger als zwei Zeitpunkten gibt es keine Zeitachse. Die Stationen stehen trotzdem in zeitlicher Reihenfolge.",
+  "reiter_leben_achse_fehlt": "Für eine Zeitachse fehlen Zeitpunkte: Sie braucht Geburt und Tod oder mindestens zwei datierte Stationen. Die Stationen stehen trotzdem in zeitlicher Reihenfolge.",
   "reiter_leben_vor_geburt": "vor der Geburt",
   "reiter_leben_nach_tod": "nach dem Tod",
   "reiter_leben_beginn_offen": "Beginn offen",

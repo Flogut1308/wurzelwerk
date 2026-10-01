@@ -262,6 +262,25 @@ describe('lebenAnsicht — Achse und Spur (V-130-13-achse, -unscharf)', () => {
     expect(ansicht.stationen[0]?.lage).toBeNull()
   })
 
+  it('eine einzige datierte Station ergibt keine Achse (sie wäre die Station selbst), auch nicht über ein ganzes Jahr', () => {
+    const ansicht = lebenAnsicht(ohneLebensdaten({ ereignisse: [ereignis('x', { datum: gruppe('etwa', 1974) }), ereignis('y')] }))
+    expect(ansicht.achse).toBeNull()
+    expect(ansicht.achseFehlt).toBe(true)
+    expect(ansicht.stationen[0]?.spur).toBeNull()
+  })
+
+  it('nur der Tod und die Station „Tod“ im selben Jahr: keine Achse (Walter), mit Geburt aber schon', () => {
+    const stationImTodesjahr = { ereignisse: [ereignis('tod', { typ: 'tod', rolle: 'verstorbener', datum: gruppe('etwa', 1974) })] }
+    expect(lebenAnsicht(mitLebensdaten(null, 1974, stationImTodesjahr)).achse).toBeNull()
+    expect(lebenAnsicht(mitLebensdaten(null, 1974, stationImTodesjahr)).achseFehlt).toBe(true)
+    expect(lebenAnsicht(mitLebensdaten(1974, 1974, stationImTodesjahr)).achse).toEqual({ von: 1974, bis: 1974, grenzeVon: 'geburt', grenzeBis: 'tod' })
+  })
+
+  it('zwei datierte Stationen ohne Geburt und Tod bilden eine Achse aus den Stationen', () => {
+    const ansicht = lebenAnsicht(ohneLebensdaten({ ereignisse: [ereignis('x', { datum: gruppe('exakt', 1920) }), ereignis('y', { datum: gruppe('exakt', 1950) })] }))
+    expect(ansicht.achse).toEqual({ von: 1920, bis: 1950, grenzeVon: 'stationen', grenzeBis: 'stationen' })
+  })
+
   it('ohne Stationen kein Achsen-Hinweis', () => {
     expect(lebenAnsicht(ohneLebensdaten({})).achseFehlt).toBe(false)
   })

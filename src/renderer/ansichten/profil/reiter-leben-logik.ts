@@ -152,7 +152,16 @@ export function lebenAnsicht(eingabe: LebenEingabe): LebenAnsicht {
     for (const aussage of feld.aussagen) roh.push(aussageStation(feld, aussage))
   }
   const geordnet = stationenOrdnen(roh)
-  const achse = lebensachse({ geburt: lebensIntervall('geburtsdatum', eingabe), tod: lebensIntervall('todesdatum', eingabe), stationen: geordnet.map((s) => s.intervall) })
+  const kernAchse = lebensachse({ geburt: lebensIntervall('geburtsdatum', eingabe), tod: lebensIntervall('todesdatum', eingabe), stationen: geordnet.map((s) => s.intervall) })
+  // Eine Achse ohne beide echten Ränder, die nur eine Station (bzw. ein einziges Jahr) umspannt, ist diese Station
+  // selbst („1974 – 1974“, volle Breite — z. B. nur der Tod als Station) und sagt nichts über ein Leben: dann keine
+  // Achse, nur der Hinweis (§33 V-130-13-achse).
+  const randAusStationen = kernAchse !== null && (kernAchse.grenzeVon === 'stationen' || kernAchse.grenzeBis === 'stationen')
+  const entartet =
+    kernAchse !== null &&
+    randAusStationen &&
+    ((kernAchse.grenzeVon === 'stationen' && kernAchse.grenzeBis === 'stationen' && geordnet.filter((s) => s.intervall !== null).length < 2) || jahrVon(kernAchse.von) === jahrVon(kernAchse.bis))
+  const achse = entartet ? null : kernAchse
   const stationen: LebenStation[] = geordnet.map((s) => {
     const spur = achse === null || s.intervall === null ? null : zeitspur(s.intervall, achse)
     const lage = achse === null || spur === null ? null : spur.beginntVorAchse && achse.grenzeVon === 'geburt' ? 'vor_geburt' : spur.endetNachAchse && achse.grenzeBis === 'tod' ? 'nach_tod' : null
