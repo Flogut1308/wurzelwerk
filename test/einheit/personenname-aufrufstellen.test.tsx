@@ -77,7 +77,7 @@ function kopf(ueberschreibung: Partial<PersonDetailKopf> = {}): PersonDetailKopf
 }
 
 function beziehung(ueberschreibung: Partial<PersonDetailBeziehung> = {}): PersonDetailBeziehung {
-  return { person_id: 'p-2', anzeigename: 'Karl Beispiel', richtung: 'elternteil', kantentyp: 'biologisch', ist_platzhalter: false, ...ueberschreibung }
+  return { person_id: 'p-2', anzeigename: 'Karl Beispiel', richtung: 'elternteil', kantentyp: 'biologisch', ist_platzhalter: false, kante_id: 'k-1', kante_notiz: null, geschlecht: null, ...ueberschreibung }
 }
 
 function detail(ueberschreibung: Partial<PersonDetailAus> = {}): PersonDetailAus {
@@ -87,6 +87,9 @@ function detail(ueberschreibung: Partial<PersonDetailAus> = {}): PersonDetailAus
     grunddaten: [],
     ereignisse: [],
     beziehungen: [],
+    geschwister: [],
+    partnerschaften: [],
+    kinder_ohne_partnerschaft: [],
     gesundheit: [],
     notiz: null,
     sterbeort: null,

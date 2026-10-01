@@ -8,7 +8,8 @@
 // - Belegzahl je Grunddaten-Feld = COUNT über ALLE `aussage_zitat` aller Aussagen dieses
 //   `praedikat`s (nicht je einzelner Aussage).
 // - Konfidenz-Kopf = `person_flach.konfidenz_min`, hier gelesen statt neu berechnet.
-// - Beziehungen: nur direkte Kanten (Eltern/Kinder/Partner), KEINE Geschwister.
+// - Beziehungen: nur direkte Kanten (Eltern/Kinder/Partner), KEINE Geschwister. Geschwister,
+//   Partnerschaften und die Kinderzuordnung (AP-1.30 PR 12b) stehen in eigenen Feldern.
 // - Widerspruch je Feld wird NICHT in SQL nachgebaut, sondern über die Kern-Funktionen
 //   `hatWiderspruch()`/`anzahlUnterscheidbareWerte()` (src/core/aussage/widerspruch.ts, spiegelt
 //   den generierten Trigger `abl_aussage_ai`, docs/schema/0003_abgeleitet.sql Z.66-75) auf den
@@ -37,6 +38,8 @@ import {
   type LebensdatumAngabe,
 } from '../../core/person/lebensdaten'
 import { istOrtsPraedikat, ORTS_PRAEDIKATE } from '../../core/person/ort-wert'
+import { geschwisterAbleiten, type GeschwisterKante } from '../../core/person/geschwister'
+import { kinderZuordnen } from '../../core/person/kinder-zuordnung'
 import { offenePunkteAuswerten, regelAktiv, type OffenePunkteKind } from '../../core/person/offene-punkte'
 import { istEigenerVorfahre } from '../../core/graph/zyklus'
 import { feldwarnungenFuer } from '../../core/plausibilitaet/feldwarnungen'
@@ -52,6 +55,7 @@ import type {
   PersonDetailEin,
   PersonDetailEreignis,
   PersonDetailEreignisExistenz,
+  PersonDetailGeschwister,
   PersonDetailGesundheitseintrag,
   PersonDetailGrunddatenFeld,
   PersonDetailKernangaben,
@@ -59,6 +63,7 @@ import type {
   PersonDetailName,
   PersonDetailNamensteil,
   PersonDetailOffenerPunkt,
+  PersonDetailPartnerschaft,
   PersonDetailSterbeort,
   PersonDetailWarnung,
 } from '../../shared/schemata/person-detail'
@@ -783,14 +788,15 @@ interface ElternKindZeile {
   readonly person_id: string
   readonly kantentyp: string
   readonly ist_platzhalter: number
+  readonly geschlecht: string | null
+  /** `elternschaft.id` (Eltern/Kinder) bzw. `partnerschaft.id` (Partner) — Kanten-Beleg der Kernangaben
+   * (AP-1.34 PR-D) und Schreibwege des Reiters Beziehungen (AP-1.30 PR 12b). */
+  readonly kante_id: string
+  readonly kante_notiz: string | null
 }
 
-/** Elternzeile mit Geschlecht — `elternPlaetze` (offene Punkte, AP-1.34 PR-C2c) braucht es — und
- * `kante_id` (`elternschaft.id`) für den Kanten-Beleg der Kernangaben (AP-1.34 PR-D). */
-interface ElternZeile extends ElternKindZeile {
-  readonly geschlecht: string | null
-  readonly kante_id: string
-}
+/** Elternzeile — `elternPlaetze` (offene Punkte, AP-1.34 PR-C2c) braucht das Geschlecht. */
+type ElternZeile = ElternKindZeile
 
 function elternLaden(db: Database.Database, personId: string): readonly ElternZeile[] {
   return db
@@ -798,7 +804,7 @@ function elternLaden(db: Database.Database, personId: string): readonly ElternZe
       { readonly personId: string },
       ElternZeile
     >(`SELECT el.elternteil_id AS person_id, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
-              p.geschlecht AS geschlecht, el.id AS kante_id
+              p.geschlecht AS geschlecht, el.id AS kante_id, el.notiz AS kante_notiz
        FROM elternschaft el
        JOIN person p ON p.id = el.elternteil_id
        WHERE el.kind_id = @personId`,
@@ -811,7 +817,8 @@ function kinderLaden(db: Database.Database, personId: string): readonly ElternKi
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT el.kind_id AS person_id, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
+    >(`SELECT el.kind_id AS person_id, el.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
+              p.geschlecht AS geschlecht, el.id AS kante_id, el.notiz AS kante_notiz
        FROM elternschaft el
        JOIN person p ON p.id = el.kind_id
        WHERE el.elternteil_id = @personId`,
@@ -824,7 +831,8 @@ function partnerLaden(db: Database.Database, personId: string): readonly ElternK
     .prepare<
       { readonly personId: string },
       ElternKindZeile
-    >(`SELECT pp2.person_id AS person_id, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter
+    >(`SELECT pp2.person_id AS person_id, part.typ AS kantentyp, p.ist_platzhalter AS ist_platzhalter,
+              p.geschlecht AS geschlecht, part.id AS kante_id, part.notiz AS kante_notiz
        FROM partnerschaft_person pp1
        JOIN partnerschaft_person pp2 ON pp2.partnerschaft_id = pp1.partnerschaft_id AND pp2.person_id <> pp1.person_id
        JOIN partnerschaft part ON part.id = pp1.partnerschaft_id
@@ -847,16 +855,139 @@ function beziehungsZeilenLaden(db: Database.Database, personId: string): Beziehu
 function beziehungenBauen(zeilen: BeziehungsZeilen, anzeigenamen: ReadonlyMap<string, string>): readonly PersonDetailBeziehung[] {
   const beziehungen: PersonDetailBeziehung[] = []
   const nameVon = (personId: string): string => anzeigenamen.get(personId) ?? ''
+  const gemeinsam = (zeile: ElternKindZeile): Pick<PersonDetailBeziehung, 'kante_id' | 'kante_notiz' | 'geschlecht'> => ({
+    kante_id: zeile.kante_id,
+    kante_notiz: zeile.kante_notiz,
+    geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht),
+  })
   for (const zeile of zeilen.eltern) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'elternteil', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1, ...gemeinsam(zeile) })
   }
   for (const zeile of zeilen.kinder) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'kind', kantentyp: ElternschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1, ...gemeinsam(zeile) })
   }
   for (const zeile of zeilen.partner) {
-    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1 })
+    beziehungen.push({ person_id: zeile.person_id, anzeigename: nameVon(zeile.person_id), richtung: 'partner', kantentyp: PartnerschaftTypEnum.parse(zeile.kantentyp), ist_platzhalter: zeile.ist_platzhalter === 1, ...gemeinsam(zeile) })
   }
   return beziehungen
+}
+
+interface GeschwisterKantenZeile {
+  readonly kind_id: string
+  readonly elternteil_id: string
+  readonly typ: string
+}
+
+/** Alle Elternkanten aller Kinder, die mit der Person einen Elternteil teilen (auch die Kanten der
+ * Person selbst) — EINE Abfrage (AP-1.30 PR 12b); `geschwisterAbleiten` entscheidet im Kern. */
+function geschwisterKantenLaden(db: Database.Database, personId: string): readonly GeschwisterKante[] {
+  return db
+    .prepare<
+      { readonly personId: string },
+      GeschwisterKantenZeile
+    >(`SELECT DISTINCT el3.kind_id AS kind_id, el3.elternteil_id AS elternteil_id, el3.typ AS typ
+       FROM elternschaft el1
+       JOIN elternschaft el2 ON el2.elternteil_id = el1.elternteil_id
+       JOIN elternschaft el3 ON el3.kind_id = el2.kind_id
+       WHERE el1.kind_id = @personId
+       ORDER BY el3.kind_id, el3.elternteil_id, el3.typ`,
+    )
+    .all({ personId })
+    .map((zeile) => ({ kindId: zeile.kind_id, elternteilId: zeile.elternteil_id, typ: ElternschaftTypEnum.parse(zeile.typ) }))
+}
+
+interface GeschwisterPersonZeile {
+  readonly id: string
+  readonly ist_platzhalter: number
+  readonly geschlecht: string | null
+}
+
+function geschwisterPersonenLaden(db: Database.Database, ids: readonly string[]): ReadonlyMap<string, GeschwisterPersonZeile> {
+  if (ids.length === 0) return new Map()
+  const { platzhalter, parameter } = inKlausel(ids)
+  const zeilen = db
+    .prepare<Record<string, string>, GeschwisterPersonZeile>(`SELECT id, ist_platzhalter, geschlecht FROM person WHERE id IN (${platzhalter})`)
+    .all(parameter)
+  return new Map(zeilen.map((zeile) => [zeile.id, zeile]))
+}
+
+interface PartnerschaftZeile {
+  readonly id: string
+  readonly typ: string
+  readonly person_id: string
+}
+
+/** Partnerschaften der Person mit ALLEN Teilnehmern, sortiert `reihenfolge`, `beginn_sort_von` (NULL
+ * zuletzt), `id` — auch die, in der sie allein steht (§33 V-130-12-einzelpartnerschaft). */
+function partnerschaftenLaden(db: Database.Database, personId: string): readonly PartnerschaftZeile[] {
+  return db
+    .prepare<
+      { readonly personId: string },
+      PartnerschaftZeile
+    >(`SELECT part.id AS id, part.typ AS typ, pp2.person_id AS person_id
+       FROM partnerschaft_person pp1
+       JOIN partnerschaft part ON part.id = pp1.partnerschaft_id
+       JOIN partnerschaft_person pp2 ON pp2.partnerschaft_id = part.id
+       WHERE pp1.person_id = @personId
+       ORDER BY part.reihenfolge IS NULL, part.reihenfolge, part.beginn_sort_von IS NULL, part.beginn_sort_von, part.id, pp2.person_id`,
+    )
+    .all({ personId })
+}
+
+interface Verwandtschaft {
+  readonly geschwister: readonly PersonDetailGeschwister[]
+  readonly partnerschaften: readonly PersonDetailPartnerschaft[]
+  readonly kinderOhnePartnerschaft: readonly string[]
+}
+
+/** Geschwister, Partnerschaften mit Kindern und Kinder ohne Partnerschaft (AP-1.30 PR 12b). Die
+ * Auswertung liegt im Kern (`geschwisterAbleiten`, `kinderZuordnen`); die Elternkanten der Kinder
+ * (`kinderEltern`) sind dieselben Zeilen wie bei den offenen Punkten. */
+function verwandtschaftBauen(
+  db: Database.Database,
+  personId: string,
+  beziehungen: BeziehungsZeilen,
+  kinderEltern: ReadonlyMap<string, readonly string[]>,
+  geschwisterAbgeleitet: ReturnType<typeof geschwisterAbleiten>,
+  geschwisterNamen: ReadonlyMap<string, string>,
+): Verwandtschaft {
+  const personen = geschwisterPersonenLaden(db, geschwisterAbgeleitet.map((g) => g.personId))
+  const geschwister = geschwisterAbgeleitet.map((g): PersonDetailGeschwister => {
+    const zeile = personen.get(g.personId)
+    return {
+      person_id: g.personId,
+      anzeigename: geschwisterNamen.get(g.personId) ?? '',
+      ist_platzhalter: zeile?.ist_platzhalter === 1,
+      geschlecht: zeile?.geschlecht === null || zeile === undefined ? null : GeschlechtEnum.parse(zeile.geschlecht),
+      art: g.art,
+      gemeinsame_eltern_ids: g.gemeinsameElternIds,
+    }
+  })
+
+  const kopien = new Map<string, { id: string; typ: string; partnerIds: string[]; personIds: string[] }>()
+  for (const zeile of partnerschaftenLaden(db, personId)) {
+    const eintrag = kopien.get(zeile.id) ?? { id: zeile.id, typ: zeile.typ, partnerIds: [], personIds: [] }
+    eintrag.personIds.push(zeile.person_id)
+    if (zeile.person_id !== personId) eintrag.partnerIds.push(zeile.person_id)
+    kopien.set(zeile.id, eintrag)
+  }
+  const partnerschaften = [...kopien.values()]
+  const zuordnung = kinderZuordnen({
+    personId,
+    kinder: beziehungen.kinder.map((zeile) => ({ id: zeile.person_id, istPlatzhalter: zeile.ist_platzhalter === 1, elternIds: kinderEltern.get(zeile.person_id) ?? [personId] })),
+    partnerschaften: partnerschaften.map((eintrag) => ({ id: eintrag.id, personIds: eintrag.personIds })),
+  })
+  const kinderJeId = new Map(zuordnung.partnerschaften.map((eintrag) => [eintrag.partnerschaftId, eintrag.kindIds]))
+  return {
+    geschwister,
+    partnerschaften: partnerschaften.map((eintrag) => ({
+      id: eintrag.id,
+      typ: PartnerschaftTypEnum.parse(eintrag.typ),
+      partner_ids: eintrag.partnerIds,
+      kind_ids: kinderJeId.get(eintrag.id) ?? [],
+    })),
+    kinderOhnePartnerschaft: zuordnung.ohnePartnerschaft,
+  }
 }
 
 interface DiagnoseZeile {
@@ -942,6 +1073,18 @@ function kinderElternLaden(db: Database.Database, personId: string): readonly Ki
     .all({ personId })
 }
 
+/** Eltern-IDs je Kind der Person (aus `kinderElternLaden`) — gemeinsame Quelle für die offenen Punkte
+ * und die Kinderzuordnung des Reiters Beziehungen (AP-1.30 PR 12b), läuft auch für Platzhalter-P. */
+function elternJeKindLaden(db: Database.Database, personId: string): ReadonlyMap<string, readonly string[]> {
+  const karte = new Map<string, string[]>()
+  for (const zeile of kinderElternLaden(db, personId)) {
+    const liste = karte.get(zeile.kind_id) ?? []
+    liste.push(zeile.elternteil_id)
+    karte.set(zeile.kind_id, liste)
+  }
+  return karte
+}
+
 /** Vorläufige Porträt-Eingabe (§31 U-1.34-E8): ein Medium als Titelbild der Person. Läuft nur, wenn
  * `kein_portraet` in der Regeltabelle aktiv ist (bis AP-1.31b nicht, hueter-H3) — das Einschalten
  * ändert dann nur die Tabelle. Kein Index auf `medium_zuordnung(subjekt_typ, subjekt_id)`
@@ -961,24 +1104,20 @@ function hatTitelbild(db: Database.Database, personId: string): boolean {
 }
 
 /** Offene Punkte (AP-1.34 PR-C2c, Vorgaben §5.5): Auswertung im Kern (`offenePunkteAuswerten`),
- * hier nur die Eingabe aus bereits geladenen Teilen plus zwei gezielte Nachladungen (Elternkanten
- * der Kinder, Titelbild). Platzhalter: keine Punkte, darum auch kein Nachladen (O4). */
+ * hier nur die Eingabe aus bereits geladenen Teilen. Die Elternkanten der Kinder werden immer
+ * geladen (auch für Platzhalter, AP-1.30 PR 12b) und von außen übergeben; nur das Titelbild
+ * (`hatPortraet`, lazy) entfällt bei Platzhaltern: keine Punkte, darum kein Nachladen (O4). */
 function offenePunkteBauen(
-  db: Database.Database,
   kopfZeile: KopfZeile,
   beziehungen: BeziehungsZeilen,
+  elternJeKind: ReadonlyMap<string, readonly string[]>,
+  hatPortraet: () => boolean,
   grunddaten: readonly PersonDetailGrunddatenFeld[],
   sterbeort: PersonDetailSterbeort | null,
   warnungen: readonly PersonDetailWarnung[],
 ): readonly PersonDetailOffenerPunkt[] {
   if (kopfZeile.ist_platzhalter === 1) return []
 
-  const elternJeKind = new Map<string, string[]>()
-  for (const zeile of kinderElternLaden(db, kopfZeile.person_id)) {
-    const liste = elternJeKind.get(zeile.kind_id) ?? []
-    liste.push(zeile.elternteil_id)
-    elternJeKind.set(zeile.kind_id, liste)
-  }
   // Eine Quelle für „welche Kinder“ (hueter-H5): die Beziehungsliste; die JOIN-Karte liefert nur die
   // Eltern-IDs dazu. Doppelte Kanten zu demselben Kind fängt `kindOhnePartnerschaft` ab.
   const kinder: OffenePunkteKind[] = beziehungen.kinder.map((zeile) => ({
@@ -994,7 +1133,7 @@ function offenePunkteBauen(
     hatSterbeort: sterbeort !== null,
     eltern: beziehungen.eltern.map((zeile) => ({ id: zeile.person_id, geschlecht: zeile.geschlecht === null ? null : GeschlechtEnum.parse(zeile.geschlecht) })),
     // Inaktive Regel: `true` löst sicher nichts aus, die Abfrage entfällt.
-    hatPortraet: regelAktiv('kein_portraet') ? hatTitelbild(db, kopfZeile.person_id) : true,
+    hatPortraet: regelAktiv('kein_portraet') ? hatPortraet() : true,
     kinder,
     partnerIds: beziehungen.partner.map((zeile) => zeile.person_id),
     widerspruchPraedikate: grunddaten.filter((feld) => feld.hat_widerspruch).map((feld) => feld.praedikat),
@@ -1184,8 +1323,10 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const beziehungsZeilen = beziehungsZeilenLaden(db, ein.personId)
   // Sichtbare Namen von Person und direkten Verwandten in EINEM Ladevorgang aus dem Kern
   // (Vorarbeiten AP-1.30 PR 4a; `person_flach.anzeigename` nur noch für Sortierung/Suche).
+  const geschwisterAbgeleitet = geschwisterAbleiten(ein.personId, geschwisterKantenLaden(db, ein.personId))
   const anzeigenamen = anzeigenamenLaden(db, [
     ein.personId,
+    ...geschwisterAbgeleitet.map((g) => g.personId),
     ...beziehungsZeilen.eltern.map((z) => z.person_id),
     ...beziehungsZeilen.kinder.map((z) => z.person_id),
     ...beziehungsZeilen.partner.map((z) => z.person_id),
@@ -1196,6 +1337,8 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   const sterbeort = sterbeortAusLebensdaten(lebensdaten)
   const { namen, nameVorhanden } = namenLaden(db, ein.personId)
   const warnungen = warnungenBauen(db, ein.personId)
+  const elternJeKind = elternJeKindLaden(db, ein.personId)
+  const verwandtschaft = verwandtschaftBauen(db, ein.personId, beziehungsZeilen, elternJeKind, geschwisterAbgeleitet, anzeigenamen)
 
   return {
     kopf: {
@@ -1213,13 +1356,16 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     grunddaten,
     ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
     beziehungen: beziehungenBauen(beziehungsZeilen, anzeigenamen),
+    geschwister: verwandtschaft.geschwister,
+    partnerschaften: verwandtschaft.partnerschaften,
+    kinder_ohne_partnerschaft: verwandtschaft.kinderOhnePartnerschaft,
     gesundheit: [...diagnosenLaden(db, ein.personId), ...risikofaktorenLaden(db, ein.personId)],
     notiz: kopfZeile.notiz,
     sterbeort,
     lebensdaten,
     ereignis_existenz: ereignisExistenzLaden(db, lebensdaten),
     warnungen,
-    offene_punkte: offenePunkteBauen(db, kopfZeile, beziehungsZeilen, grunddaten, sterbeort, warnungen),
+    offene_punkte: offenePunkteBauen(kopfZeile, beziehungsZeilen, elternJeKind, () => hatTitelbild(db, kopfZeile.person_id), grunddaten, sterbeort, warnungen),
     kernangaben: kernangabenBauen(db, kopfZeile, aussagen, belegeKarte, beziehungsZeilen.eltern, nameVorhanden, lebensereignisse),
     belege_anzahl: belegeAnzahlLaden(db, ein.personId),
   }

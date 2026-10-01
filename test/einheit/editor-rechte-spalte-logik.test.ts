@@ -94,7 +94,7 @@ describe('Vollständigkeit (aus kernangaben, keine eigene Berechnung)', () => {
 })
 
 describe('Offene Punkte', () => {
-  const kind = (id: string, anzeigename: string): PersonDetailBeziehung => ({ person_id: id, anzeigename, richtung: 'kind', kantentyp: 'biologisch', ist_platzhalter: false })
+  const kind = (id: string, anzeigename: string): PersonDetailBeziehung => ({ person_id: id, anzeigename, richtung: 'kind', kantentyp: 'biologisch', ist_platzhalter: false, kante_id: `k-${id}`, kante_notiz: null, geschlecht: null })
   const punkt = (teil: Partial<PersonDetailOffenerPunkt>): PersonDetailOffenerPunkt => ({
     regel_id: 'kind_ohne_partnerschaft',
     reiter: 'beziehungen',
