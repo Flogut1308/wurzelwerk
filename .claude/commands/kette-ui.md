@@ -95,7 +95,7 @@ Override.** Fehlt ein Paket in der Tabelle, gilt Opus für alle Rollen. `nachzug
 |---|---|---|---|---|
 | 1.29 (+PR-B) | opus | **sonnet** | opus | Befehle nach dem Muster aus AP-1.12/1.17; `undo-bitgleich` und zwei neue Referenzbilder = geschützter Prüfpfad |
 | 1.33 · 1.34 · 1.31a | opus | opus | opus | Migrationen, einzeln über `/ap`: Datenumzug, IDs, Undo-Ausnahme, Dateiumzug — ein Fehler macht Projektdateien kaputt |
-| 1.30 | opus | opus | opus | Ersetzt die Maske aus AP-1.14, alle Reiter, Koaleszenzschlüssel je Befehl |
+| 1.30 | opus | opus (**PR 12–15: sonnet**, Owner 01.10.2026) | opus | Ersetzt die Maske aus AP-1.14, alle Reiter, Koaleszenzschlüssel je Befehl; ab PR 12 Reiter nach bekanntem Muster (Rot-Beleg/Gate-Ausgaben/Doku: `mechaniker` haiku) |
 | 1.32 | opus | **sonnet** | opus | Score-Logik wird im Plan festgelegt; der Anlegeweg muss dicht sein (AP-1.22 hängt sich daran) |
 | 1.31b | opus | opus | opus | Dokumentansicht, Porträt, Audio-Zeitmarken — setzt das Aussehen der Medienstrecke |
 | 1.31c | opus | **sonnet** | opus | Filter-JSON → SQL an **einer** Stelle, Stapelaktion = ein Undo-Schritt |
