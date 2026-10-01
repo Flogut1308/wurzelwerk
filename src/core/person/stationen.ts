@@ -148,3 +148,9 @@ const KEINE_STATION: ReadonlySet<string> = new Set<string>([
 export function istStationsPraedikat(praedikat: string): boolean {
   return !KEINE_STATION.has(praedikat)
 }
+
+/** Zahl der Stationszeilen des Reiters „Leben“ (V-130-13-zaehler): jede Ereignis-Beteiligung plus jede Aussage
+ * eines Stations-Prädikats — dieselbe Regel (`istStationsPraedikat`), nach der der Reiter seine Zeilen sammelt. */
+export function stationenAnzahl(ereignisse: number, felder: readonly { readonly praedikat: string; readonly aussagen: number }[]): number {
+  return felder.reduce((summe, feld) => (istStationsPraedikat(feld.praedikat) ? summe + feld.aussagen : summe), ereignisse)
+}

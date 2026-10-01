@@ -4,7 +4,7 @@
 // auflistet.**
 //
 // - Person, Notizen, Verwaltung: kein Zähler (Einzelangaben bzw. Freitext, keine Liste).
-// - Leben: kein Zähler, bis Stationen definiert sind (AP-1.30 PR 13).
+// - Leben: Anzahl der Stationszeilen (Beteiligungen + Stations-Aussagen, auch undatierte; V-130-13-zaehler).
 // - Namen: Anzahl der Namensformen.
 // - Beziehungen: Anzahl VERSCHIEDENER Personen unter Eltern, Partnern und Kindern. Platzhalter zählen
 //   mit (sie stehen als Eintrag in der Liste, A-17 betrifft Statistik/Export, nicht die Liste der
@@ -28,6 +28,8 @@ export interface ReiterZaehlerBeziehung {
 
 export interface ReiterZaehlerEingabe {
   readonly namenAnzahl: number
+  /** Stationszeilen des Reiters „Leben“ (`stationenAnzahl`, src/core/person/stationen.ts). */
+  readonly stationenAnzahl: number
   readonly beziehungen: readonly ReiterZaehlerBeziehung[]
   readonly zitatAnzahl: number
   readonly medienAnzahl: number
@@ -55,7 +57,7 @@ function anzahlJeReiter(eingabe: ReiterZaehlerEingabe): { readonly [R in ReiterI
   return {
     person: null,
     namen: eingabe.namenAnzahl,
-    leben: null,
+    leben: eingabe.stationenAnzahl,
     beziehungen: beziehungenAnzahl(eingabe.beziehungen),
     belege_medien: eingabe.zitatAnzahl + eingabe.medienAnzahl,
     gesundheit: eingabe.diagnosenAnzahl + eingabe.risikofaktorenAnzahl,
