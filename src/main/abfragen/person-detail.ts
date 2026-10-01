@@ -562,6 +562,15 @@ interface EreignisZeile {
   readonly rolle: string
   readonly datum_wert1: string | null
   readonly datum_sort_von: number | null
+  readonly datum_kalender: string | null
+  readonly datum_modifikator: string | null
+  readonly datum_praezision: string | null
+  readonly datum_wert2: string | null
+  readonly datum_originaltext: string | null
+  readonly datum_sort_bis: number | null
+  readonly datum_zweitkalender: string | null
+  readonly datum_zweitwert: string | null
+  readonly datum_doppeljahr: string | null
   readonly ort_name: string | null
   readonly beschreibung: string | null
 }
@@ -572,7 +581,10 @@ function ereignisseLaden(db: Database.Database, personId: string): readonly Erei
       { readonly personId: string },
       EreignisZeile
     >(`SELECT e.id AS ereignis_id, b.id AS beteiligung_id, e.typ AS typ, b.rolle AS rolle, e.datum_wert1 AS datum_wert1,
-              e.datum_sort_von AS datum_sort_von, e.beschreibung AS beschreibung, go.name AS ort_name
+              e.datum_sort_von AS datum_sort_von, e.datum_kalender AS datum_kalender, e.datum_modifikator AS datum_modifikator,
+              e.datum_praezision AS datum_praezision, e.datum_wert2 AS datum_wert2, e.datum_originaltext AS datum_originaltext,
+              e.datum_sort_bis AS datum_sort_bis, e.datum_zweitkalender AS datum_zweitkalender, e.datum_zweitwert AS datum_zweitwert,
+              e.datum_doppeljahr AS datum_doppeljahr, e.beschreibung AS beschreibung, go.name AS ort_name
        FROM beteiligung b
        JOIN ereignis e ON e.id = b.ereignis_id
        LEFT JOIN (
@@ -594,7 +606,47 @@ function vergleicheSortVonNullsLetzten(a: number | null, b: number | null): numb
   return a - b
 }
 
-function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readonly PersonDetailEreignis[] {
+/** Konfidenz der Existenz-Aussage je Ereignis (PR 13b) — eine IN-Abfrage, je Ereignis die Aussage mit
+ * kleinster `id` (dieselbe Regel wie `ereignisExistenzLaden`). */
+function existenzKonfidenzLaden(db: Database.Database, ereignisIds: readonly string[]): ReadonlyMap<string, number | null> {
+  const karte = new Map<string, number | null>()
+  if (ereignisIds.length === 0) return karte
+  const { platzhalter, parameter } = inKlausel(ereignisIds)
+  const zeilen = db
+    .prepare<
+      Record<string, string>,
+      { readonly ereignis_id: string; readonly konfidenz: number | null }
+    >(`SELECT a.subjekt_id AS ereignis_id, a.konfidenz AS konfidenz
+       FROM aussage a
+       WHERE a.subjekt_typ = 'ereignis' AND a.subjekt_id IN (${platzhalter}) AND a.praedikat = 'existenz'
+       ORDER BY a.subjekt_id, a.id`,
+    )
+    .all(parameter)
+  for (const zeile of zeilen) {
+    if (!karte.has(zeile.ereignis_id)) karte.set(zeile.ereignis_id, zeile.konfidenz)
+  }
+  return karte
+}
+
+/** Die rohe Datumsgruppe eines Ereignisses; `null`, wenn keine Spalte gesetzt ist. */
+function ereignisDatum(zeile: EreignisZeile): PersonDetailAussageDatum | null {
+  const datum: PersonDetailAussageDatum = {
+    kalender: zeile.datum_kalender,
+    modifikator: zeile.datum_modifikator,
+    praezision: zeile.datum_praezision,
+    wert1: zeile.datum_wert1,
+    wert2: zeile.datum_wert2,
+    originaltext: zeile.datum_originaltext,
+    sort_von: zeile.datum_sort_von,
+    sort_bis: zeile.datum_sort_bis,
+    zweitkalender: zeile.datum_zweitkalender,
+    zweitwert: zeile.datum_zweitwert,
+    doppeljahr: zeile.datum_doppeljahr,
+  }
+  return Object.values(datum).some((wert) => wert !== null) ? datum : null
+}
+
+function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[], konfidenzKarte: ReadonlyMap<string, number | null>): readonly PersonDetailEreignis[] {
   const sortiert = [...zeilen].sort((a, b) => {
     const vergleich = vergleicheSortVonNullsLetzten(a.datum_sort_von, b.datum_sort_von)
     if (vergleich !== 0) return vergleich
@@ -610,6 +662,8 @@ function ereignisseSortierenUndWandeln(zeilen: readonly EreignisZeile[]): readon
     rolle: BeteiligungRolleEnum.parse(zeile.rolle),
     datum_wert1: zeile.datum_wert1,
     datum_sort_von: zeile.datum_sort_von,
+    datum: ereignisDatum(zeile),
+    konfidenz: konfidenzKarte.get(zeile.ereignis_id) ?? null,
     ort_name: zeile.ort_name,
     beschreibung: zeile.beschreibung,
   }))
@@ -1333,6 +1387,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
   ])
   const grunddaten = grunddatenBauen(aussagen, belegzahlKarte, belegeKarte, ortsnamenKarte, personennamenKarte)
   const lebensereignisse = lebensereignisseLaden(db, ein.personId)
+  const ereignisseZeilen = ereignisseLaden(db, ein.personId)
   const lebensdaten = lebensdatenBauen(db, aussagen, lebensereignisse, ortsnamenKarte)
   const sterbeort = sterbeortAusLebensdaten(lebensdaten)
   const { namen, nameVorhanden } = namenLaden(db, ein.personId)
@@ -1354,7 +1409,7 @@ export function personDetail(db: Database.Database, ein: PersonDetailEin): Perso
     },
     namen,
     grunddaten,
-    ereignisse: ereignisseSortierenUndWandeln(ereignisseLaden(db, ein.personId)),
+    ereignisse: ereignisseSortierenUndWandeln(ereignisseZeilen, existenzKonfidenzLaden(db, [...new Set(ereignisseZeilen.map((zeile) => zeile.ereignis_id))])),
     beziehungen: beziehungenBauen(beziehungsZeilen, anzeigenamen),
     geschwister: verwandtschaft.geschwister,
     partnerschaften: verwandtschaft.partnerschaften,
