@@ -969,5 +969,83 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         })
       }
     })
+
+    // AP-1.30 PR 13d (docs/80 §33 V-130-13-*): Reiter „Leben" mit Zeitspur. Eigene Person über die Befehle, NACH
+    // allen übrigen Motiven (Walter und die gemeinsame Person bleiben unverändert): Geburt 1900 (Aussage), Beruf
+    // „Schmied" 1920–1958 (Datumsgruppe), Militärdienst „zwischen 1941 und 1945" (unscharf), Umzug 1945 mit Ort,
+    // Tod 1980 (Ereignis, Verstorbener), Konfession ohne Datum. Bewusst KEINE Wohnort-Aussage mit Datum
+    // (gueltig-Einheit offen). Die Spur der Zeilen liegt im ersten Bildschirm; die Maus steht per `aufnahme` auf 0,0.
+    // Nur Standarddichte. Referenzbilder folgen über `referenzbilder.yml` vom CI-Runner.
+    test.describe('Reiter Leben mit Stationen und Zeitspur — hell und dunkel', () => {
+      let editor: ReturnType<typeof fenster.getByRole>
+
+      test.beforeAll(async () => {
+        test.setTimeout(60_000)
+        const ergebnisse = await fenster.evaluate(async () => {
+          const ok: boolean[] = []
+          const id = async (kanal: 'befehl:person.anlegen' | 'befehl:ort.anlegen', nutzlast: object): Promise<string> => {
+            const ergebnis = await window.wurzelwerk.aufrufen(kanal, nutzlast)
+            if (!ergebnis.ok) throw new Error(`${kanal} fehlgeschlagen`)
+            const daten: unknown = ergebnis.daten
+            if (typeof daten !== 'object' || daten === null || !('id' in daten) || typeof daten.id !== 'string') throw new Error(`${kanal} ohne id`)
+            return daten.id
+          }
+          const personId = await id('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, geschlecht: 'M', lebend_status: 'verstorben' })
+          const jahr = (wert1: string) => ({ kalender: 'gregorian' as const, modifikator: 'exakt' as const, praezision: 'jahr' as const, wert1 })
+          ok.push((await window.wurzelwerk.aufrufen('befehl:name.anlegen', { personId, typ: 'geburtsname', vornamen: 'Siegfried', nachname: 'Sommer' })).ok)
+          ok.push((await window.wurzelwerk.aufrufen('befehl:aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat: 'geburtsdatum', datum: jahr('1900'), konfidenz: 3 })).ok)
+          ok.push(
+            (
+              await window.wurzelwerk.aufrufen('befehl:aussage.anlegen', {
+                subjektTyp: 'person',
+                subjektId: personId,
+                praedikat: 'beruf',
+                wertText: 'Schmied',
+                datum: { kalender: 'gregorian', modifikator: 'von_bis', praezision: 'jahr', wert1: '1920', wert2: '1958', original_text: '1920–1958' },
+                konfidenz: 3,
+              })
+            ).ok,
+          )
+          ok.push((await window.wurzelwerk.aufrufen('befehl:aussage.anlegen', { subjektTyp: 'person', subjektId: personId, praedikat: 'konfession', wertText: 'evangelisch', konfidenz: 3 })).ok)
+          const ortId = await id('befehl:ort.anlegen', { name: 'Stolp' })
+          ok.push(
+            (
+              await window.wurzelwerk.aufrufen('befehl:ereignis.anlegen', {
+                typ: 'militaerdienst',
+                datum: { kalender: 'gregorian', modifikator: 'zwischen', praezision: 'jahr', wert1: '1941', wert2: '1945', original_text: 'zwischen 1941 und 1945' },
+                beteiligungen: [{ personId, rolle: 'hauptperson' }],
+                konfidenz: 3,
+              })
+            ).ok,
+          )
+          ok.push((await window.wurzelwerk.aufrufen('befehl:ereignis.anlegen', { typ: 'umzug', ortId, datum: jahr('1945'), beteiligungen: [{ personId, rolle: 'hauptperson' }], konfidenz: 3 })).ok)
+          ok.push((await window.wurzelwerk.aufrufen('befehl:ereignis.anlegen', { typ: 'tod', datum: jahr('1980'), beteiligungen: [{ personId, rolle: 'verstorbener' }], konfidenz: 3 })).ok)
+          return ok
+        })
+        expect(ergebnisse.every((ok) => ok)).toBe(true)
+
+        await fenster.locator('[role="row"]:has-text("Siegfried Sommer")').click()
+        const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+        await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+        editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+        const reiter = editor.getByRole('tab', { name: /^Leben/ })
+        await reiter.click()
+        await expect(reiter).toHaveAttribute('aria-selected', 'true')
+        await expect(editor.locator('.wz-reiter-leben__station')).toHaveCount(5)
+        await expect(editor.locator('.wz-reiter-leben__achse')).toContainText('1900 – 1980')
+      })
+
+      test.afterAll(async () => {
+        await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+        await expect(editor).toHaveCount(0)
+      })
+
+      for (const theme of ['hell', 'dunkel'] as const) {
+        test(`person-bearbeiten-leben-stationen-${theme}-standard`, async () => {
+          await expect(editor.locator('.wz-reiter-leben__balken').first()).toBeVisible()
+          await aufnahme(fenster, `person-bearbeiten-leben-stationen-${theme}-standard`, theme, 'standard')
+        })
+      }
+    })
   })
 })
