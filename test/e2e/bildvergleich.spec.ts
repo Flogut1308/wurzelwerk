@@ -535,7 +535,8 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
           for (const kombination of VIER_KOMBINATIONEN) {
             test(`person-bearbeiten-leben-${kombination.theme}-${kombination.dichte}`, async () => {
               await reiterWaehlen(/^Leben/)
-              await expect(editor.getByRole('heading', { name: 'Ereignisse', exact: true, level: 2 })).toBeVisible()
+              // AP-1.30 PR 13c: Stationenliste statt flacher Ereignisliste (Überschrift „Lebensstationen“).
+              await expect(editor.getByRole('heading', { name: 'Lebensstationen', exact: true, level: 2 })).toBeVisible()
               await aufnahme(fenster, `person-bearbeiten-leben-${kombination.theme}-${kombination.dichte}`, kombination.theme, kombination.dichte)
             })
           }

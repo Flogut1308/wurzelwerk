@@ -141,8 +141,8 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
     await expect(absenden).toBeEnabled()
     await absenden.click()
 
-    // Bei der Hauptperson: eine Zeile mit "Taufe"/"Hauptperson" in der Bearbeiten-Liste.
-    const hauptZeileEreignis = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
+    // Bei der Hauptperson: eine Station mit "Taufe"/"Hauptperson" in der Stationenliste (AP-1.30 PR 13c).
+    const hauptZeileEreignis = editor.locator('.wz-reiter-leben__station', { hasText: 'Taufe' })
     await expect(hauptZeileEreignis).toBeVisible()
     await expect(hauptZeileEreignis.getByText('Hauptperson', { exact: true })).toBeVisible()
 
@@ -161,12 +161,13 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
 
     await pateProfil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
     await editor.getByRole('tab', { name: /^Leben/ }).click()
-    const pateZeileEreignis = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Taufe' })
+    const pateZeileEreignis = editor.locator('.wz-reiter-leben__station', { hasText: 'Taufe' })
     await expect(pateZeileEreignis).toBeVisible()
-    await pateZeileEreignis.getByRole('button', { name: 'Beteiligung entfernen', exact: true }).click()
+    // Der Knopf trägt den Stationsnamen im aria-label („Beteiligung entfernen: Taufe, …“).
+    await pateZeileEreignis.getByRole('button', { name: /^Beteiligung entfernen: Taufe/ }).click()
 
     // Variante A: NUR die Beteiligung des Paten verschwindet — beim Paten bleibt KEIN Ereignis mehr.
-    await expect(editor.getByText('Noch kein Ereignis erfasst.', { exact: true })).toBeVisible()
+    await expect(editor.getByText('Noch keine Lebensstationen erfasst.', { exact: true })).toBeVisible()
 
     await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
     await expect(editor).toHaveCount(0)
@@ -203,8 +204,9 @@ test.describe('Ablauf 05 — Ereignis mit Rollenbeteiligung erfassen', () => {
     await absenden.click()
 
     // Vor dem Fix lehnte `befehl:ereignis.anlegen` das Datum ab — es entstand keine Zeile.
-    const zeile = editor.locator('.wz-profil-bearbeiten-ereignisse__zeile', { hasText: 'Konfirmation' })
+    const zeile = editor.locator('.wz-reiter-leben__station', { hasText: 'Konfirmation' })
     await expect(zeile).toBeVisible()
-    await expect(zeile.getByText('1890', { exact: true })).toBeVisible()
+    // Der Zeitraum steht jetzt formatiert („um 1890“, Originaltext der Eingabe) statt als roher Wert.
+    await expect(zeile.getByText('um 1890', { exact: true })).toBeVisible()
   })
 })
