@@ -13,7 +13,7 @@ import { z } from 'zod'
  *   „ohne Zeitangabe" am Ende, Reiterzähler = Zahl der Stationszeilen.
  * - Ereignis anlegen: Station in höchstens einer Sekunde sichtbar, ⌘Z nimmt genau diesen einen Schritt zurück.
  * - Zehn Anschläge im Datumsfeld des Neu-Formulars schreiben nichts (der Reiter hat keine Autosave-Felder;
- *   Ersatz für die „zehn Anschläge = ein Undo-Schritt"-Prüfung der anderen Reiter, docs/80 §33 V-130-13-zaehler).
+ *   Ersatz für die „zehn Anschläge = ein Undo-Schritt"-Prüfung der anderen Reiter, docs/80 §33 V-130-13-tasten).
  * - Beteiligung entfernen: Station weg, ⌘Z stellt sie her.
  *
  * Menü-Undo über den Menüpunkt im Hauptprozess, per `setImmediate` als eigene Aufgabe (Muster `menuepunktKlicken`
