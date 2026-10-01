@@ -14,8 +14,10 @@
 //
 // Rein (CLAUDE.md §4): kein Date/Math.random/process/globalThis, keine Mutation der Eingabe.
 
-/** Wie `elternschaft.typ` (docs/schema/0002_kern.sql) — core-lokal, kein Import aus shared. */
-export type GeschwisterKantentyp = 'biologisch' | 'adoptiv' | 'stief' | 'pflege' | 'zieh' | 'anerkannt' | 'leihmutter' | 'unbekannt'
+import type { ElternschaftTyp } from '../layout/vertrag'
+
+/** Die Kern-Spiegelung von `elternschaft.typ` (Drift fängt `elternschaft-typ-konsistenz.test.ts`). */
+export type GeschwisterKantentyp = ElternschaftTyp
 
 export const GESCHWISTER_ARTEN = ['voll', 'halb', 'offen', 'sozial'] as const
 

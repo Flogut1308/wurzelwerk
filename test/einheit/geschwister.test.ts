@@ -1,4 +1,5 @@
 // AP-1.30 PR 12a: Geschwister-Ableitung (docs/80_Offene_Fragen.md §33 V-130-12-geschwister-regel).
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { geschwisterAbleiten, type GeschwisterKante, type GeschwisterKantentyp } from '../../src/core/person/geschwister'
 
@@ -83,5 +84,39 @@ describe('geschwisterAbleiten', () => {
     const kopie = JSON.stringify(kanten)
     geschwisterAbleiten(P, kanten)
     expect(JSON.stringify(kanten)).toBe(kopie)
+  })
+  it('wertet nur stiftende Kanten auch auf der Seite des Geschwisters (Spiegelfall)', () => {
+    const kanten = [k('m', P), k('v', P), k('m', 's'), k('v', 's', 'stief')]
+    expect(geschwisterAbleiten(P, kanten)).toEqual([{ personId: 's', art: 'offen', gemeinsameElternIds: ['m'] }])
+  })
+
+  it('sortiert gemeinsame Eltern unabhängig von der Eingabereihenfolge', () => {
+    const kanten = [k('v', P), k('m', P), k('v', 's'), k('m', 's')]
+    expect(geschwisterAbleiten(P, kanten)).toEqual([{ personId: 's', art: 'voll', gemeinsameElternIds: ['m', 'v'] }])
+  })
+
+  it('bleibt bei drei gemeinsamen Eltern voll', () => {
+    const kanten = [k('c', P), k('b', P), k('a', P), k('a', 's'), k('b', 's'), k('c', 's')]
+    expect(geschwisterAbleiten(P, kanten)).toEqual([{ personId: 's', art: 'voll', gemeinsameElternIds: ['a', 'b', 'c'] }])
+  })
+
+  it('ist symmetrisch: S ist Geschwister von P genau dann, wenn P Geschwister von S ist, mit gleicher Art', () => {
+    const typen: readonly GeschwisterKantentyp[] = ['biologisch', 'adoptiv', 'stief', 'pflege', 'zieh', 'anerkannt', 'leihmutter', 'unbekannt']
+    const kante = fc.record({
+      elternteilId: fc.constantFrom('e1', 'e2', 'e3', 'e4'),
+      kindId: fc.constantFrom('p', 'q', 'r', 's'),
+      typ: fc.constantFrom(...typen),
+    })
+    fc.assert(
+      fc.property(fc.array(kante, { maxLength: 14 }), (kanten) => {
+        for (const a of ['p', 'q', 'r', 's']) {
+          for (const g of geschwisterAbleiten(a, kanten)) {
+            const zurueck = geschwisterAbleiten(g.personId, kanten).find((h) => h.personId === a)
+            expect(zurueck).toEqual({ personId: a, art: g.art, gemeinsameElternIds: g.gemeinsameElternIds })
+          }
+        }
+      }),
+      { numRuns: 500, seed: 1301 },
+    )
   })
 })
