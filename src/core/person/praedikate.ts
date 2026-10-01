@@ -7,3 +7,7 @@
 export const KURZBESCHREIBUNG_PRAEDIKAT = 'kurzbeschreibung'
 
 export type KurzbeschreibungPraedikat = typeof KURZBESCHREIBUNG_PRAEDIKAT
+
+/** AP-1.30 PR 13a: importintern erzeugte Existenz-Aussage je Person/Ereignis (ADR-026). Sie ist keine
+ * Lebensstation (siehe `istStationsPraedikat` in `stationen.ts`). */
+export const EXISTENZ_PRAEDIKAT = 'existenz'
