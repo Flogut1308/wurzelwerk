@@ -88,10 +88,14 @@
 
 .wz-reiter-beziehungen__aktionen {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--wz-abstand-8);
   margin-left: auto;
+}
+
+/* Das Auswahlfeld füllt sonst die Zeile (`width: 100%`) und drängt „Trennen" in eine zweite Zeile. */
+.wz-reiter-beziehungen__aktionen .wz-auswahlfeld {
+  width: auto;
 }
 
 .wz-reiter-beziehungen__karte {
