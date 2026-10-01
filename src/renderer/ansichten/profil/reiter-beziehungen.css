@@ -1,0 +1,168 @@
+/*
+ * Reiter „Beziehungen" (AP-1.30 PR 12c, Artboard „Beziehungen"). Nur Tokens, beide Themen über `tokens.css`.
+ * Zeilen als Karten mit feinem Rahmen; ein offener Elternplatz und ein Platzhalter sind gestrichelt gerahmt
+ * (farbunabhängig, A-17), Geschwister als Chips ohne Bedienelemente.
+ *
+ * Abweichung (CLAUDE.md §14, Design-Review): der Entwurf zeigt „Bearbeiten" und „⋯" an jeder Zeile — hier
+ * stehen stattdessen die Art der Verbindung als Auswahlfeld und „Trennen" (das Modal für Beziehungen gibt
+ * es noch nicht, die Partnerschaft hat keinen Bearbeiten-Weg, docs/80 §33 V-130-12-schreibwege).
+ */
+
+.wz-reiter-beziehungen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-reiter-beziehungen__kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-beziehungen__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-beziehungen__abschnitt-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-beziehungen__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-reiter-beziehungen__zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-reiter-beziehungen__zeile > :first-child:not(.wz-reiter-beziehungen__name) {
+  min-width: var(--wz-abstand-96);
+}
+
+.wz-reiter-beziehungen__zeile--offen {
+  border-style: dashed;
+  border-color: var(--wz-status-warnung-rahmen);
+  background: var(--wz-status-warnung-flaeche);
+}
+
+.wz-reiter-beziehungen__zeile--platzhalter {
+  border-style: dashed;
+  border-color: var(--wz-rahmen-gestrichelt);
+}
+
+.wz-reiter-beziehungen__offen-text {
+  color: var(--wz-status-warnung-text);
+  font: var(--wz-schrift-koerper-klein);
+  font-style: italic;
+}
+
+.wz-reiter-beziehungen__name {
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-titel-klein);
+}
+
+.wz-reiter-beziehungen__name--ersatz {
+  color: var(--wz-text-tertiaer);
+  font-style: italic;
+}
+
+.wz-reiter-beziehungen__aktionen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  margin-left: auto;
+}
+
+.wz-reiter-beziehungen__karte {
+  overflow: hidden;
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-standard);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-reiter-beziehungen__karte-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  background: var(--wz-flaeche-vertieft);
+}
+
+.wz-reiter-beziehungen__karte-kinder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-12);
+  border-top: 1px solid var(--wz-rahmen-fein);
+}
+
+.wz-reiter-beziehungen__kinder-ohne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+}
+
+.wz-reiter-beziehungen__hinweis {
+  margin: 0;
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-info-rahmen);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-status-info-flaeche);
+  color: var(--wz-status-info-text);
+  font: var(--wz-schrift-koerper-klein);
+}
+
+.wz-reiter-beziehungen__geschwister {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-reiter-beziehungen__geschwister-eintrag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-4) var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-vertieft);
+}
+
+.wz-reiter-beziehungen__geschwister-eintrag .wz-reiter-beziehungen__name {
+  font: var(--wz-schrift-koerper);
+}
+
+.wz-reiter-beziehungen__fehler {
+  margin: 0;
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-fehler-rahmen);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-status-fehler-flaeche);
+  color: var(--wz-status-fehler-text);
+  font: var(--wz-schrift-koerper-klein);
+}
