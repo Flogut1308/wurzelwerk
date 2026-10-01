@@ -22,10 +22,10 @@ import { sprungzielElement } from './editor-rechte-spalte-logik'
 import { useEditorSpeicherstatus, type EditorSpeicherstatus } from './editor-speicherstatus'
 import { tabImContainerHalten } from './fokusfang'
 import { darfKontexttasteWirken } from './kontexttaste-logik'
-import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
 import { ReiterBeziehungen } from './reiter-beziehungen'
+import { ReiterLeben } from './reiter-leben'
 import { ReiterNamen } from './reiter-namen'
 import { ReiterPerson } from './reiter-person'
 import { UnlesbarNachfrage } from './unlesbar-nachfrage'
@@ -86,7 +86,7 @@ function reiterAusDomId(domId: string): ReiterId | undefined {
  *
  * **Vorläufige Anordnung (CLAUDE.md §14):** die bisherigen Bearbeiten-Abschnitte stehen in ihrem
  * Reiter — Namen → „Namen" (seit PR 11c-1 Karten + Modal, `reiter-namen.tsx`), Geschlecht/Platzhalter → „Person", Ereignisse → „Leben", Notiz →
- * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Seit PR 12c trägt „Beziehungen“ Eltern, Partnerschaften und Geschwister (`ReiterBeziehungen`). Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
+ * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Seit PR 12c trägt „Beziehungen“ Eltern, Partnerschaften und Geschwister (`ReiterBeziehungen`), seit PR 13c „Leben“ die Lebensstationen (`ReiterLeben`). Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
  * Inhalts-PRs einen Leerzustand mit Verweis auf das Profil, das diese Angaben weiter zeigt.
  *
  * **Fokus:** beim Öffnen auf den aktiven Reiter (Pfeiltasten wechseln sofort); die Rückgabe an die
@@ -426,7 +426,8 @@ function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: 
       // (in PR 11c-2 gelöscht, ihre Zusicherungen stehen an Karten und Modal, docs/80 §33 V-130-11c-2).
       return <ReiterNamen personId={personId} namen={daten.namen} istPlatzhalter={daten.kopf.ist_platzhalter} />
     case 'leben':
-      return <EreignisseBearbeitenAbschnitt personId={personId} ereignisse={daten.ereignisse} />
+      // AP-1.30 PR 13c: Lebensstationen mit Zeitspur, Liste + Formular „Neues Ereignis erfassen“ (docs/80 §33 V-130-13-*).
+      return <ReiterLeben personId={personId} daten={daten} idPraefix={ID_PRAEFIX} />
     case 'notizen':
       return <NotizBearbeitenAbschnitt personId={personId} notiz={daten.notiz} />
     case 'beziehungen':

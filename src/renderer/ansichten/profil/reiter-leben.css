@@ -1,0 +1,146 @@
+/*
+ * Reiter „Leben" (AP-1.30 PR 13c, Artboard „Leben"). Nur Tokens, beide Themen über `tokens.css`.
+ * Zeilen als Karten mit feinem Rahmen (wie „Beziehungen"); unter jeder datierten Zeile die Zeitspur auf einer
+ * Schiene. Die Spur ist Anzeige (aria-hidden), Zeitraum und Ränder stehen zusätzlich als Text (WCAG 1.4.1).
+ *
+ * Abweichungen (CLAUDE.md §14, docs/80 §33 V-130-13-design-review): kein Art-Chip in Festfarben (Hex) — das
+ * Abzeichen ist neutral, die Spur trägt eine Token-Farbe; unscharf = schraffiert, offen = Verlauf, damit der
+ * Unterschied nicht an der Farbe hängt.
+ */
+
+.wz-reiter-leben {
+  /* Mindestbreite eines Zeitpunkts auf der Schiene (ein Tag auf 80 Jahren wäre sonst unsichtbar). */
+  --wz-reiter-leben-punkt-min: var(--wz-abstand-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-24);
+}
+
+.wz-reiter-leben__abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-leben__abschnitt-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-leben__hinzufuegen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+  margin-left: auto;
+}
+
+.wz-reiter-leben__achse {
+  margin: 0;
+  padding-bottom: var(--wz-abstand-4);
+  border-bottom: 1px solid var(--wz-rahmen-fein);
+  color: var(--wz-text-tertiaer);
+  font: var(--wz-schrift-technisch);
+  font-variant-numeric: tabular-nums;
+}
+
+.wz-reiter-leben__achse-hinweis {
+  margin: 0;
+  padding: var(--wz-abstand-8) var(--wz-abstand-12);
+  border: 1px solid var(--wz-status-info-rahmen);
+  border-radius: var(--wz-radius-klein);
+  background: var(--wz-status-info-flaeche);
+  color: var(--wz-status-info-text);
+  font: var(--wz-schrift-koerper-klein);
+}
+
+.wz-reiter-leben__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-reiter-leben__station {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-abstand-8);
+  padding: var(--wz-abstand-12);
+  border: 1px solid var(--wz-rahmen-fein);
+  border-radius: var(--wz-radius-gross);
+  background: var(--wz-flaeche-erhoben);
+}
+
+.wz-reiter-leben__kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-abstand-12);
+}
+
+.wz-reiter-leben__titel {
+  color: var(--wz-text-primaer);
+  font: var(--wz-schrift-titel-klein);
+}
+
+.wz-reiter-leben__zeitraum {
+  margin-left: auto;
+  color: var(--wz-text-sekundaer);
+  font: var(--wz-schrift-koerper-klein);
+  font-variant-numeric: tabular-nums;
+}
+
+.wz-reiter-leben__zeitraum--leer {
+  color: var(--wz-text-tertiaer);
+  font-style: italic;
+}
+
+/* Schiene und Balken: Balken `--wz-akzent-basis` auf `--wz-flaeche-vertieft` (≥ 3:1 in beiden Themen). */
+.wz-reiter-leben__spur {
+  position: relative;
+  height: var(--wz-abstand-8);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-flaeche-vertieft);
+  box-shadow: inset 0 0 0 1px var(--wz-rahmen-fein);
+}
+
+.wz-reiter-leben__balken {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: var(--wz-reiter-leben-punkt-min);
+  border-radius: var(--wz-radius-voll);
+  background: var(--wz-akzent-basis);
+}
+
+.wz-reiter-leben__balken--unscharf {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--wz-akzent-basis) 0,
+    var(--wz-akzent-basis) var(--wz-abstand-4),
+    var(--wz-flaeche-vertieft) var(--wz-abstand-4),
+    var(--wz-flaeche-vertieft) var(--wz-abstand-8)
+  );
+  box-shadow: inset 0 0 0 1px var(--wz-akzent-basis);
+}
+
+.wz-reiter-leben__balken--offen-anfang {
+  background: linear-gradient(90deg, var(--wz-flaeche-vertieft), var(--wz-akzent-basis));
+  box-shadow: inset 0 0 0 1px var(--wz-akzent-basis);
+}
+
+.wz-reiter-leben__balken--offen-ende {
+  background: linear-gradient(90deg, var(--wz-akzent-basis), var(--wz-flaeche-vertieft));
+  box-shadow: inset 0 0 0 1px var(--wz-akzent-basis);
+}
+
+.wz-reiter-leben__aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--wz-abstand-8);
+}

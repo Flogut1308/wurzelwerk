@@ -242,7 +242,7 @@ describe('PersonBearbeitenAnsicht — eigene Ansicht mit acht Reitern (AP-1.30 P
     expect(notiz?.value).toBe('Start')
 
     act(() => reiter(editor, 'Leben').click())
-    expect(inhalt()?.textContent).toContain('Noch kein Ereignis erfasst.')
+    expect(inhalt()?.textContent).toContain('Noch keine Lebensstationen erfasst.')
 
     act(() => reiter(editor, 'Verwaltung').click())
     expect(inhalt()?.textContent).toContain('kommt in einem späteren Schritt')
