@@ -30,10 +30,8 @@ import {
   beobachtetAusfuehren,
   schreibFeldAussageAendern,
   schreibFeldElternschaftAendern,
-  schreibFeldElternschaftLoeschen,
   schreibFeldEreignisAendern,
   schreibFeldNameAendern,
-  schreibFeldPartnerschaftLoeschen,
   schreibFeldPersonFeldSetzen,
 } from './schreib-beobachter'
 import { NACHLADEN_ZEITGRENZE_MS, istRuecknahme, type NachladenMelder } from './nachladen-stand'
@@ -127,21 +125,20 @@ export function useElternschaftAendern(): UseMutationResult<null, AppFehler, Ein
   })
 }
 
-/** `befehl:elternschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Elternkante nach Bestätigung. */
+/** `befehl:elternschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Elternkante nach Bestätigung.
+ * Bewusst OHNE `SchreibBeobachter` wie `useNameLoeschen`: „erneut versuchen" im Kopf würde ein gescheitertes
+ * Löschen ohne die Bestätigung wiederholen (docs/80 §33 V-130-12-schreibwege). */
 export function useElternschaftLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:elternschaft.loeschen'>> {
-  const beobachter = useContext(SchreibBeobachterKontext)
   return useMutation({
-    mutationFn: (ein: Ein<'befehl:elternschaft.loeschen'>) =>
-      beobachtetAusfuehren(beobachter, schreibFeldElternschaftLoeschen(ein), () => ergebnisEntpacken(aufrufen('befehl:elternschaft.loeschen', ein))),
+    mutationFn: (ein: Ein<'befehl:elternschaft.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:elternschaft.loeschen', ein)),
   })
 }
 
-/** `befehl:partnerschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Partnerschaft nach Bestätigung. */
+/** `befehl:partnerschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Partnerschaft nach Bestätigung,
+ * ohne `SchreibBeobachter` (Begründung wie `useElternschaftLoeschen`). */
 export function usePartnerschaftLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:partnerschaft.loeschen'>> {
-  const beobachter = useContext(SchreibBeobachterKontext)
   return useMutation({
-    mutationFn: (ein: Ein<'befehl:partnerschaft.loeschen'>) =>
-      beobachtetAusfuehren(beobachter, schreibFeldPartnerschaftLoeschen(ein), () => ergebnisEntpacken(aufrufen('befehl:partnerschaft.loeschen', ein))),
+    mutationFn: (ein: Ein<'befehl:partnerschaft.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:partnerschaft.loeschen', ein)),
   })
 }
 

@@ -63,13 +63,3 @@ export function schreibFeldEreignisAendern(ein: Ein<'befehl:ereignis.aendern'>):
 export function schreibFeldElternschaftAendern(ein: Ein<'befehl:elternschaft.aendern'>): string {
   return `elternschaft.aendern:${ein.id}`
 }
-
-/** Feldschlüssel für `elternschaft.loeschen` (AP-1.30 PR 12c): „Trennen" im Reiter „Beziehungen". */
-export function schreibFeldElternschaftLoeschen(ein: Ein<'befehl:elternschaft.loeschen'>): string {
-  return `elternschaft.loeschen:${ein.id}`
-}
-
-/** Feldschlüssel für `partnerschaft.loeschen` (AP-1.30 PR 12c): „Trennen" einer Partnerschaft. */
-export function schreibFeldPartnerschaftLoeschen(ein: Ein<'befehl:partnerschaft.loeschen'>): string {
-  return `partnerschaft.loeschen:${ein.id}`
-}
