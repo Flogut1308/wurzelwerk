@@ -25,6 +25,7 @@ import { darfKontexttasteWirken } from './kontexttaste-logik'
 import { EreignisseBearbeitenAbschnitt } from './profil-bearbeiten-ereignisse'
 import { NotizBearbeitenAbschnitt } from './profil-bearbeiten-notiz'
 import { reiterSchluessel } from './profil-schluessel'
+import { ReiterBeziehungen } from './reiter-beziehungen'
 import { ReiterNamen } from './reiter-namen'
 import { ReiterPerson } from './reiter-person'
 import { UnlesbarNachfrage } from './unlesbar-nachfrage'
@@ -85,7 +86,7 @@ function reiterAusDomId(domId: string): ReiterId | undefined {
  *
  * **Vorläufige Anordnung (CLAUDE.md §14):** die bisherigen Bearbeiten-Abschnitte stehen in ihrem
  * Reiter — Namen → „Namen" (seit PR 11c-1 Karten + Modal, `reiter-namen.tsx`), Geschlecht/Platzhalter → „Person", Ereignisse → „Leben", Notiz →
- * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Beziehungen, Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
+ * „Notizen". Seit PR 9b trägt „Person" zusätzlich Lebensstatus, Geburt und Tod (`ReiterPerson`). Seit PR 12c trägt „Beziehungen“ Eltern, Partnerschaften und Geschwister (`ReiterBeziehungen`). Belege & Medien, Gesundheit und Verwaltung zeigen bis zu ihren
  * Inhalts-PRs einen Leerzustand mit Verweis auf das Profil, das diese Angaben weiter zeigt.
  *
  * **Fokus:** beim Öffnen auf den aktiven Reiter (Pfeiltasten wechseln sofort); die Rückgabe an die
@@ -429,6 +430,8 @@ function ReiterInhalt({ reiter, personId, daten, aufSprung, aufReiterWechsel }: 
     case 'notizen':
       return <NotizBearbeitenAbschnitt personId={personId} notiz={daten.notiz} />
     case 'beziehungen':
+      // AP-1.30 PR 12c: Eltern, Partnerschaften mit Kindern, Geschwister (docs/80 §33 V-130-12-*).
+      return <ReiterBeziehungen kopf={daten.kopf} daten={daten} idPraefix={ID_PRAEFIX} />
     case 'belege_medien':
     case 'gesundheit':
     case 'verwaltung':

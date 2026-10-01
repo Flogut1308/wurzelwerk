@@ -55,3 +55,11 @@ export function schreibFeldAussageAendern(ein: Ein<'befehl:aussage.aendern'>): s
 export function schreibFeldEreignisAendern(ein: Ein<'befehl:ereignis.aendern'>): string {
   return `ereignis.aendern:${ein.id}`
 }
+
+/**
+ * Feldschlüssel für `elternschaft.aendern` (AP-1.30 PR 12c): der Befehl ersetzt die ganze Zeile, der
+ * Reiter „Beziehungen" schickt jedes Mal Typ UND Notiz — der Schlüssel ist die Kante.
+ */
+export function schreibFeldElternschaftAendern(ein: Ein<'befehl:elternschaft.aendern'>): string {
+  return `elternschaft.aendern:${ein.id}`
+}

@@ -29,6 +29,7 @@ import {
   SchreibBeobachterKontext,
   beobachtetAusfuehren,
   schreibFeldAussageAendern,
+  schreibFeldElternschaftAendern,
   schreibFeldEreignisAendern,
   schreibFeldNameAendern,
   schreibFeldPersonFeldSetzen,
@@ -110,6 +111,34 @@ export function useHauptnameWechseln(): UseMutationResult<null, AppFehler, Ein<'
 export function useNamensformUebernehmen(): UseMutationResult<{ readonly id: string }, AppFehler, Ein<'befehl:namensform.uebernehmen'>> {
   return useMutation({
     mutationFn: (ein: Ein<'befehl:namensform.uebernehmen'>) => ergebnisEntpacken(aufrufen('befehl:namensform.uebernehmen', ein)),
+  })
+}
+
+/** `befehl:elternschaft.aendern` (AP-1.12; Hook AP-1.30 PR 12c, Reiter „Beziehungen") — Typwechsel einer Kante.
+ * Mit `SchreibBeobachter`, damit der Speicherstatus im Kopf den Schreibvorgang zeigt. Der Befehl ersetzt die
+ * ganze Zeile: der Aufrufer schickt die Notiz immer mit (V-130-12-notiz-erhalten). */
+export function useElternschaftAendern(): UseMutationResult<null, AppFehler, Ein<'befehl:elternschaft.aendern'>> {
+  const beobachter = useContext(SchreibBeobachterKontext)
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:elternschaft.aendern'>) =>
+      beobachtetAusfuehren(beobachter, schreibFeldElternschaftAendern(ein), () => ergebnisEntpacken(aufrufen('befehl:elternschaft.aendern', ein))),
+  })
+}
+
+/** `befehl:elternschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Elternkante nach Bestätigung.
+ * Bewusst OHNE `SchreibBeobachter` wie `useNameLoeschen`: „erneut versuchen" im Kopf würde ein gescheitertes
+ * Löschen ohne die Bestätigung wiederholen (docs/80 §33 V-130-12-schreibwege). */
+export function useElternschaftLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:elternschaft.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:elternschaft.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:elternschaft.loeschen', ein)),
+  })
+}
+
+/** `befehl:partnerschaft.loeschen` (AP-1.12; Hook AP-1.30 PR 12c) — „Trennen" einer Partnerschaft nach Bestätigung,
+ * ohne `SchreibBeobachter` (Begründung wie `useElternschaftLoeschen`). */
+export function usePartnerschaftLoeschen(): UseMutationResult<null, AppFehler, Ein<'befehl:partnerschaft.loeschen'>> {
+  return useMutation({
+    mutationFn: (ein: Ein<'befehl:partnerschaft.loeschen'>) => ergebnisEntpacken(aufrufen('befehl:partnerschaft.loeschen', ein)),
   })
 }
 
