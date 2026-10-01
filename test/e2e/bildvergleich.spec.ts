@@ -888,5 +888,85 @@ test.describe('Bildvergleich — Referenzmotive (AP-1.25)', () => {
         }
       })
     })
+
+    // AP-1.30 PR 12c (docs/80 §33 V-130-12-*, hueter-Review je PR): Reiter „Beziehungen" einer EIGENEN Person
+    // (die gemeinsame Person der übrigen Motive bleibt ohne Beziehungen, sonst änderte der Reiterzähler jedes
+    // Referenzbild). Vater ohne Mutter (offener Platz gestrichelt), Halbschwester über eine zweite Mutter samt
+    // Hinweis „weitere Geschwister …", Partnerin mit Kind, ein Kind ohne Partnerschaft mit Hinweis. Eigene
+    // Person über die Befehle, NACH allen übrigen Motiven. Nur Standarddichte. Referenzbilder folgen über
+    // `referenzbilder.yml` vom CI-Runner (bis dahin schlägt der Vergleich dort fehl, lokal wird er übersprungen).
+    test.describe('Reiter Beziehungen mit Partnerschaft, Geschwistern und offenem Elternplatz — hell und dunkel', () => {
+      let editor: ReturnType<typeof fenster.getByRole>
+
+      test.beforeAll(async () => {
+        test.setTimeout(60_000)
+        const ergebnisse = await fenster.evaluate(async () => {
+          const ok: boolean[] = []
+          const neuePerson = async (vornamen: string, nachname: string, geschlecht: 'M' | 'F'): Promise<string> => {
+            const person = await window.wurzelwerk.aufrufen('befehl:person.anlegen', { privat: 0, ist_platzhalter: 0, geschlecht })
+            if (!person.ok) throw new Error('person.anlegen fehlgeschlagen')
+            const daten: unknown = person.daten
+            if (typeof daten !== 'object' || daten === null || !('id' in daten) || typeof daten.id !== 'string') throw new Error('person.anlegen ohne id')
+            const name = await window.wurzelwerk.aufrufen('befehl:name.anlegen', { personId: daten.id, typ: 'geburtsname', vornamen, nachname })
+            ok.push(name.ok)
+            return daten.id
+          }
+          const eltern = async (elternteilId: string, kindId: string, notiz?: string): Promise<void> => {
+            const ergebnis = await window.wurzelwerk.aufrufen('befehl:elternschaft.anlegen', {
+              elternteilId,
+              kindId,
+              typ: 'biologisch',
+              konfidenz: 3,
+              ...(notiz === undefined ? {} : { notiz }),
+            })
+            ok.push(ergebnis.ok)
+          }
+          const ludwig = await neuePerson('Ludwig', 'Lenz', 'M')
+          const otto = await neuePerson('Otto', 'Lenz', 'M')
+          const gerda = await neuePerson('Gerda', 'Vogt', 'F')
+          const hedwig = await neuePerson('Hedwig', 'Lenz', 'F')
+          const ida = await neuePerson('Ida', 'Roth', 'F')
+          const konrad = await neuePerson('Konrad', 'Lenz', 'M')
+          const lotte = await neuePerson('Lotte', 'Lenz', 'F')
+          await eltern(otto, ludwig)
+          await eltern(otto, hedwig)
+          await eltern(gerda, hedwig)
+          const partnerschaft = await window.wurzelwerk.aufrufen('befehl:partnerschaft.anlegen', {
+            typ: 'ehe_kirchlich',
+            beteiligte: [{ personId: ludwig }, { personId: ida }],
+            konfidenz: 3,
+          })
+          ok.push(partnerschaft.ok)
+          await eltern(ludwig, konrad)
+          await eltern(ida, konrad)
+          await eltern(ludwig, lotte)
+          return ok
+        })
+        expect(ergebnisse.every((ok) => ok)).toBe(true)
+
+        await fenster.locator('[role="row"]:has-text("Ludwig Lenz")').click()
+        const profil = fenster.getByRole('dialog', { name: 'Profil', exact: true })
+        await profil.getByRole('button', { name: 'Bearbeiten', exact: true }).click()
+        editor = fenster.getByRole('dialog', { name: 'Person bearbeiten', exact: true })
+        const reiter = editor.getByRole('tab', { name: /^Beziehungen/ })
+        await reiter.click()
+        await expect(reiter).toHaveAttribute('aria-selected', 'true')
+        await expect(editor.getByRole('region', { name: 'Eltern', exact: true })).toContainText('nicht zugeordnet')
+        await expect(editor.getByRole('region', { name: 'Geschwister', exact: true })).toContainText('Hedwig Lenz')
+        await expect(editor.locator('.wz-reiter-beziehungen__karte')).toContainText('Konrad Lenz')
+      })
+
+      test.afterAll(async () => {
+        await editor.getByRole('button', { name: 'Schließen', exact: true }).click()
+        await expect(editor).toHaveCount(0)
+      })
+
+      for (const theme of ['hell', 'dunkel'] as const) {
+        test(`person-bearbeiten-beziehungen-${theme}-standard`, async () => {
+          await expect(editor.getByRole('region', { name: 'Partnerschaften', exact: true })).toContainText('Lotte Lenz ist als Kind erfasst')
+          await aufnahme(fenster, `person-bearbeiten-beziehungen-${theme}-standard`, theme, 'standard')
+        })
+      }
+    })
   })
 })
