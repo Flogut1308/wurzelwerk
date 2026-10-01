@@ -48,6 +48,8 @@ function ereignis(ueberschreibung: Partial<PersonDetailEreignis> = {}): PersonDe
     rolle: 'hauptperson',
     datum_wert1: '1850-03-14',
     datum_sort_von: 1000,
+    datum: null,
+    konfidenz: null,
     ort_name: 'Kwidzyn',
     beschreibung: null,
     ...ueberschreibung,
