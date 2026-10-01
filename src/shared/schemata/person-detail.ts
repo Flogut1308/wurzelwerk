@@ -279,6 +279,36 @@ export interface PersonDetailBeziehung {
   readonly richtung: z.infer<typeof PersonDetailBeziehungRichtungEnum>
   readonly kantentyp: z.infer<typeof ElternschaftTypEnum> | z.infer<typeof PartnerschaftTypEnum>
   readonly ist_platzhalter: boolean
+  /** AP-1.30 PR 12b: ID der Kante — `elternschaft.id` bei `elternteil`/`kind`, `partnerschaft.id` bei `partner`. */
+  readonly kante_id: string
+  /** `elternschaft.notiz` bzw. `partnerschaft.notiz`; `null` = keine. */
+  readonly kante_notiz: string | null
+  /** `person.geschlecht` der VERWANDTEN Person; `null` = nicht erfasst. */
+  readonly geschlecht: z.infer<typeof GeschlechtEnum> | null
+}
+
+export const PersonDetailGeschwisterArtEnum = z.enum(['voll', 'halb', 'offen', 'sozial'])
+
+/** Abgeleitetes Geschwister (AP-1.30 PR 12b, §33 V-130-12-geschwister-regel): keine gespeicherte Kante,
+ * darum nicht in `beziehungen` (Zähler, Lesesicht bleiben unberührt). `gemeinsame_eltern_ids` sind die
+ * gemeinsamen stiftenden Eltern (bei `sozial` leer), aufsteigend sortiert. */
+export interface PersonDetailGeschwister {
+  readonly person_id: string
+  readonly anzeigename: string
+  readonly ist_platzhalter: boolean
+  readonly geschlecht: z.infer<typeof GeschlechtEnum> | null
+  readonly art: z.infer<typeof PersonDetailGeschwisterArtEnum>
+  readonly gemeinsame_eltern_ids: readonly string[]
+}
+
+/** Partnerschaft der Person (AP-1.30 PR 12b). `partner_ids` ohne die Person selbst — leer, wenn sie
+ * allein beteiligt ist (§33 V-130-12-einzelpartnerschaft). `kind_ids`: Kinder der Person, die über
+ * einen anderen Elternteil dieser Partnerschaft zugeordnet sind (abgeleitet, §33 V-130-12-kinder-zuordnung). */
+export interface PersonDetailPartnerschaft {
+  readonly id: string
+  readonly typ: z.infer<typeof PartnerschaftTypEnum>
+  readonly partner_ids: readonly string[]
+  readonly kind_ids: readonly string[]
 }
 
 export const PersonDetailGesundheitArtEnum = z.enum(['diagnose', 'risikofaktor'])
@@ -420,6 +450,12 @@ export interface PersonDetailAus {
   readonly grunddaten: readonly PersonDetailGrunddatenFeld[]
   readonly ereignisse: readonly PersonDetailEreignis[]
   readonly beziehungen: readonly PersonDetailBeziehung[]
+  /** AP-1.30 PR 12b: abgeleitete Geschwister (voll, halb, offen, sozial). */
+  readonly geschwister: readonly PersonDetailGeschwister[]
+  /** AP-1.30 PR 12b: Partnerschaften, sortiert nach `reihenfolge`, `beginn_sort_von`, `id` (NULL zuletzt). */
+  readonly partnerschaften: readonly PersonDetailPartnerschaft[]
+  /** AP-1.30 PR 12b: Kinder ohne passende Partnerschaft, auch Platzhalterkinder (Anzeige). */
+  readonly kinder_ohne_partnerschaft: readonly string[]
   readonly gesundheit: readonly PersonDetailGesundheitseintrag[]
   readonly notiz: string | null
   /** AP-1.34 PR-C2a: `null` = weder Aussage `todesort` noch Tod-Ereignis mit Ort. Seit AP-1.30 PR 1
