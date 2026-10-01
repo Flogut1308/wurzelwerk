@@ -257,6 +257,12 @@ export interface PersonDetailEreignis {
   readonly rolle: z.infer<typeof BeteiligungRolleEnum>
   readonly datum_wert1: string | null
   readonly datum_sort_von: number | null
+  /** Die rohe Datumsgruppe des Ereignisses (AP-1.30 PR 13b, §33 V-130-13-vertrag) — dieselbe Form wie
+   * bei Aussagen; `null`, wenn keine Spalte gesetzt ist. `datum_wert1`/`datum_sort_von` bleiben (Lesesicht). */
+  readonly datum: PersonDetailAussageDatum | null
+  /** Konfidenz der Existenz-Aussage des Ereignisses mit kleinster `id` (dieselbe Auswahl wie
+   * `ereignis_existenz`); `null` ohne Existenz-Aussage (PR 13b). */
+  readonly konfidenz: number | null
   readonly ort_name: string | null
   readonly beschreibung: string | null
 }
