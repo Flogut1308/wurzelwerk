@@ -43,19 +43,23 @@ describe('zeitspur', () => {
   it('1: ein Tag ist ein Punkt in der Mitte', () => {
     const s = zeitspur(iv('01.06.1940'), achse())
     expect(s.anfang).toBe(s.ende)
-    expect(s.anfang).toBeCloseTo(0.49, 1)
+    const a = achse()
+    const i = iv('01.06.1940')
+    expect(s.anfang).toBeCloseTo((i.sortVon - a.von) / (a.bis - a.von), 3)
     expect(s.unscharf).toBe(false)
   })
 
   it('2: ein Jahr hat die Breite eines Achsenjahres', () => {
     const s = zeitspur(iv('1940'), achse())
     expect(s.ende - s.anfang).toBeCloseTo(1 / 81, 3)
+    expect(s.unscharf).toBe(false)
   })
 
   it('3: von_bis liefert die Dauer', () => {
     const s = zeitspur(vonBis(1920, 1958), achse())
     expect(s.anfang).toBeCloseTo(20 / 81, 3)
     expect(s.ende).toBeCloseTo(59 / 81, 3)
+    expect(s.unscharf).toBe(false)
   })
 
   it('4: zwischen ist unscharf', () => {
@@ -68,6 +72,9 @@ describe('zeitspur', () => {
   it('5: etwa ist unscharf, Spanne gleich der exakten', () => {
     const e = zeitspur(iv('etwa 1890'), achse())
     expect(e.unscharf).toBe(true)
+    for (const modifikator of ['geschaetzt', 'berechnet'] as const) {
+      expect(zeitspur({ ...iv('1890'), modifikator }, achse()).unscharf).toBe(true)
+    }
     const gleichExakt = zeitspur({ ...iv('1890'), modifikator: 'exakt' }, achse())
     expect(e.anfang).toBe(gleichExakt.anfang)
     expect(e.ende).toBe(gleichExakt.ende)
@@ -77,6 +84,8 @@ describe('zeitspur', () => {
     const s = zeitspur(iv('vor 1930'), achse())
     expect(s.offenAnfang).toBe(true)
     expect(s.offenEnde).toBe(false)
+    expect(s.beginntVorAchse).toBe(false)
+    expect(s.unscharf).toBe(false)
     expect(s.anfang).toBe(0)
     expect(s.ende).toBeCloseTo(30 / 81, 2)
   })
@@ -85,6 +94,8 @@ describe('zeitspur', () => {
     const s = zeitspur(iv('nach 1950'), achse())
     expect(s.offenEnde).toBe(true)
     expect(s.offenAnfang).toBe(false)
+    expect(s.endetNachAchse).toBe(false)
+    expect(s.unscharf).toBe(false)
     expect(s.ende).toBe(1)
     expect(s.anfang).toBeCloseTo(51 / 81, 2)
   })
@@ -103,6 +114,22 @@ describe('zeitspur', () => {
     expect(s.beginntVorAchse).toBe(true)
     expect(s.endetNachAchse).toBe(false)
     expect(s.ende).toBeCloseTo(6 / 81, 2)
+  })
+
+  it('6b: vor 1850 liegt sicher vor der Achse', () => {
+    const s = zeitspur(iv('vor 1850'), achse())
+    expect(s.beginntVorAchse).toBe(true)
+    expect(s.offenAnfang).toBe(true)
+    expect(s.anfang).toBe(0)
+    expect(s.ende).toBe(0)
+  })
+
+  it('7b: nach 2000 liegt sicher hinter der Achse', () => {
+    const s = zeitspur(iv('nach 2000'), achse())
+    expect(s.endetNachAchse).toBe(true)
+    expect(s.offenEnde).toBe(true)
+    expect(s.anfang).toBe(1)
+    expect(s.ende).toBe(1)
   })
 
   it('9b: ganz vor der Achse ist ein Punkt am linken Rand', () => {

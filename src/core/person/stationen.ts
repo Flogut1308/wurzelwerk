@@ -93,8 +93,9 @@ export function zeitspur(intervall: ZeitIntervall, achse: Lebensachse): Zeitspur
     offenAnfang,
     offenEnde,
     unscharf: UNSCHARF.includes(intervall.modifikator),
-    beginntVorAchse: !offenAnfang && intervall.sortVon < achse.von,
-    endetNachAchse: !offenEnde && intervall.sortBis > achse.bis,
+    // Offener Rand: nur „sicher ganz außerhalb“ zählt (vor 1850 auf Achse ab 1900), nicht der Sentinel.
+    beginntVorAchse: offenAnfang ? intervall.sortBis < achse.von : intervall.sortVon < achse.von,
+    endetNachAchse: offenEnde ? intervall.sortVon > achse.bis : intervall.sortBis > achse.bis,
   }
 }
 
